@@ -1,12 +1,20 @@
 <script setup lang="ts">
 import { useAuthStore } from '@/stores/auth'
+import { useWindowStore } from '@/stores/windows'
 import ThemeProvider from './core/theme/ThemeProvider.vue'
 import WebtopLogin from './components/WebtopLogin.vue'
+import BaseWindow from './components/window/BaseWindow.vue'
+import TaskbarComponent from './components/taskbar/TaskbarComponent.vue'
 
 const auth = useAuthStore()
+const windowStore = useWindowStore()
 
 const handleLogin = (user: string) => {
   auth.login(user)
+}
+
+const handleWindowPosition = (windowId: string, x: number, y: number) => {
+  windowStore.updateWindowPosition(windowId, x, y)
 }
 </script>
 
@@ -14,7 +22,17 @@ const handleLogin = (user: string) => {
   <ThemeProvider>
     <WebtopLogin v-if="!auth.isAuthenticated" @login="handleLogin" />
     <div v-else class="webtop">
-      <div class="taskbar">Welcome, {{ auth.username }}</div>
+      <BaseWindow
+        v-for="window in windowStore.windows"
+        :key="window.id"
+        :window="window"
+        @update:position="(x, y) => handleWindowPosition(window.id, x, y)"
+      >
+        Window Content
+      </BaseWindow>
+      <div class="taskbar-container">
+        <TaskbarComponent />
+      </div>
     </div>
   </ThemeProvider>
 </template>
@@ -41,5 +59,16 @@ body {
   padding: 0 1rem;
   display: flex;
   align-items: center;
+}
+
+.taskbar-container {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 40px;
+  background: var(--qui-bg-secondary);
+  border-top: var(--qui-window-border);
+  padding: 0 1rem;
 }
 </style>
