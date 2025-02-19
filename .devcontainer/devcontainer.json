@@ -1,0 +1,19 @@
+{
+    "name": "Vue.js Development",
+    "build": {
+        "dockerfile": "Dockerfile"
+    },
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "Vue.volar",
+                "Vue.vscode-typescript-vue-plugin",
+                "dbaeumer.vscode-eslint",
+                "esbenp.prettier-vscode"
+            ]
+        }
+    },
+    "forwardPorts": [5173],
+    "remoteUser": "node",
+    "postCreateCommand": "sh .devcontainer/post-create.sh"
+}
