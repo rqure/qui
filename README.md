@@ -4,59 +4,104 @@
 
 QUI represents a webtop application framework built with Vue 3, enabling developers to create and install their own front-end applications within a unified desktop-like environment.
 
-## Features
+## Architecture Principles
 
-- Desktop-like environment in the browser
-- Window management system
-- Application lifecycle management
-- Inter-application communication
-- Pluggable application architecture
+- **Single Page Application**: Everything runs in a single page without routing
+- **State Management**: Uses Pinia stores for global state
+- **Theme System**: Centralized theme management through stores and CSS variables
+- **Component Isolation**: Each component should be self-contained and reusable
 
-## Architecture
-
-The Webtop framework is built as a single-page application (SPA) with the following structure:
+## Project Structure
 
 ```sh
 src
-├── core                  # Core Webtop framework
-│   ├── window           # Window management system
-│   ├── apps             # Application lifecycle and registry
-│   ├── ipc              # Inter-process communication
-│   └── theme            # Theme engine and definitions
-├── components           # Shared UI components
-├── styles              # Global styles and theme variables
-│   ├── themes          # Theme definitions
-│   └── variables       # CSS variables and tokens
-├── apps                # Built-in applications
-└── layouts             # Desktop layouts and panels
+├── core                 # Core framework functionality
+│   ├── theme           # Theme system
+│   │   ├── themes      # Theme definitions
+│   │   └── types       # Theme TypeScript types
+│   ├── window          # Window management (planned)
+│   ├── apps            # Application lifecycle (planned)
+│   └── ipc             # Inter-process communication (planned)
+├── stores              # Pinia stores
+│   ├── theme.ts        # Theme state management
+│   └── auth.ts         # Authentication state
+├── components          # Shared UI components
+└── assets             # Static assets
 ```
 
-## Theming System
+## State Management
 
-The framework provides comprehensive UI customization through:
+### Theme Store
 
-- **Theme Engine**: Dynamic theme switching and customization
-- **CSS Variables**: Global design tokens for consistent styling
-- **Component Themes**: Individual component styling overrides
-
-Example theme configuration:
+Controls application theming:
 
 ```typescript
-export const darkTheme = {
-  name: 'dark',
-  variables: {
-    '--qui-bg-primary': '#1a1a1a',
-    '--qui-text-primary': '#ffffff',
-    '--qui-accent-color': '#0066cc',
-  },
-  components: {
-    Window: {
-      borderRadius: '8px',
-      titlebarHeight: '32px',
-    },
-  },
+const theme = useThemeStore()
+theme.setTheme(newTheme)
+theme.updateThemeVariable('--qui-bg-primary', '#000000')
+```
+
+### Auth Store
+
+Manages authentication state:
+
+```typescript
+const auth = useAuthStore()
+auth.login(username)
+auth.logout()
+
+// Access state
+console.log(auth.isAuthenticated)
+console.log(auth.username)
+```
+
+## Creating New Components
+
+Components should:
+
+1. Use composition API with `<script setup>`
+2. Include proper TypeScript types
+3. Use store-based state management
+4. Use theme variables for styling
+
+Example:
+
+```vue
+<script setup lang="ts">
+import { useThemeStore } from '@/stores/theme'
+
+const themeStore = useThemeStore()
+</script>
+
+<template>
+  <div class="my-component">
+    <!-- Component content -->
+  </div>
+</template>
+
+<style scoped>
+.my-component {
+  background: var(--qui-bg-primary);
+  color: var(--qui-text-primary);
+}
+</style>
+```
+
+## Theme System
+
+Themes are defined as TypeScript objects:
+
+```typescript
+interface Theme {
+  name: string
+  variables: Partial<ThemeVariables>
+  components?: {
+    [key: string]: ComponentTheme
+  }
 }
 ```
+
+Create new themes in `src/core/theme/themes/`.
 
 ## Creating Applications
 
@@ -134,4 +179,8 @@ npm run test:unit
 
 ```sh
 npm run lint
+```
+
+```
+
 ```
