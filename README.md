@@ -116,46 +116,71 @@ menu.hideMenu()
 
 ## Window Management
 
-Windows are managed through a combination of types, utilities, and store:
+Windows support the following features:
 
-### Types
+### Window Controls
+
+- Draggable titlebar
+- Minimize/Maximize/Close buttons
+- Context menu with window actions
+- Active window tracking
+- Z-index management
+
+### Window Resizing
+
+Windows can be resized from any edge or corner:
 
 ```typescript
-interface WindowOptions {
-  title: string
-  width?: number
-  height?: number
-  x?: number
-  y?: number
-  component: Component
-  icon?: string
+interface WindowState {
+  // ...other properties...
+  minWidth: number // Minimum window width (default: 200)
+  minHeight: number // Minimum window height (default: 150)
+  maxWidth?: number // Optional maximum width
+  maxHeight?: number // Optional maximum height
+  isResizing: boolean // Tracks resize state
+  resizeHandle: string // Current resize handle in use
 }
 ```
 
-### Utilities
+### Window States
+
+Windows maintain multiple states:
 
 ```typescript
-import { createWindowState } from '@/core/window/utils'
-
-// Create a new window state
-const windowState = createWindowState({
-  title: 'My Window',
-  component: MyComponent,
-  width: 800,
-  height: 600,
-})
+{
+  isMinimized: boolean // Window is minimized to taskbar
+  isMaximized: boolean // Window is maximized to full screen
+  prevSize: {
+    // Stores pre-maximized dimensions
+    x: number
+    y: number
+    width: number
+    height: number
+  }
+}
 ```
 
-### Store Usage
+### Usage Example
 
 ```typescript
 const windows = useWindowStore()
+
+// Create a window with size constraints
 windows.createWindow({
   title: 'My Window',
   component: MyComponent,
   width: 800,
   height: 600,
+  minWidth: 400,
+  minHeight: 300,
 })
+
+// Window operations
+windows.minimizeWindow(windowId)
+windows.maximizeWindow(windowId)
+windows.restoreWindow(windowId)
+windows.updateWindowSize(windowId, width, height)
+windows.updateWindowPosition(windowId, x, y)
 ```
 
 ## Creating New Components
