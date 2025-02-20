@@ -96,8 +96,6 @@ const resizeHandles = [
 const startResize = (handle: string, e: MouseEvent) => {
   if (props.window.isMaximized) return
 
-  emit('update:resizing', true)
-  emit('update:resizeHandle', handle)
   windowStore.activateWindow(props.window.id)
 
   const startX = e.clientX
@@ -134,13 +132,12 @@ const startResize = (handle: string, e: MouseEvent) => {
     if (props.window.maxWidth) newWidth = Math.min(newWidth, props.window.maxWidth)
     if (props.window.maxHeight) newHeight = Math.min(newHeight, props.window.maxHeight)
 
-    emit('update:size', newWidth, newHeight)
-    emit('update:position', newX, newY)
+    // Update the store directly
+    windowStore.updateWindowSize(props.window.id, newWidth, newHeight)
+    windowStore.updateWindowPosition(props.window.id, newX, newY)
   }
 
   const stopResize = () => {
-    emit('update:resizing', false)
-    emit('update:resizeHandle', '')
     window.removeEventListener('mousemove', handleResize)
     window.removeEventListener('mouseup', stopResize)
   }
