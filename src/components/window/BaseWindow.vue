@@ -14,6 +14,9 @@ const isDragging = ref(false)
 const dragOffset = ref({ x: 0, y: 0 })
 const isAnimating = ref(false)
 
+const MINIMIZE_ANIMATION_DURATION = 200 // ms
+const MINIMIZE_SCALE = 0.8
+
 const startDrag = (e: MouseEvent) => {
   // Ignore right clicks and when maximized
   if (e.button !== 0 || props.window.isMaximized) return
@@ -249,21 +252,39 @@ const startResize = (handle: string, e: MouseEvent) => {
   border-radius: var(--qui-window-radius);
   overflow: hidden;
   opacity: 1;
+  transform-origin: center center;
+  transform: scale(1) translateY(0);
 
-  /* Single transition for smoother animations */
-  transition: all 0.2s ease-out;
+  /* Update transition timing for smoother animations */
+  transition: 
+    transform 300ms cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 300ms cubic-bezier(0.4, 0, 0.2, 1),
+    width 300ms cubic-bezier(0.4, 0, 0.2, 1),
+    height 300ms cubic-bezier(0.4, 0, 0.2, 1),
+    left 300ms cubic-bezier(0.4, 0, 0.2, 1),
+    top 300ms cubic-bezier(0.4, 0, 0.2, 1),
+    border-radius 300ms cubic-bezier(0.4, 0, 0.2, 1);
 
   &.minimized {
     opacity: 0;
-    transform: translateY(20px) scale(0.95);
+    transform: scale(0.8) translateY(20px);
     pointer-events: none;
   }
 
   &.maximized {
+    transform: none; /* Reset transform for maximized state */
     border-radius: 0;
     inset: 0 !important;
     width: 100vw !important;
     height: 100vh !important;
+    transition: 
+      transform 300ms cubic-bezier(0.4, 0, 0.2, 1),
+      opacity 300ms cubic-bezier(0.4, 0, 0.2, 1),
+      width 300ms cubic-bezier(0.4, 0, 0.2, 1),
+      height 300ms cubic-bezier(0.4, 0, 0.2, 1),
+      left 300ms cubic-bezier(0.4, 0, 0.2, 1),
+      top 300ms cubic-bezier(0.4, 0, 0.2, 1),
+      border-radius 300ms cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   &.dragging,
@@ -529,17 +550,6 @@ const startResize = (handle: string, e: MouseEvent) => {
   display: flex !important;
   visibility: visible !important;
   pointer-events: none !important;
-}
-
-/* Improve position transitions */
-.window:not(.dragging):not(.resizing):not(.maximized) {
-  transition:
-    transform var(--window-transition-duration) var(--window-transition-timing),
-    opacity var(--window-transition-duration) var(--qui-animation-fade),
-    width var(--window-transition-duration) var (--window-transition-timing),
-    height var(--window-transition-duration) var(--window-transition-timing),
-    left var(--window-transition-duration) var(--window-transition-timing),
-    top var(--window-transition-duration) var(--window-transition-timing);
 }
 
 @keyframes shine {
