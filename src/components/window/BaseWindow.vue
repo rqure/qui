@@ -134,6 +134,9 @@ const minimize = () => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  backdrop-filter: blur(var(--qui-backdrop-blur));
+  border: 1px solid rgba(var(--qui-accent-color), var(--qui-border-opacity));
+  box-shadow: var(--qui-shadow-glow) rgba(0, 0, 0, var(--qui-shadow-opacity));
 }
 
 .titlebar {
@@ -187,12 +190,13 @@ const minimize = () => {
 }
 
 .control-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--qui-overlay-hover);
 }
 
 .control-btn.close:hover {
-  background: var(--qui-gradient-accent);
-  color: var(--qui-text-primary);
+  background: var(--qui-danger-bg);
+  color: var(--qui-danger-color);
+  box-shadow: var(--qui-danger-glow);
 }
 
 .content {

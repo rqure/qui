@@ -82,6 +82,21 @@ export interface ThemeVariables {
   '--qui-gradient-window': string
   '--qui-gradient-taskbar': string
   '--qui-gradient-hover': string
+
+  // Danger Theme
+  '--qui-danger-color': string
+  '--qui-danger-bg': string
+  '--qui-danger-hover': string
+  '--qui-danger-border': string
+  '--qui-danger-glow': string
+
+  // Effects
+  '--qui-overlay-hover': string
+  '--qui-overlay-active': string
+  '--qui-border-opacity': string
+  '--qui-shadow-opacity': string
+  '--qui-shadow-glow': string
+  '--qui-backdrop-blur': string
 }
 
 export interface ComponentTheme {

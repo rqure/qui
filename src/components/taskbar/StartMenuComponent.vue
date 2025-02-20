@@ -78,10 +78,10 @@ const launchApp = (appId: string) => {
   left: 0;
   width: var(--qui-startmenu-width);
   background: var(--qui-gradient-primary);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(0, 255, 136, 0.2);
+  backdrop-filter: blur(var(--qui-backdrop-blur));
+  border: 1px solid rgba(var(--qui-accent-color), var(--qui-border-opacity));
   border-radius: 12px;
-  box-shadow: 0 0 30px rgba(0, 255, 136, 0.15);
+  box-shadow: var(--qui-shadow-glow) rgba(0, 255, 136, var(--qui-shadow-opacity));
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -90,7 +90,7 @@ const launchApp = (appId: string) => {
 .menu-header {
   padding: 16px;
   background: var(--qui-gradient-secondary);
-  border-bottom: 1px solid rgba(0, 255, 136, 0.2);
+  border-bottom: 1px solid rgba(var(--qui-accent-color), var(--qui-border-opacity));
 }
 
 .user-info {
@@ -181,10 +181,10 @@ const launchApp = (appId: string) => {
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  background: rgba(255, 68, 68, 0.1);
-  border: 1px solid var(--qui-accent-secondary);
+  background: var(--qui-danger-bg);
+  border: 1px solid var(--qui-danger-border);
   border-radius: 8px;
-  color: var(--qui-accent-secondary);
+  color: var(--qui-danger-color);
   cursor: pointer;
   transition: all 0.2s;
   font-size: var(--qui-font-size-base);
@@ -192,8 +192,9 @@ const launchApp = (appId: string) => {
 }
 
 .power-button:hover {
-  background: rgba(255, 68, 68, 0.2);
-  border-color: rgba(255, 68, 68, 0.3);
+  background: var(--qui-danger-hover);
+  border-color: var(--qui-danger-border);
+  box-shadow: var(--qui-danger-glow);
 }
 
 .power-button svg {

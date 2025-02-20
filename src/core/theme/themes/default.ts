@@ -92,5 +92,20 @@ export const defaultTheme: Theme = {
     '--qui-font-weight-medium': '500',
     '--qui-font-weight-bold': '600',
     '--qui-line-height': '1.5',
+
+    // Danger Theme
+    '--qui-danger-color': '#ff4444',
+    '--qui-danger-bg': 'rgba(255, 68, 68, 0.1)',
+    '--qui-danger-hover': 'rgba(255, 68, 68, 0.2)',
+    '--qui-danger-border': 'rgba(255, 68, 68, 0.3)',
+    '--qui-danger-glow': '0 0 20px rgba(255, 68, 68, 0.3)',
+
+    // Effects
+    '--qui-overlay-hover': 'rgba(255, 255, 255, 0.1)',
+    '--qui-overlay-active': 'rgba(0, 255, 136, 0.1)',
+    '--qui-border-opacity': '0.2',
+    '--qui-shadow-opacity': '0.15',
+    '--qui-shadow-glow': '0 0 30px',
+    '--qui-backdrop-blur': '12px',
   },
 }

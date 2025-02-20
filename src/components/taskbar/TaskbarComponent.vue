@@ -108,8 +108,8 @@ const handleWindowClick = (windowId: string) => {
   gap: 8px;
   height: var(--qui-taskbar-height);
   background: var(--qui-gradient-taskbar);
-  backdrop-filter: blur(12px);
-  border-top: 1px solid rgba(0, 255, 136, 0.2);
+  backdrop-filter: blur(var(--qui-backdrop-blur));
+  border-top: 1px solid rgba(var(--qui-accent-color), var(--qui-border-opacity));
   padding: 0 8px;
   box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.2);
 }
@@ -121,7 +121,7 @@ const handleWindowClick = (windowId: string) => {
   height: 34px;
   padding: 0 16px;
   background: var(--qui-gradient-secondary);
-  border: 1px solid rgba(0, 255, 136, 0.3);
+  border: 1px solid rgba(var(--qui-accent-color), var(--qui-border-opacity));
   border-radius: var(--qui-taskbar-button-radius);
   color: var(--qui-text-primary);
   font-weight: 500;
@@ -166,7 +166,7 @@ const handleWindowClick = (windowId: string) => {
   height: 34px;
   padding: 0 12px;
   background: var(--qui-gradient-primary);
-  border: 1px solid rgba(0, 255, 136, 0.15);
+  border: 1px solid rgba(var(--qui-accent-color), var(--qui-border-opacity));
   border-radius: var(--qui-taskbar-button-radius);
   color: var(--qui-text-primary);
   position: relative;
