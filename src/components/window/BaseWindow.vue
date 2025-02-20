@@ -79,7 +79,16 @@ const maximize = () => {
 }
 
 const minimize = () => {
-  windowStore.minimizeWindow(props.window.id)
+  const el = document.querySelector(`[data-window-id="${props.window.id}"]`) as HTMLElement
+  if (el) {
+    el.setAttribute('data-minimizing', 'true')
+    setTimeout(() => {
+      windowStore.minimizeWindow(props.window.id)
+      el.removeAttribute('data-minimizing')
+    }, 300) // Match the animation duration
+  } else {
+    windowStore.minimizeWindow(props.window.id)
+  }
 }
 
 const resizeHandles = [
@@ -152,6 +161,7 @@ const startResize = (handle: string, e: MouseEvent) => {
     v-show="!window.isMinimized"
     class="window"
     :class="{ maximized: window.isMaximized }"
+    :data-window-id="window.id"
     :style="{
       left: `${window.x}px`,
       top: `${window.y}px`,
@@ -228,9 +238,10 @@ const startResize = (handle: string, e: MouseEvent) => {
   transform: scale(0.98) translateY(10px);
   animation: windowAppear var(--qui-interaction-speed) var(--qui-animation-bounce) forwards;
 
-  /* Separate transitions for better performance */
+  /* Enhanced transitions */
   transition:
     transform var(--qui-interaction-speed) var(--qui-animation-bounce),
+    opacity var(--qui-interaction-speed) var(--qui-animation-fade),
     border-color var(--qui-interaction-speed) var(--qui-animation-fade),
     box-shadow var(--qui-interaction-speed) var(--qui-animation-fade);
   will-change: transform, opacity;
@@ -274,6 +285,22 @@ const startResize = (handle: string, e: MouseEvent) => {
   }
   100% {
     transform: translateX(100%);
+  }
+}
+
+.window[data-minimizing] {
+  animation: windowMinimize var(--qui-interaction-speed) var(--qui-animation-bounce) forwards;
+  pointer-events: none;
+}
+
+@keyframes windowMinimize {
+  0% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.8) translateY(100px);
   }
 }
 
