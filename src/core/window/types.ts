@@ -12,6 +12,12 @@ export interface WindowState {
   zIndex: number
   component: Component
   icon?: string
+  minWidth: number
+  minHeight: number
+  maxWidth?: number
+  maxHeight?: number
+  isResizing: boolean
+  resizeHandle: '' | 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw'
   prevSize?: {
     x: number
     y: number

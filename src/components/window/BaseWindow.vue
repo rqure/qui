@@ -11,9 +11,10 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'update:position', x: number, y: number): void
   (e: 'update:size', width: number, height: number): void
-  (e: 'update:prevSize', size: { x: number; y: number; width: number; height: number }): void
   (e: 'update:maximized', maximized: boolean): void
   (e: 'update:minimized', minimized: boolean): void
+  (e: 'update:resizing', resizing: boolean): void
+  (e: 'update:resizeHandle', handle: string): void
 }>()
 
 const windowStore = useWindowStore()
@@ -74,31 +75,84 @@ const handleContextMenu = (e: MouseEvent) => {
 }
 
 const maximize = () => {
-  if (props.window.isMaximized) {
-    if (props.window.prevSize) {
-      emit('update:position', props.window.prevSize.x, props.window.prevSize.y)
-      emit('update:size', props.window.prevSize.width, props.window.prevSize.height)
-    }
-  } else {
-    emit('update:prevSize', {
-      x: props.window.x,
-      y: props.window.y,
-      width: props.window.width,
-      height: props.window.height,
-    })
-    emit('update:position', 0, 0)
-    emit('update:size', window.innerWidth, window.innerHeight)
-  }
-  emit('update:maximized', !props.window.isMaximized)
+  windowStore.maximizeWindow(props.window.id)
 }
 
 const minimize = () => {
-  emit('update:minimized', true)
+  windowStore.minimizeWindow(props.window.id)
+}
+
+const resizeHandles = [
+  { handle: 'n', cursor: 'ns-resize' },
+  { handle: 's', cursor: 'ns-resize' },
+  { handle: 'e', cursor: 'ew-resize' },
+  { handle: 'w', cursor: 'ew-resize' },
+  { handle: 'ne', cursor: 'ne-resize' },
+  { handle: 'nw', cursor: 'nw-resize' },
+  { handle: 'se', cursor: 'se-resize' },
+  { handle: 'sw', cursor: 'sw-resize' },
+]
+
+const startResize = (handle: string, e: MouseEvent) => {
+  if (props.window.isMaximized) return
+
+  emit('update:resizing', true)
+  emit('update:resizeHandle', handle)
+  windowStore.activateWindow(props.window.id)
+
+  const startX = e.clientX
+  const startY = e.clientY
+  const startWidth = props.window.width
+  const startHeight = props.window.height
+  const startLeft = props.window.x
+  const startTop = props.window.y
+
+  const handleResize = (e: MouseEvent) => {
+    const deltaX = e.clientX - startX
+    const deltaY = e.clientY - startY
+
+    let newWidth = startWidth
+    let newHeight = startHeight
+    let newX = startLeft
+    let newY = startTop
+
+    // Calculate new dimensions based on handle
+    if (handle.includes('e')) newWidth = Math.max(props.window.minWidth, startWidth + deltaX)
+    if (handle.includes('w')) {
+      const width = Math.max(props.window.minWidth, startWidth - deltaX)
+      newX = startLeft + (startWidth - width)
+      newWidth = width
+    }
+    if (handle.includes('s')) newHeight = Math.max(props.window.minHeight, startHeight + deltaY)
+    if (handle.includes('n')) {
+      const height = Math.max(props.window.minHeight, startHeight - deltaY)
+      newY = startTop + (startHeight - height)
+      newHeight = height
+    }
+
+    // Apply max constraints
+    if (props.window.maxWidth) newWidth = Math.min(newWidth, props.window.maxWidth)
+    if (props.window.maxHeight) newHeight = Math.min(newHeight, props.window.maxHeight)
+
+    emit('update:size', newWidth, newHeight)
+    emit('update:position', newX, newY)
+  }
+
+  const stopResize = () => {
+    emit('update:resizing', false)
+    emit('update:resizeHandle', '')
+    window.removeEventListener('mousemove', handleResize)
+    window.removeEventListener('mouseup', stopResize)
+  }
+
+  window.addEventListener('mousemove', handleResize)
+  window.addEventListener('mouseup', stopResize)
 }
 </script>
 
 <template>
   <div
+    v-show="!window.isMinimized"
     class="window"
     :class="{ maximized: window.isMaximized }"
     :style="{
@@ -145,6 +199,15 @@ const minimize = () => {
     <div class="content">
       <slot></slot>
     </div>
+    <template v-if="!window.isMaximized">
+      <div
+        v-for="{ handle, cursor } in resizeHandles"
+        :key="handle"
+        :class="['resize-handle', handle]"
+        :style="{ cursor }"
+        @mousedown.stop="(e) => startResize(handle, e)"
+      />
+    </template>
   </div>
 </template>
 
@@ -390,6 +453,61 @@ const minimize = () => {
   100% {
     opacity: 1;
     transform: scale(1) translateY(0);
+  }
+}
+
+.resize-handle {
+  position: absolute;
+  z-index: 2;
+
+  &.n {
+    top: -4px;
+    left: 4px;
+    right: 4px;
+    height: 8px;
+  }
+  &.s {
+    bottom: -4px;
+    left: 4px;
+    right: 4px;
+    height: 8px;
+  }
+  &.e {
+    right: -4px;
+    top: 4px;
+    bottom: 4px;
+    width: 8px;
+  }
+  &.w {
+    left: -4px;
+    top: 4px;
+    bottom: 4px;
+    width: 8px;
+  }
+
+  &.ne {
+    top: -4px;
+    right: -4px;
+    width: 12px;
+    height: 12px;
+  }
+  &.nw {
+    top: -4px;
+    left: -4px;
+    width: 12px;
+    height: 12px;
+  }
+  &.se {
+    bottom: -4px;
+    right: -4px;
+    width: 12px;
+    height: 12px;
+  }
+  &.sw {
+    bottom: -4px;
+    left: -4px;
+    width: 12px;
+    height: 12px;
   }
 }
 </style>

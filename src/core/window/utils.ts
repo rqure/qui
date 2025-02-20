@@ -1,20 +1,23 @@
 import type { WindowState, WindowOptions } from './types'
+import { v4 as uuidv4 } from 'uuid'
 
-export function createWindowState(options: WindowOptions): WindowState {
-  return {
-    id: crypto.randomUUID(),
-    title: options.title,
-    x: options.x ?? 100,
-    y: options.y ?? 100,
-    width: options.width ?? 800,
-    height: options.height ?? 600,
-    isMinimized: false,
-    isMaximized: false,
-    zIndex: 0,
-    component: options.component,
-    icon: options.icon,
-  }
-}
+export const createWindowState = (options: WindowOptions): WindowState => ({
+  id: uuidv4(),
+  title: options.title,
+  x: options.x ?? 100,
+  y: options.y ?? 100,
+  width: options.width ?? 800,
+  height: options.height ?? 600,
+  isMinimized: false,
+  isMaximized: false,
+  zIndex: 0,
+  component: options.component,
+  icon: options.icon,
+  minWidth: 200,
+  minHeight: 150,
+  isResizing: false,
+  resizeHandle: '',
+})
 
 // We can add more window-related utilities here in the future
 // Like window positioning helpers, size constraints, etc.

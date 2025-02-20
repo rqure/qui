@@ -1,104 +1,101 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
 import type { WindowState, WindowOptions } from '@/core/window/types'
+import { createWindowState } from '@/core/window/utils'
 
-export const useWindowStore = defineStore('windows', () => {
-  const windows = ref<WindowState[]>([])
-  const activeWindowId = ref<string | null>(null)
-  let nextZIndex = 1
+export const useWindowStore = defineStore('windows', {
+  state: () => ({
+    windows: [] as WindowState[],
+    activeWindowId: null as string | null, // Renamed from activeWindow
+    nextZIndex: 1,
+  }),
 
-  const createWindow = (options: WindowOptions): WindowState => {
-    const window: WindowState = {
-      id: crypto.randomUUID(),
-      title: options.title,
-      x: options.x ?? 100,
-      y: options.y ?? 100,
-      width: options.width ?? 800,
-      height: options.height ?? 600,
-      isMinimized: false,
-      isMaximized: false,
-      zIndex: nextZIndex++,
-      component: options.component,
-    }
-    windows.value.push(window)
-    activateWindow(window.id)
-    return window
-  }
+  actions: {
+    createWindow(options: WindowOptions) {
+      const window = createWindowState(options)
+      window.zIndex = this.nextZIndex++
+      this.windows.push(window)
+      this.activateWindow(window.id)
+      return window
+    },
 
-  const activateWindow = (id: string) => {
-    activeWindowId.value = id
-    const window = windows.value.find((w) => w.id === id)
-    if (window) {
-      window.zIndex = nextZIndex++
-    }
-  }
-
-  const closeWindow = (id: string) => {
-    const index = windows.value.findIndex((w) => w.id === id)
-    if (index !== -1) {
-      windows.value.splice(index, 1)
-    }
-  }
-
-  const updateWindowPosition = (id: string, x: number, y: number) => {
-    const window = windows.value.find((w) => w.id === id)
-    if (window) {
-      window.x = x
-      window.y = y
-    }
-  }
-
-  const minimizeWindow = (id: string) => {
-    const window = windows.value.find((w) => w.id === id)
-    if (window) {
-      window.isMinimized = true
-    }
-  }
-
-  const maximizeWindow = (id: string) => {
-    const win = windows.value.find((w) => w.id === id)
-    if (win) {
-      if (win.isMaximized) {
-        if (win.prevSize) {
-          win.x = win.prevSize.x
-          win.y = win.prevSize.y
-          win.width = win.prevSize.width
-          win.height = win.prevSize.height
-        }
-      } else {
-        win.prevSize = {
-          x: win.x,
-          y: win.y,
-          width: win.width,
-          height: win.height,
-        }
-        win.x = 0
-        win.y = 0
-        win.width = globalThis.window.innerWidth
-        win.height = globalThis.window.innerHeight
+    activateWindow(id: string) {
+      this.activeWindowId = id // Updated to use new property name
+      const window = this.windows.find((w) => w.id === id)
+      if (window) {
+        window.zIndex = this.nextZIndex++
       }
-      win.isMaximized = !win.isMaximized
-    }
-  }
+    },
 
-  const restoreWindow = (id: string) => {
-    const window = windows.value.find((w) => w.id === id)
-    if (window) {
-      window.isMinimized = false
-    }
-  }
+    closeWindow(id: string) {
+      const index = this.windows.findIndex((w) => w.id === id)
+      if (index !== -1) {
+        this.windows.splice(index, 1)
+      }
+    },
 
-  const activeWindow = computed(() => windows.value.find((w) => w.id === activeWindowId.value))
+    updateWindowPosition(id: string, x: number, y: number) {
+      const window = this.windows.find((w) => w.id === id)
+      if (window) {
+        window.x = x
+        window.y = y
+      }
+    },
 
-  return {
-    windows,
-    activeWindow,
-    createWindow,
-    activateWindow,
-    closeWindow,
-    updateWindowPosition,
-    minimizeWindow,
-    maximizeWindow,
-    restoreWindow,
-  }
+    updateWindowSize(id: string, width: number, height: number) {
+      const window = this.windows.find((w) => w.id === id)
+      if (window) {
+        window.width = width
+        window.height = height
+      }
+    },
+
+    minimizeWindow(id: string) {
+      const window = this.windows.find((w) => w.id === id)
+      if (window) {
+        window.isMinimized = true
+        // Keep track of active window when minimizing
+        if (this.activeWindowId === id) {
+          this.activeWindowId = null
+        }
+      }
+    },
+
+    maximizeWindow(id: string) {
+      const win = this.windows.find((w) => w.id === id)
+      if (win) {
+        if (win.isMaximized) {
+          if (win.prevSize) {
+            win.x = win.prevSize.x
+            win.y = win.prevSize.y
+            win.width = win.prevSize.width
+            win.height = win.prevSize.height
+          }
+        } else {
+          win.prevSize = {
+            x: win.x,
+            y: win.y,
+            width: win.width,
+            height: win.height,
+          }
+          win.x = 0
+          win.y = 0
+          win.width = globalThis.window.innerWidth
+          win.height = globalThis.window.innerHeight
+        }
+        win.isMaximized = !win.isMaximized
+      }
+    },
+
+    restoreWindow(id: string) {
+      const window = this.windows.find((w) => w.id === id)
+      if (window) {
+        window.isMinimized = false
+        this.activateWindow(id)
+      }
+    },
+  },
+
+  getters: {
+    activeWindow: (state) => state.windows.find((w) => w.id === state.activeWindowId) || null,
+  },
 })
