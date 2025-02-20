@@ -12,6 +12,12 @@ export interface WindowState {
   zIndex: number
   component: Component
   icon?: string
+  prevSize?: {
+    x: number
+    y: number
+    width: number
+    height: number
+  }
 }
 
 export interface WindowOptions {

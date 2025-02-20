@@ -48,6 +48,46 @@ export const useWindowStore = defineStore('windows', () => {
     }
   }
 
+  const minimizeWindow = (id: string) => {
+    const window = windows.value.find((w) => w.id === id)
+    if (window) {
+      window.isMinimized = true
+    }
+  }
+
+  const maximizeWindow = (id: string) => {
+    const window = windows.value.find((w) => w.id === id)
+    if (window) {
+      if (window.isMaximized) {
+        if (window.prevSize) {
+          window.x = window.prevSize.x
+          window.y = window.prevSize.y
+          window.width = window.prevSize.width
+          window.height = window.prevSize.height
+        }
+      } else {
+        window.prevSize = {
+          x: window.x,
+          y: window.y,
+          width: window.width,
+          height: window.height,
+        }
+        window.x = 0
+        window.y = 0
+        window.width = window.innerWidth
+        window.height = window.innerHeight
+      }
+      window.isMaximized = !window.isMaximized
+    }
+  }
+
+  const restoreWindow = (id: string) => {
+    const window = windows.value.find((w) => w.id === id)
+    if (window) {
+      window.isMinimized = false
+    }
+  }
+
   const activeWindow = computed(() => windows.value.find((w) => w.id === activeWindowId.value))
 
   return {
@@ -57,5 +97,8 @@ export const useWindowStore = defineStore('windows', () => {
     activateWindow,
     closeWindow,
     updateWindowPosition,
+    minimizeWindow,
+    maximizeWindow,
+    restoreWindow,
   }
 })

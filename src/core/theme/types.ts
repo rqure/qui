@@ -59,6 +59,14 @@ export interface ThemeVariables {
   '--qui-glow-effect-strong': string
   '--qui-animation-bounce': string
   '--qui-animation-fade': string
+
+  // Gradients
+  '--qui-gradient-primary': string
+  '--qui-gradient-secondary': string
+  '--qui-gradient-accent': string
+  '--qui-gradient-window': string
+  '--qui-gradient-taskbar': string
+  '--qui-gradient-hover': string
 }
 
 export interface ComponentTheme {

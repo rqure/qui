@@ -63,5 +63,18 @@ export const defaultTheme: Theme = {
     '--qui-login-button-bg': '#00ff88',
     '--qui-login-button-hover': '#00b4ff',
     '--qui-login-button-text': '#0e1127',
+
+    // Gradients
+    '--qui-gradient-primary':
+      'linear-gradient(135deg, rgba(14, 17, 39, 0.95), rgba(16, 24, 45, 0.95))',
+    '--qui-gradient-secondary':
+      'linear-gradient(135deg, rgba(0, 255, 136, 0.15), rgba(0, 180, 255, 0.15))',
+    '--qui-gradient-accent': 'linear-gradient(135deg, rgba(0, 255, 136, 1), rgba(0, 180, 255, 1))',
+    '--qui-gradient-window':
+      'linear-gradient(135deg, rgba(16, 24, 45, 0.85), rgba(14, 17, 39, 0.95))',
+    '--qui-gradient-taskbar':
+      'linear-gradient(180deg, rgba(16, 24, 45, 0.9), rgba(14, 17, 39, 0.95))',
+    '--qui-gradient-hover':
+      'linear-gradient(135deg, rgba(0, 255, 136, 0.2), rgba(0, 180, 255, 0.2))',
   },
 }
