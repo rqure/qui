@@ -90,13 +90,31 @@ export interface ThemeVariables {
   '--qui-danger-border': string
   '--qui-danger-glow': string
 
-  // Effects
-  '--qui-overlay-hover': string
-  '--qui-overlay-active': string
+  // Effects & Overlays
+  '--qui-backdrop-blur': string
   '--qui-border-opacity': string
   '--qui-shadow-opacity': string
+
+  // Shadows
   '--qui-shadow-glow': string
-  '--qui-backdrop-blur': string
+  '--qui-shadow-default': string
+  '--qui-shadow-window': string
+  '--qui-shadow-taskbar': string
+  '--qui-shadow-accent': string
+  '--qui-shadow-accent-strong': string
+
+  // Icon Effects
+  '--qui-shadow-icon': string
+  '--qui-shadow-icon-strong': string
+
+  // Overlays & Hovers
+  '--qui-overlay-hover': string
+  '--qui-overlay-active': string
+  '--qui-overlay-primary': string
+  '--qui-overlay-secondary': string
+  '--qui-overlay-accent': string
+  '--qui-overlay-light': string
+  '--qui-hover-border': string
 }
 
 export interface ComponentTheme {

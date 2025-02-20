@@ -130,13 +130,13 @@ const minimize = () => {
   background: var(--qui-window-bg);
   border: var(--qui-window-border);
   border-radius: var(--qui-window-radius);
-  box-shadow: 0 0 30px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--qui-shadow-window);
   display: flex;
   flex-direction: column;
   overflow: hidden;
   backdrop-filter: blur(var(--qui-backdrop-blur));
   border: 1px solid rgba(var(--qui-accent-color), var(--qui-border-opacity));
-  box-shadow: var(--qui-shadow-glow) rgba(0, 0, 0, var(--qui-shadow-opacity));
+  box-shadow: var(--qui-shadow-window);
 }
 
 .titlebar {
@@ -151,7 +151,7 @@ const minimize = () => {
   user-select: none;
   font-weight: 500;
   letter-spacing: 0.5px;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--qui-overlay-accent);
 }
 
 .window-info {
@@ -212,5 +212,12 @@ const minimize = () => {
 
 .window[data-active='true'] .window-title {
   opacity: 1;
+}
+
+.window-icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  filter: var(--qui-shadow-icon);
 }
 </style>

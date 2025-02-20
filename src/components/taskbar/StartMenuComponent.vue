@@ -51,7 +51,13 @@ const launchApp = (appId: string) => {
           class="menu-item"
           @click="launchApp(id)"
         >
-          <img v-if="app.manifest.icon" :src="app.manifest.icon" class="app-icon" />
+          <img
+            v-if="app.manifest.icon"
+            :src="app.manifest.icon"
+            class="app-icon"
+            :alt="app.manifest.name"
+          />
+          <div v-else class="app-icon-placeholder" />
           <span>{{ app.manifest.name }}</span>
         </div>
       </div>
@@ -103,7 +109,7 @@ const launchApp = (appId: string) => {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: rgba(0, 255, 136, 0.1);
+  background: var(--qui-overlay-primary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -147,11 +153,18 @@ const launchApp = (appId: string) => {
   transition: all 0.2s var(--qui-animation-bounce);
   font-size: var(--qui-font-size-base);
   color: var(--qui-text-primary);
+  position: relative;
+  overflow: hidden;
 }
 
 .menu-item:hover {
   background: var(--qui-gradient-secondary);
   transform: translateX(4px);
+}
+
+.menu-item:hover .app-icon {
+  transform: scale(1.1);
+  transition: transform 0.2s var(--qui-animation-bounce);
 }
 
 .item-icon {
@@ -167,12 +180,23 @@ const launchApp = (appId: string) => {
 .app-icon {
   width: 20px;
   height: 20px;
-  filter: drop-shadow(0 0 4px rgba(0, 255, 136, 0.4));
+  object-fit: contain;
+  flex-shrink: 0;
+  filter: var(--qui-shadow-icon-strong);
+}
+
+.app-icon-placeholder {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  background: var(--qui-accent-color);
+  opacity: 0.3;
+  border-radius: 4px;
 }
 
 .menu-footer {
   padding: 12px;
-  border-top: 1px solid rgba(0, 255, 136, 0.2);
+  border-top: 1px solid var(--qui-overlay-primary);
 }
 
 .power-button {

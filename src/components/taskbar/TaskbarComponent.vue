@@ -75,7 +75,9 @@ const handleWindowClick = (windowId: string) => {
   <div class="taskbar" @contextmenu.prevent="handleTaskbarContext">
     <button class="start-btn" @click="toggleStartMenu">
       <svg class="start-icon" viewBox="0 0 24 24">
-        <path fill="currentColor" d="M3,6H21V8H3V6M3,11H21V13H3V11M3,16H21V18H3V16Z" />
+        <path
+          d="M21,16V8.00002L14,8V16H21M21,3C21.55,3 22,3.44999 22,4V16C22,16.55 21.55,17 21,17H14C13.45,17 13,16.55 13,16V4C13,3.44999 13.45,3 14,3H21M10,3H3C2.45,3 2,3.44999 2,4V20C2,20.55 2.45,21 3,21H10C10.55,21 11,20.55 11,20V4C11,3.44999 10.55,3 10,3Z"
+        />
       </svg>
       <span class="start-text">Start</span>
     </button>
@@ -92,8 +94,11 @@ const handleWindowClick = (windowId: string) => {
         @click="handleWindowClick(window.id)"
         @contextmenu="(e) => handleWindowItemContext(e, window.id)"
       >
-        <img v-if="window.icon" :src="window.icon" class="window-icon" />
-        <span class="window-title">{{ window.title }}</span>
+        <div class="window-button-content">
+          <img v-if="window.icon" :src="window.icon" class="window-icon" :alt="window.title" />
+          <div v-else class="window-icon-placeholder" />
+          <span class="window-title">{{ window.title }}</span>
+        </div>
         <div class="active-indicator" />
       </button>
     </div>
@@ -111,7 +116,7 @@ const handleWindowClick = (windowId: string) => {
   backdrop-filter: blur(var(--qui-backdrop-blur));
   border-top: 1px solid rgba(var(--qui-accent-color), var(--qui-border-opacity));
   padding: 0 8px;
-  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--qui-shadow-taskbar);
 }
 
 .start-btn {
@@ -132,6 +137,7 @@ const handleWindowClick = (windowId: string) => {
 .start-icon {
   width: 20px;
   height: 20px;
+  filter: var(--qui-shadow-icon);
 }
 
 .start-text {
@@ -176,10 +182,30 @@ const handleWindowClick = (windowId: string) => {
   font-family: var(--qui-font-family);
 }
 
+.window-button-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  position: relative;
+  z-index: 1;
+}
+
 .window-icon {
   width: 16px;
   height: 16px;
   object-fit: contain;
+  flex-shrink: 0;
+  filter: var(--qui-shadow-icon);
+}
+
+.window-icon-placeholder {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  background: var(--qui-accent-color);
+  opacity: 0.3;
+  border-radius: 2px;
 }
 
 .window-title {
@@ -211,12 +237,12 @@ const handleWindowClick = (windowId: string) => {
 }
 
 .window-button:hover {
-  border-color: rgba(0, 255, 136, 0.3);
+  border-color: var(--qui-hover-border);
 }
 
 .window-button.active {
   background: var(--qui-gradient-secondary);
-  border-color: rgba(0, 180, 255, 0.3);
-  box-shadow: 0 0 15px rgba(0, 180, 255, 0.2);
+  border-color: var(--qui-overlay-secondary);
+  box-shadow: var(--qui-shadow-accent);
 }
 </style>

@@ -107,5 +107,21 @@ export const defaultTheme: Theme = {
     '--qui-shadow-opacity': '0.15',
     '--qui-shadow-glow': '0 0 30px',
     '--qui-backdrop-blur': '12px',
+
+    // Effects & Shadows
+    '--qui-shadow-default': '0 0 20px rgba(0, 0, 0, 0.2)',
+    '--qui-shadow-window': '0 0 30px rgba(0, 0, 0, 0.3)',
+    '--qui-shadow-taskbar': '0 -4px 20px rgba(0, 0, 0, 0.2)',
+    '--qui-shadow-icon': 'drop-shadow(0 0 4px rgba(0, 255, 136, 0.2))',
+    '--qui-shadow-icon-strong': 'drop-shadow(0 0 4px rgba(0, 255, 136, 0.4))',
+    '--qui-shadow-accent': '0 0 15px rgba(0, 180, 255, 0.2)',
+    '--qui-shadow-accent-strong': '0 0 20px rgba(0, 255, 136, 0.3)',
+
+    // Overlays
+    '--qui-overlay-primary': 'rgba(0, 255, 136, 0.1)',
+    '--qui-overlay-secondary': 'rgba(0, 180, 255, 0.3)',
+    '--qui-overlay-accent': 'rgba(255, 255, 255, 0.9)',
+    '--qui-overlay-light': 'rgba(255, 255, 255, 0.1)',
+    '--qui-hover-border': 'rgba(0, 255, 136, 0.3)',
   },
 }

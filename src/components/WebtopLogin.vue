@@ -90,7 +90,7 @@ h1 {
 .logo img {
   width: 180px;
   height: auto;
-  filter: drop-shadow(0 0 10px rgba(0, 255, 136, 0.3));
+  filter: var(--qui-shadow-accent-strong);
 }
 
 @keyframes logoAppear {
