@@ -18,7 +18,9 @@ QUI represents a webtop application framework built with Vue 3, enabling develop
 src
 ├── core                  # Core framework functionality
 │   ├── apps             # Application system
-│   │   └── types.ts     # Application type definitions
+│   ├── menu             # Context menu system
+│   │   ├── types.ts     # Menu type definitions
+│   │   └── utils.ts     # Menu utilities
 │   ├── theme            # Theme system
 │   │   ├── themes       # Theme definitions
 │   │   └── types        # Theme type definitions
@@ -28,6 +30,7 @@ src
 ├── stores               # Pinia stores
 │   ├── apps.ts         # Application management
 │   ├── auth.ts         # Authentication state
+│   ├── menu.ts         # Context menu state
 │   ├── theme.ts        # Theme management
 │   └── windows.ts      # Window management
 ├── components
@@ -83,6 +86,32 @@ auth.logout()
 // Access state
 console.log(auth.isAuthenticated)
 console.log(auth.username)
+```
+
+### Menu Store
+
+Manages context menus across the application:
+
+```typescript
+const menu = useMenuStore()
+
+// Show a context menu
+menu.showMenu(
+  { x: event.clientX, y: event.clientY },
+  [
+    { id: 'action1', label: 'Action 1', action: () => {} },
+    { id: 'sep', separator: true, label: '' },
+    {
+      id: 'submenu',
+      label: 'Sub Menu',
+      children: [{ id: 'sub1', label: 'Sub Action 1', action: () => {} }],
+    },
+  ],
+  { type: 'custom', data: { id: 'some-id' } },
+)
+
+// Hide the menu
+menu.hideMenu()
 ```
 
 ## Window Management
@@ -222,6 +251,64 @@ windows.createWindow({
   height: 600,
 })
 ```
+
+## Context Menu System
+
+The framework provides a comprehensive context menu system:
+
+### Menu Items
+
+```typescript
+interface MenuItem {
+  id: string
+  label: string
+  icon?: string
+  disabled?: boolean
+  shortcut?: string
+  separator?: boolean
+  action?: () => void
+  children?: MenuItem[]
+}
+```
+
+### Using Context Menus
+
+Add context menu support to any component:
+
+```vue
+<script setup>
+import { useMenuStore } from '@/stores/menu'
+
+const menuStore = useMenuStore()
+
+const handleContextMenu = (e: MouseEvent) => {
+  e.preventDefault()
+  menuStore.showMenu(
+    { x: e.clientX, y: e.clientY },
+    [
+      { id: 'action1', label: 'Action 1', action: () => {} },
+      { id: 'action2', label: 'Action 2', action: () => {} }
+    ],
+    { type: 'custom' }
+  )
+}
+</script>
+
+<template>
+  <div @contextmenu="handleContextMenu">Right click me!</div>
+</template>
+```
+
+### Features
+
+- Nested submenus
+- Keyboard shortcuts
+- Icons support
+- Disabled states
+- Separators
+- Context-aware menus
+- Automatic positioning
+- Click outside handling
 
 ## Installing Applications
 
