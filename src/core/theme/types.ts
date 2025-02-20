@@ -5,6 +5,8 @@ export interface ThemeVariables {
   '--qui-text-primary': string
   '--qui-text-secondary': string
   '--qui-accent-color': string
+  '--qui-accent-secondary': string // Added
+  '--qui-accent-deep': string // Added
   '--qui-shadow': string
 
   // Window
@@ -49,6 +51,14 @@ export interface ThemeVariables {
   '--qui-login-button-bg': string
   '--qui-login-button-hover': string
   '--qui-login-button-text': string
+
+  // Animations
+  '--qui-transition-speed': string
+  '--qui-hover-scale': string
+  '--qui-glow-effect': string
+  '--qui-glow-effect-strong': string
+  '--qui-animation-bounce': string
+  '--qui-animation-fade': string
 }
 
 export interface ComponentTheme {

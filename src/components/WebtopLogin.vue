@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import qeiLogo from '@/components/icons/qei-logo.png'
 
 const emit = defineEmits<{
   (e: 'login', username: string): void
@@ -17,9 +18,11 @@ const handleLogin = () => {
 <template>
   <div class="login-screen">
     <div class="login-box">
-      <h1>QUI Webtop</h1>
+      <div class="logo">
+        <img :src="qeiLogo" alt="QEI Logo" />
+      </div>
       <input v-model="username" placeholder="Username" @keyup.enter="handleLogin" />
-      <button @click="handleLogin">Login</button>
+      <button class="button-hover" @click="handleLogin">Login</button>
     </div>
   </div>
 </template>
@@ -72,5 +75,27 @@ button:hover {
 h1 {
   color: var(--qui-text-primary);
   margin-bottom: 1.5rem;
+}
+
+.logo {
+  margin-bottom: 2rem;
+  animation: logoAppear 0.6s var(--qui-animation-bounce);
+}
+
+.logo img {
+  width: 180px;
+  height: auto;
+  filter: drop-shadow(0 0 10px rgba(0, 255, 136, 0.3));
+}
+
+@keyframes logoAppear {
+  from {
+    opacity: 0;
+    transform: scale(0.8) translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
 </style>

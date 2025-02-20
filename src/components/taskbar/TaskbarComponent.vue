@@ -65,7 +65,7 @@ const handleWindowItemContext = (e: MouseEvent, windowId: string) => {
 
 <template>
   <div class="taskbar" @contextmenu="handleTaskbarContext">
-    <button class="start-btn" @click="toggleStartMenu">Start</button>
+    <button class="start-btn button-hover" @click="toggleStartMenu">Start</button>
     <StartMenuComponent
       v-if="isStartMenuOpen"
       @create-window="createTestWindow"

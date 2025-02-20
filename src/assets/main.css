@@ -1,0 +1,72 @@
+* {
+  transition:
+    background-color var(--qui-transition-speed) var(--qui-animation-fade),
+    border-color var(--qui-transition-speed) var(--qui-animation-fade),
+    box-shadow var(--qui-transition-speed) var(--qui-animation-fade),
+    transform var(--qui-transition-speed) var(--qui-animation-bounce);
+}
+
+.window {
+  backdrop-filter: blur(8px);
+  animation: windowAppear 0.3s var(--qui-animation-bounce);
+}
+
+.start-menu,
+.context-menu {
+  animation: menuAppear 0.2s var(--qui-animation-fade);
+  transform-origin: bottom left;
+}
+
+@keyframes windowAppear {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes menuAppear {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.button-hover {
+  transition: all var(--qui-transition-speed) var(--qui-animation-bounce);
+}
+
+.button-hover:hover {
+  transform: var(--qui-hover-scale);
+  box-shadow: var(--qui-glow-effect);
+}
+
+.button-hover:active {
+  transform: scale(0.98);
+}
+
+.taskbar .start-btn {
+  position: relative;
+}
+
+.taskbar .start-btn::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  background: var(--qui-accent-color);
+  filter: blur(8px);
+  opacity: 0;
+  transition: opacity var(--qui-transition-speed) var(--qui-animation-fade);
+  z-index: -1;
+}
+
+.taskbar .start-btn:hover::after {
+  opacity: 0.5;
+}
