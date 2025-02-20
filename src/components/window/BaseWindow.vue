@@ -254,6 +254,8 @@ const startResize = (handle: string, e: MouseEvent) => {
   opacity: 1;
   transform-origin: center center;
   transform: scale(1) translateY(0);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
 
   /* Update transition timing for smoother animations */
   transition: 
@@ -263,7 +265,9 @@ const startResize = (handle: string, e: MouseEvent) => {
     height 300ms cubic-bezier(0.4, 0, 0.2, 1),
     left 300ms cubic-bezier(0.4, 0, 0.2, 1),
     top 300ms cubic-bezier(0.4, 0, 0.2, 1),
-    border-radius 300ms cubic-bezier(0.4, 0, 0.2, 1);
+    border-radius 300ms cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 300ms cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 300ms cubic-bezier(0.4, 0, 0.2, 1);
 
   &.minimized {
     opacity: 0;
@@ -284,7 +288,9 @@ const startResize = (handle: string, e: MouseEvent) => {
       height 300ms cubic-bezier(0.4, 0, 0.2, 1),
       left 300ms cubic-bezier(0.4, 0, 0.2, 1),
       top 300ms cubic-bezier(0.4, 0, 0.2, 1),
-      border-radius 300ms cubic-bezier(0.4, 0, 0.2, 1);
+      border-radius 300ms cubic-bezier(0.4, 0, 0.2, 1),
+      border-color 300ms cubic-bezier(0.4, 0, 0.2, 1),
+      box-shadow 300ms cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   &.dragging,
@@ -294,6 +300,10 @@ const startResize = (handle: string, e: MouseEvent) => {
 
   &[data-active='true'] {
     z-index: 100;
+    border-color: rgba(0, 255, 136, 0.2);
+    box-shadow: 
+      0 8px 32px rgba(0, 0, 0, 0.15),
+      0 0 0 1px rgba(0, 255, 136, 0.1);
   }
 }
 
@@ -309,9 +319,10 @@ const startResize = (handle: string, e: MouseEvent) => {
   overflow: hidden;
   pointer-events: auto; /* Ensure titlebar receives events */
   background: var(--qui-titlebar-bg);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.2);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
   transform: translateZ(0); /* Force GPU acceleration */
   will-change: transform;
+  opacity: 0.85;
 
   /* Fix border and background transitions */
   transition: none; /* Remove transition to prevent flashing */
@@ -320,7 +331,8 @@ const startResize = (handle: string, e: MouseEvent) => {
   /* Improved transitions */
   transition:
     background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-    border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 
   /* Enhanced shine effect */
   &::after {
@@ -350,8 +362,9 @@ const startResize = (handle: string, e: MouseEvent) => {
 .window-title {
   font-size: var(--qui-font-size-base);
   font-weight: var(--qui-font-weight-medium);
-  opacity: 0.9;
+  opacity: 0.75;
   pointer-events: none; /* Allow drag through title */
+  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .window-controls {
@@ -466,10 +479,13 @@ const startResize = (handle: string, e: MouseEvent) => {
 
 .window[data-active='true'] .titlebar {
   background: var(--qui-titlebar-active-bg);
+  opacity: 0.98;
+  border-bottom-color: rgba(0, 255, 136, 0.15);
 }
 
 .window[data-active='true'] .window-title {
-  opacity: 1;
+  opacity: 0.9;
+  letter-spacing: 0.1px;
 }
 
 .window-icon {
