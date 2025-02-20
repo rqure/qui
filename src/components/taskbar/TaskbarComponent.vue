@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import { ref, defineComponent } from 'vue'
+import { ref, defineComponent, markRaw } from 'vue'
 import { useWindowStore } from '@/stores/windows'
 import StartMenuComponent from './StartMenuComponent.vue'
 
-const TestWindow = defineComponent({
-  template: '<div>Test Window Content</div>',
-})
+const TestWindow = markRaw(
+  defineComponent({
+    name: 'TestWindow',
+    template: '<div>Test Window Content</div>',
+  }),
+)
 
 const windowStore = useWindowStore()
 const isStartMenuOpen = ref(false)
