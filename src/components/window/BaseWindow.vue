@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import type { WindowState } from '@/core/window/types'
 import { useWindowStore } from '@/stores/windows'
+import { useMenuStore } from '@/stores/menu'
 
 const props = defineProps<{
   window: WindowState
@@ -12,6 +13,7 @@ const emit = defineEmits<{
 }>()
 
 const windowStore = useWindowStore()
+const menuStore = useMenuStore()
 const isDragging = ref(false)
 const dragOffset = ref({ x: 0, y: 0 })
 
@@ -35,6 +37,20 @@ const handleDrag = (e: MouseEvent) => {
 const stopDrag = () => {
   isDragging.value = false
 }
+
+const handleContextMenu = (e: MouseEvent) => {
+  e.preventDefault()
+  menuStore.showMenu(
+    { x: e.clientX, y: e.clientY },
+    [
+      { id: 'minimize', label: 'Minimize', action: () => {} },
+      { id: 'maximize', label: 'Maximize', action: () => {} },
+      { id: 'sep1', separator: true, label: '' },
+      { id: 'close', label: 'Close', action: () => windowStore.closeWindow(props.window.id) },
+    ],
+    { type: 'window', data: { id: props.window.id } },
+  )
+}
 </script>
 
 <template>
@@ -48,6 +64,7 @@ const stopDrag = () => {
       zIndex: window.zIndex,
     }"
     @mousedown="windowStore.activateWindow(window.id)"
+    @contextmenu="handleContextMenu"
   >
     <div
       class="titlebar"

@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, defineComponent, markRaw } from 'vue'
-import type { AppManifest, RegisteredApp } from '@/core/apps/types'
+import type { RegisteredApp } from '@/core/apps/types'
 import { useWindowStore } from './windows'
 
 export const useAppStore = defineStore('apps', () => {

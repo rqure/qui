@@ -4,6 +4,7 @@ import ThemeProvider from './core/theme/ThemeProvider.vue'
 import WebtopLogin from './components/WebtopLogin.vue'
 import WorkspaceComponent from './components/workspace/WorkspaceComponent.vue'
 import TaskbarComponent from './components/taskbar/TaskbarComponent.vue'
+import ContextMenuComponent from './components/menu/ContextMenuComponent.vue'
 
 const auth = useAuthStore()
 
@@ -20,6 +21,7 @@ const handleLogin = (user: string) => {
       <div class="taskbar-container">
         <TaskbarComponent />
       </div>
+      <ContextMenuComponent />
     </div>
   </ThemeProvider>
 </template>
