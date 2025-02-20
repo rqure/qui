@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import type { WindowState } from '@/core/window/types'
 import { useWindowStore } from '@/stores/windows'
 import { useMenuStore } from '@/stores/menu'
@@ -22,25 +22,42 @@ const isDragging = ref(false)
 const dragOffset = ref({ x: 0, y: 0 })
 
 const startDrag = (e: MouseEvent) => {
-  isDragging.value = true
-  dragOffset.value = {
-    x: e.clientX - props.window.x,
-    y: e.clientY - props.window.y,
+  // Ignore right clicks and when maximized
+  if (e.button !== 0 || props.window.isMaximized) return
+
+  // Only handle direct titlebar clicks
+  const target = e.target as HTMLElement
+  if (!target.closest('.window-controls') && target.closest('.titlebar')) {
+    isDragging.value = true
+    dragOffset.value = {
+      x: e.clientX - props.window.x,
+      y: e.clientY - props.window.y,
+    }
+    windowStore.activateWindow(props.window.id)
   }
-  windowStore.activateWindow(props.window.id)
 }
 
 const handleDrag = (e: MouseEvent) => {
-  if (isDragging.value) {
-    const x = Math.max(0, e.clientX - dragOffset.value.x)
-    const y = Math.max(0, e.clientY - dragOffset.value.y)
-    emit('update:position', x, y)
-  }
+  if (!isDragging.value) return
+
+  const x = Math.max(0, e.clientX - dragOffset.value.x)
+  const y = Math.max(0, e.clientY - dragOffset.value.y)
+  emit('update:position', x, y)
 }
 
 const stopDrag = () => {
   isDragging.value = false
 }
+
+onMounted(() => {
+  window.addEventListener('mousemove', handleDrag)
+  window.addEventListener('mouseup', stopDrag)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('mousemove', handleDrag)
+  window.removeEventListener('mouseup', stopDrag)
+})
 
 const handleContextMenu = (e: MouseEvent) => {
   e.preventDefault()
@@ -93,28 +110,35 @@ const minimize = () => {
     }"
     :data-active="window.id === windowStore.activeWindow?.id"
     @mousedown="windowStore.activateWindow(window.id)"
-    @contextmenu="handleContextMenu"
   >
-    <div
-      class="titlebar"
-      @mousedown="startDrag"
-      @mousemove="handleDrag"
-      @mouseup="stopDrag"
-      @mouseleave="stopDrag"
-    >
+    <div class="titlebar" @mousedown.stop="startDrag" @contextmenu.prevent="handleContextMenu">
       <div class="window-info">
         <img v-if="window.icon" :src="window.icon" class="window-icon" />
         <span class="window-title">{{ window.title }}</span>
       </div>
       <div class="window-controls">
         <button class="control-btn minimize" @click="minimize">
-          <span class="icon">─</span>
+          <svg class="icon" viewBox="0 0 24 24">
+            <path fill="currentColor" d="M20,14H4V10H20" />
+          </svg>
         </button>
         <button class="control-btn maximize" @click="maximize">
-          <span class="icon">□</span>
+          <svg class="icon" viewBox="0 0 24 24">
+            <path
+              v-if="window.isMaximized"
+              fill="currentColor"
+              d="M4,8H8V4H20V16H16V20H4V8M16,8V14H18V6H10V8H16M6,12V18H14V12H6Z"
+            />
+            <path v-else fill="currentColor" d="M4,4H20V20H4V4M6,6V18H18V6H6Z" />
+          </svg>
         </button>
         <button class="control-btn close" @click="windowStore.closeWindow(window.id)">
-          <span class="icon">×</span>
+          <svg class="icon" viewBox="0 0 24 24">
+            <path
+              fill="currentColor"
+              d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"
+            />
+          </svg>
         </button>
       </div>
     </div>
@@ -128,15 +152,63 @@ const minimize = () => {
 .window {
   position: absolute;
   background: var(--qui-window-bg);
-  border: var(--qui-window-border);
   border-radius: var(--qui-window-radius);
   box-shadow: var(--qui-shadow-window);
   display: flex;
   flex-direction: column;
   overflow: hidden;
   backdrop-filter: blur(var(--qui-backdrop-blur));
+  user-select: none;
   border: 1px solid rgba(var(--qui-accent-color), var(--qui-border-opacity));
-  box-shadow: var(--qui-shadow-window);
+
+  /* Smoother animation */
+  opacity: 0;
+  transform: scale(0.98) translateY(10px);
+  animation: windowAppear var(--qui-interaction-speed) var(--qui-animation-bounce) forwards;
+
+  /* Separate transitions for better performance */
+  transition:
+    transform var(--qui-interaction-speed) var(--qui-animation-bounce),
+    border-color var(--qui-interaction-speed) var(--qui-animation-fade),
+    box-shadow var(--qui-interaction-speed) var(--qui-animation-fade);
+  will-change: transform, opacity;
+}
+
+/* Re-add shine effect with animation control */
+.window::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--qui-shine-effect);
+  transform: translateX(-100%);
+  opacity: 0;
+  transition: transform var(--qui-shine-speed) var(--qui-animation-bounce);
+}
+
+/* Only show shine effect when window becomes active */
+.window:not([data-active='true'])::before {
+  content: none;
+}
+
+.window[data-active='true'] {
+  transform: var(--qui-hover-lift) var(--qui-hover-scale);
+  border-color: rgba(var(--qui-accent-color), 0.3);
+  box-shadow: var(--qui-shadow-hover), var(--qui-inset-shadow);
+}
+
+/* Trigger shine animation when window becomes active */
+.window[data-active='true']::before {
+  opacity: 1;
+  animation: shineEffect var(--qui-shine-speed) var(--qui-animation-bounce) forwards;
+}
+
+@keyframes shineEffect {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
 }
 
 .titlebar {
@@ -149,9 +221,24 @@ const minimize = () => {
   justify-content: space-between;
   cursor: move;
   user-select: none;
-  font-weight: 500;
-  letter-spacing: 0.5px;
-  color: var(--qui-overlay-accent);
+  position: relative;
+  overflow: hidden;
+  pointer-events: auto; /* Ensure titlebar receives events */
+}
+
+.titlebar::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    rgba(var(--qui-accent-color), 0.3),
+    transparent
+  );
 }
 
 .window-info {
@@ -160,18 +247,22 @@ const minimize = () => {
   gap: 8px;
   flex: 1;
   min-width: 0;
+  pointer-events: none; /* Allow drag through title */
 }
 
 .window-title {
   font-size: var(--qui-font-size-base);
   font-weight: var(--qui-font-weight-medium);
   opacity: 0.9;
+  pointer-events: none; /* Allow drag through title */
 }
 
 .window-controls {
   display: flex;
-  margin-left: auto;
   height: 100%;
+  gap: 1px;
+  margin-left: auto; /* Push to right */
+  pointer-events: auto; /* Ensure buttons receive events */
 }
 
 .control-btn {
@@ -184,19 +275,74 @@ const minimize = () => {
   border: none;
   color: var(--qui-text-secondary);
   cursor: pointer;
-  transition: all 0.2s;
-  font-size: var(--qui-font-size-base);
-  font-family: var(--qui-font-family);
+  position: relative; /* For hover effects */
+  isolation: isolate; /* Create stacking context */
+  z-index: 1; /* Ensure buttons are above titlebar */
 }
 
-.control-btn:hover {
+/* Remove any inherited button styles */
+.control-btn {
+  margin: 0;
+  padding: 0;
+  font: inherit;
+  outline: none;
+}
+
+.control-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
   background: var(--qui-overlay-hover);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.control-btn:hover::before {
+  opacity: 1;
+}
+
+.control-btn .icon {
+  width: 16px;
+  height: 16px;
+  transition: transform 0.2s var(--qui-animation-bounce);
+}
+
+.control-btn:hover .icon {
+  transform: scale(1.2);
+}
+
+.control-btn.minimize .icon {
+  transform: translateY(2px);
+}
+
+.control-btn.maximize .icon {
+  font-size: 16px;
+}
+
+.control-btn.close .icon {
+  width: 18px;
+  height: 18px;
+}
+
+.control-btn.minimize:hover {
+  background: var(--qui-overlay-primary);
+}
+
+.control-btn.maximize:hover {
+  background: var(--qui-overlay-secondary);
+}
+
+.control-btn.close {
+  margin-left: 1px;
 }
 
 .control-btn.close:hover {
   background: var(--qui-danger-bg);
   color: var(--qui-danger-color);
-  box-shadow: var(--qui-danger-glow);
+}
+
+.control-btn.close:hover .icon {
+  transform: scale(1.2);
 }
 
 .content {
@@ -204,6 +350,7 @@ const minimize = () => {
   overflow: auto;
   padding: var(--qui-window-padding);
   background: var(--qui-window-bg);
+  user-select: text;
 }
 
 .window[data-active='true'] .titlebar {
@@ -219,5 +366,16 @@ const minimize = () => {
   height: 16px;
   object-fit: contain;
   filter: var(--qui-shadow-icon);
+}
+
+@keyframes windowAppear {
+  0% {
+    opacity: 0;
+    transform: scale(0.98) translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
 </style>

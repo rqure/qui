@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, defineComponent, markRaw } from 'vue'
+import { ref, defineComponent, markRaw, onMounted, onUnmounted } from 'vue'
 import { useWindowStore } from '@/stores/windows'
 import StartMenuComponent from './StartMenuComponent.vue'
 import { useMenuStore } from '@/stores/menu'
@@ -69,6 +69,21 @@ const handleWindowClick = (windowId: string) => {
   }
   windowStore.activateWindow(windowId)
 }
+
+const handleClickOutside = (e: MouseEvent) => {
+  const target = e.target as HTMLElement
+  if (isStartMenuOpen.value && !target?.closest('.start-btn') && !target?.closest('.start-menu')) {
+    isStartMenuOpen.value = false
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('mousedown', handleClickOutside)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('mousedown', handleClickOutside)
+})
 </script>
 
 <template>

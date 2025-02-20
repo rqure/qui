@@ -13,17 +13,32 @@ export const defaultTheme: Theme = {
     '--qui-accent-deep': '#1B5E20',
     '--qui-shadow': '0 4px 20px rgba(0, 255, 136, 0.2)',
 
-    // Animations
+    // Animations & Transitions
     '--qui-transition-speed': '0.2s',
-    '--qui-hover-scale': 'scale(1.02)',
-    '--qui-glow-effect': '0 0 10px rgba(0, 255, 136, 0.3)',
-    '--qui-glow-effect-strong': '0 0 20px rgba(0, 255, 136, 0.5)',
     '--qui-animation-bounce': 'cubic-bezier(0.34, 1.56, 0.64, 1)',
     '--qui-animation-fade': 'cubic-bezier(0.4, 0, 0.2, 1)',
+    '--qui-interaction-speed': '0.3s',
+    '--qui-shine-speed': '0.8s',
+
+    // Interactive Effects
+    '--qui-hover-lift': 'translateY(-2px)',
+    '--qui-hover-scale': 'scale(1.02)',
+    '--qui-active-scale': 'scale(0.98)',
+    '--qui-hover-rotation': 'rotate(1deg)',
+    '--qui-shine-effect':
+      'linear-gradient(45deg, transparent 0%, rgba(0, 255, 136, 0.03) 50%, transparent 100%)',
+    '--qui-glow-opacity': '0.15',
+    '--qui-glow-effect': '0 0 10px rgba(0, 255, 136, 0.3)',
+    '--qui-glow-effect-strong': '0 0 20px rgba(0, 255, 136, 0.5)',
+
+    // Enhanced Shadows
+    '--qui-shadow-hover': '0 8px 32px rgba(0, 255, 136, 0.15)',
+    '--qui-shadow-active': '0 2px 8px rgba(0, 255, 136, 0.2)',
+    '--qui-inset-shadow': '0 0 0 1px rgba(0, 255, 136, 0.3) inset',
 
     // Window
     '--qui-window-border': '1px solid rgba(0, 255, 136, 0.15)',
-    '--qui-window-radius': '4px', // Changed from 0px to 4px
+    '--qui-window-radius': '4px',
     '--qui-titlebar-height': '38px',
     '--qui-titlebar-bg': 'linear-gradient(to bottom, #1a2035, #151928)',
     '--qui-titlebar-border': '1px solid rgba(0, 255, 136, 0.2)',
@@ -38,7 +53,7 @@ export const defaultTheme: Theme = {
     '--qui-taskbar-button-bg': 'rgba(14, 17, 39, 0.8)',
     '--qui-taskbar-button-hover': 'rgba(0, 255, 136, 0.1)',
     '--qui-taskbar-button-active': 'rgba(0, 180, 255, 0.2)',
-    '--qui-taskbar-button-radius': '4px', // Added new variable for taskbar buttons
+    '--qui-taskbar-button-radius': '4px',
 
     // Start Menu
     '--qui-startmenu-width': '280px',
@@ -56,7 +71,7 @@ export const defaultTheme: Theme = {
     '--qui-menu-item-hover': 'rgba(0, 255, 136, 0.1)',
     '--qui-menu-separator': 'rgba(0, 255, 136, 0.15)',
     '--qui-menu-disabled-opacity': '0.5',
-    '--qui-menu-radius': '4px', // Added new variable for menus
+    '--qui-menu-radius': '4px',
 
     // Login Screen
     '--qui-login-bg': '#0e1127',

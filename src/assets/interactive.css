@@ -1,0 +1,53 @@
+.interactive-card {
+  position: relative;
+  overflow: hidden;
+  transition: all var(--qui-interaction-speed) var(--qui-animation-bounce);
+}
+
+.interactive-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--qui-shine-effect);
+  transform: translateX(-100%);
+  transition: transform var(--qui-shine-speed) var(--qui-animation-bounce);
+}
+
+.interactive-card:hover {
+  transform: var(--qui-hover-lift) var(--qui-hover-scale);
+  border-color: rgba(var(--qui-accent-color), 0.3);
+  box-shadow: var(--qui-shadow-hover), var(--qui-inset-shadow);
+}
+
+.interactive-card:hover::before {
+  transform: translateX(100%);
+}
+
+.interactive-card:active {
+  transform: var(--qui-active-scale);
+  box-shadow: var(--qui-shadow-active);
+}
+
+.interactive-icon {
+  position: relative;
+  transition: all 0.3s var(--qui-animation-bounce);
+}
+
+.interactive-icon::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  background: var(--qui-gradient-accent);
+  z-index: -1;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.interactive-icon:hover {
+  transform: var(--qui-hover-scale);
+}
+
+.interactive-icon:hover::after {
+  opacity: var(--qui-glow-opacity);
+}

@@ -115,6 +115,18 @@ export interface ThemeVariables {
   '--qui-overlay-accent': string
   '--qui-overlay-light': string
   '--qui-hover-border': string
+
+  // Interactive Effects
+  '--qui-hover-lift': string
+  '--qui-active-scale': string
+  '--qui-hover-rotation': string
+  '--qui-shine-effect': string
+  '--qui-glow-opacity': string
+  '--qui-interaction-speed': string
+  '--qui-shine-speed': string
+  '--qui-shadow-hover': string
+  '--qui-shadow-active': string
+  '--qui-inset-shadow': string
 }
 
 export interface ComponentTheme {
