@@ -42,5 +42,16 @@ export const defaultTheme: Theme = {
     '--qui-menu-item-hover': '#0066cc',
     '--qui-menu-separator': '#333333',
     '--qui-menu-disabled-opacity': '0.5',
+
+    // Login Screen
+    '--qui-login-bg': '#1a1a1a',
+    '--qui-login-box-bg': '#2a2a2a',
+    '--qui-login-box-border': '1px solid #333333',
+    '--qui-login-box-shadow': '0 4px 6px rgba(0, 0, 0, 0.2)',
+    '--qui-login-input-bg': '#1a1a1a',
+    '--qui-login-input-border': '1px solid #333333',
+    '--qui-login-button-bg': '#0066cc',
+    '--qui-login-button-hover': '#0052a3',
+    '--qui-login-button-text': '#ffffff',
   },
 }

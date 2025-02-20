@@ -30,22 +30,47 @@ const handleLogin = () => {
   inset: 0;
   display: grid;
   place-items: center;
-  background: var(--qui-bg-primary);
+  background: var(--qui-login-bg);
 }
 
 .login-box {
   padding: 2rem;
-  background: var(--qui-bg-secondary);
-  border-radius: 8px;
-  box-shadow: var(--qui-shadow);
+  background: var(--qui-login-box-bg);
+  border: var(--qui-login-box-border);
+  border-radius: var(--qui-window-radius);
+  box-shadow: var(--qui-login-box-shadow);
   text-align: center;
 }
 
-input,
-button {
+input {
   display: block;
   margin: 1rem 0;
   padding: 0.5rem;
   width: 200px;
+  background: var(--qui-login-input-bg);
+  border: var(--qui-login-input-border);
+  color: var(--qui-text-primary);
+  border-radius: 4px;
+}
+
+button {
+  display: block;
+  width: 100%;
+  padding: 0.5rem;
+  background: var(--qui-login-button-bg);
+  border: none;
+  border-radius: 4px;
+  color: var(--qui-login-button-text);
+  cursor: pointer;
+  font-weight: bold;
+}
+
+button:hover {
+  background: var(--qui-login-button-hover);
+}
+
+h1 {
+  color: var(--qui-text-primary);
+  margin-bottom: 1.5rem;
 }
 </style>

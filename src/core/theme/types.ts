@@ -38,6 +38,17 @@ export interface ThemeVariables {
   '--qui-menu-item-hover': string
   '--qui-menu-separator': string
   '--qui-menu-disabled-opacity': string
+
+  // Login Screen
+  '--qui-login-bg': string
+  '--qui-login-box-bg': string
+  '--qui-login-box-border': string
+  '--qui-login-box-shadow': string
+  '--qui-login-input-bg': string
+  '--qui-login-input-border': string
+  '--qui-login-button-bg': string
+  '--qui-login-button-hover': string
+  '--qui-login-button-text': string
 }
 
 export interface ComponentTheme {
