@@ -5,18 +5,35 @@ import WebtopLogin from './components/WebtopLogin.vue'
 import WorkspaceComponent from './components/workspace/WorkspaceComponent.vue'
 import TaskbarComponent from './components/taskbar/TaskbarComponent.vue'
 import ContextMenuComponent from './components/menu/ContextMenuComponent.vue'
+import { useMenuStore } from '@/stores/menu'
 
 const auth = useAuthStore()
+const menuStore = useMenuStore()
 
 const handleLogin = (user: string) => {
   auth.login(user)
+}
+
+const handleGlobalContextMenu = (e: MouseEvent) => {
+  e.preventDefault()
+  // Show empty menu when clicking on empty areas
+  if (e.target === e.currentTarget) {
+    menuStore.showMenu(
+      { x: e.clientX, y: e.clientY },
+      [
+        { id: 'desktop-settings', label: 'Desktop Settings', action: () => {} },
+        { id: 'refresh', label: 'Refresh', action: () => {} },
+      ],
+      { type: 'desktop' },
+    )
+  }
 }
 </script>
 
 <template>
   <ThemeProvider>
     <WebtopLogin v-if="!auth.isAuthenticated" @login="handleLogin" />
-    <div v-else class="webtop">
+    <div v-else class="webtop" @contextmenu="handleGlobalContextMenu">
       <WorkspaceComponent />
       <div class="taskbar-container">
         <TaskbarComponent />

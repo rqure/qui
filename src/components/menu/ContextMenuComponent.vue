@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
 import { useMenuStore } from '@/stores/menu'
 import type { MenuItem } from '@/core/menu/types'
 
@@ -17,6 +17,20 @@ const handleOutsideClick = (e: MouseEvent) => {
   if (menu && !menu.contains(e.target as Node)) {
     menuStore.hideMenu()
   }
+}
+
+const activeSubmenu = ref<string | null>(null)
+
+const handleMouseEnter = (item: MenuItem) => {
+  if (item.children) {
+    activeSubmenu.value = item.id
+  } else {
+    activeSubmenu.value = null
+  }
+}
+
+const handleMouseLeave = () => {
+  activeSubmenu.value = null
 }
 
 onMounted(() => {
@@ -44,10 +58,26 @@ onUnmounted(() => {
         :key="item.id"
         :class="['menu-item', { disabled: item.disabled, separator: item.separator }]"
         @click="handleClick(item)"
+        @mouseenter="handleMouseEnter(item)"
+        @mouseleave="handleMouseLeave"
       >
         <img v-if="item.icon" :src="item.icon" class="item-icon" />
         <span class="item-label">{{ item.label }}</span>
         <span v-if="item.shortcut" class="item-shortcut">{{ item.shortcut }}</span>
+        <span v-if="item.children" class="submenu-arrow">›</span>
+
+        <!-- Submenu -->
+        <div v-if="item.children && activeSubmenu === item.id" class="submenu">
+          <div
+            v-for="subItem in item.children"
+            :key="subItem.id"
+            :class="['menu-item', { disabled: subItem.disabled }]"
+            @click.stop="handleClick(subItem)"
+          >
+            <img v-if="subItem.icon" :src="subItem.icon" class="item-icon" />
+            <span class="item-label">{{ subItem.label }}</span>
+          </div>
+        </div>
       </div>
     </div>
   </Teleport>
@@ -100,5 +130,22 @@ onUnmounted(() => {
   margin-left: auto;
   padding-left: 16px;
   opacity: 0.7;
+}
+
+.submenu-arrow {
+  margin-left: auto;
+  padding-left: 8px;
+}
+
+.submenu {
+  position: absolute;
+  left: 100%;
+  top: 0;
+  min-width: 200px;
+  background: var(--qui-bg-secondary);
+  border: var(--qui-window-border);
+  border-radius: 4px;
+  padding: 4px;
+  box-shadow: var(--qui-shadow);
 }
 </style>
