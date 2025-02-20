@@ -89,11 +89,11 @@ export const defaultTheme: Theme = {
     '--qui-gradient-primary':
       'linear-gradient(to bottom, rgba(20, 28, 47, 0.95), rgba(16, 23, 38, 0.95))',
     '--qui-gradient-secondary':
-      'linear-gradient(135deg, rgba(0, 255, 136, 0.08), rgba(0, 180, 255, 0.08))',
+      'linear-gradient(135deg, rgba(0, 255, 136, 0.12), rgba(0, 180, 255, 0.12))',
     '--qui-gradient-accent':
-      'linear-gradient(135deg, rgba(0, 255, 136, 0.15), rgba(0, 180, 255, 0.15))',
+      'linear-gradient(135deg, rgba(0, 255, 136, 0.25), rgba(0, 180, 255, 0.25))',
     '--qui-gradient-active':
-      'linear-gradient(to bottom, rgba(22, 30, 50, 0.98), rgba(18, 25, 40, 0.98))',
+      'linear-gradient(to bottom, rgba(24, 32, 52, 0.98), rgba(20, 27, 47, 0.98))',
     '--qui-gradient-window':
       'linear-gradient(135deg, rgba(16, 24, 45, 0.85), rgba(14, 17, 39, 0.95))',
     '--qui-gradient-taskbar':

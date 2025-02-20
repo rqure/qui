@@ -240,12 +240,12 @@ const minimize = () => {
 /* Enhanced active state */
 .window[data-active='true'] .titlebar {
   background: var(--qui-gradient-active);
-  border-bottom: 1px solid rgba(var(--qui-accent-color), 0.15);
+  border-bottom: 1px solid rgba(var(--qui-accent-color), 0.2);
 }
 
 .window[data-active='true'] .titlebar::before {
   background: var(--qui-gradient-accent);
-  opacity: 0.5;
+  opacity: 0.7;
 }
 
 .window[data-active='true'] .titlebar::after {
@@ -255,8 +255,8 @@ const minimize = () => {
   background: linear-gradient(
     to right,
     transparent,
-    rgba(var(--qui-accent-color), 0.03),
-    rgba(var(--qui-accent-secondary), 0.03),
+    rgba(var(--qui-accent-color), 0.05),
+    rgba(var(--qui-accent-secondary), 0.05),
     transparent
   );
   pointer-events: none;
