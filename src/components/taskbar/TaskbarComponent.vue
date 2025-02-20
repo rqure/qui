@@ -1,7 +1,11 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, defineComponent } from 'vue'
 import { useWindowStore } from '@/stores/windows'
 import StartMenu from './StartMenu.vue'
+
+const TestWindow = defineComponent({
+  template: '<div>Test Window Content</div>',
+})
 
 const windowStore = useWindowStore()
 const isStartMenuOpen = ref(false)
@@ -15,6 +19,7 @@ const createTestWindow = () => {
     title: 'Test Window',
     width: 400,
     height: 300,
+    component: TestWindow,
   })
   isStartMenuOpen.value = false
 }

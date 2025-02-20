@@ -1,3 +1,5 @@
+import type { Component } from 'vue'
+
 export interface WindowState {
   id: string
   title: string
@@ -8,6 +10,8 @@ export interface WindowState {
   isMinimized: boolean
   isMaximized: boolean
   zIndex: number
+  component: Component
+  icon?: string
 }
 
 export interface WindowOptions {
@@ -16,4 +20,6 @@ export interface WindowOptions {
   height?: number
   x?: number
   y?: number
+  component: Component
+  icon?: string
 }

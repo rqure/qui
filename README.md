@@ -7,29 +7,58 @@ QUI represents a webtop application framework built with Vue 3, enabling develop
 ## Architecture Principles
 
 - **Single Page Application**: Everything runs in a single page without routing
-- **State Management**: Uses Pinia stores for global state
+- **State Management**: Uses Pinia stores for global state management
+- **Component Architecture**: Hierarchical component system with clear responsibilities
+- **Application System**: Pluggable application architecture with manifest system
 - **Theme System**: Centralized theme management through stores and CSS variables
-- **Component Isolation**: Each component should be self-contained and reusable
 
 ## Project Structure
 
 ```sh
 src
-├── core                 # Core framework functionality
-│   ├── theme           # Theme system
-│   │   ├── themes      # Theme definitions
-│   │   └── types       # Theme TypeScript types
-│   ├── window          # Window management (planned)
-│   ├── apps            # Application lifecycle (planned)
-│   └── ipc             # Inter-process communication (planned)
-├── stores              # Pinia stores
-│   ├── theme.ts        # Theme state management
-│   └── auth.ts         # Authentication state
-├── components          # Shared UI components
-└── assets             # Static assets
+├── core                  # Core framework functionality
+│   ├── apps             # Application system
+│   │   └── types.ts     # Application type definitions
+│   ├── theme            # Theme system
+│   │   ├── themes       # Theme definitions
+│   │   └── types        # Theme type definitions
+│   └── window           # Window management
+│       └── types.ts     # Window type definitions
+├── stores               # Pinia stores
+│   ├── apps.ts         # Application management
+│   ├── auth.ts         # Authentication state
+│   ├── theme.ts        # Theme management
+│   └── windows.ts      # Window management
+├── components
+│   ├── taskbar         # Taskbar components
+│   ├── window          # Window components
+│   └── workspace       # Workspace management
+└── assets              # Static assets
 ```
 
 ## State Management
+
+### App Store
+
+Manages application registration and launching:
+
+```typescript
+const apps = useAppStore()
+apps.registerApp(myApp)
+apps.launchApp('app-id')
+```
+
+### Window Store
+
+Handles window creation and management:
+
+```typescript
+const windows = useWindowStore()
+windows.createWindow({
+  title: 'My Window',
+  component: MyComponent,
+})
+```
 
 ### Theme Store
 
@@ -105,20 +134,48 @@ Create new themes in `src/core/theme/themes/`.
 
 ## Creating Applications
 
-Developers can create applications for the Webtop framework by following these guidelines:
+Applications are defined with a manifest and component:
 
 ```typescript
-// Example application structure
-export default {
-  name: 'MyApp',
-  manifest: {
-    version: '1.0.0',
-    permissions: ['storage', 'network'],
-  },
-  setup() {
-    // Application initialization
-  },
+interface AppManifest {
+  id: string
+  name: string
+  version: string
+  icon?: string
+  permissions: string[]
 }
+
+const myApp: RegisteredApp = {
+  manifest: {
+    id: 'my-app',
+    name: 'My Application',
+    version: '1.0.0',
+    permissions: ['storage'],
+  },
+  component: MyAppComponent,
+}
+```
+
+## Components
+
+### Core Components
+
+- **WorkspaceComponent**: Manages the desktop workspace area
+- **BaseWindow**: Base window component with dragging support
+- **TaskbarComponent**: Main taskbar with start menu
+- **StartMenuComponent**: Application launcher menu
+
+### Creating Windows
+
+Windows can be created with:
+
+```typescript
+windows.createWindow({
+  title: 'Window Title',
+  component: YourComponent,
+  width: 800,
+  height: 600,
+})
 ```
 
 ## Installing Applications

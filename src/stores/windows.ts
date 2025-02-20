@@ -18,6 +18,7 @@ export const useWindowStore = defineStore('windows', () => {
       isMinimized: false,
       isMaximized: false,
       zIndex: nextZIndex++,
+      component: options.component,
     }
     windows.value.push(window)
     activateWindow(window.id)

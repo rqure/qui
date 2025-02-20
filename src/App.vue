@@ -1,20 +1,14 @@
 <script setup lang="ts">
 import { useAuthStore } from '@/stores/auth'
-import { useWindowStore } from '@/stores/windows'
 import ThemeProvider from './core/theme/ThemeProvider.vue'
 import WebtopLogin from './components/WebtopLogin.vue'
-import BaseWindow from './components/window/BaseWindow.vue'
+import WorkspaceComponent from './components/workspace/WorkspaceComponent.vue'
 import TaskbarComponent from './components/taskbar/TaskbarComponent.vue'
 
 const auth = useAuthStore()
-const windowStore = useWindowStore()
 
 const handleLogin = (user: string) => {
   auth.login(user)
-}
-
-const handleWindowPosition = (windowId: string, x: number, y: number) => {
-  windowStore.updateWindowPosition(windowId, x, y)
 }
 </script>
 
@@ -22,14 +16,7 @@ const handleWindowPosition = (windowId: string, x: number, y: number) => {
   <ThemeProvider>
     <WebtopLogin v-if="!auth.isAuthenticated" @login="handleLogin" />
     <div v-else class="webtop">
-      <BaseWindow
-        v-for="window in windowStore.windows"
-        :key="window.id"
-        :window="window"
-        @update:position="(x, y) => handleWindowPosition(window.id, x, y)"
-      >
-        Window Content
-      </BaseWindow>
+      <WorkspaceComponent />
       <div class="taskbar-container">
         <TaskbarComponent />
       </div>
