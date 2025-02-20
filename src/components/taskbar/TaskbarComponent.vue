@@ -118,13 +118,13 @@ onUnmounted(() => {
 .taskbar {
   position: relative;
   display: flex;
-  align-items: center;
+  align-items: center; /* Keep this */
   gap: 8px;
   height: var(--qui-taskbar-height);
+  padding: 0 8px;
   background: var(--qui-gradient-taskbar);
   backdrop-filter: blur(var(--qui-backdrop-blur));
   border-top: var(--qui-taskbar-border);
-  padding: 0 8px;
   box-shadow: var(--qui-shadow-taskbar);
   z-index: 9999; /* Increased z-index */
   isolation: isolate; /* Create stacking context */
@@ -132,18 +132,48 @@ onUnmounted(() => {
   will-change: transform; /* Optimize compositing */
 }
 
-/* Adjust start button styles for logo */
+.start-btn,
+.window-button {
+  height: 32px;
+  margin: auto 0; /* Center vertically */
+}
+
 .start-btn {
-  padding: 0 8px;
-  height: 34px;
-  background: transparent;
-  border: none;
+  padding: 0 12px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center; /* Add this */
+  transform: translateY(0); /* Add this to prevent logo from shifting */
+  background: var(--qui-gradient-primary);
+  border: 1px solid rgba(var(--qui-accent-color), var(--qui-border-opacity));
+  border-radius: var(--qui-taskbar-button-radius);
   cursor: pointer;
-  transition: transform 0.3s var(--qui-animation-bounce);
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s var(--qui-animation-bounce);
+}
+
+.start-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--qui-gradient-secondary);
+  opacity: 0;
+  transition: opacity 0.3s var(--qui-animation-fade);
 }
 
 .start-btn:hover {
-  transform: scale(1.05);
+  border-color: var(--qui-hover-border);
+  transform: translateY(-1px);
+}
+
+.start-btn:hover::before {
+  opacity: 0.5;
+}
+
+.start-btn:active {
+  transform: scale(0.98);
 }
 
 /* Remove old start button styles */
@@ -161,7 +191,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 34px;
+  margin-top: 4px; /* Add top margin to offset bottom padding */
   padding: 0 12px;
   background: var(--qui-gradient-primary);
   border: 1px solid rgba(var(--qui-accent-color), var(--qui-border-opacity));
