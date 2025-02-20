@@ -56,28 +56,28 @@ export const useWindowStore = defineStore('windows', () => {
   }
 
   const maximizeWindow = (id: string) => {
-    const window = windows.value.find((w) => w.id === id)
-    if (window) {
-      if (window.isMaximized) {
-        if (window.prevSize) {
-          window.x = window.prevSize.x
-          window.y = window.prevSize.y
-          window.width = window.prevSize.width
-          window.height = window.prevSize.height
+    const win = windows.value.find((w) => w.id === id)
+    if (win) {
+      if (win.isMaximized) {
+        if (win.prevSize) {
+          win.x = win.prevSize.x
+          win.y = win.prevSize.y
+          win.width = win.prevSize.width
+          win.height = win.prevSize.height
         }
       } else {
-        window.prevSize = {
-          x: window.x,
-          y: window.y,
-          width: window.width,
-          height: window.height,
+        win.prevSize = {
+          x: win.x,
+          y: win.y,
+          width: win.width,
+          height: win.height,
         }
-        window.x = 0
-        window.y = 0
-        window.width = window.innerWidth
-        window.height = window.innerHeight
+        win.x = 0
+        win.y = 0
+        win.width = globalThis.window.innerWidth
+        win.height = globalThis.window.innerHeight
       }
-      window.isMaximized = !window.isMaximized
+      win.isMaximized = !win.isMaximized
     }
   }
 

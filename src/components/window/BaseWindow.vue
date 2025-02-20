@@ -91,6 +91,7 @@ const minimize = () => {
       height: `${window.height}px`,
       zIndex: window.zIndex,
     }"
+    :data-active="window.id === windowStore.activeWindow?.id"
     @mousedown="windowStore.activateWindow(window.id)"
     @contextmenu="handleContextMenu"
   >
@@ -126,36 +127,20 @@ const minimize = () => {
 <style scoped>
 .window {
   position: absolute;
-  background: var(--qui-gradient-window);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(0, 255, 136, 0.2);
+  background: var(--qui-window-bg);
+  border: var(--qui-window-border);
   border-radius: var(--qui-window-radius);
-  box-shadow:
-    0 0 30px rgba(0, 255, 136, 0.1),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  box-shadow: 0 0 30px rgba(0, 0, 0, 0.3);
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  transition: all 0.3s var(--qui-animation-bounce);
-}
-
-.window:hover {
-  border-color: rgba(0, 255, 136, 0.3);
-  box-shadow:
-    0 0 40px rgba(0, 255, 136, 0.15),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.1);
-}
-
-.window.maximized {
-  border-radius: 0;
-  transform: none !important;
 }
 
 .titlebar {
-  height: 38px;
-  background: var(--qui-gradient-primary);
-  border-bottom: 1px solid rgba(0, 255, 136, 0.2);
-  padding: 0 var(--qui-window-padding);
+  height: var(--qui-titlebar-height);
+  background: var(--qui-titlebar-bg);
+  border-bottom: var(--qui-titlebar-border);
+  padding: 0 4px 0 12px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -164,15 +149,6 @@ const minimize = () => {
   font-weight: 500;
   letter-spacing: 0.5px;
   color: rgba(255, 255, 255, 0.9);
-  position: relative;
-}
-
-.titlebar::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: var(--qui-gradient-secondary);
-  opacity: 0.1;
 }
 
 .window-info {
@@ -183,29 +159,20 @@ const minimize = () => {
   min-width: 0;
 }
 
-.window-icon {
-  width: 16px;
-  height: 16px;
-  object-fit: contain;
-}
-
 .window-title {
   font-size: 0.9rem;
-  font-weight: 500;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  opacity: 0.9;
 }
 
 .window-controls {
   display: flex;
-  gap: 2px;
   margin-left: auto;
+  height: 100%;
 }
 
 .control-btn {
   width: 46px;
-  height: 38px;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -214,66 +181,29 @@ const minimize = () => {
   color: var(--qui-text-secondary);
   cursor: pointer;
   transition: all 0.2s;
-  position: relative;
 }
 
-.control-btn::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  transition: opacity 0.2s;
-}
-
-.control-btn:hover::before {
-  opacity: 1;
-}
-
-.control-btn.minimize::before {
-  background: var(--qui-gradient-secondary);
-}
-
-.control-btn.maximize::before {
-  background: var(--qui-gradient-secondary);
-}
-
-.control-btn.close::before {
-  background: linear-gradient(135deg, rgba(255, 68, 68, 0.2), rgba(255, 68, 68, 0.3));
-}
-
-.control-btn .icon {
-  font-size: 14px;
-  position: relative;
-  z-index: 1;
+.control-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .control-btn.close:hover {
-  color: #ffffff;
-}
-
-.close-btn {
-  width: 24px;
-  height: 24px;
-  background: none;
-  border: none;
-  color: var(--qui-text-primary);
-  font-size: 1.2rem;
-  cursor: pointer;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s var(--qui-animation-bounce);
-}
-
-.close-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #ff4444;
+  background: #e81123;
+  color: white;
 }
 
 .content {
   flex: 1;
   overflow: auto;
   padding: var(--qui-window-padding);
+  background: var(--qui-window-bg);
+}
+
+.window[data-active='true'] .titlebar {
+  background: var(--qui-titlebar-active-bg);
+}
+
+.window[data-active='true'] .window-title {
+  opacity: 1;
 }
 </style>

@@ -23,9 +23,12 @@ export const defaultTheme: Theme = {
 
     // Window
     '--qui-window-border': '1px solid rgba(0, 255, 136, 0.15)',
-    '--qui-window-radius': '12px',
-    '--qui-titlebar-height': '32px',
-    '--qui-titlebar-bg': 'rgba(16, 24, 45, 0.95)',
+    '--qui-window-radius': '0px', // Changed from 12px
+    '--qui-titlebar-height': '38px',
+    '--qui-titlebar-bg': 'linear-gradient(to bottom, #1a2035, #151928)',
+    '--qui-titlebar-border': '1px solid rgba(0, 255, 136, 0.2)',
+    '--qui-titlebar-active-bg': 'linear-gradient(to bottom, #1e2540, #1a2035)',
+    '--qui-window-bg': 'linear-gradient(135deg, rgba(16, 24, 45, 0.95), rgba(14, 17, 39, 0.95))',
     '--qui-window-padding': '1rem',
 
     // Taskbar

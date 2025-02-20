@@ -14,6 +14,9 @@ export interface ThemeVariables {
   '--qui-window-radius': string
   '--qui-titlebar-height': string
   '--qui-titlebar-bg': string
+  '--qui-titlebar-border': string // Added
+  '--qui-titlebar-active-bg': string // Added
+  '--qui-window-bg': string // Added
   '--qui-window-padding': string
 
   // Taskbar
