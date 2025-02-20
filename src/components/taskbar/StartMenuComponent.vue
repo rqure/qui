@@ -111,8 +111,9 @@ const launchApp = (appId: string) => {
 }
 
 .user-name {
-  font-weight: 500;
-  letter-spacing: 0.5px;
+  font-weight: var(--qui-font-weight-medium);
+  font-size: var(--qui-font-size-base);
+  color: var(--qui-text-primary);
 }
 
 .menu-content {
@@ -128,11 +129,11 @@ const launchApp = (appId: string) => {
 
 .section-title {
   padding: 8px 12px 4px;
-  color: rgba(0, 255, 136, 0.7);
-  font-size: 0.75rem;
+  color: var(--qui-accent-color);
+  font-size: var(--qui-font-size-small);
   text-transform: uppercase;
   letter-spacing: 1px;
-  font-weight: 600;
+  font-weight: var(--qui-font-weight-bold);
 }
 
 .menu-item {
@@ -144,6 +145,8 @@ const launchApp = (appId: string) => {
   gap: 12px;
   border-radius: 8px;
   transition: all 0.2s var(--qui-animation-bounce);
+  font-size: var(--qui-font-size-base);
+  color: var(--qui-text-primary);
 }
 
 .menu-item:hover {
@@ -179,11 +182,13 @@ const launchApp = (appId: string) => {
   gap: 8px;
   padding: 8px 12px;
   background: rgba(255, 68, 68, 0.1);
-  border: 1px solid rgba(255, 68, 68, 0.2);
+  border: 1px solid var(--qui-accent-secondary);
   border-radius: 8px;
-  color: #ff4444;
+  color: var(--qui-accent-secondary);
   cursor: pointer;
   transition: all 0.2s;
+  font-size: var(--qui-font-size-base);
+  font-weight: var(--qui-font-weight-medium);
 }
 
 .power-button:hover {

@@ -1,3 +1,15 @@
+/* Base styles */
+:root {
+  font-family: var(--qui-font-family);
+  font-size: var(--qui-font-size-base);
+  line-height: var(--qui-line-height);
+  font-weight: var(--qui-font-weight-normal);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
 * {
   transition:
     background-color var(--qui-transition-speed) var(--qui-animation-fade),

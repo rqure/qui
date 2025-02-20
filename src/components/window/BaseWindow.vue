@@ -160,7 +160,8 @@ const minimize = () => {
 }
 
 .window-title {
-  font-size: 0.9rem;
+  font-size: var(--qui-font-size-base);
+  font-weight: var(--qui-font-weight-medium);
   opacity: 0.9;
 }
 
@@ -181,6 +182,8 @@ const minimize = () => {
   color: var(--qui-text-secondary);
   cursor: pointer;
   transition: all 0.2s;
+  font-size: var(--qui-font-size-base);
+  font-family: var(--qui-font-family);
 }
 
 .control-btn:hover {
@@ -188,8 +191,8 @@ const minimize = () => {
 }
 
 .control-btn.close:hover {
-  background: #e81123;
-  color: white;
+  background: var(--qui-gradient-accent);
+  color: var(--qui-text-primary);
 }
 
 .content {

@@ -89,7 +89,7 @@ onUnmounted(() => {
   min-width: 200px;
   background: var(--qui-menu-bg);
   border: var(--qui-menu-border);
-  border-radius: var(--qui-window-radius);
+  border-radius: var(--qui-menu-radius);
   padding: 4px;
   box-shadow: var(--qui-menu-shadow);
   z-index: 9999;
@@ -101,6 +101,9 @@ onUnmounted(() => {
   height: var(--qui-menu-item-height);
   padding: 0 12px;
   cursor: pointer;
+  font-size: var(--qui-font-size-base);
+  font-weight: var(--qui-font-weight-normal);
+  color: var(--qui-text-primary);
 }
 
 .menu-item:hover:not(.disabled) {
@@ -111,6 +114,7 @@ onUnmounted(() => {
 .menu-item.disabled {
   opacity: var(--qui-menu-disabled-opacity);
   cursor: default;
+  color: var(--qui-text-secondary);
 }
 
 .menu-item.separator {
@@ -130,6 +134,8 @@ onUnmounted(() => {
   margin-left: auto;
   padding-left: 16px;
   opacity: 0.7;
+  color: var(--qui-text-secondary);
+  font-size: var(--qui-font-size-small);
 }
 
 .submenu-arrow {
@@ -144,7 +150,7 @@ onUnmounted(() => {
   min-width: 200px;
   background: var(--qui-bg-secondary);
   border: var(--qui-window-border);
-  border-radius: 4px;
+  border-radius: var(--qui-menu-radius);
   padding: 4px;
   box-shadow: var(--qui-shadow);
 }

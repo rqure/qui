@@ -54,6 +54,8 @@ input {
   border: var(--qui-login-input-border);
   color: var(--qui-text-primary);
   border-radius: 4px;
+  font-size: var(--qui-font-size-base);
+  font-family: var(--qui-font-family);
 }
 
 button {
@@ -65,7 +67,8 @@ button {
   border-radius: 4px;
   color: var(--qui-login-button-text);
   cursor: pointer;
-  font-weight: bold;
+  font-weight: var(--qui-font-weight-medium);
+  font-size: var(--qui-font-size-base);
 }
 
 button:hover {
@@ -75,6 +78,8 @@ button:hover {
 h1 {
   color: var(--qui-text-primary);
   margin-bottom: 1.5rem;
+  font-weight: var(--qui-font-weight-bold);
+  font-size: var(--qui-font-size-large);
 }
 
 .logo {

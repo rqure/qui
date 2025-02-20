@@ -23,7 +23,7 @@ export const defaultTheme: Theme = {
 
     // Window
     '--qui-window-border': '1px solid rgba(0, 255, 136, 0.15)',
-    '--qui-window-radius': '0px', // Changed from 12px
+    '--qui-window-radius': '4px', // Changed from 0px to 4px
     '--qui-titlebar-height': '38px',
     '--qui-titlebar-bg': 'linear-gradient(to bottom, #1a2035, #151928)',
     '--qui-titlebar-border': '1px solid rgba(0, 255, 136, 0.2)',
@@ -38,6 +38,7 @@ export const defaultTheme: Theme = {
     '--qui-taskbar-button-bg': 'rgba(14, 17, 39, 0.8)',
     '--qui-taskbar-button-hover': 'rgba(0, 255, 136, 0.1)',
     '--qui-taskbar-button-active': 'rgba(0, 180, 255, 0.2)',
+    '--qui-taskbar-button-radius': '4px', // Added new variable for taskbar buttons
 
     // Start Menu
     '--qui-startmenu-width': '280px',
@@ -55,6 +56,7 @@ export const defaultTheme: Theme = {
     '--qui-menu-item-hover': 'rgba(0, 255, 136, 0.1)',
     '--qui-menu-separator': 'rgba(0, 255, 136, 0.15)',
     '--qui-menu-disabled-opacity': '0.5',
+    '--qui-menu-radius': '4px', // Added new variable for menus
 
     // Login Screen
     '--qui-login-bg': '#0e1127',
@@ -79,5 +81,16 @@ export const defaultTheme: Theme = {
       'linear-gradient(180deg, rgba(16, 24, 45, 0.9), rgba(14, 17, 39, 0.95))',
     '--qui-gradient-hover':
       'linear-gradient(135deg, rgba(0, 255, 136, 0.2), rgba(0, 180, 255, 0.2))',
+
+    // Fonts
+    '--qui-font-family':
+      "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif",
+    '--qui-font-size-base': '14px',
+    '--qui-font-size-small': '12px',
+    '--qui-font-size-large': '16px',
+    '--qui-font-weight-normal': '400',
+    '--qui-font-weight-medium': '500',
+    '--qui-font-weight-bold': '600',
+    '--qui-line-height': '1.5',
   },
 }

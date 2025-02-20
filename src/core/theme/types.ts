@@ -1,4 +1,14 @@
 export interface ThemeVariables {
+  // Fonts
+  '--qui-font-family': string
+  '--qui-font-size-base': string
+  '--qui-font-size-small': string
+  '--qui-font-size-large': string
+  '--qui-font-weight-normal': string
+  '--qui-font-weight-medium': string
+  '--qui-font-weight-bold': string
+  '--qui-line-height': string
+
   // Global
   '--qui-bg-primary': string
   '--qui-bg-secondary': string
@@ -26,6 +36,7 @@ export interface ThemeVariables {
   '--qui-taskbar-button-bg': string
   '--qui-taskbar-button-hover': string
   '--qui-taskbar-button-active': string
+  '--qui-taskbar-button-radius': string
 
   // Start Menu
   '--qui-startmenu-width': string
@@ -43,6 +54,7 @@ export interface ThemeVariables {
   '--qui-menu-item-hover': string
   '--qui-menu-separator': string
   '--qui-menu-disabled-opacity': string
+  '--qui-menu-radius': string
 
   // Login Screen
   '--qui-login-bg': string

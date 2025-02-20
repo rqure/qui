@@ -122,7 +122,7 @@ const handleWindowClick = (windowId: string) => {
   padding: 0 16px;
   background: var(--qui-gradient-secondary);
   border: 1px solid rgba(0, 255, 136, 0.3);
-  border-radius: 8px;
+  border-radius: var(--qui-taskbar-button-radius);
   color: var(--qui-text-primary);
   font-weight: 500;
   position: relative;
@@ -135,7 +135,8 @@ const handleWindowClick = (windowId: string) => {
 }
 
 .start-text {
-  font-size: 0.9rem;
+  font-size: var(--qui-font-size-small);
+  font-weight: var(--qui-font-weight-medium);
   letter-spacing: 0.5px;
   text-transform: uppercase;
 }
@@ -166,11 +167,13 @@ const handleWindowClick = (windowId: string) => {
   padding: 0 12px;
   background: var(--qui-gradient-primary);
   border: 1px solid rgba(0, 255, 136, 0.15);
-  border-radius: 8px;
+  border-radius: var(--qui-taskbar-button-radius);
   color: var(--qui-text-primary);
   position: relative;
   min-width: 160px;
   max-width: 200px;
+  font-size: var(--qui-font-size-base);
+  font-family: var(--qui-font-family);
 }
 
 .window-icon {
@@ -185,7 +188,9 @@ const handleWindowClick = (windowId: string) => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.9rem;
+  font-size: var(--qui-font-size-base);
+  font-weight: var(--qui-font-weight-normal);
+  color: var(--qui-text-primary);
 }
 
 .active-indicator {
