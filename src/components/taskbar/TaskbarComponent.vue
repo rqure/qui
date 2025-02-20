@@ -231,10 +231,41 @@ onUnmounted(() => {
   max-width: 200px;
   font-size: var(--qui-font-size-base);
   font-family: var(--qui-font-family);
-  transition:
-    background-color 0.3s var(--qui-animation-fade),
-    border-color 0.3s var(--qui-animation-fade),
-    box-shadow 0.3s var(--qui-animation-fade);
+  cursor: pointer;
+  transition: all 0.2s var(--qui-animation-bounce);
+  overflow: hidden;
+}
+
+.window-button::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--qui-gradient-secondary);
+  opacity: 0;
+  transition: opacity 0.2s var(--qui-animation-fade);
+}
+
+.window-button:hover {
+  border-color: var(--qui-hover-border);
+  transform: translateY(-1px);
+}
+
+.window-button:hover::before {
+  opacity: 0.2;
+}
+
+.window-button:active {
+  transform: scale(0.98) translateY(0);
+}
+
+.window-button.active {
+  background: var(--qui-gradient-secondary);
+  border-color: var(--qui-overlay-secondary);
+  box-shadow: var(--qui-shadow-accent);
+}
+
+.window-button.active::before {
+  opacity: 0.3;
 }
 
 .window-button-content {
