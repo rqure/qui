@@ -455,6 +455,127 @@ const handleContextMenu = (e: MouseEvent) => {
 - Automatic positioning
 - Click outside handling
 
+## Security System
+
+QUI implements a dual-layer security model based on Permissions and Areas of Responsibility (AOR):
+
+### Security Profile
+
+```typescript
+interface SecurityProfile {
+  permissions: string[] // What the user can do
+  areaOfResponsibility: string[] // What the user can see/access
+}
+```
+
+### Permissions
+
+Permissions are string-based identifiers that control specific actions:
+
+```typescript
+// Example permissions
+;[
+  'app.launch', // Can launch applications
+  'window.create', // Can create new windows
+  'settings.modify', // Can modify settings
+  'files.read', // Can read files
+  'files.write', // Can write files
+]
+```
+
+### Areas of Responsibility (AOR)
+
+AORs define access boundaries using simple strings:
+
+```typescript
+// Example AORs
+;[
+  'global', // Full access
+  'department.sales', // Sales department data
+  'region.europe', // European region data
+  'client.acme', // ACME client data
+]
+```
+
+Special AOR value `'*'` grants access to all areas.
+
+### Usage Examples
+
+#### Component Security
+
+```vue
+<script setup>
+import { useSecurityCheck } from '@/core/security/composables'
+
+const { checkAccess, requirePermission } = useSecurityCheck()
+
+// Check specific permission
+const canCreateWindow = requirePermission('window.create')
+
+// Check combined security context
+const canAccessFeature = checkAccess({
+  requiredPermissions: ['feature.use'],
+  requiredAOR: ['department.sales'],
+})
+</script>
+
+<template>
+  <button v-if="canCreateWindow && canAccessFeature" @click="createWindow">Create Window</button>
+</template>
+```
+
+#### Application Security
+
+```typescript
+const myApp = {
+  manifest: {
+    id: 'sales-app',
+    security: {
+      requiredPermissions: ['app.sales'],
+      requiredAOR: ['department.sales'],
+    },
+  },
+  component: withSecurity(SalesAppComponent, {
+    requiredPermissions: ['app.sales'],
+    requiredAOR: ['department.sales'],
+  }),
+}
+```
+
+#### Direct Store Access
+
+```typescript
+const security = useSecurityStore()
+
+// Check specific permission
+if (security.hasPermission('settings.modify')) {
+  // Modify settings
+}
+
+// Check area access
+if (security.hasAOR('region.europe')) {
+  // Access European data
+}
+
+// Check multiple requirements
+const check = security.checkSecurity({
+  requiredPermissions: ['data.read', 'data.write'],
+  requiredAOR: ['department.sales', 'region.europe'],
+})
+
+if (check.hasPermission && check.hasAOR) {
+  // Perform protected operation
+}
+```
+
+### Security Best Practices
+
+1. **Least Privilege**: Request minimum necessary permissions
+2. **Clear Naming**: Use descriptive permission and AOR names
+3. **Granular Control**: Split complex operations into specific permissions
+4. **Consistent Structure**: Use dot notation for hierarchical permissions
+5. **Documentation**: Document required permissions in component comments
+
 ## Installing Applications
 
 Applications can be installed in two ways:
