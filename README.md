@@ -23,7 +23,8 @@ src
 │   │   ├── themes       # Theme definitions
 │   │   └── types        # Theme type definitions
 │   └── window           # Window management
-│       └── types.ts     # Window type definitions
+│       ├── types.ts     # Window type definitions
+│       └── utils.ts     # Window utilities
 ├── stores               # Pinia stores
 │   ├── apps.ts         # Application management
 │   ├── auth.ts         # Authentication state
@@ -82,6 +83,50 @@ auth.logout()
 // Access state
 console.log(auth.isAuthenticated)
 console.log(auth.username)
+```
+
+## Window Management
+
+Windows are managed through a combination of types, utilities, and store:
+
+### Types
+
+```typescript
+interface WindowOptions {
+  title: string
+  width?: number
+  height?: number
+  x?: number
+  y?: number
+  component: Component
+  icon?: string
+}
+```
+
+### Utilities
+
+```typescript
+import { createWindowState } from '@/core/window/utils'
+
+// Create a new window state
+const windowState = createWindowState({
+  title: 'My Window',
+  component: MyComponent,
+  width: 800,
+  height: 600,
+})
+```
+
+### Store Usage
+
+```typescript
+const windows = useWindowStore()
+windows.createWindow({
+  title: 'My Window',
+  component: MyComponent,
+  width: 800,
+  height: 600,
+})
 ```
 
 ## Creating New Components
