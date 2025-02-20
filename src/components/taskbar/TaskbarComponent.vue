@@ -131,60 +131,79 @@ onUnmounted(() => {
   will-change: transform; /* Optimize compositing */
 }
 
+/* Completely revise start button styles */
+.start-btn {
+  position: relative; /* Ensure this is set for absolute positioning */
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(
+    to bottom,
+    rgba(var(--qui-accent-color), 0.15),
+    rgba(var(--qui-accent-secondary), 0.15)
+  );
+  border: 1px solid rgba(var(--qui-accent-color), 0.25);
+  border-radius: var(--qui-taskbar-button-radius);
+  cursor: pointer;
+  overflow: hidden; /* Change to visible to show indicators */
+}
+
+/* Glowing border indicator */
+.start-btn::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  background: linear-gradient(135deg, var(--qui-accent-color), var(--qui-accent-secondary));
+  border-radius: var(--qui-taskbar-button-radius);
+  opacity: 0.2;
+  z-index: -2;
+  pointer-events: none;
+}
+
+/* Pulsing dot indicator */
+.start-btn::after {
+  content: '';
+  position: absolute;
+  right: 4px;
+  top: 4px;
+  width: 6px;
+  height: 6px;
+  background: var(--qui-accent-color);
+  border-radius: 50%;
+  z-index: 1;
+  pointer-events: none;
+  animation: startPulse 2s ease-in-out infinite;
+}
+
+@keyframes startPulse {
+  0%,
+  100% {
+    transform: scale(0.8);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
+}
+
+.start-btn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(var(--qui-accent-color), 0.4);
+}
+
+.start-btn:hover::before {
+  opacity: 0.4;
+  filter: blur(8px);
+}
+
 .start-btn,
 .window-button {
   height: 100%; /* Changed from fixed height */
   margin: 0; /* Remove margin */
   display: flex;
   align-items: center;
-}
-
-.start-btn {
-  padding: 0 12px;
-  justify-content: center;
-  background: linear-gradient(
-    to bottom,
-    rgba(var(--qui-accent-color), 0.1),
-    rgba(var(--qui-accent-secondary), 0.1)
-  );
-  border: 1px solid rgba(var(--qui-accent-color), 0.2);
-  border-radius: var(--qui-taskbar-button-radius);
-  cursor: pointer;
-  overflow: hidden;
-  transition: all 0.3s var(--qui-animation-bounce);
-  box-shadow: 0 0 0 1px rgba(var(--qui-accent-color), 0.1);
-}
-
-.start-btn::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    135deg,
-    rgba(var(--qui-accent-color), 0.1),
-    rgba(var(--qui-accent-secondary), 0.2)
-  );
-  opacity: 0;
-  transition: opacity 0.3s var(--qui-animation-fade);
-}
-
-.start-btn:hover {
-  border-color: rgba(var(--qui-accent-color), 0.3);
-  transform: translateY(-1px);
-  box-shadow:
-    0 0 0 1px rgba(var(--qui-accent-color), 0.15),
-    0 4px 12px rgba(var(--qui-accent-color), 0.1);
-}
-
-.start-btn:hover::before {
-  opacity: 1;
-}
-
-.start-btn:active {
-  transform: scale(0.98) translateY(0);
-  box-shadow:
-    0 0 0 1px rgba(var(--qui-accent-color), 0.2),
-    0 2px 8px rgba(var(--qui-accent-color), 0.15);
 }
 
 /* Remove old start button styles */
