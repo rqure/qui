@@ -116,9 +116,8 @@ onUnmounted(() => {
 
 <style scoped>
 .taskbar {
-  position: relative;
   display: flex;
-  align-items: center; /* Keep this */
+  align-items: stretch; /* Changed from center to stretch */
   gap: 8px;
   height: var(--qui-taskbar-height);
   padding: 0 8px;
@@ -134,46 +133,58 @@ onUnmounted(() => {
 
 .start-btn,
 .window-button {
-  height: 32px;
-  margin: auto 0; /* Center vertically */
+  height: 100%; /* Changed from fixed height */
+  margin: 0; /* Remove margin */
+  display: flex;
+  align-items: center;
 }
 
 .start-btn {
   padding: 0 12px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center; /* Add this */
-  transform: translateY(0); /* Add this to prevent logo from shifting */
-  background: var(--qui-gradient-primary);
-  border: 1px solid rgba(var(--qui-accent-color), var(--qui-border-opacity));
+  justify-content: center;
+  background: linear-gradient(
+    to bottom,
+    rgba(var(--qui-accent-color), 0.1),
+    rgba(var(--qui-accent-secondary), 0.1)
+  );
+  border: 1px solid rgba(var(--qui-accent-color), 0.2);
   border-radius: var(--qui-taskbar-button-radius);
   cursor: pointer;
-  position: relative;
   overflow: hidden;
   transition: all 0.3s var(--qui-animation-bounce);
+  box-shadow: 0 0 0 1px rgba(var(--qui-accent-color), 0.1);
 }
 
 .start-btn::before {
   content: '';
   position: absolute;
   inset: 0;
-  background: var(--qui-gradient-secondary);
+  background: linear-gradient(
+    135deg,
+    rgba(var(--qui-accent-color), 0.1),
+    rgba(var(--qui-accent-secondary), 0.2)
+  );
   opacity: 0;
   transition: opacity 0.3s var(--qui-animation-fade);
 }
 
 .start-btn:hover {
-  border-color: var(--qui-hover-border);
+  border-color: rgba(var(--qui-accent-color), 0.3);
   transform: translateY(-1px);
+  box-shadow:
+    0 0 0 1px rgba(var(--qui-accent-color), 0.15),
+    0 4px 12px rgba(var(--qui-accent-color), 0.1);
 }
 
 .start-btn:hover::before {
-  opacity: 0.5;
+  opacity: 1;
 }
 
 .start-btn:active {
-  transform: scale(0.98);
+  transform: scale(0.98) translateY(0);
+  box-shadow:
+    0 0 0 1px rgba(var(--qui-accent-color), 0.2),
+    0 2px 8px rgba(var(--qui-accent-color), 0.15);
 }
 
 /* Remove old start button styles */
@@ -191,7 +202,6 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-top: 4px; /* Add top margin to offset bottom padding */
   padding: 0 12px;
   background: var(--qui-gradient-primary);
   border: 1px solid rgba(var(--qui-accent-color), var(--qui-border-opacity));
