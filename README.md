@@ -192,19 +192,139 @@ const themeStore = useThemeStore()
 
 ## Theme System
 
-Themes are defined as TypeScript objects:
+### Theme Structure
+
+Themes are organized into logical categories:
 
 ```typescript
-interface Theme {
-  name: string
-  variables: Partial<ThemeVariables>
-  components?: {
-    [key: string]: ComponentTheme
-  }
+interface ThemeVariables {
+  // Core categories
+  Fonts // Typography settings
+  Global // Base colors and common values
+  Effects // Visual effects and animations
+
+  // Component specific
+  Window // Window styling
+  Taskbar // Taskbar and buttons
+  StartMenu // Start menu appearance
+  ContextMenu // Context menu styling
+
+  // Special categories
+  Danger // Danger/warning states
+  Gradients // Gradient definitions
+  Shadows // Shadow effects
+  Overlays // Overlay effects
 }
 ```
 
-Create new themes in `src/core/theme/themes/`.
+### Using Theme Variables
+
+Always use theme variables instead of hardcoded values:
+
+```vue
+<!-- ❌ Don't -->
+<style>
+.element {
+  color: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 30px rgba(0, 0, 0, 0.3);
+}
+</style>
+
+<!-- ✅ Do -->
+<style>
+.element {
+  color: var(--qui-text-secondary);
+  box-shadow: var(--qui-shadow-window);
+}
+</style>
+```
+
+### Effect Patterns
+
+Common visual effects are standardized:
+
+```css
+/* Shadows */
+--qui-shadow-window     // Window shadows
+--qui-shadow-taskbar    // Taskbar shadow
+--qui-shadow-icon       // Icon effects
+--qui-shadow-accent     // Accent highlights
+
+/* Overlays */
+--qui-overlay-hover     // Hover state overlays
+--qui-overlay-active    // Active state overlays
+--qui-overlay-primary   // Primary overlays
+--qui-overlay-secondary // Secondary overlays
+
+/* Borders */
+--qui-border-opacity    // Standard border opacity
+--qui-hover-border     // Hover state borders
+```
+
+### Animation Guidelines
+
+Use provided animation variables:
+
+```css
+.element {
+  transition: all var(--qui-transition-speed) var(--qui-animation-bounce);
+}
+
+.hover-effect:hover {
+  transform: var(--qui-hover-scale);
+  box-shadow: var(--qui-glow-effect);
+}
+```
+
+## Component Guidelines
+
+### Window Components
+
+Windows should:
+
+- Use `var(--qui-window-bg)` for background
+- Implement `var(--qui-window-radius)` for borders
+- Use `var(--qui-shadow-window)` for shadow
+- Apply `var(--qui-backdrop-blur)` for glass effect
+
+### Taskbar Items
+
+Taskbar buttons should:
+
+- Use `var(--qui-taskbar-button-radius)` for border radius
+- Implement active states with `var(--qui-gradient-secondary)`
+- Use `var(--qui-shadow-accent)` for active highlights
+- Apply `var(--qui-hover-border)` for hover states
+
+### Context Menus
+
+Context menus should:
+
+- Use `var(--qui-menu-bg)` for background
+- Apply `var(--qui-menu-radius)` for border radius
+- Use `var(--qui-menu-shadow)` for shadow
+- Implement `var(--qui-menu-item-hover)` for hover states
+
+### Icons
+
+Icon guidelines:
+
+- Use `var(--qui-shadow-icon)` for standard icons
+- Use `var(--qui-shadow-icon-strong)` for emphasis
+- Maintain 16px × 16px for window/taskbar icons
+- Maintain 20px × 20px for menu icons
+
+### Typography
+
+Text guidelines:
+
+- Use `var(--qui-font-size-base)` (14px) for general text
+- Use `var(--qui-font-size-small)` (12px) for secondary text
+- Use `var(--qui-font-size-large)` (16px) for headings
+- Apply appropriate font weights:
+  - `var(--qui-font-weight-normal)` (400) for body text
+  - `var(--qui-font-weight-medium)` (500) for emphasis
+  - `var(--qui-font-weight-bold)` (600) for headings
 
 ## Creating Applications
 
