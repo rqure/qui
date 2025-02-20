@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, defineComponent } from 'vue'
 import { useWindowStore } from '@/stores/windows'
-import StartMenu from './StartMenu.vue'
+import StartMenuComponent from './StartMenuComponent.vue'
 
 const TestWindow = defineComponent({
   template: '<div>Test Window Content</div>',
@@ -28,7 +28,7 @@ const createTestWindow = () => {
 <template>
   <div class="taskbar">
     <button class="start-btn" @click="toggleStartMenu">Start</button>
-    <StartMenu
+    <StartMenuComponent
       v-if="isStartMenuOpen"
       @create-window="createTestWindow"
       @close="isStartMenuOpen = false"
