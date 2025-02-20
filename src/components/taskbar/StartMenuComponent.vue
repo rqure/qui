@@ -42,10 +42,11 @@ const launchApp = (appId: string) => {
   position: absolute;
   bottom: 100%;
   left: 0;
-  width: 240px;
-  background: var(--qui-bg-secondary);
-  border: var(--qui-window-border);
-  border-radius: 8px;
+  width: var(--qui-startmenu-width);
+  background: var(--qui-startmenu-bg);
+  border: var(--qui-startmenu-border);
+  border-radius: var(--qui-window-radius);
+  box-shadow: var(--qui-startmenu-shadow);
   padding: 0.5rem;
 }
 
@@ -55,7 +56,7 @@ const launchApp = (appId: string) => {
 
 .section-title {
   padding: 0.25rem 1rem;
-  color: var(--qui-text-secondary);
+  color: var(--qui-startmenu-section-title);
   font-size: 0.8em;
   text-transform: uppercase;
 }
@@ -69,7 +70,7 @@ const launchApp = (appId: string) => {
 }
 
 .menu-item:hover {
-  background: var(--qui-accent-color);
+  background: var(--qui-startmenu-item-hover);
   color: white;
 }
 

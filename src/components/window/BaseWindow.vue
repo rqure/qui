@@ -87,17 +87,17 @@ const handleContextMenu = (e: MouseEvent) => {
   position: absolute;
   background: var(--qui-bg-secondary);
   border: var(--qui-window-border);
-  border-radius: 8px;
+  border-radius: var(--qui-window-radius);
   box-shadow: var(--qui-shadow);
   display: flex;
   flex-direction: column;
 }
 
 .titlebar {
-  height: 32px;
-  background: var(--qui-bg-primary);
+  height: var(--qui-titlebar-height);
+  background: var(--qui-titlebar-bg);
   border-bottom: var(--qui-window-border);
-  padding: 0 1rem;
+  padding: 0 var(--qui-window-padding);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -116,6 +116,6 @@ const handleContextMenu = (e: MouseEvent) => {
 .content {
   flex: 1;
   overflow: auto;
-  padding: 1rem;
+  padding: var(--qui-window-padding);
 }
 </style>

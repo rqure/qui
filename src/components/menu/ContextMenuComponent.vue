@@ -87,35 +87,35 @@ onUnmounted(() => {
 .context-menu {
   position: fixed;
   min-width: 200px;
-  background: var(--qui-bg-secondary);
-  border: var(--qui-window-border);
-  border-radius: 4px;
+  background: var(--qui-menu-bg);
+  border: var(--qui-menu-border);
+  border-radius: var(--qui-window-radius);
   padding: 4px;
-  box-shadow: var(--qui-shadow);
+  box-shadow: var(--qui-menu-shadow);
   z-index: 9999;
 }
 
 .menu-item {
   display: flex;
   align-items: center;
-  padding: 6px 12px;
+  height: var(--qui-menu-item-height);
+  padding: 0 12px;
   cursor: pointer;
-  border-radius: 2px;
 }
 
 .menu-item:hover:not(.disabled) {
-  background: var(--qui-accent-color);
+  background: var(--qui-menu-item-hover);
   color: white;
 }
 
 .menu-item.disabled {
-  opacity: 0.5;
+  opacity: var(--qui-menu-disabled-opacity);
   cursor: default;
 }
 
 .menu-item.separator {
   height: 1px;
-  background: var(--qui-window-border);
+  background: var(--qui-menu-separator);
   margin: 4px 0;
   padding: 0;
 }

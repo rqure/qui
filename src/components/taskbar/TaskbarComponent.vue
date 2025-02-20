@@ -90,13 +90,16 @@ const handleWindowItemContext = (e: MouseEvent, windowId: string) => {
   display: flex;
   align-items: center;
   gap: 8px;
+  height: var(--qui-taskbar-height);
+  background: var(--qui-taskbar-bg);
+  border-top: var(--qui-taskbar-border);
 }
 
 .start-btn {
   padding: 0.5rem 1rem;
   background: var(--qui-accent-color);
   border: none;
-  color: white;
+  color: var(--qui-text-primary);
   cursor: pointer;
 }
 
@@ -107,9 +110,17 @@ const handleWindowItemContext = (e: MouseEvent, windowId: string) => {
 
 .window-list button {
   padding: 0.5rem 1rem;
-  background: var(--qui-bg-primary);
+  background: var(--qui-taskbar-button-bg);
   border: var(--qui-window-border);
   color: var(--qui-text-primary);
   cursor: pointer;
+}
+
+.window-list button:hover {
+  background: var(--qui-taskbar-button-hover);
+}
+
+.window-list button.active {
+  background: var(--qui-taskbar-button-active);
 }
 </style>
