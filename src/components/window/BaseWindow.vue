@@ -153,13 +153,15 @@ const minimize = () => {
   position: absolute;
   background: var(--qui-window-bg);
   border-radius: var(--qui-window-radius);
-  box-shadow: var(--qui-shadow-window);
   display: flex;
   flex-direction: column;
   overflow: hidden;
   backdrop-filter: blur(var(--qui-backdrop-blur));
   user-select: none;
-  border: 1px solid rgba(var(--qui-accent-color), var(--qui-border-opacity));
+
+  /* Base state - no glow */
+  border: var(--qui-window-border);
+  box-shadow: var(--qui-shadow-window);
 
   /* Smoother animation */
   opacity: 0;
@@ -192,8 +194,12 @@ const minimize = () => {
 
 .window[data-active='true'] {
   transform: var(--qui-hover-lift) var(--qui-hover-scale);
-  border-color: rgba(var(--qui-accent-color), 0.3);
-  box-shadow: var(--qui-shadow-hover), var(--qui-inset-shadow);
+  border: 1px solid var(--qui-hover-border);
+  /* Subtler glow for active state */
+  box-shadow:
+    0 0 0 1px rgba(var(--qui-accent-color), 0.1),
+    var(--qui-shadow-window),
+    0 0 30px rgba(var(--qui-accent-color), 0.15);
 }
 
 /* Trigger shine animation when window becomes active */
@@ -223,11 +229,15 @@ const minimize = () => {
   overflow: hidden;
   pointer-events: auto; /* Ensure titlebar receives events */
   background: var(--qui-titlebar-bg);
-  transition: all 0.3s var(--qui-animation-fade);
   border-bottom: 1px solid rgba(0, 0, 0, 0.2);
+  transform: translateZ(0); /* Force GPU acceleration */
+  will-change: transform;
+
+  /* Fix border and background transitions */
+  transition: none; /* Remove transition to prevent flashing */
 }
 
-/* Subtle gradient for all states */
+/* Base layer - always present */
 .titlebar::before {
   content: '';
   position: absolute;
@@ -235,31 +245,14 @@ const minimize = () => {
   background: var(--qui-gradient-secondary);
   opacity: 0.7;
   pointer-events: none;
+  transition: opacity 0.3s var(--qui-animation-fade);
+  transform: translateZ(0);
 }
 
 /* Enhanced active state */
 .window[data-active='true'] .titlebar {
   background: var(--qui-gradient-active);
   border-bottom: 1px solid rgba(var(--qui-accent-color), 0.2);
-}
-
-.window[data-active='true'] .titlebar::before {
-  background: var(--qui-gradient-accent);
-  opacity: 0.7;
-}
-
-.window[data-active='true'] .titlebar::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    to right,
-    transparent,
-    rgba(var(--qui-accent-color), 0.05),
-    rgba(var(--qui-accent-secondary), 0.05),
-    transparent
-  );
-  pointer-events: none;
 }
 
 .window-info {

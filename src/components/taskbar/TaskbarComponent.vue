@@ -129,9 +129,13 @@ onUnmounted(() => {
   height: var(--qui-taskbar-height);
   background: var(--qui-gradient-taskbar);
   backdrop-filter: blur(var(--qui-backdrop-blur));
-  border-top: 1px solid rgba(var(--qui-accent-color), var(--qui-border-opacity));
+  border-top: var(--qui-taskbar-border);
   padding: 0 8px;
   box-shadow: var(--qui-shadow-taskbar);
+  z-index: 9999; /* Increased z-index */
+  isolation: isolate; /* Create stacking context */
+  transform: translateZ(0); /* Force GPU acceleration */
+  will-change: transform; /* Optimize compositing */
 }
 
 .start-btn {
@@ -195,6 +199,10 @@ onUnmounted(() => {
   max-width: 200px;
   font-size: var(--qui-font-size-base);
   font-family: var(--qui-font-family);
+  transition:
+    background-color 0.3s var(--qui-animation-fade),
+    border-color 0.3s var(--qui-animation-fade),
+    box-shadow 0.3s var(--qui-animation-fade);
 }
 
 .window-button-content {
