@@ -79,6 +79,7 @@ export interface ThemeVariables {
   '--qui-gradient-primary': string
   '--qui-gradient-secondary': string
   '--qui-gradient-accent': string
+  '--qui-gradient-active': string
   '--qui-gradient-window': string
   '--qui-gradient-taskbar': string
   '--qui-gradient-hover': string

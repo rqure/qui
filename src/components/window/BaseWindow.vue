@@ -213,8 +213,6 @@ const minimize = () => {
 
 .titlebar {
   height: var(--qui-titlebar-height);
-  background: var(--qui-titlebar-bg);
-  border-bottom: var(--qui-titlebar-border);
   padding: 0 4px 0 12px;
   display: flex;
   align-items: center;
@@ -224,21 +222,44 @@ const minimize = () => {
   position: relative;
   overflow: hidden;
   pointer-events: auto; /* Ensure titlebar receives events */
+  background: var(--qui-titlebar-bg);
+  transition: all 0.3s var(--qui-animation-fade);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.2);
 }
 
+/* Subtle gradient for all states */
 .titlebar::before {
   content: '';
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
+  inset: 0;
+  background: var(--qui-gradient-secondary);
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+/* Enhanced active state */
+.window[data-active='true'] .titlebar {
+  background: var(--qui-gradient-active);
+  border-bottom: 1px solid rgba(var(--qui-accent-color), 0.15);
+}
+
+.window[data-active='true'] .titlebar::before {
+  background: var(--qui-gradient-accent);
+  opacity: 0.5;
+}
+
+.window[data-active='true'] .titlebar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
   background: linear-gradient(
     to right,
     transparent,
-    rgba(var(--qui-accent-color), 0.3),
+    rgba(var(--qui-accent-color), 0.03),
+    rgba(var(--qui-accent-secondary), 0.03),
     transparent
   );
+  pointer-events: none;
 }
 
 .window-info {

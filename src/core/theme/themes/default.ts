@@ -40,9 +40,10 @@ export const defaultTheme: Theme = {
     '--qui-window-border': '1px solid rgba(0, 255, 136, 0.15)',
     '--qui-window-radius': '4px',
     '--qui-titlebar-height': '38px',
-    '--qui-titlebar-bg': 'linear-gradient(to bottom, #1a2035, #151928)',
+    '--qui-titlebar-bg':
+      'linear-gradient(to bottom, rgba(24, 32, 54, 0.98), rgba(20, 27, 45, 0.98))',
     '--qui-titlebar-border': '1px solid rgba(0, 255, 136, 0.2)',
-    '--qui-titlebar-active-bg': 'linear-gradient(to bottom, #1e2540, #1a2035)',
+    '--qui-titlebar-active-bg': 'var(--qui-gradient-active)',
     '--qui-window-bg': 'linear-gradient(135deg, rgba(16, 24, 45, 0.95), rgba(14, 17, 39, 0.95))',
     '--qui-window-padding': '1rem',
 
@@ -86,10 +87,13 @@ export const defaultTheme: Theme = {
 
     // Gradients
     '--qui-gradient-primary':
-      'linear-gradient(135deg, rgba(14, 17, 39, 0.95), rgba(16, 24, 45, 0.95))',
+      'linear-gradient(to bottom, rgba(20, 28, 47, 0.95), rgba(16, 23, 38, 0.95))',
     '--qui-gradient-secondary':
+      'linear-gradient(135deg, rgba(0, 255, 136, 0.08), rgba(0, 180, 255, 0.08))',
+    '--qui-gradient-accent':
       'linear-gradient(135deg, rgba(0, 255, 136, 0.15), rgba(0, 180, 255, 0.15))',
-    '--qui-gradient-accent': 'linear-gradient(135deg, rgba(0, 255, 136, 1), rgba(0, 180, 255, 1))',
+    '--qui-gradient-active':
+      'linear-gradient(to bottom, rgba(22, 30, 50, 0.98), rgba(18, 25, 40, 0.98))',
     '--qui-gradient-window':
       'linear-gradient(135deg, rgba(16, 24, 45, 0.85), rgba(14, 17, 39, 0.95))',
     '--qui-gradient-taskbar':
