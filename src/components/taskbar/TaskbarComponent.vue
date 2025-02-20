@@ -3,6 +3,7 @@ import { ref, defineComponent, markRaw, onMounted, onUnmounted } from 'vue'
 import { useWindowStore } from '@/stores/windows'
 import StartMenuComponent from './StartMenuComponent.vue'
 import { useMenuStore } from '@/stores/menu'
+import QeiLogo from '@/components/common/QeiLogo.vue'
 
 const TestWindow = markRaw(
   defineComponent({
@@ -88,14 +89,7 @@ onUnmounted(() => {
 
 <template>
   <div class="taskbar" @contextmenu.prevent="handleTaskbarContext">
-    <button class="start-btn" @click="toggleStartMenu">
-      <svg class="start-icon" viewBox="0 0 24 24">
-        <path
-          d="M21,16V8.00002L14,8V16H21M21,3C21.55,3 22,3.44999 22,4V16C22,16.55 21.55,17 21,17H14C13.45,17 13,16.55 13,16V4C13,3.44999 13.45,3 14,3H21M10,3H3C2.45,3 2,3.44999 2,4V20C2,20.55 2.45,21 3,21H10C10.55,21 11,20.55 11,20V4C11,3.44999 10.55,3 10,3Z"
-        />
-      </svg>
-      <span class="start-text">Start</span>
-    </button>
+    <QeiLogo size="small" class="start-btn" @click="toggleStartMenu" />
     <StartMenuComponent
       v-if="isStartMenuOpen"
       @create-window="createTestWindow"
@@ -138,45 +132,24 @@ onUnmounted(() => {
   will-change: transform; /* Optimize compositing */
 }
 
+/* Adjust start button styles for logo */
 .start-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  padding: 0 8px;
   height: 34px;
-  padding: 0 16px;
-  background: var(--qui-gradient-secondary);
-  border: 1px solid rgba(var(--qui-accent-color), var(--qui-border-opacity));
-  border-radius: var(--qui-taskbar-button-radius);
-  color: var(--qui-text-primary);
-  font-weight: 500;
-  position: relative;
-  overflow: hidden;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.3s var(--qui-animation-bounce);
 }
 
-.start-icon {
-  width: 20px;
-  height: 20px;
-  filter: var(--qui-shadow-icon);
+.start-btn:hover {
+  transform: scale(1.05);
 }
 
+/* Remove old start button styles */
+.start-icon,
 .start-text {
-  font-size: var(--qui-font-size-small);
-  font-weight: var(--qui-font-weight-medium);
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-}
-
-.start-btn::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: var(--qui-gradient-accent);
-  opacity: 0;
-  transition: opacity 0.3s;
-}
-
-.start-btn:hover::before {
-  opacity: 0.15;
+  display: none;
 }
 
 .window-list {

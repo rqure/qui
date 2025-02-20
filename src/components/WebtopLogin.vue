@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import qeiLogo from '@/components/icons/qei-logo.png'
+import QeiLogo from '@/components/common/QeiLogo.vue'
 
 const emit = defineEmits<{
   (e: 'login', username: string): void
@@ -8,9 +8,9 @@ const emit = defineEmits<{
 
 const username = ref('')
 
-const handleLogin = () => {
-  if (username.value) {
-    emit('login', username.value)
+const handleSubmit = () => {
+  if (username.value.trim()) {
+    emit('login', username.value.trim())
   }
 }
 </script>
@@ -18,31 +18,47 @@ const handleLogin = () => {
 <template>
   <div class="login-screen">
     <div class="login-box">
-      <div class="logo">
-        <img :src="qeiLogo" alt="QEI Logo" />
-      </div>
-      <input v-model="username" placeholder="Username" @keyup.enter="handleLogin" />
-      <button class="button-hover" @click="handleLogin">Login</button>
+      <QeiLogo size="large" class="login-logo" />
+      <form class="login-form" @submit.prevent="handleSubmit">
+        <input
+          v-model="username"
+          type="text"
+          placeholder="Enter your username"
+          class="login-input"
+          autocomplete="username"
+        />
+        <button type="submit" class="login-button">Login</button>
+      </form>
     </div>
   </div>
 </template>
 
 <style scoped>
 .login-screen {
-  position: fixed;
-  inset: 0;
-  display: grid;
-  place-items: center;
+  height: 100vh;
   background: var(--qui-login-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .login-box {
-  padding: 2rem;
+  width: 100%;
+  max-width: 400px;
   background: var(--qui-login-box-bg);
+  backdrop-filter: blur(var(--qui-backdrop-blur));
   border: var(--qui-login-box-border);
-  border-radius: var(--qui-window-radius);
+  border-radius: 12px;
+  padding: 2rem;
   box-shadow: var(--qui-login-box-shadow);
-  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2rem;
+}
+
+.login-logo {
+  margin-bottom: 1rem;
 }
 
 input {
