@@ -5,8 +5,8 @@ import { createWindowState } from '@/core/window/utils'
 export const useWindowStore = defineStore('windows', {
   state: () => ({
     windows: [] as WindowState[],
-    activeWindowId: null as string | null, // Renamed from activeWindow
-    nextZIndex: 1,
+    activeWindowId: null as string | null,
+    nextZIndex: 100, // Start at a higher base value
   }),
 
   actions: {
@@ -19,10 +19,11 @@ export const useWindowStore = defineStore('windows', {
     },
 
     activateWindow(id: string) {
-      this.activeWindowId = id // Updated to use new property name
       const window = this.windows.find((w) => w.id === id)
       if (window) {
+        this.activeWindowId = id
         window.zIndex = this.nextZIndex++
+        window.isMinimized = false
       }
     },
 
@@ -53,44 +54,56 @@ export const useWindowStore = defineStore('windows', {
       const window = this.windows.find((w) => w.id === id)
       if (window) {
         window.isMinimized = true
-        // Keep track of active window when minimizing
         if (this.activeWindowId === id) {
           this.activeWindowId = null
         }
       }
     },
 
+    unminimizeWindow(id: string) {
+      const window = this.windows.find((w) => w.id === id)
+      if (window) {
+        window.isMinimized = false
+        this.activateWindow(id)
+      }
+    },
+
     maximizeWindow(id: string) {
-      const win = this.windows.find((w) => w.id === id)
-      if (win) {
-        if (win.isMaximized) {
-          if (win.prevSize) {
-            win.x = win.prevSize.x
-            win.y = win.prevSize.y
-            win.width = win.prevSize.width
-            win.height = win.prevSize.height
-          }
-        } else {
-          win.prevSize = {
-            x: win.x,
-            y: win.y,
-            width: win.width,
-            height: win.height,
-          }
-          win.x = 0
-          win.y = 0
-          win.width = globalThis.window.innerWidth
-          win.height = globalThis.window.innerHeight
+      const window = this.windows.find((w) => w.id === id)
+      if (window && !window.isMaximized) {
+        window.prevSize = {
+          x: window.x,
+          y: window.y,
+          width: window.width,
+          height: window.height,
         }
-        win.isMaximized = !win.isMaximized
+        window.isMaximized = true
+        window.x = 0
+        window.y = 0
+        window.width = document.documentElement.clientWidth
+        window.height = document.documentElement.clientHeight
       }
     },
 
     restoreWindow(id: string) {
       const window = this.windows.find((w) => w.id === id)
+      if (window?.prevSize) {
+        window.isMaximized = false
+        window.x = window.prevSize.x
+        window.y = window.prevSize.y
+        window.width = window.prevSize.width
+        window.height = window.prevSize.height
+        window.prevSize = undefined
+      }
+    },
+
+    updateWindowPrevState(
+      id: string,
+      state: { x: number; y: number; width: number; height: number },
+    ) {
+      const window = this.windows.find((w) => w.id === id)
       if (window) {
-        window.isMinimized = false
-        this.activateWindow(id)
+        window.prevSize = state
       }
     },
   },

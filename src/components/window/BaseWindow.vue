@@ -8,19 +8,11 @@ const props = defineProps<{
   window: WindowState
 }>()
 
-const emit = defineEmits<{
-  (e: 'update:position', x: number, y: number): void
-  (e: 'update:size', width: number, height: number): void
-  (e: 'update:maximized', maximized: boolean): void
-  (e: 'update:minimized', minimized: boolean): void
-  (e: 'update:resizing', resizing: boolean): void
-  (e: 'update:resizeHandle', handle: string): void
-}>()
-
 const windowStore = useWindowStore()
 const menuStore = useMenuStore()
 const isDragging = ref(false)
 const dragOffset = ref({ x: 0, y: 0 })
+const isAnimating = ref(false)
 
 const startDrag = (e: MouseEvent) => {
   // Ignore right clicks and when maximized
@@ -30,6 +22,8 @@ const startDrag = (e: MouseEvent) => {
   const target = e.target as HTMLElement
   if (!target.closest('.window-controls') && target.closest('.titlebar')) {
     isDragging.value = true
+    const el = document.querySelector(`[data-window-id="${props.window.id}"]`) as HTMLElement
+    el?.classList.add('dragging')
     dragOffset.value = {
       x: e.clientX - props.window.x,
       y: e.clientY - props.window.y,
@@ -41,23 +35,46 @@ const startDrag = (e: MouseEvent) => {
 const handleDrag = (e: MouseEvent) => {
   if (!isDragging.value) return
 
-  const x = Math.max(0, e.clientX - dragOffset.value.x)
-  const y = Math.max(0, e.clientY - dragOffset.value.y)
-  emit('update:position', x, y)
+  const maxX = window.innerWidth - props.window.width
+  const maxY = window.innerHeight - props.window.height
+
+  // Constrain window position within viewport
+  const x = Math.max(0, Math.min(maxX, e.clientX - dragOffset.value.x))
+  const y = Math.max(0, Math.min(maxY, e.clientY - dragOffset.value.y))
+
+  windowStore.updateWindowPosition(props.window.id, x, y)
 }
 
 const stopDrag = () => {
-  isDragging.value = false
+  if (isDragging.value) {
+    isDragging.value = false
+    const el = document.querySelector(`[data-window-id="${props.window.id}"]`) as HTMLElement
+    el?.classList.remove('dragging')
+  }
 }
 
 onMounted(() => {
   window.addEventListener('mousemove', handleDrag)
   window.addEventListener('mouseup', stopDrag)
-})
 
-onUnmounted(() => {
-  window.removeEventListener('mousemove', handleDrag)
-  window.removeEventListener('mouseup', stopDrag)
+  // Add resize observer to keep maximized windows full size
+  const resizeObserver = new ResizeObserver(() => {
+    if (props.window.isMaximized) {
+      windowStore.updateWindowSize(
+        props.window.id,
+        document.documentElement.clientWidth,
+        document.documentElement.clientHeight,
+      )
+    }
+  })
+
+  resizeObserver.observe(document.documentElement)
+
+  onUnmounted(() => {
+    window.removeEventListener('mousemove', handleDrag)
+    window.removeEventListener('mouseup', stopDrag)
+    resizeObserver.disconnect()
+  })
 })
 
 const handleContextMenu = (e: MouseEvent) => {
@@ -75,20 +92,15 @@ const handleContextMenu = (e: MouseEvent) => {
 }
 
 const maximize = () => {
-  windowStore.maximizeWindow(props.window.id)
+  if (props.window.isMaximized) {
+    windowStore.restoreWindow(props.window.id)
+  } else {
+    windowStore.maximizeWindow(props.window.id)
+  }
 }
 
 const minimize = () => {
-  const el = document.querySelector(`[data-window-id="${props.window.id}"]`) as HTMLElement
-  if (el) {
-    el.setAttribute('data-minimizing', 'true')
-    setTimeout(() => {
-      windowStore.minimizeWindow(props.window.id)
-      el.removeAttribute('data-minimizing')
-    }, 300) // Match the animation duration
-  } else {
-    windowStore.minimizeWindow(props.window.id)
-  }
+  windowStore.minimizeWindow(props.window.id)
 }
 
 const resizeHandles = [
@@ -104,6 +116,11 @@ const resizeHandles = [
 
 const startResize = (handle: string, e: MouseEvent) => {
   if (props.window.isMaximized) return
+
+  const el = document.querySelector(`[data-window-id="${props.window.id}"]`) as HTMLElement
+  if (el) {
+    el.classList.add('resizing')
+  }
 
   windowStore.activateWindow(props.window.id)
 
@@ -149,6 +166,9 @@ const startResize = (handle: string, e: MouseEvent) => {
   const stopResize = () => {
     window.removeEventListener('mousemove', handleResize)
     window.removeEventListener('mouseup', stopResize)
+    if (el) {
+      el.classList.remove('resizing')
+    }
   }
 
   window.addEventListener('mousemove', handleResize)
@@ -158,9 +178,11 @@ const startResize = (handle: string, e: MouseEvent) => {
 
 <template>
   <div
-    v-show="!window.isMinimized"
     class="window"
-    :class="{ maximized: window.isMaximized }"
+    :class="{
+      maximized: window.isMaximized,
+      minimized: window.isMinimized,
+    }"
     :data-window-id="window.id"
     :style="{
       left: `${window.x}px`,
@@ -221,86 +243,36 @@ const startResize = (handle: string, e: MouseEvent) => {
 <style scoped>
 .window {
   position: absolute;
-  background: var(--qui-window-bg);
-  border-radius: var(--qui-window-radius);
   display: flex;
   flex-direction: column;
+  background: var(--qui-window-bg);
+  border-radius: var(--qui-window-radius);
   overflow: hidden;
-  backdrop-filter: blur(var(--qui-backdrop-blur));
-  user-select: none;
-
-  /* Base state - no glow */
-  border: var(--qui-window-border);
-  box-shadow: var(--qui-shadow-window);
-
-  /* Smoother animation */
-  opacity: 0;
-  transform: scale(0.98) translateY(10px);
-  animation: windowAppear var(--qui-interaction-speed) var(--qui-animation-bounce) forwards;
-
-  /* Enhanced transitions */
-  transition:
-    transform var(--qui-interaction-speed) var(--qui-animation-bounce),
-    opacity var(--qui-interaction-speed) var(--qui-animation-fade),
-    border-color var(--qui-interaction-speed) var(--qui-animation-fade),
-    box-shadow var(--qui-interaction-speed) var(--qui-animation-fade);
-  will-change: transform, opacity;
-}
-
-/* Re-add shine effect with animation control */
-.window::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: var(--qui-shine-effect);
-  transform: translateX(-100%);
-  opacity: 0;
-  transition: transform var(--qui-shine-speed) var(--qui-animation-bounce);
-}
-
-/* Only show shine effect when window becomes active */
-.window:not([data-active='true'])::before {
-  content: none;
-}
-
-.window[data-active='true'] {
-  transform: var(--qui-hover-lift) var(--qui-hover-scale);
-  border: 1px solid var(--qui-hover-border);
-  /* Subtler glow for active state */
-  box-shadow:
-    0 0 0 1px rgba(var(--qui-accent-color), 0.1),
-    var(--qui-shadow-window),
-    0 0 30px rgba(var(--qui-accent-color), 0.15);
-}
-
-/* Trigger shine animation when window becomes active */
-.window[data-active='true']::before {
   opacity: 1;
-  animation: shineEffect var(--qui-shine-speed) var(--qui-animation-bounce) forwards;
-}
 
-@keyframes shineEffect {
-  0% {
-    transform: translateX(-100%);
-  }
-  100% {
-    transform: translateX(100%);
-  }
-}
+  /* Single transition for smoother animations */
+  transition: all 0.2s ease-out;
 
-.window[data-minimizing] {
-  animation: windowMinimize var(--qui-interaction-speed) var(--qui-animation-bounce) forwards;
-  pointer-events: none;
-}
-
-@keyframes windowMinimize {
-  0% {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
-  100% {
+  &.minimized {
     opacity: 0;
-    transform: scale(0.8) translateY(100px);
+    transform: translateY(20px) scale(0.95);
+    pointer-events: none;
+  }
+
+  &.maximized {
+    border-radius: 0;
+    inset: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+  }
+
+  &.dragging,
+  &.resizing {
+    transition: none;
+  }
+
+  &[data-active='true'] {
+    z-index: 100;
   }
 }
 
@@ -322,24 +294,27 @@ const startResize = (handle: string, e: MouseEvent) => {
 
   /* Fix border and background transitions */
   transition: none; /* Remove transition to prevent flashing */
+  transition: all 0.3s var(--qui-animation-bounce);
+
+  /* Improved transitions */
+  transition:
+    background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Enhanced shine effect */
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--qui-shine-effect);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
 }
 
-/* Base layer - always present */
-.titlebar::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: var(--qui-gradient-secondary);
-  opacity: 0.7;
-  pointer-events: none;
-  transition: opacity 0.3s var(--qui-animation-fade);
-  transform: translateZ(0);
-}
-
-/* Enhanced active state */
-.window[data-active='true'] .titlebar {
-  background: var(--qui-gradient-active);
-  border-bottom: 1px solid rgba(var(--qui-accent-color), 0.2);
+.window[data-active='true'] .titlebar::after {
+  opacity: 1;
+  animation: shine var(--qui-shine-speed) linear infinite;
 }
 
 .window-info {
@@ -379,14 +354,28 @@ const startResize = (handle: string, e: MouseEvent) => {
   position: relative; /* For hover effects */
   isolation: isolate; /* Create stacking context */
   z-index: 1; /* Ensure buttons are above titlebar */
-}
 
-/* Remove any inherited button styles */
-.control-btn {
+  /* Remove any inherited button styles */
   margin: 0;
   padding: 0;
   font: inherit;
   outline: none;
+
+  /* Smooth transitions in both directions */
+  transition:
+    background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+    color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+
+  &:hover {
+    .icon {
+      transform: scale(1.1);
+    }
+  }
+
+  &:active {
+    transform: scale(0.95);
+  }
 }
 
 .control-btn::before {
@@ -532,6 +521,33 @@ const startResize = (handle: string, e: MouseEvent) => {
     left: -4px;
     width: 12px;
     height: 12px;
+  }
+}
+
+.window[data-minimizing],
+.window[data-unminimizing] {
+  display: flex !important;
+  visibility: visible !important;
+  pointer-events: none !important;
+}
+
+/* Improve position transitions */
+.window:not(.dragging):not(.resizing):not(.maximized) {
+  transition:
+    transform var(--window-transition-duration) var(--window-transition-timing),
+    opacity var(--window-transition-duration) var(--qui-animation-fade),
+    width var(--window-transition-duration) var (--window-transition-timing),
+    height var(--window-transition-duration) var(--window-transition-timing),
+    left var(--window-transition-duration) var(--window-transition-timing),
+    top var(--window-transition-duration) var(--window-transition-timing);
+}
+
+@keyframes shine {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
   }
 }
 </style>

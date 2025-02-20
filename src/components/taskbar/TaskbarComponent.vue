@@ -15,6 +15,7 @@ const TestWindow = markRaw(
 const windowStore = useWindowStore()
 const isStartMenuOpen = ref(false)
 const menuStore = useMenuStore()
+const isAnimating = ref(false)
 
 const toggleStartMenu = () => {
   isStartMenuOpen.value = !isStartMenuOpen.value
@@ -78,6 +79,20 @@ const handleClickOutside = (e: MouseEvent) => {
   }
 }
 
+// Add event handler for taskbar click
+const handleTaskbarButtonClick = (windowId: string) => {
+  const window = windowStore.windows.find((w) => w.id === windowId)
+  if (!window) return
+
+  if (window.isMinimized) {
+    windowStore.unminimizeWindow(windowId)
+  } else if (window.id === windowStore.activeWindow?.id) {
+    windowStore.minimizeWindow(windowId)
+  } else {
+    windowStore.activateWindow(windowId)
+  }
+}
+
 onMounted(() => {
   document.addEventListener('mousedown', handleClickOutside)
 })
@@ -99,8 +114,14 @@ onUnmounted(() => {
       <button
         v-for="window in windowStore.windows"
         :key="window.id"
-        :class="['window-button', { active: window.id === windowStore.activeWindow?.id }]"
-        @click="handleWindowClick(window.id)"
+        :class="[
+          'window-button',
+          {
+            active: window.id === windowStore.activeWindow?.id && !window.isMinimized,
+            minimized: window.isMinimized,
+          },
+        ]"
+        @click="handleTaskbarButtonClick(window.id)"
         @contextmenu="(e) => handleWindowItemContext(e, window.id)"
       >
         <div class="window-button-content">
@@ -232,7 +253,10 @@ onUnmounted(() => {
   font-size: var(--qui-font-size-base);
   font-family: var(--qui-font-family);
   cursor: pointer;
-  transition: all 0.2s var(--qui-animation-bounce);
+  transition:
+    transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+    opacity 0.2s ease-out,
+    border-color 0.3s ease;
   overflow: hidden;
 }
 
@@ -246,8 +270,17 @@ onUnmounted(() => {
 }
 
 .window-button:hover {
-  border-color: var(--qui-hover-border);
   transform: translateY(-1px);
+}
+
+.window-button:active {
+  transform: scale(0.95);
+}
+
+/* Prevent hover effects during minimizing/unminimizing */
+.window-button[data-animating] {
+  pointer-events: none;
+  transition: none;
 }
 
 .window-button:hover::before {
@@ -259,13 +292,32 @@ onUnmounted(() => {
 }
 
 .window-button.active {
+  opacity: 1;
+  transform: translateY(-1px);
   background: var(--qui-gradient-secondary);
   border-color: var(--qui-overlay-secondary);
   box-shadow: var(--qui-shadow-accent);
+
+  /* Force active state to be more visible */
+  transform: translateY(-1px);
+
+  .window-title {
+    opacity: 1;
+  }
 }
 
 .window-button.active::before {
   opacity: 0.3;
+}
+
+.window-button.minimized {
+  opacity: 0.7;
+  transform: scale(0.95) translateY(2px);
+}
+
+.window-button.minimized:hover {
+  opacity: 0.9;
+  transform: scale(1) translateY(-1px);
 }
 
 .window-button-content {
@@ -322,13 +374,17 @@ onUnmounted(() => {
   transform: scaleX(1);
 }
 
-.window-button:hover {
-  border-color: var(--qui-hover-border);
+.window-button.minimized {
+  opacity: 0.7;
+  transform: translateY(2px);
 }
 
-.window-button.active {
-  background: var(--qui-gradient-secondary);
-  border-color: var(--qui-overlay-secondary);
-  box-shadow: var(--qui-shadow-accent);
+.window-button.minimized:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.window-button[data-animating] {
+  pointer-events: none;
 }
 </style>

@@ -14,19 +14,19 @@ export const defaultTheme: Theme = {
     '--qui-shadow': '0 4px 20px rgba(0, 255, 136, 0.2)',
 
     // Animations & Transitions
-    '--qui-transition-speed': '0.2s',
-    '--qui-animation-bounce': 'cubic-bezier(0.34, 1.56, 0.64, 1)',
+    '--qui-transition-speed': '0.3s',
+    '--qui-animation-bounce': 'cubic-bezier(0.4, 0, 0.2, 1)',
     '--qui-animation-fade': 'cubic-bezier(0.4, 0, 0.2, 1)',
     '--qui-interaction-speed': '0.3s',
-    '--qui-shine-speed': '0.8s',
+    '--qui-shine-speed': '1.5s',
 
     // Interactive Effects
-    '--qui-hover-lift': 'translateY(-2px)',
+    '--qui-hover-lift': 'translateY(-1px)',
     '--qui-hover-scale': 'scale(1.02)',
     '--qui-active-scale': 'scale(0.98)',
     '--qui-hover-rotation': 'rotate(1deg)',
     '--qui-shine-effect':
-      'linear-gradient(45deg, transparent 0%, rgba(0, 255, 136, 0.03) 50%, transparent 100%)',
+      'linear-gradient(45deg, transparent 0%, rgba(0, 255, 136, 0.03) 45%, rgba(0, 255, 136, 0.05) 50%, rgba(0, 255, 136, 0.03) 55%, transparent 100%)',
     '--qui-glow-opacity': '0.15',
     '--qui-glow-effect': '0 0 10px rgba(0, 255, 136, 0.3)',
     '--qui-glow-effect-strong': '0 0 20px rgba(0, 255, 136, 0.5)',
