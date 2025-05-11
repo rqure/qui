@@ -7,11 +7,9 @@ const emit = defineEmits<{
   (e: 'login', username: string): void
 }>()
 
-const username = ref('')
 const authStore = useAuthStore()
 const isLoading = ref(false)
 const error = ref('')
-const isDevelopmentMode = ref(false)
 
 // Extract token from URL if it's a callback from Keycloak
 const checkAuthenticationCallback = () => {
@@ -55,13 +53,7 @@ onMounted(async () => {
 })
 
 const handleSubmit = async () => {
-  if (isDevelopmentMode.value && username.value.trim()) {
-    // Development mode - use username directly
-    emit('login', username.value.trim())
-    return
-  }
-  
-  // Production mode - use Keycloak SSO
+  // Use Keycloak SSO
   isLoading.value = true
   error.value = ''
   
@@ -73,11 +65,6 @@ const handleSubmit = async () => {
     console.error(err)
     isLoading.value = false
   }
-}
-
-const toggleDevMode = () => {
-  isDevelopmentMode.value = !isDevelopmentMode.value
-  error.value = ''
 }
 </script>
 
@@ -96,31 +83,10 @@ const toggleDevMode = () => {
         
         <div v-if="error" class="error-message">{{ error }}</div>
         
-        <!-- Development mode input field -->
-        <template v-if="isDevelopmentMode">
-          <input
-            v-model="username"
-            type="text"
-            placeholder="Enter your username"
-            class="login-input"
-            autocomplete="username"
-          />
-          <button type="submit" class="login-button">Login</button>
-        </template>
-        
         <!-- SSO login button -->
-        <template v-else>
-          <button type="submit" class="login-button sso-button">
-            Sign in with SSO
-          </button>
-        </template>
-        
-        <div class="dev-toggle">
-          <label>
-            <input type="checkbox" v-model="isDevelopmentMode" @change="toggleDevMode">
-            Development mode
-          </label>
-        </div>
+        <button type="submit" class="login-button">
+          Sign in with SSO
+        </button>
       </form>
     </div>
   </div>
@@ -168,40 +134,45 @@ h2 {
   font-size: var(--qui-font-size-large);
 }
 
-input {
-  display: block;
-  margin: 1rem 0;
-  padding: 0.5rem;
-  width: 100%;
-  background: var(--qui-login-input-bg);
-  border: var(--qui-login-input-border);
-  color: var(--qui-text-primary);
-  border-radius: 4px;
-  font-size: var(--qui-font-size-base);
-  font-family: var(--qui-font-family);
-}
-
-button {
+.login-button {
   display: block;
   width: 100%;
-  padding: 0.5rem;
-  background: var(--qui-login-button-bg);
+  padding: 0.8rem;
+  background: var(--qui-accent-color);
+  background-image: linear-gradient(135deg, var(--qui-accent-color), var(--qui-accent-secondary));
   border: none;
-  border-radius: 4px;
-  color: var(--qui-login-button-text);
+  border-radius: var(--qui-menu-radius);
+  color: var(--qui-bg-primary);
   cursor: pointer;
-  font-weight: var(--qui-font-weight-medium);
-  font-size: var(--qui-font-size-base);
-}
-
-.sso-button {
-  padding: 0.7rem;
+  font-weight: var(--qui-font-weight-bold);
   font-size: var(--qui-font-size-large);
-  background: var(--qui-login-button-accent, #0066cc);
+  box-shadow: var(--qui-shadow-accent);
+  transition: all var(--qui-transition-speed) var(--qui-animation-bounce);
+  position: relative;
+  overflow: hidden;
 }
 
-button:hover {
-  background: var(--qui-login-button-hover);
+.login-button:hover {
+  transform: var(--qui-hover-lift);
+  box-shadow: var(--qui-shadow-accent-strong);
+  background-image: linear-gradient(135deg, var(--qui-accent-secondary), var(--qui-accent-color));
+}
+
+.login-button:active {
+  transform: var(--qui-active-scale);
+  box-shadow: var(--qui-shadow-active);
+}
+
+.login-button::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 200%;
+  height: 100%;
+  background-image: var(--qui-shine-effect);
+  animation: shine var(--qui-shine-speed) infinite;
+  pointer-events: none;
 }
 
 .error-message {
@@ -228,13 +199,12 @@ button:hover {
   margin-bottom: 1rem;
 }
 
-.dev-toggle {
-  margin-top: 1.5rem;
-  font-size: var(--qui-font-size-small);
-  color: var(--qui-text-secondary);
-}
-
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+@keyframes shine {
+  from { left: -100%; }
+  to { left: 100%; }
 }
 </style>
