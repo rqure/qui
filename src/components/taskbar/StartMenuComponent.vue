@@ -79,7 +79,7 @@ const launchApp = (app: (typeof testApps)[0]) => {
       title: app.name,
       component: app.component,
       width: 400,
-      height: 300,
+      height: 400,
     })
   }, 10)
 }
@@ -98,8 +98,8 @@ const initiateLogout = () => {
       id: logoutWindowId,
       title: 'Confirm Sign Out',
       component: markRaw(LogoutConfirmWindow),
-      width: 420,
-      height: 200, // Make it just the right height
+      width: 400,  // Slightly narrower
+      height: 200, // Shorter height to fit content perfectly
       icon: logoutIconDataUrl, // Use the logout icon
       props: {
         windowId: logoutWindowId
