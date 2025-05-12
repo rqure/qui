@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { defineComponent, markRaw } from 'vue'
+import { defineComponent, markRaw, computed } from 'vue'
 import { useWindowStore } from '@/stores/windows'
 import { useAuthStore } from '@/stores/auth'
 
@@ -9,6 +9,11 @@ const emit = defineEmits<{
 
 const windowStore = useWindowStore()
 const authStore = useAuthStore()
+
+// Computed properties for user information
+const username = computed(() => authStore.username || 'Guest')
+const userInitial = computed(() => (username.value ? username.value.charAt(0).toUpperCase() : 'G'))
+const userProfile = computed(() => authStore.userProfile)
 
 // Define some test apps
 const testApps = [
@@ -85,6 +90,25 @@ const handleLogout = async () => {
 
 <template>
   <div class="start-menu">
+    <!-- User Profile Section -->
+    <div class="user-profile-section">
+      <div class="user-avatar" :data-initial="userInitial">
+        <img 
+          v-if="userProfile?.avatar" 
+          :src="userProfile.avatar" 
+          alt="User avatar"
+        />
+      </div>
+      <div class="user-info">
+        <div class="username">{{ username }}</div>
+        <div class="user-status">{{ userProfile?.email || 'Signed in' }}</div>
+      </div>
+    </div>
+    
+    <!-- Menu separator after user profile -->
+    <div class="menu-separator"></div>
+
+    <!-- Applications section -->
     <div v-for="section in sections" :key="section.title" class="menu-section">
       <div class="section-title">{{ section.title }}</div>
       <div class="menu-list">
@@ -100,10 +124,10 @@ const handleLogout = async () => {
       </div>
     </div>
     
-    <!-- Separator -->
+    <!-- Bottom separator -->
     <div class="menu-separator"></div>
     
-    <!-- User section with logout -->
+    <!-- User actions with logout -->
     <div class="menu-section user-section">
       <div class="menu-list">
         <button class="menu-item logout-button" @click="handleLogout">
@@ -132,6 +156,71 @@ const handleLogout = async () => {
   box-shadow: var(--qui-shadow-menu);
   overflow: hidden;
   padding: 6px;
+}
+
+/* User profile section styles */
+.user-profile-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: var(--qui-menu-item-radius);
+  transition: background 0.2s var(--qui-animation-bounce);
+}
+
+.user-profile-section:hover {
+  background: var(--qui-menu-item-hover);
+}
+
+.user-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--qui-accent-color), var(--qui-accent-secondary));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--qui-bg-primary);
+  font-weight: var(--qui-font-weight-bold);
+  font-size: 18px;
+  position: relative;
+  overflow: hidden;
+}
+
+.user-avatar::before {
+  content: attr(data-initial);
+  position: absolute;
+}
+
+.user-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.user-info {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.username {
+  font-weight: var(--qui-font-weight-medium);
+  font-size: var(--qui-font-size-base);
+  color: var(--qui-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.user-status {
+  font-size: var(--qui-font-size-small);
+  color: var(--qui-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .menu-section {
