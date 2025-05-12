@@ -37,17 +37,24 @@ const handleConfirm = async () => {
 
 <template>
   <div class="logout-confirm-container">
-    <div class="logout-icon">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="48" height="48">
-        <path fill="currentColor" d="M16 17v-3H9v-4h7V7l5 5-5 5M14 2a2 2 0 012 2v2h-2V4H5v16h9v-2h2v2a2 2 0 01-2 2H5a2 2 0 01-2-2V4a2 2 0 012-2h9z" />
-      </svg>
+    <div class="logout-content">
+      <div class="logout-icon-container">
+        <div class="logout-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="32" height="32">
+            <path fill="currentColor" d="M16 17v-3H9v-4h7V7l5 5-5 5M14 2a2 2 0 012 2v2h-2V4H5v16h9v-2h2v2a2 2 0 01-2 2H5a2 2 0 01-2-2V4a2 2 0 012-2h9z" />
+          </svg>
+        </div>
+      </div>
+      
+      <div class="confirm-content">
+        <h2 class="confirm-title">Sign Out</h2>
+        <p class="confirm-message">Are you sure you want to sign out of your account? Any unsaved changes may be lost.</p>
+      </div>
     </div>
-    <h2 class="confirm-title">Confirm Logout</h2>
-    <p class="confirm-message">Are you sure you want to log out of the system?</p>
     
     <div class="button-container">
       <button class="cancel-button" @click="handleCancel">Cancel</button>
-      <button class="confirm-button" @click="handleConfirm">Logout</button>
+      <button class="confirm-button" @click="handleConfirm">Sign Out</button>
     </div>
   </div>
 </template>
@@ -56,50 +63,68 @@ const handleConfirm = async () => {
 .logout-confirm-container {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
+  justify-content: space-between;
+  padding: 20px;
   height: 100%;
+  background: var(--qui-window-bg);
+}
+
+.logout-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.logout-icon-container {
+  flex-shrink: 0;
 }
 
 .logout-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 80px;
-  height: 80px;
+  width: 56px;
+  height: 56px;
   background: var(--qui-danger-bg, rgba(255, 68, 68, 0.1));
   border-radius: 50%;
-  margin-bottom: 16px;
   color: var(--qui-danger-text, #ff4444);
+  box-shadow: 0 2px 12px rgba(255, 68, 68, 0.15);
+}
+
+.confirm-content {
+  flex-grow: 1;
 }
 
 .confirm-title {
   font-size: var(--qui-font-size-large);
   font-weight: var(--qui-font-weight-bold);
   margin-bottom: 8px;
-  text-align: center;
+  margin-top: 0;
+  color: var(--qui-text-primary);
 }
 
 .confirm-message {
   font-size: var(--qui-font-size-base);
   color: var(--qui-text-secondary);
-  text-align: center;
-  margin-bottom: 24px;
+  margin-bottom: 0;
+  line-height: 1.5;
 }
 
 .button-container {
   display: flex;
-  gap: 16px;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
 }
 
 button {
-  padding: 10px 20px;
+  padding: 8px 16px;
   border-radius: var(--qui-menu-item-radius);
   border: none;
   font-weight: var(--qui-font-weight-medium);
   cursor: pointer;
   transition: all 0.2s var(--qui-animation-bounce);
+  font-size: var(--qui-font-size-base);
 }
 
 .cancel-button {
@@ -118,5 +143,15 @@ button {
 
 .confirm-button:hover {
   background: var(--qui-danger-bg-hover, rgba(255, 68, 68, 0.3));
+}
+
+/* Add subtle hover effects to buttons */
+button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+button:active {
+  transform: translateY(1px);
 }
 </style>

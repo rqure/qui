@@ -3,6 +3,7 @@ import { defineComponent, markRaw, computed } from 'vue'
 import { useWindowStore } from '@/stores/windows'
 import { useAuthStore } from '@/stores/auth'
 import LogoutConfirmWindow from '@/components/window/LogoutConfirmWindow.vue'
+import { logoutIconDataUrl } from '@/assets/logout-icon'
 
 const emit = defineEmits<{
   (e: 'close'): void
@@ -83,7 +84,7 @@ const launchApp = (app: (typeof testApps)[0]) => {
   }, 10)
 }
 
-// Fix the logout window creation
+// Fix the logout window creation with proper size and icon
 const initiateLogout = () => {
   // First close the menu
   emit('close')
@@ -95,10 +96,11 @@ const initiateLogout = () => {
   setTimeout(() => {
     windowStore.createWindow({
       id: logoutWindowId,
-      title: 'Logout Confirmation',
+      title: 'Confirm Sign Out',
       component: markRaw(LogoutConfirmWindow),
-      width: 360,
-      height: 240,
+      width: 420,
+      height: 200, // Make it just the right height
+      icon: logoutIconDataUrl, // Use the logout icon
       props: {
         windowId: logoutWindowId
       }
