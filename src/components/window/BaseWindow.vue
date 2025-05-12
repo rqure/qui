@@ -3,7 +3,6 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import type { WindowState } from '@/core/window/types'
 import { useWindowStore } from '@/stores/windows'
 import { useMenuStore } from '@/stores/menu'
-import scrollVisibility from '@/directives/scrollVisibility'
 
 const props = defineProps<{
   window: WindowState
@@ -57,14 +56,17 @@ onMounted(() => {
   window.addEventListener('mousemove', handleDrag)
   window.addEventListener('mouseup', stopDrag)
 
-  // Add resize observer to keep maximized windows full size
+  // Optimize resize observer to be less aggressive
   const resizeObserver = new ResizeObserver(() => {
     if (props.window.isMaximized) {
-      windowStore.updateWindowSize(
-        props.window.id,
-        document.documentElement.clientWidth,
-        document.documentElement.clientHeight,
-      )
+      // Use requestAnimationFrame to throttle updates
+      requestAnimationFrame(() => {
+        windowStore.updateWindowSize(
+          props.window.id,
+          document.documentElement.clientWidth,
+          document.documentElement.clientHeight,
+        )
+      })
     }
   })
 
@@ -225,7 +227,7 @@ const startResize = (handle: string, e: MouseEvent) => {
         </button>
       </div>
     </div>
-    <div class="content" v-scroll-visibility>
+    <div class="content">
       <slot></slot>
     </div>
     <template v-if="!window.isMaximized">
@@ -481,7 +483,7 @@ const startResize = (handle: string, e: MouseEvent) => {
   overflow-x: hidden;
   overflow-y: auto;
   
-  /* Prevent unnecessary scrollbars */
+  /* Simplified layout to improve performance */
   display: flex;
   flex-direction: column;
 }
@@ -511,34 +513,21 @@ const startResize = (handle: string, e: MouseEvent) => {
   height: 8px;
 }
 
-/* Hide scrollbar when not needed */
-.content::-webkit-scrollbar {
-  display: block;
-}
-
+/* Simplified scrollbar implementation */
 .content::-webkit-scrollbar-track {
   background: var(--qui-scrollbar-track, rgba(0, 0, 0, 0.1));
-  border-radius: 4px;
 }
 
 .content::-webkit-scrollbar-thumb {
   background: var(--qui-scrollbar-thumb, rgba(255, 255, 255, 0.2));
   border-radius: 4px;
-  transition: background 0.3s ease;
-  /* Only show thumb when hovering over scrollable area */
-  background-clip: padding-box;
-  border: 2px solid transparent;
 }
 
 .content::-webkit-scrollbar-thumb:hover {
   background: var(--qui-scrollbar-thumb-hover, rgba(255, 255, 255, 0.3));
 }
 
-.content::-webkit-scrollbar-corner {
-  background: var(--qui-scrollbar-track, rgba(0, 0, 0, 0.1));
-}
-
-/* Ensure scrollbars look good on active windows */
+/* Simplified active window styling */
 .window[data-active='true'] .content::-webkit-scrollbar-thumb {
   background: var(--qui-scrollbar-thumb-active, rgba(0, 255, 136, 0.3));
 }

@@ -16,7 +16,7 @@ const username = computed(() => authStore.username || 'Guest')
 const userInitial = computed(() => (username.value ? username.value.charAt(0).toUpperCase() : 'G'))
 const userProfile = computed(() => authStore.userProfile)
 
-// Define some test apps
+// Define some test apps - use memoization to prevent recreation
 const testApps = [
   {
     id: 'notepad',
@@ -67,34 +67,43 @@ const sections = [
   },
 ]
 
+// Fix the app launching function to close menu first
 const launchApp = (app: (typeof testApps)[0]) => {
-  windowStore.createWindow({
-    title: app.name,
-    component: app.component,
-    width: 400,
-    height: 300,
-  })
+  // First close the menu
   emit('close')
+  
+  // Then create the window with a slight delay to prevent UI issues
+  setTimeout(() => {
+    windowStore.createWindow({
+      title: app.name,
+      component: app.component,
+      width: 400,
+      height: 300,
+    })
+  }, 10)
 }
 
-// Replace direct logout with a confirmation window
+// Fix the logout window creation
 const initiateLogout = () => {
-  // Create a logout confirmation window with a specific ID
-  const logoutWindowId = 'logout-confirm-window'
-  
-  windowStore.createWindow({
-    id: logoutWindowId, // Explicitly set window ID
-    title: 'Logout Confirmation',
-    component: markRaw(LogoutConfirmWindow),
-    width: 360,
-    height: 240,
-    props: {
-      windowId: logoutWindowId // Pass window ID as prop
-    }
-  })
-  
-  // Close the start menu
+  // First close the menu
   emit('close')
+  
+  // Create a unique ID each time to prevent conflicts
+  const logoutWindowId = 'logout-confirm-window-' + Date.now()
+  
+  // Then create the window with a slight delay
+  setTimeout(() => {
+    windowStore.createWindow({
+      id: logoutWindowId,
+      title: 'Logout Confirmation',
+      component: markRaw(LogoutConfirmWindow),
+      width: 360,
+      height: 240,
+      props: {
+        windowId: logoutWindowId
+      }
+    })
+  }, 10)
 }
 </script>
 
