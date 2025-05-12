@@ -471,6 +471,44 @@ const startResize = (handle: string, e: MouseEvent) => {
   padding: var(--qui-window-padding);
   background: var(--qui-window-bg);
   user-select: text;
+  
+  /* Custom scrollbar styling */
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: var(--qui-scrollbar-thumb) var(--qui-scrollbar-track); /* Firefox */
+}
+
+/* WebKit/Blink browsers (Chrome, Safari, Edge) */
+.content::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.content::-webkit-scrollbar-track {
+  background: var(--qui-scrollbar-track, rgba(0, 0, 0, 0.1));
+  border-radius: 4px;
+}
+
+.content::-webkit-scrollbar-thumb {
+  background: var(--qui-scrollbar-thumb, rgba(255, 255, 255, 0.2));
+  border-radius: 4px;
+  transition: background 0.3s ease;
+}
+
+.content::-webkit-scrollbar-thumb:hover {
+  background: var(--qui-scrollbar-thumb-hover, rgba(255, 255, 255, 0.3));
+}
+
+.content::-webkit-scrollbar-corner {
+  background: var(--qui-scrollbar-track, rgba(0, 0, 0, 0.1));
+}
+
+/* Ensure scrollbars look good on active windows */
+.window[data-active='true'] .content::-webkit-scrollbar-thumb {
+  background: var(--qui-scrollbar-thumb-active, rgba(0, 255, 136, 0.3));
+}
+
+.window[data-active='true'] .content::-webkit-scrollbar-thumb:hover {
+  background: var(--qui-scrollbar-thumb-active-hover, rgba(0, 255, 136, 0.5));
 }
 
 .window[data-active='true'] .titlebar {

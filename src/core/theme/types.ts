@@ -128,6 +128,13 @@ export interface ThemeVariables {
   '--qui-shadow-hover': string
   '--qui-shadow-active': string
   '--qui-inset-shadow': string
+
+  // Scrollbar
+  '--qui-scrollbar-track': string
+  '--qui-scrollbar-thumb': string
+  '--qui-scrollbar-thumb-hover': string
+  '--qui-scrollbar-thumb-active': string
+  '--qui-scrollbar-thumb-active-hover': string
 }
 
 export interface ComponentTheme {

@@ -142,5 +142,12 @@ export const defaultTheme: Theme = {
     '--qui-overlay-accent': 'rgba(255, 255, 255, 0.9)',
     '--qui-overlay-light': 'rgba(255, 255, 255, 0.1)',
     '--qui-hover-border': 'rgba(0, 255, 136, 0.3)',
+
+    // Scrollbar styling
+    '--qui-scrollbar-track': 'rgba(0, 0, 0, 0.1)',
+    '--qui-scrollbar-thumb': 'rgba(255, 255, 255, 0.2)',
+    '--qui-scrollbar-thumb-hover': 'rgba(255, 255, 255, 0.3)',
+    '--qui-scrollbar-thumb-active': 'rgba(0, 255, 136, 0.3)',
+    '--qui-scrollbar-thumb-active-hover': 'rgba(0, 255, 136, 0.5)',
   },
 }
