@@ -37,7 +37,7 @@ export const useAuthStore = defineStore('auth', {
       }
     },
     
-    async login(username?: string) {
+    async login() {
       if (!this.isKeycloakInitialized) {
         await this.initializeAuth()
       }
@@ -45,12 +45,6 @@ export const useAuthStore = defineStore('auth', {
       // If already authenticated, return early
       if (this.isAuthenticated) {
         return true
-      }
-      
-      // If username is provided, we're in development mode
-      // This allows bypassing Keycloak for development
-      if (username) {
-        return this.handleSuccessfulAuth(username)
       }
       
       // Otherwise, redirect to Keycloak login
