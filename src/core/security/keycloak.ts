@@ -60,13 +60,21 @@ export function getKeycloak() {
 
 /**
  * Login using Keycloak
+ * @param idpHint Optional identity provider hint for social logins
  */
-export async function login() {
+export async function login(idpHint?: string) {
   const keycloak = getKeycloak()
-  return keycloak.login({
-    // Use redirect flow instead of popup to avoid issues
+  
+  const options: Keycloak.KeycloakLoginOptions = {
     redirectUri: window.location.origin
-  })
+  }
+  
+  // If idpHint is provided, add it to the options
+  if (idpHint) {
+    options.idpHint = idpHint
+  }
+  
+  return keycloak.login(options)
 }
 
 /**
