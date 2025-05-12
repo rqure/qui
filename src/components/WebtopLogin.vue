@@ -239,13 +239,16 @@ const selectLoginMethod = (method: string) => {
 .credentials-form {
   width: 100%;
   margin-bottom: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .login-input {
   display: block;
   width: 100%;
   margin-bottom: 1rem;
-  padding: 0.8rem;
+  padding: 0.8rem 1rem;
   background: var(--qui-login-input-bg);
   border: var(--qui-login-input-border);
   color: var(--qui-text-primary);
@@ -253,6 +256,7 @@ const selectLoginMethod = (method: string) => {
   font-size: var(--qui-font-size-base);
   font-family: var(--qui-font-family);
   transition: border var(--qui-transition-speed) var(--qui-animation-bounce);
+  box-sizing: border-box;
 }
 
 .login-input:focus {

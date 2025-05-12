@@ -5,7 +5,14 @@
 export function getApiBaseUrl(): string {
   const protocol = window.location.protocol
   const hostname = window.location.hostname
-  return `${protocol}//${hostname}:7860/`
+  
+  // Use development URL format when running on localhost
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    return `${protocol}//${hostname}:7860/`
+  }
+  
+  // In production, we might use the same domain/host with a path prefix
+  return `${window.location.origin}/api/`
 }
 
 /**
@@ -16,6 +23,16 @@ export function getAuthServiceBaseUrl(): string {
   const protocol = window.location.protocol
   const hostname = window.location.hostname
   
-  // Use the environment variable if available, otherwise construct URL from current hostname
-  return import.meta.env.VITE_AUTH_SERVICE_URL || `${protocol}//${hostname}:8080`
+  // Use the environment variable if available
+  if (import.meta.env.VITE_AUTH_SERVICE_URL) {
+    return import.meta.env.VITE_AUTH_SERVICE_URL
+  }
+  
+  // Otherwise construct URL from current hostname
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    return `${protocol}//${hostname}:8080`
+  }
+  
+  // In production, we might use the same domain/host with a path prefix
+  return `${window.location.origin}/auth`
 }

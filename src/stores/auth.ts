@@ -67,12 +67,14 @@ export const useAuthStore = defineStore('auth', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
           },
           body: JSON.stringify({
             username,
             password,
           }),
           credentials: 'include', // Include cookies in the request
+          mode: 'cors', // Explicitly state we're using CORS
         })
 
         if (!response.ok) {
