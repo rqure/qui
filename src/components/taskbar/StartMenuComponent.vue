@@ -2,6 +2,7 @@
 import { defineComponent, markRaw, computed } from 'vue'
 import { useWindowStore } from '@/stores/windows'
 import { useAuthStore } from '@/stores/auth'
+import LogoutConfirmWindow from '@/components/system/LogoutConfirmWindow.vue'
 
 const emit = defineEmits<{
   (e: 'close'): void
@@ -76,14 +77,17 @@ const launchApp = (app: (typeof testApps)[0]) => {
   emit('close')
 }
 
-const handleLogout = async () => {
-  try {
-    await authStore.logout()
-    // After logout, you might want to redirect or refresh the page
-    window.location.reload()
-  } catch (error) {
-    console.error('Logout failed:', error)
-  }
+// Replace direct logout with a confirmation window
+const initiateLogout = () => {
+  // Create a logout confirmation window
+  windowStore.createWindow({
+    title: 'Logout Confirmation',
+    component: markRaw(LogoutConfirmWindow),
+    width: 360,
+    height: 240,
+  })
+  
+  // Close the start menu
   emit('close')
 }
 </script>
@@ -130,7 +134,7 @@ const handleLogout = async () => {
     <!-- User actions with logout -->
     <div class="menu-section user-section">
       <div class="menu-list">
-        <button class="menu-item logout-button" @click="handleLogout">
+        <button class="menu-item logout-button" @click="initiateLogout">
           <span class="item-icon logout-icon">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
               <path d="M16 17v-3H9v-4h7V7l5 5-5 5M14 2a2 2 0 012 2v2h-2V4H5v16h9v-2h2v2a2 2 0 01-2 2H5a2 2 0 01-2-2V4a2 2 0 012-2h9z" />

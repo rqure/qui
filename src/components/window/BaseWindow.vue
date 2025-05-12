@@ -12,10 +12,6 @@ const windowStore = useWindowStore()
 const menuStore = useMenuStore()
 const isDragging = ref(false)
 const dragOffset = ref({ x: 0, y: 0 })
-const isAnimating = ref(false)
-
-const MINIMIZE_ANIMATION_DURATION = 200 // ms
-const MINIMIZE_SCALE = 0.8
 
 const startDrag = (e: MouseEvent) => {
   // Ignore right clicks and when maximized
