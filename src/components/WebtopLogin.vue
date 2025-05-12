@@ -68,8 +68,15 @@ const handleSubmit = async () => {
         return
       }
       
-      await authStore.loginWithCredentials(username.value, password.value)
-      emit('login', username.value)
+      try {
+        await authStore.loginWithCredentials(username.value, password.value)
+        emit('login', username.value)
+      } catch (err) {
+        // Handle specific error messages from the auth endpoint
+        const errorMessage = err instanceof Error ? err.message : 'Authentication failed'
+        error.value = errorMessage
+        throw err
+      }
     } else if (loginMethod.value === 'sso') {
       // Keycloak SSO
       await authStore.login()
@@ -80,8 +87,11 @@ const handleSubmit = async () => {
       // Will redirect to the provider's auth page
     }
   } catch (err) {
-    error.value = 'Authentication failed. Please try again.'
     console.error(err)
+    if (!error.value) {
+      error.value = 'Authentication failed. Please try again.'
+    }
+  } finally {
     isLoading.value = false
   }
 }

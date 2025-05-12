@@ -7,6 +7,7 @@ import {
   logout as keycloakLogout,
   getUserProfile
 } from '@/core/security/keycloak'
+import { getApiBaseUrl } from '@/core/utils/url'
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
@@ -54,18 +55,47 @@ export const useAuthStore = defineStore('auth', {
     
     async loginWithCredentials(username: string, password: string) {
       try {
-        // In a real app, this would make an API call to verify credentials
-        // For now, we'll simulate a successful login for any non-empty credentials
         if (!username || !password) {
           throw new Error('Username and password are required')
         }
         
-        // Simple validation - in a real app this would call an API
-        if (password.length < 4) {
-          throw new Error('Invalid credentials')
+        // Use dynamic hostname based on current browser location
+        const authEndpoint = `${getApiBaseUrl()}auth`
+        
+        // Send credentials to the specified authentication endpoint
+        const response = await fetch(authEndpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            username,
+            password,
+          }),
+          credentials: 'include', // Include cookies in the request
+        })
+
+        if (!response.ok) {
+          // Handle HTTP error responses
+          const errorData = await response.json().catch(() => null)
+          throw new Error(errorData?.message || `Authentication failed with status: ${response.status}`)
         }
         
-        return this.handleSuccessfulAuth(username)
+        // Process the successful response
+        const data = await response.json()
+        
+        // Construct user profile from response data
+        const profile = {
+          username: data.username || username,
+          name: data.name || username,
+          email: data.email || '',
+          ...data, // Include any other data from the response
+        }
+        
+        return this.handleSuccessfulAuth(
+          profile.username,
+          profile
+        )
       } catch (error) {
         console.error('Login failed:', error)
         throw error

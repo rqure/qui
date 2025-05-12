@@ -1,3 +1,5 @@
+import { getAuthServiceBaseUrl } from '../utils/url'
+
 /**
  * Keycloak configuration with sensible defaults
  * These can be overridden via environment variables or at runtime
@@ -8,9 +10,9 @@ export interface KeycloakConfig {
   clientId: string;
 }
 
-// Default configuration that points to local Docker Compose Keycloak instance
+// Default configuration that uses current hostname for Keycloak URL
 export const keycloakConfig: KeycloakConfig = {
-  url: import.meta.env.VITE_KEYCLOAK_URL || 'http://localhost:8080',
+  url: import.meta.env.VITE_KEYCLOAK_URL || getAuthServiceBaseUrl(),
   realm: import.meta.env.VITE_KEYCLOAK_REALM || 'qos',
   clientId: import.meta.env.VITE_KEYCLOAK_CLIENT_ID || 'qui',
 };
