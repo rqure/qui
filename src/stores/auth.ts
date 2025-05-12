@@ -143,21 +143,34 @@ export const useAuthStore = defineStore('auth', {
     },
 
     async logout() {
-      this.username = ''
-      this.userProfile = null
-      this.isAuthenticated = false
-      
-      // Reset security profile by setting an empty profile
-      // since resetSecurityProfile() doesn't exist
-      const securityStore = useSecurityStore()
-      securityStore.setSecurityProfile({
-        permissions: [],
-        areaOfResponsibility: []
-      })
-      
-      // Log out of Keycloak if initialized
-      if (this.isKeycloakInitialized) {
-        await keycloakLogout()
+      try {
+        // First reset local state
+        this.username = ''
+        this.userProfile = null
+        this.isAuthenticated = false
+        
+        // Reset security profile by setting an empty profile
+        // since resetSecurityProfile() doesn't exist
+        const securityStore = useSecurityStore()
+        securityStore.setSecurityProfile({
+          permissions: [],
+          areaOfResponsibility: []
+        })
+        
+        // Log out of Keycloak if initialized
+        if (this.isKeycloakInitialized) {
+          try {
+            await keycloakLogout()
+          } catch (err) {
+            console.error('Failed to logout from Keycloak:', err)
+            // Continue with local logout even if Keycloak logout fails
+          }
+        }
+        
+        return true
+      } catch (error) {
+        console.error('Logout process failed:', error)
+        return false
       }
     },
   },

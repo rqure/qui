@@ -471,7 +471,7 @@ const startResize = (handle: string, e: MouseEvent) => {
   overflow: auto;
   padding: var(--qui-window-padding);
   background: var(--qui-window-bg);
-  user-select: text;
+  user-select: none; /* Prevent text selection by default */
   
   /* Custom scrollbar styling */
   scrollbar-width: thin; /* Firefox */
@@ -484,6 +484,25 @@ const startResize = (handle: string, e: MouseEvent) => {
   /* Prevent unnecessary scrollbars */
   display: flex;
   flex-direction: column;
+}
+
+/* Allow text selection for input elements and contenteditable elements */
+.content :deep(input),
+.content :deep(textarea),
+.content :deep(select),
+.content :deep([contenteditable="true"]),
+.content :deep(.selectable),
+.content :deep(.allow-select),
+.content :deep(.user-select-text) {
+  user-select: text;
+  cursor: text;
+}
+
+/* Also allow text selection for code blocks */
+.content :deep(pre),
+.content :deep(code),
+.content :deep(.code) {
+  user-select: text;
 }
 
 /* WebKit/Blink browsers (Chrome, Safari, Edge) */

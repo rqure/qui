@@ -79,12 +79,18 @@ const launchApp = (app: (typeof testApps)[0]) => {
 
 // Replace direct logout with a confirmation window
 const initiateLogout = () => {
-  // Create a logout confirmation window
+  // Create a logout confirmation window with a specific ID
+  const logoutWindowId = 'logout-confirm-window'
+  
   windowStore.createWindow({
+    id: logoutWindowId, // Explicitly set window ID
     title: 'Logout Confirmation',
     component: markRaw(LogoutConfirmWindow),
     width: 360,
     height: 240,
+    props: {
+      windowId: logoutWindowId // Pass window ID as prop
+    }
   })
   
   // Close the start menu

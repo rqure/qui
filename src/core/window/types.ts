@@ -27,6 +27,7 @@ export interface WindowState {
 }
 
 export interface WindowOptions {
+  id?: string     // Make id an optional property
   title: string
   width?: number
   height?: number
@@ -34,4 +35,5 @@ export interface WindowOptions {
   y?: number
   component: Component
   icon?: string
+  props?: Record<string, any>  // Add props for passing to components
 }

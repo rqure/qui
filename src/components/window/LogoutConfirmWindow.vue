@@ -1,21 +1,28 @@
 <script setup lang="ts">
+import { onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useWindowStore } from '@/stores/windows'
 
 const authStore = useAuthStore()
 const windowStore = useWindowStore()
 
-const windowId: string = "logout-confirm-window"
+// Get window id from the current component's instance
+const props = defineProps({
+  windowId: {
+    type: String,
+    required: true
+  }
+})
 
 const handleCancel = () => {
-  // Close this window
-  windowStore.closeWindow(windowId)
+  // Close this window using the provided windowId
+  windowStore.closeWindow(props.windowId)
 }
 
 const handleConfirm = async () => {
   try {
     // Close the window first for better UX
-    windowStore.closeWindow(windowId)
+    windowStore.closeWindow(props.windowId)
     
     // Execute logout
     await authStore.logout()

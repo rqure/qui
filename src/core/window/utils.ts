@@ -2,7 +2,7 @@ import type { WindowState, WindowOptions } from './types'
 import { v4 as uuidv4 } from 'uuid'
 
 export const createWindowState = (options: WindowOptions): WindowState => ({
-  id: uuidv4(),
+  id: options.id || uuidv4(), // Use provided ID or generate a UUID
   title: options.title,
   x: options.x ?? 100,
   y: options.y ?? 100,

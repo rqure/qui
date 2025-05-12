@@ -1,114 +1,129 @@
 import { defineStore } from 'pinia'
+import { ref, computed } from 'vue'
 import type { WindowState, WindowOptions } from '@/core/window/types'
 import { createWindowState } from '@/core/window/utils'
 
-export const useWindowStore = defineStore('windows', {
-  state: () => ({
-    windows: [] as WindowState[],
-    activeWindowId: null as string | null,
-    nextZIndex: 100, // Start at a higher base value
-  }),
+export const useWindowStore = defineStore('windows', () => {
+  const windows = ref<WindowState[]>([])
+  const activeWindowId = ref<string | null>(null)
 
-  actions: {
-    createWindow(options: WindowOptions) {
-      const window = createWindowState(options)
-      window.zIndex = this.nextZIndex++
-      this.windows.push(window)
-      this.activateWindow(window.id)
-      return window
-    },
+  const activeWindow = computed(() => windows.value.find(w => w.id === activeWindowId.value) || null)
 
-    activateWindow(id: string) {
-      const window = this.windows.find((w) => w.id === id)
-      if (window) {
-        this.activeWindowId = id
-        window.zIndex = this.nextZIndex++
-        window.isMinimized = false
+  const createWindow = (options: WindowOptions) => {
+    const windowState = createWindowState(options)
+    
+    // Set initial z-index to be higher than any existing window
+    const highestZ = Math.max(0, ...windows.value.map(w => w.zIndex))
+    windowState.zIndex = highestZ + 1
+    
+    windows.value.push(windowState)
+    activateWindow(windowState.id)
+    
+    return windowState
+  }
+
+  const activateWindow = (id: string) => {
+    const window = windows.value.find((w) => w.id === id)
+    if (window) {
+      activeWindowId.value = id
+      window.zIndex = Math.max(0, ...windows.value.map(w => w.zIndex)) + 1
+      window.isMinimized = false
+    }
+  }
+
+  const closeWindow = (id: string) => {
+    const index = windows.value.findIndex((w) => w.id === id)
+    if (index !== -1) {
+      windows.value.splice(index, 1)
+    }
+  }
+
+  const updateWindowPosition = (id: string, x: number, y: number) => {
+    const window = windows.value.find((w) => w.id === id)
+    if (window) {
+      window.x = x
+      window.y = y
+    }
+  }
+
+  const updateWindowSize = (id: string, width: number, height: number) => {
+    const window = windows.value.find((w) => w.id === id)
+    if (window) {
+      window.width = width
+      window.height = height
+    }
+  }
+
+  const minimizeWindow = (id: string) => {
+    const window = windows.value.find((w) => w.id === id)
+    if (window) {
+      window.isMinimized = true
+      if (activeWindowId.value === id) {
+        activeWindowId.value = null
       }
-    },
+    }
+  }
 
-    closeWindow(id: string) {
-      const index = this.windows.findIndex((w) => w.id === id)
-      if (index !== -1) {
-        this.windows.splice(index, 1)
+  const unminimizeWindow = (id: string) => {
+    const window = windows.value.find((w) => w.id === id)
+    if (window) {
+      window.isMinimized = false
+      activateWindow(id)
+    }
+  }
+
+  const maximizeWindow = (id: string) => {
+    const window = windows.value.find((w) => w.id === id)
+    if (window && !window.isMaximized) {
+      window.prevSize = {
+        x: window.x,
+        y: window.y,
+        width: window.width,
+        height: window.height,
       }
-    },
+      window.isMaximized = true
+      window.x = 0
+      window.y = 0
+      window.width = document.documentElement.clientWidth
+      window.height = document.documentElement.clientHeight
+    }
+  }
 
-    updateWindowPosition(id: string, x: number, y: number) {
-      const window = this.windows.find((w) => w.id === id)
-      if (window) {
-        window.x = x
-        window.y = y
-      }
-    },
+  const restoreWindow = (id: string) => {
+    const window = windows.value.find((w) => w.id === id)
+    if (window?.prevSize) {
+      window.isMaximized = false
+      window.x = window.prevSize.x
+      window.y = window.prevSize.y
+      window.width = window.prevSize.width
+      window.height = window.prevSize.height
+      window.prevSize = undefined
+    }
+  }
 
-    updateWindowSize(id: string, width: number, height: number) {
-      const window = this.windows.find((w) => w.id === id)
-      if (window) {
-        window.width = width
-        window.height = height
-      }
-    },
+  const updateWindowPrevState = (
+    id: string,
+    state: { x: number; y: number; width: number; height: number },
+  ) => {
+    const window = windows.value.find((w) => w.id === id)
+    if (window) {
+      window.prevSize = state
+    }
+  }
 
-    minimizeWindow(id: string) {
-      const window = this.windows.find((w) => w.id === id)
-      if (window) {
-        window.isMinimized = true
-        if (this.activeWindowId === id) {
-          this.activeWindowId = null
-        }
-      }
-    },
-
-    unminimizeWindow(id: string) {
-      const window = this.windows.find((w) => w.id === id)
-      if (window) {
-        window.isMinimized = false
-        this.activateWindow(id)
-      }
-    },
-
-    maximizeWindow(id: string) {
-      const window = this.windows.find((w) => w.id === id)
-      if (window && !window.isMaximized) {
-        window.prevSize = {
-          x: window.x,
-          y: window.y,
-          width: window.width,
-          height: window.height,
-        }
-        window.isMaximized = true
-        window.x = 0
-        window.y = 0
-        window.width = document.documentElement.clientWidth
-        window.height = document.documentElement.clientHeight
-      }
-    },
-
-    restoreWindow(id: string) {
-      const window = this.windows.find((w) => w.id === id)
-      if (window?.prevSize) {
-        window.isMaximized = false
-        window.x = window.prevSize.x
-        window.y = window.prevSize.y
-        window.width = window.prevSize.width
-        window.height = window.prevSize.height
-        window.prevSize = undefined
-      }
-    },
-
-    updateWindowPrevState(
-      id: string,
-      state: { x: number; y: number; width: number; height: number },
-    ) {
-      const window = this.windows.find((w) => w.id === id)
-      if (window) {
-        window.prevSize = state
-      }
-    },
-  },
-
-  getters: {
-    activeWindow: (state) => state.windows.find((w) => w.id === state.activeWindowId) || null,
-  },
+  return {
+    windows,
+    activeWindow,
+    activeWindowId,
+    createWindow,
+    activateWindow,
+    closeWindow,
+    updateWindowPosition,
+    updateWindowSize,
+    minimizeWindow,
+    unminimizeWindow,
+    maximizeWindow,
+    restoreWindow,
+    updateWindowPrevState,
+  }
 })
