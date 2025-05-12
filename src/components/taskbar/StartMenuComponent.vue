@@ -2,7 +2,7 @@
 import { defineComponent, markRaw, computed } from 'vue'
 import { useWindowStore } from '@/stores/windows'
 import { useAuthStore } from '@/stores/auth'
-import LogoutConfirmWindow from '@/components/system/LogoutConfirmWindow.vue'
+import LogoutConfirmWindow from '@/components/window/LogoutConfirmWindow.vue'
 
 const emit = defineEmits<{
   (e: 'close'): void
