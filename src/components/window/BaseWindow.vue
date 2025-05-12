@@ -3,6 +3,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import type { WindowState } from '@/core/window/types'
 import { useWindowStore } from '@/stores/windows'
 import { useMenuStore } from '@/stores/menu'
+import scrollVisibility from '@/directives/scrollVisibility'
 
 const props = defineProps<{
   window: WindowState
@@ -224,7 +225,7 @@ const startResize = (handle: string, e: MouseEvent) => {
         </button>
       </div>
     </div>
-    <div class="content">
+    <div class="content" v-scroll-visibility>
       <slot></slot>
     </div>
     <template v-if="!window.isMaximized">
@@ -475,12 +476,25 @@ const startResize = (handle: string, e: MouseEvent) => {
   /* Custom scrollbar styling */
   scrollbar-width: thin; /* Firefox */
   scrollbar-color: var(--qui-scrollbar-thumb) var(--qui-scrollbar-track); /* Firefox */
+  
+  /* Only show scrollbars when content overflows */
+  overflow-x: hidden;
+  overflow-y: auto;
+  
+  /* Prevent unnecessary scrollbars */
+  display: flex;
+  flex-direction: column;
 }
 
 /* WebKit/Blink browsers (Chrome, Safari, Edge) */
 .content::-webkit-scrollbar {
   width: 8px;
   height: 8px;
+}
+
+/* Hide scrollbar when not needed */
+.content::-webkit-scrollbar {
+  display: block;
 }
 
 .content::-webkit-scrollbar-track {
@@ -492,6 +506,9 @@ const startResize = (handle: string, e: MouseEvent) => {
   background: var(--qui-scrollbar-thumb, rgba(255, 255, 255, 0.2));
   border-radius: 4px;
   transition: background 0.3s ease;
+  /* Only show thumb when hovering over scrollable area */
+  background-clip: padding-box;
+  border: 2px solid transparent;
 }
 
 .content::-webkit-scrollbar-thumb:hover {
@@ -509,6 +526,11 @@ const startResize = (handle: string, e: MouseEvent) => {
 
 .window[data-active='true'] .content::-webkit-scrollbar-thumb:hover {
   background: var(--qui-scrollbar-thumb-active-hover, rgba(0, 255, 136, 0.5));
+}
+
+/* Hide scrollbar when content doesn't overflow */
+.content.no-overflow::-webkit-scrollbar {
+  display: none;
 }
 
 .window[data-active='true'] .titlebar {
