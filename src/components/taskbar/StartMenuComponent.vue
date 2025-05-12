@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { defineComponent, markRaw } from 'vue'
 import { useWindowStore } from '@/stores/windows'
+import { useAuthStore } from '@/stores/auth'
 
 const emit = defineEmits<{
   (e: 'close'): void
 }>()
 
 const windowStore = useWindowStore()
+const authStore = useAuthStore()
 
 // Define some test apps
 const testApps = [
@@ -68,6 +70,17 @@ const launchApp = (app: (typeof testApps)[0]) => {
   })
   emit('close')
 }
+
+const handleLogout = async () => {
+  try {
+    await authStore.logout()
+    // After logout, you might want to redirect or refresh the page
+    window.location.reload()
+  } catch (error) {
+    console.error('Logout failed:', error)
+  }
+  emit('close')
+}
 </script>
 
 <template>
@@ -83,6 +96,23 @@ const launchApp = (app: (typeof testApps)[0]) => {
         >
           <span class="item-icon">{{ app.icon }}</span>
           <span class="item-name">{{ app.name }}</span>
+        </button>
+      </div>
+    </div>
+    
+    <!-- Separator -->
+    <div class="menu-separator"></div>
+    
+    <!-- User section with logout -->
+    <div class="menu-section user-section">
+      <div class="menu-list">
+        <button class="menu-item logout-button" @click="handleLogout">
+          <span class="item-icon logout-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+              <path d="M16 17v-3H9v-4h7V7l5 5-5 5M14 2a2 2 0 012 2v2h-2V4H5v16h9v-2h2v2a2 2 0 01-2 2H5a2 2 0 01-2-2V4a2 2 0 012-2h9z" />
+            </svg>
+          </span>
+          <span class="item-name">Logout</span>
         </button>
       </div>
     </div>
@@ -149,5 +179,41 @@ const launchApp = (app: (typeof testApps)[0]) => {
 .item-name {
   font-size: var(--qui-font-size-base);
   font-weight: var(--qui-font-weight-normal);
+}
+
+.menu-separator {
+  height: 1px;
+  background: var(--qui-menu-separator);
+  margin: 4px 8px;
+  opacity: 0.5;
+}
+
+.user-section {
+  margin-top: 4px;
+}
+
+.logout-button {
+  color: var(--qui-danger-text, #ff4444);
+}
+
+.logout-button:hover {
+  background: var(--qui-danger-bg, rgba(255, 68, 68, 0.1));
+}
+
+.logout-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Remove the rotation that was applied to the emoji */
+  transform: none;
+}
+
+/* Add animation to the logout icon */
+.logout-button:hover .logout-icon svg {
+  transform: translateX(2px);
+}
+
+.logout-icon svg {
+  transition: transform 0.2s var(--qui-animation-bounce);
 }
 </style>
