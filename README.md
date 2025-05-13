@@ -16,28 +16,61 @@ QUI represents a webtop application framework built with Vue 3, enabling develop
 
 ```sh
 src
-├── core                  # Core framework functionality
-│   ├── apps             # Application system
-│   ├── menu             # Context menu system
-│   │   ├── types.ts     # Menu type definitions
-│   │   └── utils.ts     # Menu utilities
-│   ├── theme            # Theme system
-│   │   ├── themes       # Theme definitions
-│   │   └── types        # Theme type definitions
-│   └── window           # Window management
-│       ├── types.ts     # Window type definitions
-│       └── utils.ts     # Window utilities
-├── stores               # Pinia stores
-│   ├── apps.ts         # Application management
-│   ├── auth.ts         # Authentication state
-│   ├── menu.ts         # Context menu state
-│   ├── theme.ts        # Theme management
-│   └── windows.ts      # Window management
+├── App.vue
+├── assets
+│   ├── interactive.css
+│   ├── logout-icon.ts
+│   └── main.css
 ├── components
-│   ├── taskbar         # Taskbar components
-│   ├── window          # Window components
-│   └── workspace       # Workspace management
-└── assets              # Static assets
+│   ├── common
+│   │   └── QeiLogo.vue
+│   ├── icons
+│   │   └── qei-logo.png
+│   ├── menu
+│   │   └── ContextMenuComponent.vue
+│   ├── taskbar
+│   │   ├── StartMenuComponent.vue
+│   │   └── TaskbarComponent.vue
+│   ├── WebtopLogin.vue
+│   ├── window
+│   │   ├── BaseWindow.vue
+│   │   └── LogoutConfirmWindow.vue
+│   └── workspace
+│       └── WorkspaceComponent.vue
+├── core
+│   ├── apps
+│   │   └── types.ts
+│   ├── data
+│   │   ├── protobufs_pb.d.ts
+│   │   └── types.ts
+│   ├── menu
+│   │   ├── types.ts
+│   │   └── utils.ts
+│   ├── security
+│   │   ├── composables.ts
+│   │   ├── keycloak-config.ts
+│   │   ├── keycloak.ts
+│   │   └── types.ts
+│   ├── theme
+│   │   ├── ThemeProvider.vue
+│   │   ├── themes
+│   │   │   └── default.ts
+│   │   └── types.ts
+│   ├── utils
+│   │   └── url.ts
+│   └── window
+│       ├── types.ts
+│       └── utils.ts
+├── main.ts
+├── stores
+│   ├── apps.ts
+│   ├── auth.ts
+│   ├── data.ts
+│   ├── menu.ts
+│   ├── security.ts
+│   ├── theme.ts
+│   └── windows.ts
+└── vite-env.d.ts
 ```
 
 ## State Management
