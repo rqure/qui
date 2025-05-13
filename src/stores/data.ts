@@ -4,7 +4,7 @@ import { Message } from 'google-protobuf';
 import { Timestamp } from 'google-protobuf/google/protobuf/timestamp_pb';
 import { Any } from 'google-protobuf/google/protobuf/any_pb';
 import { v4 as uuidv4 } from 'uuid';
-import { ApiHeader, ApiMessage, ApiConfigCreateEntityRequest, ApiConfigCreateEntityResponse, DatabaseNotification, ApiRuntimeRegisterNotificationRequest, ApiRuntimeRegisterNotificationResponse, DatabaseNotificationConfig, ApiRuntimeUnregisterNotificationRequest, ApiRuntimeUnregisterNotificationResponse, ApiRuntimeDatabaseRequest, ApiRuntimeDatabaseResponse, ApiRuntimeEntityExistsRequest, ApiRuntimeEntityExistsResponse, ApiRuntimeFieldExistsRequest, ApiRuntimeFieldExistsResponse, ApiConfigGetEntitySchemaRequest, ApiConfigGetEntitySchemaResponse, ApiConfigSetEntitySchemaRequest, ApiConfigSetEntitySchemaResponse, ApiConfigDeleteEntityRequest, ApiConfigDeleteEntityResponse, ApiRuntimeFindEntitiesRequest, ApiRuntimeFindEntitiesResponse, ApiRuntimeGetEntityTypesRequest, ApiRuntimeGetEntityTypesResponse, ApiRuntimeQueryRequest, ApiRuntimeQueryResponse, DatabaseEntitySchema, DatabaseFieldSchema, DatabaseRequest, String as PbString } from '@/generated/qlib/pkg/qprotobufs/protobufs_pb';
+import { ApiHeader, ApiMessage, ApiConfigCreateEntityRequest, ApiConfigCreateEntityResponse, DatabaseNotification, ApiRuntimeRegisterNotificationRequest, ApiRuntimeRegisterNotificationResponse, DatabaseNotificationConfig, ApiRuntimeUnregisterNotificationRequest, ApiRuntimeUnregisterNotificationResponse, ApiRuntimeDatabaseRequest, ApiRuntimeDatabaseResponse, ApiRuntimeEntityExistsRequest, ApiRuntimeEntityExistsResponse, ApiRuntimeFieldExistsRequest, ApiRuntimeFieldExistsResponse, ApiConfigGetEntitySchemaRequest, ApiConfigGetEntitySchemaResponse, ApiConfigSetEntitySchemaRequest, ApiConfigSetEntitySchemaResponse, ApiConfigDeleteEntityRequest, ApiConfigDeleteEntityResponse, ApiRuntimeFindEntitiesRequest, ApiRuntimeFindEntitiesResponse, ApiRuntimeGetEntityTypesRequest, ApiRuntimeGetEntityTypesResponse, ApiRuntimeQueryRequest, ApiRuntimeQueryResponse, DatabaseEntitySchema, DatabaseFieldSchema, DatabaseRequest, String as PbString, QueryColumn } from '@/generated/qlib/pkg/qprotobufs/protobufs_pb';
 import { EntityFactories, NotificationManager, ValueFactories } from '@/core/data/types';
 import type { EntityId, EntityType, Entity, FieldType, Value, Field, EntitySchema, FieldSchema, WriteOpt, ValueType } from '@/core/data/types';
 
@@ -511,14 +511,16 @@ export const useDataStore = defineStore('data', {
 
                     const rows = response.getRowsList().map(row => {
                         const convertedRow: Record<string, any> = {};
-                        const values = row.getValues ? row.getValues() : [];
-                        const columns = row.getColumns ? row.getColumns() : [];
+                        const columnsList = Array.isArray(row.getColumnsList?.()) 
+                            ? row.getColumnsList?.() 
+                            : [];
                         
-                        values.forEach((value, index) => {
-                            const columnName = columns[index] ? columns[index].toString() : `column${index}`;
-                            // Convert value based on type
-                            convertedRow[columnName] = value; // Need proper conversion
+                        columnsList.forEach((col: QueryColumn) => {
+                            if (col.getIsSelected()) {
+                                convertedRow[col.getKey()] = col.getValue();
+                            }
                         });
+
                         return convertedRow;
                     });
 
