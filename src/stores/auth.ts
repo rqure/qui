@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { useSecurityStore } from './security'
+import { useDataStore } from './data'
 import type { SecurityProfile } from '@/core/security/types'
 import { 
   initKeycloak, 
@@ -139,18 +140,25 @@ export const useAuthStore = defineStore('auth', {
       const securityStore = useSecurityStore()
       securityStore.setSecurityProfile(mockSecurityProfile)
       
+      // Initialize the data store connection
+      const dataStore = useDataStore()
+      dataStore.initialize()
+      
       return true
     },
 
     async logout() {
       try {
-        // First reset local state
+        // First disconnect the data store
+        const dataStore = useDataStore()
+        dataStore.disconnect()
+        
+        // Then reset local state
         this.username = ''
         this.userProfile = null
         this.isAuthenticated = false
         
         // Reset security profile by setting an empty profile
-        // since resetSecurityProfile() doesn't exist
         const securityStore = useSecurityStore()
         securityStore.setSecurityProfile({
           permissions: [],

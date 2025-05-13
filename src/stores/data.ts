@@ -66,6 +66,12 @@ export const useDataStore = defineStore('data', {
     }),
 
     actions: {
+        // Add an initialization method for post-login setup
+        initialize() {
+            console.log('Initializing data store connection')
+            this.connect()
+        },
+
         connect() {
             const me = this;
 
@@ -103,9 +109,12 @@ export const useDataStore = defineStore('data', {
             const me = this;
 
             if (this.socket) {
+                console.log('Disconnecting WebSocket')
                 this.socket.close();
                 this.socket = null;
                 this.isConnected = false;
+                // Clear any pending responses
+                this.waitingResponses = {};
             }
         },
 
