@@ -7,6 +7,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { ApiHeader, ApiMessage, ApiConfigCreateEntityRequest, ApiConfigCreateEntityResponse, DatabaseNotification, ApiRuntimeRegisterNotificationRequest, ApiRuntimeRegisterNotificationResponse, DatabaseNotificationConfig, ApiRuntimeUnregisterNotificationRequest, ApiRuntimeUnregisterNotificationResponse, ApiRuntimeDatabaseRequest, ApiRuntimeDatabaseResponse, ApiRuntimeEntityExistsRequest, ApiRuntimeEntityExistsResponse, ApiRuntimeFieldExistsRequest, ApiRuntimeFieldExistsResponse, ApiConfigGetEntitySchemaRequest, ApiConfigGetEntitySchemaResponse, ApiConfigSetEntitySchemaRequest, ApiConfigSetEntitySchemaResponse, ApiConfigDeleteEntityRequest, ApiConfigDeleteEntityResponse, ApiRuntimeFindEntitiesRequest, ApiRuntimeFindEntitiesResponse, ApiRuntimeGetEntityTypesRequest, ApiRuntimeGetEntityTypesResponse, ApiRuntimeQueryRequest, ApiRuntimeQueryResponse, DatabaseEntitySchema, DatabaseFieldSchema, DatabaseRequest, String as PbString, QueryColumn } from '@/generated/qlib/pkg/qprotobufs/protobufs_pb';
 import { EntityFactories, NotificationManager, ValueFactories } from '@/core/data/types';
 import type { EntityId, EntityType, Entity, FieldType, Value, Field, EntitySchema, FieldSchema, WriteOpt, ValueType } from '@/core/data/types';
+import { useAuthStore } from '@/stores/auth';
+import { getKeycloak } from '@/core/security/keycloak';
 
 // Define the missing interfaces
 export interface NotificationConfig {
@@ -174,6 +176,30 @@ export const useDataStore = defineStore('data', {
             const header = new ApiHeader();
             header.setId(requestId);
             header.setTimestamp(Timestamp.fromDate(new Date(sentTimestamp)));
+            
+            // Get access token from auth mechanism
+            let accessToken = '';
+            
+            try {
+                // Try to get token from Keycloak first
+                const keycloak = getKeycloak();
+                if (keycloak && keycloak.token) {
+                    accessToken = keycloak.token;
+                } else {
+                    // Fallback to auth store if keycloak isn't available or initialized
+                    const authStore = useAuthStore();
+                    if (authStore.isAuthenticated && authStore.userProfile?.token) {
+                        accessToken = authStore.userProfile.token;
+                    }
+                }
+            } catch (error) {
+                console.warn('Could not retrieve authentication token:', error);
+            }
+            
+            // Set the access token in the header
+            if (accessToken) {
+                header.setAccesstoken(accessToken);
+            }
 
             const message = new ApiMessage();
             message.setHeader(header);
