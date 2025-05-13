@@ -8,11 +8,23 @@ export function getApiBaseUrl(): string {
   
   // Use development URL format when running on localhost
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
-    return `${protocol}//${hostname}:7860/`
+    if (protocol === 'http:') {
+      return `ws://${hostname}:7860/`;
+    } else if (protocol === 'https:') {
+      return `wss://${hostname}:7860/`;
+    }
+
+    return `${protocol}//${hostname}:7860/`;
   }
   
   // In production, we might use the same domain/host with a path prefix
-  return `${window.location.origin}/api/`
+  if (protocol === 'http:') {
+    return `ws://${hostname}/api/`;
+  } else if (protocol === 'https:') {
+    return `wss://${hostname}/api/`;
+  }
+  
+  return `${window.location.origin}/api/`;
 }
 
 /**
