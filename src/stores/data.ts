@@ -72,6 +72,11 @@ export const useDataStore = defineStore('data', {
             this.connect()
         },
 
+        // Clean up resources when store is no longer needed
+        cleanup() {
+            this.disconnect()
+        },
+
         connect() {
             const me = this;
 
@@ -208,6 +213,8 @@ export const useDataStore = defineStore('data', {
             // Set the access token in the header
             if (accessToken) {
                 header.setAccesstoken(accessToken);
+            } else {
+                console.warn('No access token available for request');
             }
 
             const message = new ApiMessage();

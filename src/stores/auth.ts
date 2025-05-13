@@ -6,7 +6,8 @@ import {
   initKeycloak, 
   login as keycloakLogin, 
   logout as keycloakLogout,
-  getUserProfile
+  getUserProfile,
+  cleanup as cleanupKeycloak
 } from '@/core/security/keycloak'
 import { getApiBaseUrl } from '@/core/utils/url'
 
@@ -151,7 +152,10 @@ export const useAuthStore = defineStore('auth', {
       try {
         // First disconnect the data store
         const dataStore = useDataStore()
-        dataStore.disconnect()
+        dataStore.cleanup()
+        
+        // Clean up Keycloak resources
+        cleanupKeycloak()
         
         // Then reset local state
         this.username = ''
