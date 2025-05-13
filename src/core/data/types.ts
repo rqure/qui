@@ -1,4 +1,4 @@
-import { DatabaseNotification } from "@/generated/qlib/pkg/qprotobufs/protobufs_pb";
+import { DatabaseNotification } from "@/core/data/protobufs_pb.d";
 
 /**
  * Represents unique identifiers for entities in the system

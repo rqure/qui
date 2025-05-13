@@ -10,8 +10,8 @@ import { useMenuStore } from '@/stores/menu'
 const auth = useAuthStore()
 const menuStore = useMenuStore()
 
-const handleLogin = (user: string) => {
-  auth.login(user)
+const handleLogin = () => {
+  auth.login()
 }
 
 const handleGlobalContextMenu = (e: MouseEvent) => {

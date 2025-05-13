@@ -9,7 +9,7 @@ import {
   getUserProfile,
   cleanup as cleanupKeycloak
 } from '@/core/security/keycloak'
-import { getApiBaseUrl } from '@/core/utils/url'
+import { getApiBaseUrl, getAuthServiceBaseUrl2 } from '@/core/utils/url'
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
@@ -62,7 +62,7 @@ export const useAuthStore = defineStore('auth', {
         }
         
         // Use dynamic hostname based on current browser location
-        const authEndpoint = `${getApiBaseUrl()}auth`
+        const authEndpoint = `${getAuthServiceBaseUrl2()}auth`
         
         // Send credentials to the specified authentication endpoint
         const response = await fetch(authEndpoint, {
