@@ -35,7 +35,7 @@ const handleContextMenu = (e: MouseEvent) => {
       :window="window"
       @update:position="(x, y) => handleWindowPosition(window.id, x, y)"
     >
-      <component :is="window.component" />
+      <component :is="window.component" :windowId="window.id" />
     </BaseWindow>
   </div>
 </template>
