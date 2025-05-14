@@ -76,7 +76,7 @@ async function saveField(fieldType: string, newValue: any) {
     const field = fields.value.find(f => f.fieldType === fieldType);
     if (!field) return;
     
-    // Update field with new value
+    // Set the new value - assuming newValue is a properly created Value object
     field.value = newValue;
     
     // Write to the database
@@ -87,7 +87,7 @@ async function saveField(fieldType: string, newValue: any) {
     
     // If we edited the Name field, update the display name
     if (fieldType === 'Name') {
-      entityName.value = newValue.toString();
+      entityName.value = field.value.getString();
     }
   } catch (err) {
     console.error(`Error saving field ${fieldType}:`, err);

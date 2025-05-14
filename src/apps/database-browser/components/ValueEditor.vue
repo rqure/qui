@@ -1,10 +1,19 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
+import { ValueFactories } from '@/core/data/types';
 
 // Define our own Value interface to avoid type errors
 interface Value {
   type: string;
   toString: () => string;
+  asString?: () => string; // Add optional asString method
+  // Add type-specific getters
+  getInt?: () => number;
+  getFloat?: () => number;
+  getString?: () => string;
+  getBool?: () => boolean;
+  getTimestamp?: () => Date;
+  getEntityReference?: () => string;
 }
 
 const props = defineProps<{
@@ -16,7 +25,35 @@ const emit = defineEmits<{
   (e: 'cancel'): void;
 }>();
 
-const editValue = ref<string>(props.value?.toString() || '');
+// Get the initial value based on the type
+function getInitialValue(): string {
+  if (!props.value) return '';
+  
+  // Use type-specific getters if available
+  if (props.value.type === 'String' && typeof props.value.getString === 'function') {
+    return props.value.getString();
+  } else if (props.value.type === 'Int' && typeof props.value.getInt === 'function') {
+    return props.value.getInt().toString();
+  } else if (props.value.type === 'Float' && typeof props.value.getFloat === 'function') {
+    return props.value.getFloat().toString();
+  } else if (props.value.type === 'Bool' && typeof props.value.getBool === 'function') {
+    return props.value.getBool().toString();
+  } else if (props.value.type === 'EntityReference' && typeof props.value.getEntityReference === 'function') {
+    return props.value.getEntityReference();
+  } else if (props.value.type === 'Timestamp' && typeof props.value.getTimestamp === 'function') {
+    return formatDateForInput(props.value.getTimestamp());
+  }
+  
+  // Use asString if available
+  if (typeof props.value.asString === 'function') {
+    return props.value.asString();
+  }
+  
+  // Fallback to toString
+  return props.value.toString();
+}
+
+const editValue = ref<string>(getInitialValue());
 const inputType = computed(() => {
   if (!props.value) return 'text';
   
@@ -59,35 +96,42 @@ function getInitialDateTimeValue(): string {
   return '';
 }
 
+function formatDateForInput(date: Date): string {
+  // Format date as YYYY-MM-DDThh:mm
+  try {
+    return date.toISOString().slice(0, 16);
+  } catch (e) {
+    return '';
+  }
+}
+
 function handleSave() {
   // Create appropriate value based on type
   let newValue;
   
-  if (props.value?.type === "Bool") {
-    // For checkbox, use checked state
-    const checkboxEl = document.getElementById('value-editor-checkbox') as HTMLInputElement;
-    newValue = {
-      type: 'Bool',
-      toString: () => checkboxEl.checked ? 'true' : 'false'
-    };
-  } else if (props.value?.type === "Timestamp") {
-    // For datetime, convert to ISO string
-    try {
+  try {
+    if (props.value.type === 'Bool') {
+      // For checkbox, use checked state
+      const checkboxEl = document.getElementById('value-editor-checkbox') as HTMLInputElement;
+      newValue = ValueFactories.newBool(checkboxEl.checked);
+    } else if (props.value.type === 'Int') {
+      newValue = ValueFactories.newInt(parseInt(editValue.value, 10));
+    } else if (props.value.type === 'Float') {
+      newValue = ValueFactories.newFloat(parseFloat(editValue.value));
+    } else if (props.value.type === 'String') {
+      newValue = ValueFactories.newString(editValue.value);
+    } else if (props.value.type === 'EntityReference') {
+      newValue = ValueFactories.newEntityReference(editValue.value);
+    } else if (props.value.type === 'Timestamp') {
       const date = new Date(editValue.value);
-      newValue = {
-        type: 'Timestamp',
-        toString: () => date.toISOString()
-      };
-    } catch (e) {
-      // Invalid date, use original
-      newValue = props.value;
+      newValue = ValueFactories.newTimestamp(date);
+    } else {
+      // Default fallback
+      newValue = ValueFactories.newString(editValue.value);
     }
-  } else {
-    // For other types, just use the string value
-    newValue = {
-      type: props.value?.type || 'String',
-      toString: () => editValue.value
-    };
+  } catch (e) {
+    console.error('Error creating value:', e);
+    newValue = props.value; // Keep original on error
   }
   
   emit('save', newValue);

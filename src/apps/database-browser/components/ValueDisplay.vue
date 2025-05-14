@@ -5,6 +5,7 @@ import { computed } from 'vue';
 interface Value {
   type: string;
   toString: () => string;
+  asString: () => string; // Add this to support proper value display
 }
 
 const props = defineProps<{
@@ -14,6 +15,11 @@ const props = defineProps<{
 // Determine display format based on value type
 const displayValue = computed(() => {
   if (!props.value) return 'N/A';
+  
+  // Use asString() method if available (from data store Value objects)
+  if (typeof props.value.asString === 'function') {
+    return props.value.asString();
+  }
   
   const valueType = props.value.type;
   
