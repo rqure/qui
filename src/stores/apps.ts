@@ -26,28 +26,6 @@ export const useAppStore = defineStore('apps', () => {
     }
   }
 
-  // Create test app as a proper component
-  const TestApp = markRaw(
-    defineComponent({
-      name: 'TestApp',
-      template: '<div>Test Application Content</div>',
-    }),
-  )
-
-  const testApp: RegisteredApp = {
-    manifest: {
-      id: 'test-app',
-      name: 'Test Application',
-      version: '1.0.0',
-      permissions: ['storage'],
-    },
-    component: {
-      default: TestApp,
-    },
-  }
-
-  registerApp(testApp)
-
   return {
     registeredApps,
     registerApp,
