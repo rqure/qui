@@ -54,6 +54,7 @@ async function loadEntities() {
   try {
     if (!props.parentId) {
       const roots = await dataStore.find("Root") as Entity[];
+      console.log("Roots:", roots);
       entities.value.push({
         id: roots[0].entityId,
         name: roots[0].field("Name").value.getString(),

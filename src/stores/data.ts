@@ -35,7 +35,7 @@ interface WaitingResponse {
 function valueFromProtobuf(anyValue: Any): Value {
     // This is a simplified implementation - in a real app you'd need to
     // check the type in the Any message and properly deserialize it
-    const typeUrl = anyValue.typeUrl;
+    const typeUrl = anyValue.typeUrl.split('/').pop() || '';
     const typeSchema = registry.getMessage(typeUrl);
     if (!typeSchema) {
         console.warn(`No schema found for type URL: ${typeUrl}`);
@@ -502,6 +502,7 @@ export const useDataStore = defineStore('data', {
                     const responsesList = response.response;
                     for (let i = 0; i < Math.min(responsesList.length, requests.length); i++) {
                         const resp = responsesList[i];
+                        console.log('Field value:', resp);
                         if (resp.success) {
                             const field = requests[i];
                             
