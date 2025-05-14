@@ -6,7 +6,7 @@ import type { ApiConfigCreateEntityResponse, DatabaseNotification, ApiRuntimeReg
 import { ApiMessageSchema, ApiHeaderSchema, DatabaseNotificationSchema, ApiConfigCreateEntityRequestSchema, ApiConfigCreateEntityResponseSchema, ApiConfigCreateEntityResponse_StatusEnum, ApiConfigDeleteEntityRequestSchema, ApiConfigDeleteEntityResponseSchema, ApiConfigDeleteEntityResponse_StatusEnum, ApiRuntimeFindEntitiesRequestSchema, ApiRuntimeFindEntitiesResponseSchema, ApiRuntimeFindEntitiesResponse_StatusEnum, ApiRuntimeGetEntityTypesRequestSchema, ApiRuntimeGetEntityTypesResponseSchema, ApiRuntimeGetEntityTypesResponse_StatusEnum, ApiRuntimeEntityExistsRequestSchema, ApiRuntimeEntityExistsResponseSchema, ApiRuntimeEntityExistsResponse_StatusEnum, ApiRuntimeFieldExistsRequestSchema, ApiRuntimeFieldExistsResponseSchema, ApiRuntimeFieldExistsResponse_StatusEnum, ApiConfigGetEntitySchemaRequestSchema, ApiConfigGetEntitySchemaResponseSchema, ApiConfigGetEntitySchemaResponse_StatusEnum, ApiConfigSetEntitySchemaRequestSchema, DatabaseEntitySchemaSchema, DatabaseFieldSchemaSchema, ApiConfigSetEntitySchemaResponseSchema, ApiConfigSetEntitySchemaResponse_StatusEnum, ApiRuntimeDatabaseRequestSchema, ApiRuntimeDatabaseRequest_RequestTypeEnum, DatabaseRequestSchema, ApiRuntimeDatabaseResponseSchema, ApiRuntimeDatabaseResponse_StatusEnum, StringSchema, ApiRuntimeQueryRequestSchema, ApiRuntimeQueryResponseSchema, ApiRuntimeQueryResponse_StatusEnum, ApiRuntimeRegisterNotificationRequestSchema, DatabaseNotificationConfigSchema, ApiRuntimeRegisterNotificationResponseSchema, ApiRuntimeRegisterNotificationResponse_StatusEnum, ApiRuntimeUnregisterNotificationRequestSchema, ApiRuntimeUnregisterNotificationResponseSchema, ApiRuntimeUnregisterNotificationResponse_StatusEnum, file_protobufs } from '@/generated/protobufs_pb';
 import { fromBinary, create, type DescMessage, type MessageShape, toBinary, type Registry, createRegistry } from '@bufbuild/protobuf';
 import { EntityFactories, NotificationManager, ValueFactories } from '@/core/data/types';
-import type { EntityId, EntityType, FieldType, Value, Field, EntitySchema, WriteOpt, ValueType } from '@/core/data/types';
+import type { EntityId, EntityType, FieldType, Value, Field, EntitySchema, WriteOpt, ValueType, Entity } from '@/core/data/types';
 import { useAuthStore } from '@/stores/auth';
 import { getKeycloak } from '@/core/security/keycloak';
 
@@ -306,6 +306,40 @@ export const useDataStore = defineStore('data', {
                 .catch(error => {
                     throw new Error(`Failed to delete entity: ${error}`);
                 });
+        },
+
+        async find(entityType: EntityType, fieldTypes: FieldType[] | null = null, conditionFn: (entity: Entity) => boolean = () => true) {
+            const me = this;
+            const pageSize = 100;
+            let cursor = 0;
+            const results: Entity[] = [];
+
+            if (fieldTypes === null) {
+                const schema = await me.getEntitySchema(entityType);
+                fieldTypes = Object.keys(schema.fields) as FieldType[];
+            }
+
+            while (cursor >= 0) {
+                const page = await this.findEntities(entityType, pageSize, cursor);
+                if (page.status !== ApiRuntimeFindEntitiesResponse_StatusEnum.SUCCESS) {
+                    return Promise.reject(new Error(`Failed to find entities: ${page.status}`));
+                }
+                await Promise.all(page.entities.map(async (entityId) => {
+                    const entity = EntityFactories.newEntity(entityId);
+                    for (const fieldType of fieldTypes) {
+                        entity.field(fieldType);
+                    }
+
+                    await me.read(Object.values(entity.fields));
+                    if (entity && conditionFn(entity)) {
+                        results.push(entity);
+                    }
+                }));
+                cursor = Number(page.nextCursor);
+            }
+            return new Promise((resolve) => {
+                resolve(results);
+            });
         },
 
         findEntities(entityType: EntityType, pageSize: number = 100, cursor: number = 0) {

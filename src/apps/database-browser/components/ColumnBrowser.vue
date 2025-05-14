@@ -1,12 +1,11 @@
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue';
 import { useDataStore } from '@/stores/data';
-import type { EntityId } from '@/core/data/types';
+import type { Entity, EntityId } from '@/core/data/types';
 import EntityColumn from './EntityColumn.vue';
 import { v4 as uuidv4 } from 'uuid';
 
 const props = defineProps<{
-  rootEntityId: EntityId;
   selectedEntityId?: EntityId | null;
 }>();
 
@@ -14,18 +13,14 @@ const emit = defineEmits<{
   (e: 'entity-select', entityId: EntityId): void;
 }>();
 
-const dataStore = useDataStore();
-const columns = ref<{ id: string; parentId: EntityId; selectedId?: EntityId }[]>([]);
-const columnsLoading = ref<Set<string>>(new Set());
+const columns = ref<{ id: string; parentId?: EntityId; selectedId?: EntityId }[]>([]);
 
 // Initialize with root column
-onMounted(() => {
+onMounted(async () => {
   if (!columns.value.length) {
-    const rootColumnId = uuidv4();
     columns.value = [
       { 
-        id: rootColumnId, 
-        parentId: props.rootEntityId
+        id: uuidv4(),
       }
     ];
   }
@@ -50,12 +45,12 @@ watch(() => props.selectedEntityId, (newId) => {
   
   if (!found && parentEntityId) {
     // Add a new column with this entity as its parent
-    handleEntitySelect(parentEntityId, newId);
+    handleEntitySelect(newId, parentEntityId);
   }
 }, { immediate: true });
 
 // Handle the selection of an entity in a column
-const handleEntitySelect = async (parentId: EntityId, entityId: EntityId) => {
+const handleEntitySelect = async (entityId: EntityId, parentId?: EntityId) => {
   emit('entity-select', entityId);
   
   // Find the column index where this selection occurred
@@ -70,9 +65,6 @@ const handleEntitySelect = async (parentId: EntityId, entityId: EntityId) => {
     columns.value = columns.value.slice(0, columnIndex + 1);
   }
   
-  // Only add a new column if this isn't a leaf node
-  // For now, we'll always assume entities can have children
-  // In a real implementation, you'd check if the entity can have children
   const columnId = uuidv4();
   columns.value.push({
     id: columnId,
@@ -105,7 +97,7 @@ const syncColumnScroll = (event: Event) => {
       :column-id="column.id"
       :parent-id="column.parentId"
       :selected-id="column.selectedId"
-      @entity-select="handleEntitySelect(column.parentId, $event)"
+      @entity-select="handleEntitySelect($event, column.parentId)"
       @scroll="syncColumnScroll"
     />
   </div>

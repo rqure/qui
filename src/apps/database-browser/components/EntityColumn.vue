@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
 import { useDataStore } from '@/stores/data';
-import type { EntityId } from '@/core/data/types';
+import { EntityFactories, type Entity, type EntityId } from '@/core/data/types';
 
 const props = defineProps<{
   columnId: string;
-  parentId: EntityId;
+  parentId?: EntityId;
   selectedId?: EntityId;
 }>();
 
@@ -17,7 +17,7 @@ const emit = defineEmits<{
 interface EntityItem {
   id: EntityId;
   name: string;
-  hasChildren: boolean;
+  children: EntityId[];
 }
 
 const dataStore = useDataStore();
@@ -52,71 +52,34 @@ async function loadEntities() {
   entities.value = [];
   
   try {
-    // Initialize the data store if needed
-    if (!dataStore.isConnected) {
-      await dataStore.initialize();
+    if (!props.parentId) {
+      const roots = await dataStore.find("Root") as Entity[];
+      entities.value.push({
+        id: roots[0].entityId,
+        name: roots[0].field("Name").value.getString(),
+        children: roots[0].field("Children").value.getEntityList()
+      });
+      loading.value = false;
+      return;
     }
-    
-    // Special handling for the root column
-    if (props.parentId === 'root') {
-      // For the first column, just show "Root" as a single entity
-      entities.value = [
-        {
-          id: 'root',
-          name: 'Root',
-          hasChildren: true
-        }
-      ];
-    } else {
-      // For all other cases, find entities related to the parent
-      try {
-        // Use findEntities to get entities for the given parent/type
-        const result = await dataStore.findEntities(props.parentId, 100);
-        
-        // Convert entities to our EntityItem interface
-        if (result && result.entities) {
-          entities.value = result.entities.map((entity: any) => {
-            const entityId = typeof entity === 'string' ? entity : (entity.getId ? entity.getId() : 'unknown');
-            const entityName = typeof entity === 'string' ? `Entity ${entityId.substring(0,5)}` : (entity.getName ? entity.getName() : 'Unnamed Entity');
-            
-            return {
-              id: entityId,
-              name: entityName,
-              hasChildren: true // Assume all entities might have children
-            };
-          });
-        }
-        
-        // If no entities found and it's not the root, provide test data
-        if (entities.value.length === 0 && props.parentId !== 'root') {
-          entities.value = generatePlaceholderEntities(props.parentId);
-        }
-      } catch (err) {
-        console.error(`Error finding entities for parent ${props.parentId}:`, err);
-        
-        // Fallback to placeholders
-        entities.value = generatePlaceholderEntities(props.parentId);
-      }
-    }
-    
+
+    const parentEntity = EntityFactories.newEntity(props.parentId);
+    const children = parentEntity.field("Children");
+    await dataStore.read([children]);
+    await children.value.getEntityList().forEach(async (childId: EntityId) => {
+      const childEntity = EntityFactories.newEntity(childId);
+      await dataStore.read([childEntity.field("Name"), childEntity.field("Children")]);
+      entities.value.push({
+        id: childId,
+        name: childEntity.field("Name").value.getString(),
+        children: childEntity.field("Children").value.getEntityList()
+      });
+    });
     loading.value = false;
   } catch (err) {
-    console.error(`Error loading entities for parent ${props.parentId}:`, err);
+    console.error(`Error in loadEntities for ${props.parentId}:`, err);
     error.value = 'Failed to load entities';
     loading.value = false;
-    
-    // Fallback to placeholder entities
-    if (props.parentId === 'root') {
-      entities.value = [
-        {
-          id: 'root',
-          name: 'Root',
-          hasChildren: true
-        }
-      ];
-    } else {
-      entities.value = generatePlaceholderEntities(props.parentId);
-    }
   }
 }
 
@@ -128,29 +91,6 @@ function selectEntity(entityId: EntityId) {
 // Handle column scroll events for syncing
 function handleScroll(event: Event) {
   emit('scroll', event);
-}
-
-// Helper function to generate mock entities for testing
-function generatePlaceholderEntities(parentId: EntityId): EntityItem[] {
-  // Create a deterministic but unique set of entities based on parent ID
-  const hash = parentId.split('').reduce((a, b) => {
-    a = ((a << 5) - a) + b.charCodeAt(0);
-    return a & a;
-  }, 0);
-  
-  const count = (Math.abs(hash) % 10) + 1; // 1-10 entities
-  const result: EntityItem[] = [];
-  
-  for (let i = 0; i < count; i++) {
-    const id = `${parentId}-child-${i}`;
-    result.push({
-      id: id,
-      name: `Entity ${parentId.substring(0, 3)}-${i}`,
-      hasChildren: (i % 3 === 0) // Every third entity has children
-    });
-  }
-  
-  return result;
 }
 </script>
 
@@ -198,12 +138,12 @@ function generatePlaceholderEntities(parentId: EntityId): EntityItem[] {
         class="entity-item"
         :class="{ 
           'selected': entity.id === selectedId,
-          'has-children': entity.hasChildren 
+          'has-children': entity.children.length > 0
         }"
         @click="selectEntity(entity.id)"
       >
         <span class="entity-name">{{ entity.name }}</span>
-        <span v-if="entity.hasChildren" class="child-indicator">
+        <span v-if="entity.children.length > 0" class="child-indicator">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
             <path fill="currentColor" d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/>
           </svg>

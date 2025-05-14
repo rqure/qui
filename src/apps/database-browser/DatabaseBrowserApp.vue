@@ -3,10 +3,9 @@ import { ref, onMounted, onUnmounted } from 'vue';
 import { useDataStore } from '@/stores/data';
 import ColumnBrowser from './components/ColumnBrowser.vue';
 import EntityDetailsPanel from './components/EntityDetailsPanel.vue';
-import type { EntityId } from '@/core/data/types';
+import type { Entity, EntityId } from '@/core/data/types';
 
 const dataStore = useDataStore();
-const rootEntityId = ref<EntityId>('root'); // Start with 'root' as the initial entity ID
 const selectedEntityId = ref<EntityId | null>(null);
 const loading = ref(true);
 const error = ref<string | null>(null);
@@ -15,12 +14,6 @@ const error = ref<string | null>(null);
 const handleEntitySelect = (entityId: EntityId) => {
   console.log('Entity selected:', entityId);
   selectedEntityId.value = entityId;
-  
-  // Special handling for root entity
-  if (entityId === 'root') {
-    // We don't show details for the root item
-    selectedEntityId.value = null;
-  }
 };
 
 onMounted(async () => {
@@ -100,8 +93,7 @@ function waitForConnection(timeout = 5000): Promise<void> {
     </div>
     
     <div v-else class="browser-container">
-      <ColumnBrowser 
-        :rootEntityId="rootEntityId" 
+      <ColumnBrowser
         :selectedEntityId="selectedEntityId"
         @entity-select="handleEntitySelect" 
       />
