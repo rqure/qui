@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { useSecurityStore } from './security'
 import { useDataStore } from './data'
+import { useAppStore } from './apps'
 import type { SecurityProfile } from '@/core/security/types'
 import { 
   initKeycloak, 
@@ -10,6 +11,7 @@ import {
   cleanup as cleanupKeycloak
 } from '@/core/security/keycloak'
 import { getApiBaseUrl, getAuthServiceBaseUrl2 } from '@/core/utils/url'
+import databaseBrowserApp from '@/apps/database-browser'
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
@@ -165,7 +167,22 @@ export const useAuthStore = defineStore('auth', {
       // Set up connection lost handler
       this.setupConnectionLostHandler()
       
+      // Register apps after successful login
+      this.registerApps()
+      
       return true
+    },
+
+    // Add a new method to register apps
+    registerApps() {
+      const appStore = useAppStore()
+      
+      // Register the database browser app
+      appStore.registerApp(databaseBrowserApp)
+      
+      // Additional apps can be registered here
+      
+      console.log('Apps registered successfully after login')
     },
 
     async logout() {
