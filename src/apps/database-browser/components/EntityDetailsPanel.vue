@@ -2,9 +2,9 @@
 import { ref, watch } from 'vue';
 import { useDataStore } from '@/stores/data';
 import type { EntityId } from '@/core/data/types';
-import { formatTimestamp } from '../utils/formatters';
-import ValueDisplay from './ValueDisplay.vue';
-import ValueEditor from './ValueEditor.vue';
+import { formatTimestamp } from '@/apps/database-browser/utils/formatters';
+import ValueDisplay from '@/apps/database-browser/components/ValueDisplay.vue';
+import ValueEditor from '@/apps/database-browser/components/ValueEditor.vue';
 
 const props = defineProps<{
   entityId: EntityId;
