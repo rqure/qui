@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue';
+import { ref, watch, onMounted, onUnmounted } from 'vue';
 import { useDataStore } from '@/stores/data';
 import type { Entity, EntityId } from '@/core/data/types';
 import EntityColumn from './EntityColumn.vue';
@@ -13,7 +13,13 @@ const emit = defineEmits<{
   (e: 'entity-select', entityId: EntityId): void;
 }>();
 
-const columns = ref<{ id: string; parentId?: EntityId; selectedId?: EntityId }[]>([]);
+const columns = ref<{ id: string; parentId?: EntityId; selectedId?: EntityId; width?: number }[]>([]);
+const isResizing = ref(false);
+const resizingColumnId = ref<string | null>(null);
+const startX = ref(0);
+const startWidth = ref(0);
+const minColumnWidth = 150; // Minimum column width in pixels
+const maxColumnWidth = 400; // Maximum column width in pixels
 
 // Initialize with root column
 onMounted(async () => {
@@ -21,9 +27,20 @@ onMounted(async () => {
     columns.value = [
       { 
         id: uuidv4(),
+        width: 220 // Default width
       }
     ];
   }
+  
+  // Add global event listeners for resizing
+  window.addEventListener('mousemove', handleMouseMove);
+  window.addEventListener('mouseup', handleMouseUp);
+  
+  // Remove event listeners when component is unmounted
+  onUnmounted(() => {
+    window.removeEventListener('mousemove', handleMouseMove);
+    window.removeEventListener('mouseup', handleMouseUp);
+  });
 });
 
 // Watch for external selection changes
@@ -68,7 +85,8 @@ const handleEntitySelect = async (entityId: EntityId, parentId?: EntityId) => {
   const columnId = uuidv4();
   columns.value.push({
     id: columnId,
-    parentId: entityId
+    parentId: entityId,
+    width: 220 // Default width for new columns
   });
 };
 
@@ -87,19 +105,85 @@ const syncColumnScroll = (event: Event) => {
     }
   });
 };
+
+// Start column resize
+function startResize(event: MouseEvent, columnId: string) {
+  // Prevent text selection during resize
+  event.preventDefault();
+  
+  const column = columns.value.find(col => col.id === columnId);
+  if (!column) return;
+  
+  isResizing.value = true;
+  resizingColumnId.value = columnId;
+  startX.value = event.clientX;
+  
+  // Find the actual DOM element to get its current width
+  const columnEl = document.querySelector(`.entity-column[data-column-id="${columnId}"]`) as HTMLElement;
+  if (columnEl) {
+    startWidth.value = columnEl.offsetWidth;
+  } else {
+    startWidth.value = column.width || 220;
+  }
+}
+
+// Handle mouse movement during resize
+function handleMouseMove(event: MouseEvent) {
+  if (!isResizing.value || !resizingColumnId.value) return;
+  
+  const deltaX = event.clientX - startX.value;
+  const newWidth = Math.max(minColumnWidth, Math.min(maxColumnWidth, startWidth.value + deltaX));
+  
+  // Update the column width in our state
+  const columnIndex = columns.value.findIndex(col => col.id === resizingColumnId.value);
+  if (columnIndex !== -1) {
+    columns.value[columnIndex].width = newWidth;
+  }
+}
+
+// End column resize
+function handleMouseUp() {
+  isResizing.value = false;
+  resizingColumnId.value = null;
+}
+
+// Helper function to get column style based on its width
+function getColumnStyle(column: { id: string; width?: number }) {
+  if (column.width) {
+    return {
+      width: `${column.width}px`,
+      minWidth: `${column.width}px`,
+      maxWidth: `${column.width}px`
+    };
+  }
+  return {};
+}
 </script>
 
 <template>
   <div class="column-browser">
-    <EntityColumn
-      v-for="column in columns"
+    <div 
+      v-for="(column, index) in columns" 
       :key="column.id"
-      :column-id="column.id"
-      :parent-id="column.parentId"
-      :selected-id="column.selectedId"
-      @entity-select="handleEntitySelect($event, column.parentId)"
-      @scroll="syncColumnScroll"
-    />
+      class="column-container"
+      :class="{ 'is-resizing': isResizing && resizingColumnId === column.id }"
+    >
+      <EntityColumn
+        :column-id="column.id"
+        :parent-id="column.parentId"
+        :selected-id="column.selectedId"
+        :style="getColumnStyle(column)"
+        @entity-select="handleEntitySelect($event, column.parentId)"
+        @scroll="syncColumnScroll"
+      />
+      
+      <!-- Add resize handle after each column except the last -->
+      <div 
+        v-if="index < columns.length - 1"
+        class="column-resize-handle"
+        @mousedown="startResize($event, column.id)"
+      ></div>
+    </div>
   </div>
 </template>
 
@@ -135,5 +219,32 @@ const syncColumnScroll = (event: Event) => {
 
 .column-browser::-webkit-scrollbar-thumb:hover {
   background: var(--qui-scrollbar-thumb-hover);
+}
+
+.column-container {
+  display: flex;
+  position: relative;
+  height: 100%;
+}
+
+.column-container.is-resizing * {
+  user-select: none;
+  pointer-events: none;
+}
+
+.column-resize-handle {
+  width: 5px;
+  height: 100%;
+  cursor: col-resize;
+  background: transparent;
+  position: absolute;
+  right: 0;
+  top: 0;
+  z-index: 10;
+}
+
+.column-resize-handle:hover,
+.column-resize-handle:active {
+  background: rgba(0, 255, 136, 0.2);
 }
 </style>

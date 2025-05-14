@@ -211,8 +211,6 @@ function handleScroll(event: Event) {
 
 <style scoped>
 .entity-column {
-  min-width: 220px;
-  width: 220px;
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
@@ -221,6 +219,8 @@ function handleScroll(event: Event) {
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
+  transition: width 0.1s ease;
+  width: 220px; /* Default width, will be overridden by inline style */
   
   /* Firefox */
   scrollbar-width: thin;
