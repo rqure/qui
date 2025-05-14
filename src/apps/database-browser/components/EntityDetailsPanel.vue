@@ -103,9 +103,13 @@ function cancelEditing() {
 <template>
   <div class="entity-details">
     <div class="details-header">
-      <h2 class="entity-title">{{ entityName }}</h2>
-      <div class="entity-type">Type: {{ entityType }}</div>
-      <div class="entity-id">ID: {{ entityId }}</div>
+      <div class="header-content">
+        <h2 class="entity-title">{{ entityName }}</h2>
+        <div class="entity-metadata">
+          <div class="entity-type">{{ entityType }}</div>
+          <div class="entity-id" :title="entityId">{{ entityId }}</div>
+        </div>
+      </div>
     </div>
     
     <div v-if="loading" class="details-loading">
@@ -178,6 +182,12 @@ function cancelEditing() {
   padding: 16px;
   border-bottom: 1px solid var(--qui-hover-border);
   background: var(--qui-gradient-primary);
+  position: relative;
+}
+
+.header-content {
+  display: flex;
+  flex-direction: column;
 }
 
 .entity-title {
@@ -187,15 +197,27 @@ function cancelEditing() {
   color: var(--qui-text-primary);
 }
 
+.entity-metadata {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
 .entity-type, .entity-id {
   font-size: var(--qui-font-size-small);
   color: var(--qui-text-secondary);
-  margin-bottom: 4px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.2);
 }
 
 .entity-id {
   font-family: monospace;
   opacity: 0.7;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
 }
 
 .fields-container {

@@ -111,6 +111,8 @@ const syncColumnScroll = (event: Event) => {
   overflow-y: hidden;
   height: 100%;
   background: var(--qui-bg-secondary);
+  border-right: 1px solid var(--qui-hover-border);
+  box-shadow: inset -5px 0 10px -5px rgba(0, 0, 0, 0.1);
   
   /* Custom scrollbar for horizontal scrolling */
   scrollbar-width: thin;
@@ -119,7 +121,7 @@ const syncColumnScroll = (event: Event) => {
 
 /* WebKit scrollbars */
 .column-browser::-webkit-scrollbar {
-  height: 8px;
+  height: 6px;
 }
 
 .column-browser::-webkit-scrollbar-track {

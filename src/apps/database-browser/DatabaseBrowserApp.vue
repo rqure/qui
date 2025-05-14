@@ -3,6 +3,7 @@ import { ref, onMounted, onUnmounted } from 'vue';
 import { useDataStore } from '@/stores/data';
 import ColumnBrowser from './components/ColumnBrowser.vue';
 import EntityDetailsPanel from './components/EntityDetailsPanel.vue';
+import LoadingIndicator from './components/LoadingIndicator.vue';
 import type { Entity, EntityId } from '@/core/data/types';
 
 const dataStore = useDataStore();
@@ -12,7 +13,6 @@ const error = ref<string | null>(null);
 
 // Handle entity selection from the column browser
 const handleEntitySelect = (entityId: EntityId) => {
-  console.log('Entity selected:', entityId);
   selectedEntityId.value = entityId;
 };
 
@@ -63,21 +63,8 @@ function waitForConnection(timeout = 5000): Promise<void> {
 
 <template>
   <div class="database-browser">
-    <div class="toolbar">
-      <div class="app-title">Database Browser</div>
-      <div class="toolbar-actions">
-        <button class="toolbar-button refresh" @click="loading = true; dataStore.initialize()">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
-            <path fill="currentColor" d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-8 3.58-8 8s3.58 8 8 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
-          </svg>
-          <span>Refresh</span>
-        </button>
-      </div>
-    </div>
-
     <div v-if="loading" class="loading-container">
-      <div class="spinner"></div>
-      <div class="loading-text">Loading</div>
+      <LoadingIndicator />
     </div>
     
     <div v-else-if="error" class="error-container">
@@ -126,50 +113,6 @@ function waitForConnection(timeout = 5000): Promise<void> {
   overflow: hidden;
 }
 
-.toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 16px;
-  background: var(--qui-gradient-primary);
-  border-bottom: 1px solid var(--qui-hover-border);
-  height: 42px;
-}
-
-.app-title {
-  font-size: var(--qui-font-size-base);
-  font-weight: var(--qui-font-weight-medium);
-  color: var(--qui-text-primary);
-}
-
-.toolbar-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.toolbar-button {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
-  background: var(--qui-overlay-primary);
-  border: 1px solid var(--qui-hover-border);
-  border-radius: 4px;
-  color: var(--qui-text-primary);
-  font-size: var(--qui-font-size-small);
-  cursor: pointer;
-  transition: all 0.2s var(--qui-animation-bounce);
-}
-
-.toolbar-button:hover {
-  background: var(--qui-overlay-secondary);
-  transform: translateY(-1px);
-}
-
-.toolbar-button:active {
-  transform: translateY(1px);
-}
-
 .browser-container {
   display: flex;
   flex: 1;
@@ -183,21 +126,6 @@ function waitForConnection(timeout = 5000): Promise<void> {
   justify-content: center;
   flex: 1;
   color: var(--qui-text-secondary);
-}
-
-.spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid transparent;
-  border-top-color: var(--qui-accent-color);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: 16px;
-}
-
-.loading-text {
-  font-size: var(--qui-font-size-base);
-  animation: pulse 1.5s infinite;
 }
 
 .error-message {
@@ -236,6 +164,7 @@ function waitForConnection(timeout = 5000): Promise<void> {
   justify-content: center;
   color: var(--qui-text-secondary);
   border-left: 1px solid var(--qui-hover-border);
+  background: var(--qui-bg-primary);
 }
 
 .empty-state {
@@ -250,16 +179,5 @@ function waitForConnection(timeout = 5000): Promise<void> {
 
 .empty-state svg {
   opacity: 0.7;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-@keyframes pulse {
-  0% { opacity: 0.6; }
-  50% { opacity: 1; }
-  100% { opacity: 0.6; }
 }
 </style>

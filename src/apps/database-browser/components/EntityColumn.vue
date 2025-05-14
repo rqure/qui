@@ -103,17 +103,17 @@ function handleScroll(event: Event) {
   >
     <div class="column-header">
       <div class="search-container">
-        <input 
-          type="text" 
-          v-model="searchQuery" 
-          placeholder="Search entities..." 
-          class="search-input"
-        />
         <span class="search-icon" v-if="!searchQuery">
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24">
             <path fill="currentColor" d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
           </svg>
         </span>
+        <input 
+          type="text" 
+          v-model="searchQuery" 
+          placeholder="Filter items..." 
+          class="search-input"
+        />
         <span class="clear-search" v-if="searchQuery" @click="searchQuery = ''">
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24">
             <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
@@ -161,12 +161,12 @@ function handleScroll(event: Event) {
 
 <style scoped>
 .entity-column {
-  min-width: 240px;
-  width: 240px;
+  min-width: 220px;
+  width: 220px;
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
-  border-right: 1px solid var(--qui-hover-border);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
   background: var(--qui-bg-secondary);
   display: flex;
   flex-direction: column;
@@ -206,6 +206,7 @@ function handleScroll(event: Event) {
   top: 0;
   background: var(--qui-bg-secondary);
   z-index: 5;
+  backdrop-filter: blur(5px);
 }
 
 .search-container {
@@ -216,17 +217,24 @@ function handleScroll(event: Event) {
 
 .search-input {
   width: 100%;
-  padding: 6px 28px 6px 10px;
-  border-radius: 4px;
+  padding: 6px 28px 6px 28px;
+  border-radius: 16px;
   border: 1px solid var(--qui-hover-border);
-  background: var(--qui-bg-primary);
+  background: rgba(0, 0, 0, 0.2);
   color: var(--qui-text-primary);
   font-size: var(--qui-font-size-small);
+  transition: all 0.2s ease;
+}
+
+.search-input:focus {
+  background: rgba(0, 0, 0, 0.3);
+  border-color: var(--qui-accent-color);
+  outline: none;
 }
 
 .search-icon {
   position: absolute;
-  right: 8px;
+  left: 8px;
   color: var(--qui-text-secondary);
   opacity: 0.6;
 }
@@ -254,9 +262,10 @@ function handleScroll(event: Event) {
   padding: 8px 12px;
   cursor: pointer;
   border-radius: 4px;
-  margin: 1px 4px;
+  margin: 2px 4px;
   transition: all 0.15s var(--qui-animation-bounce);
   justify-content: space-between;
+  border-left: 2px solid transparent;
 }
 
 .entity-item:hover {
@@ -265,7 +274,7 @@ function handleScroll(event: Event) {
 
 .entity-item.selected {
   background: var(--qui-overlay-active);
-  box-shadow: 0 0 0 1px var(--qui-accent-color);
+  border-left: 2px solid var(--qui-accent-color);
   color: var(--qui-accent-color);
 }
 
