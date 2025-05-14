@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { markRaw, computed, ref } from 'vue'
+import { markRaw, computed } from 'vue'
 import { useWindowStore } from '@/stores/windows'
 import { useAppStore } from '@/stores/apps'
 import { useAuthStore } from '@/stores/auth'
@@ -27,11 +27,11 @@ interface AppItem {
 }
 
 // Get registered apps from the app store - with proper typing
-const registeredApps = computed<AppItem[]>(() => {
+const registeredApps = computed(() => {
   const apps: AppItem[] = [];
   
   // Iterate through the Map entries with explicit typing
-  appStore.registeredApps.forEach((app, _) => {
+  appStore.registeredApps.forEach((app) => {
     apps.push({
       id: app.manifest.id,
       name: app.manifest.name,
@@ -42,12 +42,13 @@ const registeredApps = computed<AppItem[]>(() => {
   return apps.sort((a, b) => a.name.localeCompare(b.name));
 });
 
-const sections = [
+// Create sections with direct access to registeredApps.value
+const sections = computed(() => [
   {
     title: 'Applications',
-    items: registeredApps,
-  },
-]
+    items: registeredApps.value
+  }
+]);
 
 // Launch app using the app store
 const launchApp = (appId: string) => {
@@ -110,7 +111,7 @@ const initiateLogout = () => {
       <div class="section-title">{{ section.title }}</div>
       <div class="menu-list">
         <button
-          v-for="app in section.items.value"
+          v-for="app in section.items"
           :key="app.id"
           class="menu-item"
           @click="launchApp(app.id)"
