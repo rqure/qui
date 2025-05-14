@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import { useDataStore } from '@/stores/data';
-import type { EntityId } from '@/core/data/types';
+import type { EntityId, Field, EntitySchema, EntityType } from '@/core/data/types';
+import { Utils } from '@/core/data/types';
 import { formatTimestamp } from '@/apps/database-browser/utils/formatters';
 import ValueDisplay from '@/apps/database-browser/components/ValueDisplay.vue';
 import ValueEditor from '@/apps/database-browser/components/ValueEditor.vue';
@@ -13,9 +14,11 @@ const props = defineProps<{
 const dataStore = useDataStore();
 const loading = ref(true);
 const error = ref<string | null>(null);
-const fields = ref<any[]>([]);
+const fields = ref<Field[]>([]);
 const entityName = ref('');
-const entityType = ref('');
+const entityType = ref<EntityType>('');
+const parentId = ref<EntityId | null>(null);
+const children = ref<EntityId[]>([]);
 const editingField = ref<string | null>(null);
 
 // Load entity details when component mounts or entity ID changes
@@ -26,55 +29,103 @@ watch(() => props.entityId, async () => {
 async function loadEntityDetails() {
   loading.value = true;
   error.value = null;
+  fields.value = [];
   
   try {
-    // In a real implementation, we'd query the dataStore to get entity type first
-    // For now we'll simulate the structure
+    // First, get the entity type
+    try {
+      // Create field requests for standard fields that all entities have
+      const fieldRequests: Field[] = [
+        { entityId: props.entityId, fieldType: 'Name' } as Field,
+        { entityId: props.entityId, fieldType: 'Parent' } as Field,
+        { entityId: props.entityId, fieldType: 'Children' } as Field
+      ];
+      
+      // Load basic entity information
+      const loadedFields = await dataStore.read(fieldRequests);
+      
+      // Extract entity name - safe to assume all entities have Name
+      const nameField = loadedFields.find(f => f.fieldType === 'Name');
+      if (nameField && nameField.value) {
+        entityName.value = nameField.value.toString();
+      } else {
+        entityName.value = `Entity ${props.entityId.substring(0, 8)}`;
+      }
+      
+      // Extract parent ID - safe to assume all entities have Parent
+      const parentField = loadedFields.find(f => f.fieldType === 'Parent');
+      if (parentField && parentField.value) {
+        parentId.value = parentField.value.toString();
+      }
+      
+      // Extract children - safe to assume all entities have Children
+      const childrenField = loadedFields.find(f => f.fieldType === 'Children');
+      if (childrenField && childrenField.value) {
+        // Extract children IDs from EntityList value
+        // EntityList values can be safely converted to strings and split by comma
+        children.value = childrenField.value.toString().split(',').filter(id => id.trim() !== '');
+      }
+      
+      // Determine entity type using the utility function
+      if (props.entityId === 'root') {
+        entityType.value = 'Root';
+      } else {
+        // Use the Utils helper to get entity type from ID - this is reliable
+        entityType.value = Utils.getEntityTypeFromId(props.entityId);
+      }
+      
+      // Now load all fields based on the entity type
+      await loadAllFields();
+      
+    } catch (err) {
+      console.error(`Error loading entity details: ${err}`);
+      error.value = `Failed to load entity: ${err}`;
+      entityName.value = `Entity ${props.entityId.substring(0, 8)}`;
+      entityType.value = 'Unknown';
+    }
     
-    // Create a placeholder entity for testing
-    entityName.value = `Entity ${props.entityId.substring(0, 5)}`;
-    entityType.value = 'GenericEntity';
-    
-    // Generate some test fields
-    const testFields = [
-      createTestField(props.entityId, 'Name', 'String', entityName.value),
-      createTestField(props.entityId, 'Description', 'String', 'This is a sample entity description for testing purposes.'),
-      createTestField(props.entityId, 'CreatedAt', 'Timestamp', new Date().toISOString()),
-      createTestField(props.entityId, 'IsActive', 'Bool', 'true'),
-      createTestField(props.entityId, 'Priority', 'Int', '5'),
-      createTestField(props.entityId, 'Score', 'Float', '87.5'),
-      createTestField(props.entityId, 'ParentId', 'EntityReference', props.entityId.split('-')[0]),
-    ];
-    
-    fields.value = testFields;
     loading.value = false;
   } catch (err) {
-    console.error(`Error loading entity details for ${props.entityId}:`, err);
-    error.value = 'Failed to load entity details';
+    console.error(`Error in loadEntityDetails: ${err}`);
+    error.value = `Error: ${err}`;
     loading.value = false;
   }
 }
 
-// Helper to create test field
-function createTestField(entityId: EntityId, fieldType: string, valueType: string, value: string): any {
-  // Mock field with necessary properties
-  return {
-    entityId,
-    fieldType,
-    value: {
-      type: valueType,
-      toString: () => value
-    },
-    writeTime: new Date(),
-    writerId: 'system',
-    // Add required methods for Field interface
-    clone: () => ({}),
-    asReadRequest: () => ({}),
-    asWriteRequest: () => ({})
-  };
+// Load all fields for the entity based on its schema
+async function loadAllFields() {
+  try {
+    // Get schema for the entity type
+    const schema = await dataStore.getEntitySchema(entityType.value);
+    
+    if (!schema) {
+      throw new Error(`No schema found for entity type: ${entityType.value}`);
+    }
+    
+    // Create field requests for all fields in the schema
+    const fieldRequests: Field[] = [];
+    
+    Object.keys(schema.fields).forEach(fieldName => {
+      fieldRequests.push({
+        entityId: props.entityId,
+        fieldType: fieldName
+      } as Field);
+    });
+    
+    // Read all fields
+    if (fieldRequests.length > 0) {
+      fields.value = await dataStore.read(fieldRequests);
+    } else {
+      throw new Error(`Schema has no fields defined for entity type: ${entityType.value}`);
+    }
+  } catch (err) {
+    console.error(`Error loading fields: ${err}`);
+    error.value = `Failed to load fields: ${err}`;
+    throw err; // Re-throw to propagate the error
+  }
 }
 
-function startEditing(fieldType: string) {
+async function startEditing(fieldType: string) {
   editingField.value = fieldType;
 }
 
@@ -83,18 +134,22 @@ async function saveField(fieldType: string, newValue: any) {
     const field = fields.value.find(f => f.fieldType === fieldType);
     if (!field) return;
     
-    // In a real implementation, we'd update the value and save it
-    // field.value = newValue;
-    // await dataStore.write([field]);
-    
-    // For now, just update the local field
+    // Update field with new value
     field.value = newValue;
-    field.writeTime = new Date();
     
+    // Write to the database
+    await dataStore.write([field]);
+    
+    // Close editor
     editingField.value = null;
+    
+    // If we edited the Name field, update the display name
+    if (fieldType === 'Name') {
+      entityName.value = newValue.toString();
+    }
   } catch (err) {
     console.error(`Error saving field ${fieldType}:`, err);
-    // Show error notification
+    error.value = `Failed to save field: ${err}`;
   }
 }
 

@@ -2,7 +2,7 @@
 import { ref, watch, onMounted } from 'vue';
 import { useDataStore } from '@/stores/data';
 import type { EntityId } from '@/core/data/types';
-import EntityColumn from '@/apps/database-browser/components/EntityColumn.vue';
+import EntityColumn from './EntityColumn.vue';
 import { v4 as uuidv4 } from 'uuid';
 
 const props = defineProps<{
@@ -70,7 +70,9 @@ const handleEntitySelect = async (parentId: EntityId, entityId: EntityId) => {
     columns.value = columns.value.slice(0, columnIndex + 1);
   }
   
-  // Add a new column for children of this entity
+  // Only add a new column if this isn't a leaf node
+  // For now, we'll always assume entities can have children
+  // In a real implementation, you'd check if the entity can have children
   const columnId = uuidv4();
   columns.value.push({
     id: columnId,

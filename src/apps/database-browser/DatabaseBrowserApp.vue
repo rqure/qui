@@ -13,7 +13,14 @@ const error = ref<string | null>(null);
 
 // Handle entity selection from the column browser
 const handleEntitySelect = (entityId: EntityId) => {
+  console.log('Entity selected:', entityId);
   selectedEntityId.value = entityId;
+  
+  // Special handling for root entity
+  if (entityId === 'root') {
+    // We don't show details for the root item
+    selectedEntityId.value = null;
+  }
 };
 
 onMounted(async () => {
@@ -100,7 +107,7 @@ function waitForConnection(timeout = 5000): Promise<void> {
       />
       
       <EntityDetailsPanel 
-        v-if="selectedEntityId" 
+        v-if="selectedEntityId && selectedEntityId !== 'root'" 
         :entityId="selectedEntityId" 
       />
       
