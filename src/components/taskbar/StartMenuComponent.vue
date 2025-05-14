@@ -4,6 +4,7 @@ import { useWindowStore } from '@/stores/windows'
 import { useAuthStore } from '@/stores/auth'
 import LogoutConfirmWindow from '@/components/window/LogoutConfirmWindow.vue'
 import { logoutIconDataUrl } from '@/assets/logout-icon'
+import databaseBrowserApp from '@/apps/database-browser'
 
 const emit = defineEmits<{
   (e: 'close'): void
@@ -17,8 +18,14 @@ const username = computed(() => authStore.username || 'Guest')
 const userInitial = computed(() => (username.value ? username.value.charAt(0).toUpperCase() : 'G'))
 const userProfile = computed(() => authStore.userProfile)
 
-// Define some test apps - use memoization to prevent recreation
+// Define apps with our new Database Browser app
 const testApps = [
+  {
+    id: 'database-browser',
+    name: 'Database Browser',
+    icon: databaseBrowserApp.manifest.icon || '📊',
+    component: databaseBrowserApp.component,
+  },
   {
     id: 'notepad',
     name: 'Notepad',
