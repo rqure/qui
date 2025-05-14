@@ -150,8 +150,12 @@ function cancelEditing() {
               </div>
             </td>
             <td class="field-meta">
-              <div class="field-timestamp">{{ formatTimestamp(field.writeTime) }}</div>
-              <div class="field-writer">{{ field.writerId }}</div>
+              <div class="field-timestamp" :title="field.writeTime ? field.writeTime.toISOString() : 'Unknown'">
+                {{ field.writeTime ? formatTimestamp(field.writeTime) : 'N/A' }}
+              </div>
+              <div class="field-writer" :title="field.writerId || 'Unknown'">
+                {{ field.writerId || 'System' }}
+              </div>
             </td>
           </tr>
         </tbody>

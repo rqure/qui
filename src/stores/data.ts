@@ -498,6 +498,8 @@ export const useDataStore = defineStore('data', {
                         throw new Error(`Read failed: ${response.status}`);
                     }
 
+                    console.log('Read response:', response);
+
                     // Update fields with responses
                     const responsesList = response.response;
                     for (let i = 0; i < Math.min(responsesList.length, requests.length); i++) {

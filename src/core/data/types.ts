@@ -195,14 +195,14 @@ class ValueImpl implements Value {
     }
 
     pbType(): string {
-        return 'qprotobufs.' + this.type;
+        return 'qprotobufs.' + String(this.type).charAt(0).toUpperCase() + String(this.type).slice(1);
     }
     
     pbValue(): any {
         if (this.type === ValueType.Timestamp) {
             return timestampFromDate(this.raw);
         }
-        
+
         return this.raw;
     }
 
