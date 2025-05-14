@@ -1,10 +1,10 @@
 import { defineStore } from 'pinia';
 import { getApiBaseUrl } from '@/core/utils/url';
-import { Message } from 'google-protobuf';
-import { Timestamp } from 'google-protobuf/google/protobuf/timestamp_pb';
-import { Any } from 'google-protobuf/google/protobuf/any_pb';
+import { anyPack, anyUnpack, anyIs, timestampFromDate, timestampDate, type Any } from '@bufbuild/protobuf/wkt';
 import { v4 as uuidv4 } from 'uuid';
-import { ApiHeader, ApiMessage, ApiConfigCreateEntityRequest, ApiConfigCreateEntityResponse, DatabaseNotification, ApiRuntimeRegisterNotificationRequest, ApiRuntimeRegisterNotificationResponse, DatabaseNotificationConfig, ApiRuntimeUnregisterNotificationRequest, ApiRuntimeUnregisterNotificationResponse, ApiRuntimeDatabaseRequest, ApiRuntimeDatabaseResponse, ApiRuntimeEntityExistsRequest, ApiRuntimeEntityExistsResponse, ApiRuntimeFieldExistsRequest, ApiRuntimeFieldExistsResponse, ApiConfigGetEntitySchemaRequest, ApiConfigGetEntitySchemaResponse, ApiConfigSetEntitySchemaRequest, ApiConfigSetEntitySchemaResponse, ApiConfigDeleteEntityRequest, ApiConfigDeleteEntityResponse, ApiRuntimeFindEntitiesRequest, ApiRuntimeFindEntitiesResponse, ApiRuntimeGetEntityTypesRequest, ApiRuntimeGetEntityTypesResponse, ApiRuntimeQueryRequest, ApiRuntimeQueryResponse, DatabaseEntitySchema, DatabaseFieldSchema, DatabaseRequest, String as PbString, QueryColumn } from '@/core/data/protobufs_pb.d';
+import type { ApiHeader, ApiMessage, ApiConfigCreateEntityRequest, ApiConfigCreateEntityResponse, DatabaseNotification, ApiRuntimeRegisterNotificationRequest, ApiRuntimeRegisterNotificationResponse, DatabaseNotificationConfig, ApiRuntimeUnregisterNotificationRequest, ApiRuntimeUnregisterNotificationResponse, ApiRuntimeDatabaseRequest, ApiRuntimeDatabaseResponse, ApiRuntimeEntityExistsRequest, ApiRuntimeEntityExistsResponse, ApiRuntimeFieldExistsRequest, ApiRuntimeFieldExistsResponse, ApiConfigGetEntitySchemaRequest, ApiConfigGetEntitySchemaResponse, ApiConfigSetEntitySchemaRequest, ApiConfigSetEntitySchemaResponse, ApiConfigDeleteEntityRequest, ApiConfigDeleteEntityResponse, ApiRuntimeFindEntitiesRequest, ApiRuntimeFindEntitiesResponse, ApiRuntimeGetEntityTypesRequest, ApiRuntimeGetEntityTypesResponse, ApiRuntimeQueryRequest, ApiRuntimeQueryResponse, DatabaseEntitySchema, DatabaseFieldSchema, DatabaseRequest, String as PbString, QueryColumn, Int, Float, Bool, EntityReference, Timestamp, BinaryFile, Choice, EntityList } from '@/generated/protobufs_pb';
+import { ApiMessageSchema, ApiHeaderSchema, DatabaseNotificationSchema, ApiConfigCreateEntityRequestSchema, ApiConfigCreateEntityResponseSchema, ApiConfigCreateEntityResponse_StatusEnum, ApiConfigDeleteEntityRequestSchema, ApiConfigDeleteEntityResponseSchema, ApiConfigDeleteEntityResponse_StatusEnum, ApiRuntimeFindEntitiesRequestSchema, ApiRuntimeFindEntitiesResponseSchema, ApiRuntimeFindEntitiesResponse_StatusEnum, ApiRuntimeGetEntityTypesRequestSchema, ApiRuntimeGetEntityTypesResponseSchema, ApiRuntimeGetEntityTypesResponse_StatusEnum, ApiRuntimeEntityExistsRequestSchema, ApiRuntimeEntityExistsResponseSchema, ApiRuntimeEntityExistsResponse_StatusEnum, ApiRuntimeFieldExistsRequestSchema, ApiRuntimeFieldExistsResponseSchema, ApiRuntimeFieldExistsResponse_StatusEnum, ApiConfigGetEntitySchemaRequestSchema, ApiConfigGetEntitySchemaResponseSchema, ApiConfigGetEntitySchemaResponse_StatusEnum, ApiConfigSetEntitySchemaRequestSchema, DatabaseEntitySchemaSchema, DatabaseFieldSchemaSchema, ApiConfigSetEntitySchemaResponseSchema, ApiConfigSetEntitySchemaResponse_StatusEnum, ApiRuntimeDatabaseRequestSchema, ApiRuntimeDatabaseRequest_RequestTypeEnum, DatabaseRequestSchema, ApiRuntimeDatabaseResponseSchema, ApiRuntimeDatabaseResponse_StatusEnum, StringSchema, ApiRuntimeQueryRequestSchema, ApiRuntimeQueryResponseSchema, ApiRuntimeQueryResponse_StatusEnum, ApiRuntimeRegisterNotificationRequestSchema, DatabaseNotificationConfigSchema, ApiRuntimeRegisterNotificationResponseSchema, ApiRuntimeRegisterNotificationResponse_StatusEnum, ApiRuntimeUnregisterNotificationRequestSchema, ApiRuntimeUnregisterNotificationResponseSchema, ApiRuntimeUnregisterNotificationResponse_StatusEnum } from '@/generated/protobufs_pb';
+import { fromBinary, create, type DescMessage, type MessageShape, toBinary, type Registry } from '@bufbuild/protobuf';
 import { EntityFactories, NotificationManager, ValueFactories } from '@/core/data/types';
 import type { EntityId, EntityType, Entity, FieldType, Value, Field, EntitySchema, FieldSchema, WriteOpt, ValueType } from '@/core/data/types';
 import { useAuthStore } from '@/stores/auth';
@@ -22,14 +22,12 @@ export interface NotificationCallback {
   (notification: DatabaseNotification): void;
 }
 
-interface DeserializableMessage {
-    deserializeBinary(data: Uint8Array): Message;
-}
+declare const registry: Registry;
 
 interface WaitingResponse {
     sentTimestamp: number;
-    responsePrototype: DeserializableMessage;
-    resolve: (value: Message) => void;
+    responsePrototype: DescMessage;
+    resolve: (value: MessageShape<DescMessage>) => void;
     reject: (error: Error) => void;
 }
 
@@ -37,24 +35,50 @@ interface WaitingResponse {
 function valueFromProtobuf(anyValue: Any): Value {
     // This is a simplified implementation - in a real app you'd need to
     // check the type in the Any message and properly deserialize it
-    const typeUrl = anyValue.getTypeUrl();
+    const typeUrl = anyValue.typeUrl;
+    const typeSchema = registry.getMessage(typeUrl);
+    if (!typeSchema) {
+        console.warn(`No schema found for type URL: ${typeUrl}`);
+        return ValueFactories.newString(''); // Default to string value
+    }
+
+    const value = anyUnpack(anyValue, typeSchema);
     
     if (typeUrl.includes('Int')) {
-        return ValueFactories.newInt(0); // Parse actual value
+        const intValue = value as Int;
+        return ValueFactories.newInt(Number(intValue.raw));
     } else if (typeUrl.includes('Float')) {
-        return ValueFactories.newFloat(0); // Parse actual value
+        const floatValue = value as Float;
+        return ValueFactories.newFloat(Number(floatValue.raw));
     } else if (typeUrl.includes('String')) {
-        return ValueFactories.newString(''); // Parse actual value
+        const stringValue = value as PbString;
+        return ValueFactories.newString(stringValue.raw);
     } else if (typeUrl.includes('Bool')) {
-        return ValueFactories.newBool(false); // Parse actual value
+        const boolValue = value as Bool;
+        return ValueFactories.newBool(boolValue.raw);
     } else if (typeUrl.includes('EntityReference')) {
-        return ValueFactories.newEntityReference(''); // Parse actual value
+        const entityRefValue = value as EntityReference;
+        return ValueFactories.newEntityReference(entityRefValue.raw);
     } else if (typeUrl.includes('Timestamp')) {
-        return ValueFactories.newTimestamp(new Date());  // Parse actual value
-    } else {
-        // Default to string value
-        return ValueFactories.newString('');
+        const timestampValue = value as Timestamp;
+        if (timestampValue.raw) {
+            return ValueFactories.newTimestamp(timestampDate(timestampValue.raw));
+        }
+
+        console.warn('Timestamp value is empty');
+        return ValueFactories.newTimestamp(new Date(0));
+    } else if (typeUrl.includes('BinaryFile')) {
+        const binaryFileValue = value as BinaryFile;
+        return ValueFactories.newBinaryFile(binaryFileValue.raw);
+    } else if (typeUrl.includes('Choice')) {
+        const choiceValue = value as Choice;
+        return ValueFactories.newChoice(Number(choiceValue.raw));
+    } else if (typeUrl.includes('EntityList')) {
+        const entityListValue = value as EntityList;
+        return ValueFactories.newEntityList(entityListValue.raw);
     }
+
+    return ValueFactories.newString('');
 }
 
 export const useDataStore = defineStore('data', {
@@ -127,25 +151,25 @@ export const useDataStore = defineStore('data', {
             const me = this;
             const fileReader = new FileReader();
             fileReader.onload = (e) => {
-                const message = ApiMessage.deserializeBinary(new Uint8Array(e.target?.result as ArrayBuffer));
-                const requestId = message.getHeader()?.getId();
+                const message = fromBinary(ApiMessageSchema, new Uint8Array(e.target?.result as ArrayBuffer));
+                const requestId = message.header?.id;
                 if (!requestId) {
                     console.warn('Received message without request ID:', message);
                     return;
                 }
 
-                const payload = message.getPayload();
+                const payload = message.payload;
                 if (!payload) {
                     console.warn('Received message without payload:', message);
                     return;
                 }
 
                 // Check if this is a notification
-                if (payload.getTypeUrl().includes('DatabaseNotification')) {
+                if (payload.typeUrl.includes('DatabaseNotification')) {
                     try {
-                        const notificationBytes = payload.getValue_asU8();
-                        const notification = DatabaseNotification.deserializeBinary(notificationBytes);
-                        me.notificationManager.dispatch(notification.getToken(), notification);
+                        const notificationBytes = payload.value;
+                        const notification = fromBinary(DatabaseNotificationSchema, notificationBytes);
+                        me.notificationManager.dispatch(notification.token, notification);
                         return;
                     } catch (error) {
                         console.error('Error processing notification:', error);
@@ -159,15 +183,9 @@ export const useDataStore = defineStore('data', {
                 }
 
                 const request = me.waitingResponses[requestId];
-                const payloadBytes = payload.getValue_asU8();
-                if (!payloadBytes) {
-                    console.warn('Received message without payload data:', message);
-                    request.reject(new Error('Received message without payload data'));
-                    return;
-                }
 
                 try {
-                    const response = request.responsePrototype.deserializeBinary(payloadBytes);
+                    const response = anyUnpack(payload, request.responsePrototype);
                     if (response) {
                         request.resolve(response);
                     } else {
@@ -183,14 +201,14 @@ export const useDataStore = defineStore('data', {
             fileReader.readAsArrayBuffer(event.data);
         },
 
-        sendMessage(request: Message, responsePrototype: DeserializableMessage) {
+        sendMessage(request: MessageShape<DescMessage>, responsePrototype: DescMessage) {
             const requestId = uuidv4();
             const sentTimestamp = Date.now();
 
-            const header = new ApiHeader();
-            header.setId(requestId);
-            header.setTimestamp(Timestamp.fromDate(new Date(sentTimestamp)));
-            
+            const header = create(ApiHeaderSchema);
+            header.id = requestId;
+            header.timestamp = timestampFromDate(new Date(sentTimestamp));
+
             // Get access token from auth mechanism
             let accessToken = '';
             
@@ -212,15 +230,18 @@ export const useDataStore = defineStore('data', {
             
             // Set the access token in the header
             if (accessToken) {
-                header.setAccesstoken(accessToken);
+                header.accessToken = accessToken;
             } else {
                 console.warn('No access token available for request');
             }
 
-            const message = new ApiMessage();
-            message.setHeader(header);
-            message.setPayload(new Any());
-            message.getPayload()?.pack(request.serializeBinary(), 'qprotobufs.' + request.constructor.name);
+            const message = create(ApiMessageSchema);
+            message.header = header;
+            const requestSchema = registry.getMessage(request.$typeName)
+            if (!requestSchema) {
+                return Promise.reject(new Error('Request schema not found'));
+            }
+            message.payload = anyPack(requestSchema, request);
 
             return new Promise((resolve, reject) => {
                 this.waitingResponses[requestId] = {
@@ -234,7 +255,7 @@ export const useDataStore = defineStore('data', {
                     reject(new Error('WebSocket is not connected'));
                 } else {
                     try {
-                        this.socket.send(message.serializeBinary());
+                        this.socket.send(toBinary(ApiMessageSchema, message));
                         console.log('Request sent:', requestId, request.constructor.name);
                     } catch (error) {
                         delete this.waitingResponses[requestId];
@@ -246,21 +267,21 @@ export const useDataStore = defineStore('data', {
 
         createEntity(parentId: EntityId, entityType: EntityType, entityName: string) {
             const me = this;
-            const request = new ApiConfigCreateEntityRequest();
-            request.setParentid(parentId);
-            request.setName(entityName);
-            request.setType(entityType);
+            const request = create(ApiConfigCreateEntityRequestSchema);
+            request.parentId = parentId;
+            request.name = entityName;
+            request.type = entityType;
 
             return me
-                .sendMessage(request, ApiConfigCreateEntityResponse)
+                .sendMessage(request, ApiConfigCreateEntityResponseSchema)
                 .then((anyResponse) => {
                     const response = anyResponse as ApiConfigCreateEntityResponse;
 
-                    if (response.getStatus() !== ApiConfigCreateEntityResponse.StatusEnum.SUCCESS) {
-                        throw new Error(`Could not complete the request: ${response.getStatus()}`);
+                    if (response.status !== ApiConfigCreateEntityResponse_StatusEnum.SUCCESS) {
+                        throw new Error(`Could not complete the request: ${response.status}`);
                     }
-                    
-                    const entity = EntityFactories.newEntity(response.getId())
+
+                    const entity = EntityFactories.newEntity(response.id)
                     entity.field("Name").value = ValueFactories.newString(entityName)
                     entity.field("Parent").value = ValueFactories.newEntityReference(parentId)
                     return entity;
@@ -271,14 +292,14 @@ export const useDataStore = defineStore('data', {
         },
 
         deleteEntity(entityId: EntityId) {
-            const request = new ApiConfigDeleteEntityRequest();
-            request.setId(entityId);
+            const request = create(ApiConfigDeleteEntityRequestSchema);
+            request.id = entityId;
 
-            return this.sendMessage(request, ApiConfigDeleteEntityResponse)
+            return this.sendMessage(request, ApiConfigDeleteEntityResponseSchema)
                 .then((anyResponse) => {
                     const response = anyResponse as ApiConfigDeleteEntityResponse;
-                    if (response.getStatus() !== ApiConfigDeleteEntityResponse.StatusEnum.SUCCESS) {
-                        throw new Error(`Could not delete entity: ${response.getStatus()}`);
+                    if (response.status !== ApiConfigDeleteEntityResponse_StatusEnum.SUCCESS) {
+                        throw new Error(`Could not delete entity: ${response.status}`);
                     }
                     return true;
                 })
@@ -288,22 +309,19 @@ export const useDataStore = defineStore('data', {
         },
 
         findEntities(entityType: EntityType, pageSize: number = 100, cursor: number = 0) {
-            const request = new ApiRuntimeFindEntitiesRequest();
-            request.setEntityType(entityType);
-            request.setPageSize(pageSize);
-            request.setCursor(cursor);
+            const request = create(ApiRuntimeFindEntitiesRequestSchema);
+            request.entityType = entityType;
+            request.pageSize = BigInt(pageSize);
+            request.cursor = BigInt(cursor);
 
-            return this.sendMessage(request, ApiRuntimeFindEntitiesResponse)
+            return this.sendMessage(request, ApiRuntimeFindEntitiesResponseSchema)
                 .then((anyResponse) => {
                     const response = anyResponse as ApiRuntimeFindEntitiesResponse;
-                    if (response.getStatus() !== ApiRuntimeFindEntitiesResponse.StatusEnum.SUCCESS) {
-                        throw new Error(`Failed to find entities: ${response.getStatus()}`);
+                    if (response.status !== ApiRuntimeFindEntitiesResponse_StatusEnum.SUCCESS) {
+                        throw new Error(`Failed to find entities: ${response.status}`);
                     }
 
-                    return {
-                        entities: response.getEntitiesList(),
-                        nextCursor: response.getNextCursor(),
-                    };
+                    return response;
                 })
                 .catch(error => {
                     throw new Error(`Failed to find entities: ${error}`);
@@ -311,21 +329,18 @@ export const useDataStore = defineStore('data', {
         },
 
         getEntityTypes(pageSize: number = 100, cursor: number = 0) {
-            const request = new ApiRuntimeGetEntityTypesRequest();
-            request.setPageSize(pageSize);
-            request.setCursor(cursor);
+            const request = create(ApiRuntimeGetEntityTypesRequestSchema);
+            request.pageSize = BigInt(pageSize);
+            request.cursor = BigInt(cursor);
 
-            return this.sendMessage(request, ApiRuntimeGetEntityTypesResponse)
+            return this.sendMessage(request, ApiRuntimeGetEntityTypesResponseSchema)
                 .then((anyResponse) => {
                     const response = anyResponse as ApiRuntimeGetEntityTypesResponse;
-                    if (response.getStatus() !== ApiRuntimeGetEntityTypesResponse.StatusEnum.SUCCESS) {
-                        throw new Error(`Failed to get entity types: ${response.getStatus()}`);
+                    if (response.status !== ApiRuntimeGetEntityTypesResponse_StatusEnum.SUCCESS) {
+                        throw new Error(`Failed to get entity types: ${response.status}`);
                     }
 
-                    return {
-                        entityTypes: response.getEntityTypesList(),
-                        nextCursor: response.getNextCursor(),
-                    };
+                    return response;
                 })
                 .catch(error => {
                     throw new Error(`Failed to get entity types: ${error}`);
@@ -333,16 +348,16 @@ export const useDataStore = defineStore('data', {
         },
 
         entityExists(entityId: EntityId) {
-            const request = new ApiRuntimeEntityExistsRequest();
-            request.setEntityid(entityId);
+            const request = create(ApiRuntimeEntityExistsRequestSchema);
+            request.entityId = entityId;
 
-            return this.sendMessage(request, ApiRuntimeEntityExistsResponse)
+            return this.sendMessage(request, ApiRuntimeEntityExistsResponseSchema)
                 .then((anyResponse) => {
                     const response = anyResponse as ApiRuntimeEntityExistsResponse;
-                    if (response.getStatus() !== ApiRuntimeEntityExistsResponse.StatusEnum.SUCCESS) {
-                        throw new Error(`Failed to check entity existence: ${response.getStatus()}`);
+                    if (response.status !== ApiRuntimeEntityExistsResponse_StatusEnum.SUCCESS) {
+                        throw new Error(`Failed to check entity existence: ${response.status}`);
                     }
-                    return response.getExists();
+                    return response.exists;
                 })
                 .catch(error => {
                     throw new Error(`Failed to check entity existence: ${error}`);
@@ -350,17 +365,17 @@ export const useDataStore = defineStore('data', {
         },
 
         fieldExists(entityType: EntityType, fieldType: FieldType) {
-            const request = new ApiRuntimeFieldExistsRequest();
-            request.setEntitytype(entityType);
-            request.setFieldname(fieldType);
+            const request = create(ApiRuntimeFieldExistsRequestSchema);
+            request.entityType = entityType;
+            request.fieldName = fieldType;
 
-            return this.sendMessage(request, ApiRuntimeFieldExistsResponse)
+            return this.sendMessage(request, ApiRuntimeFieldExistsResponseSchema)
                 .then((anyResponse) => {
                     const response = anyResponse as ApiRuntimeFieldExistsResponse;
-                    if (response.getStatus() !== ApiRuntimeFieldExistsResponse.StatusEnum.SUCCESS) {
-                        throw new Error(`Failed to check field existence: ${response.getStatus()}`);
+                    if (response.status !== ApiRuntimeFieldExistsResponse_StatusEnum.SUCCESS) {
+                        throw new Error(`Failed to check field existence: ${response.status}`);
                     }
-                    return response.getExists();
+                    return response.exists;
                 })
                 .catch(error => {
                     throw new Error(`Failed to check field existence: ${error}`);
@@ -368,28 +383,28 @@ export const useDataStore = defineStore('data', {
         },
 
         getEntitySchema(entityType: EntityType) {
-            const request = new ApiConfigGetEntitySchemaRequest();
-            request.setType(entityType);
+            const request = create(ApiConfigGetEntitySchemaRequestSchema);
+            request.type = entityType;
 
-            return this.sendMessage(request, ApiConfigGetEntitySchemaResponse)
+            return this.sendMessage(request, ApiConfigGetEntitySchemaResponseSchema)
                 .then((anyResponse) => {
                     const response = anyResponse as ApiConfigGetEntitySchemaResponse;
-                    if (response.getStatus() !== ApiConfigGetEntitySchemaResponse.StatusEnum.SUCCESS) {
-                        throw new Error(`Failed to get entity schema: ${response.getStatus()}`);
+                    if (response.status !== ApiConfigGetEntitySchemaResponse_StatusEnum.SUCCESS) {
+                        throw new Error(`Failed to get entity schema: ${response.status}`);
                     }
 
                     // Convert protobuf schema to TypeScript EntitySchema
                     const schema = EntityFactories.newEntitySchema(entityType);
-                    const pbSchema = response.getSchema();
+                    const pbSchema = response.schema;
                     if (pbSchema) {
-                        pbSchema.getFieldsList().forEach(field => {
-                            const fieldType = field.getName();
-                            const valueType = field.getType() as unknown as ValueType;
+                        pbSchema.fields.forEach(field => {
+                            const fieldType = field.name;
+                            const valueType = field.type as unknown as ValueType;
                             const fieldSchema = schema.field(fieldType);
                             // Set basic properties from protobuf
                             fieldSchema.valueType = valueType;
-                            fieldSchema.readPermissions = field.getReadPermissionsList();
-                            fieldSchema.writePermissions = field.getWritePermissionsList();
+                            fieldSchema.readPermissions = field.readPermissions;
+                            fieldSchema.writePermissions = field.writePermissions;
                         });
                     }
                     return schema;
@@ -401,27 +416,27 @@ export const useDataStore = defineStore('data', {
 
         setEntitySchema(schema: EntitySchema) {
             // Convert TypeScript EntitySchema to protobuf schema
-            const request = new ApiConfigSetEntitySchemaRequest();
-            const pbSchema = new DatabaseEntitySchema();
-            pbSchema.setName(schema.entityType);
+            const request = create(ApiConfigSetEntitySchemaRequestSchema);
+            const pbSchema = create(DatabaseEntitySchemaSchema);
+            pbSchema.name = schema.entityType;
 
             // Set fields from schema
             Object.entries(schema.fields).forEach(([fieldType, fieldSchema]) => {
-                const pbField = new DatabaseFieldSchema();
-                pbField.setName(fieldType);
-                pbField.setType(fieldSchema.valueType as unknown as string);
-                pbField.setReadPermissionsList(fieldSchema.readPermissions);
-                pbField.setWritePermissionsList(fieldSchema.writePermissions);
-                pbSchema.addFields(pbField);
+                const pbField = create(DatabaseFieldSchemaSchema);
+                pbField.name = fieldType;
+                pbField.type = fieldSchema.valueType;
+                pbField.readPermissions = fieldSchema.readPermissions;
+                pbField.writePermissions = fieldSchema.writePermissions;
+                pbSchema.fields.push(pbField);
             });
 
-            request.setSchema(pbSchema);
+            request.schema = pbSchema;
 
-            return this.sendMessage(request, ApiConfigSetEntitySchemaResponse)
+            return this.sendMessage(request, ApiConfigSetEntitySchemaResponseSchema)
                 .then((anyResponse) => {
                     const response = anyResponse as ApiConfigSetEntitySchemaResponse;
-                    if (response.getStatus() !== ApiConfigSetEntitySchemaResponse.StatusEnum.SUCCESS) {
-                        throw new Error(`Failed to set entity schema: ${response.getStatus()}`);
+                    if (response.status !== ApiConfigSetEntitySchemaResponse_StatusEnum.SUCCESS) {
+                        throw new Error(`Failed to set entity schema: ${response.status}`);
                     }
                     return true;
                 })
@@ -431,47 +446,47 @@ export const useDataStore = defineStore('data', {
         },
 
         read(requests: Field[]) {
-            const request = new ApiRuntimeDatabaseRequest();
-            request.setRequesttype(ApiRuntimeDatabaseRequest.RequestTypeEnum.READ);
+            const request = create(ApiRuntimeDatabaseRequestSchema);
+            request.requestType = ApiRuntimeDatabaseRequest_RequestTypeEnum.READ;
             
             requests.forEach(field => {
                 // Use the proper class from the generated protobuf
-                const pbRequest = new DatabaseRequest();
-                pbRequest.setId(field.entityId);
-                pbRequest.setField(field.fieldType);
-                request.addRequests(pbRequest);
+                const pbRequest = create(DatabaseRequestSchema);
+                pbRequest.id = field.entityId;
+                pbRequest.field = field.fieldType;
+                request.requests.push(pbRequest);
             });
 
-            return this.sendMessage(request, ApiRuntimeDatabaseResponse)
+            return this.sendMessage(request, ApiRuntimeDatabaseResponseSchema)
                 .then((anyResponse) => {
                     const response = anyResponse as ApiRuntimeDatabaseResponse;
-                    if (response.getStatus() !== ApiRuntimeDatabaseResponse.StatusEnum.SUCCESS) {
-                        throw new Error(`Read failed: ${response.getStatus()}`);
+                    if (response.status !== ApiRuntimeDatabaseResponse_StatusEnum.SUCCESS) {
+                        throw new Error(`Read failed: ${response.status}`);
                     }
 
                     // Update fields with responses
-                    const responsesList = response.getResponseList();
+                    const responsesList = response.response;
                     for (let i = 0; i < Math.min(responsesList.length, requests.length); i++) {
                         const resp = responsesList[i];
-                        if (resp.getSuccess()) {
+                        if (resp.success) {
                             const field = requests[i];
                             
                             // Handle value conversion from Any protobuf
-                            const value = resp.getValue();
+                            const value = resp.value;
                             if (value) {
                                 // Convert based on the field's expected type
                                 field.value = valueFromProtobuf(value);
                             }
                             
                             // Set write time and writer ID if available
-                            const writeTime = resp.getWritetime();
-                            if (writeTime && writeTime.getRaw()) {
-                                field.writeTime = writeTime.getRaw()?.toDate() || new Date(0);
+                            const writeTime = resp.writeTime;
+                            if (writeTime && writeTime.raw) {
+                                field.writeTime = timestampDate(writeTime.raw);
                             }
-                            
-                            const writerId = resp.getWriterid();
-                            if (writerId && writerId.getRaw()) {
-                                field.writerId = writerId.getRaw();
+
+                            const writerId = resp.writerId;
+                            if (writerId && writerId.raw) {
+                                field.writerId = writerId.raw;
                             }
                         }
                     }
@@ -484,41 +499,44 @@ export const useDataStore = defineStore('data', {
         },
 
         write(requests: Field[], writeOpt: WriteOpt = 0) {
-            const request = new ApiRuntimeDatabaseRequest();
-            request.setRequesttype(ApiRuntimeDatabaseRequest.RequestTypeEnum.WRITE);
+            const request = create(ApiRuntimeDatabaseRequestSchema);
+            request.requestType = ApiRuntimeDatabaseRequest_RequestTypeEnum.WRITE;
             
             requests.forEach(field => {
                 // Use the proper class from the generated protobuf
-                const pbRequest = new DatabaseRequest();
-                pbRequest.setId(field.entityId);
-                pbRequest.setField(field.fieldType);
-                
+                const pbRequest = create(DatabaseRequestSchema);
+                pbRequest.id = field.entityId;
+                pbRequest.field = field.fieldType;
+
                 // Convert field value to Any protobuf
-                const anyValue = new Any();
-                // TODO: Implement proper value serialization based on field.value.type
-                pbRequest.setValue(anyValue);
-                
+                const valueSchema = registry.getMessage(field.value.pbType());
+                if (!valueSchema) {
+                    return Promise.reject(new Error(`Value schema not found for ${field.value.pbType()}`));
+                }
+                const anyValue = create(valueSchema, { raw: field.value.pbValue() });
+                pbRequest.value = anyPack(valueSchema, anyValue);
+
                 // Set writer ID if available
                 if (field.writerId) {
-                    const writerIdPb = new PbString();
-                    writerIdPb.setRaw(field.writerId);
-                    pbRequest.setWriterid(writerIdPb);
+                    const writerIdPb = create(StringSchema);
+                    writerIdPb.raw = field.writerId;
+                    pbRequest.writerId = writerIdPb;
                 }
                 
-                request.addRequests(pbRequest);
+                request.requests.push(pbRequest);
             });
 
-            return this.sendMessage(request, ApiRuntimeDatabaseResponse)
+            return this.sendMessage(request, ApiRuntimeDatabaseResponseSchema)
                 .then((anyResponse) => {
                     const response = anyResponse as ApiRuntimeDatabaseResponse;
-                    if (response.getStatus() !== ApiRuntimeDatabaseResponse.StatusEnum.SUCCESS) {
-                        throw new Error(`Write failed: ${response.getStatus()}`);
+                    if (response.status !== ApiRuntimeDatabaseResponse_StatusEnum.SUCCESS) {
+                        throw new Error(`Write failed: ${response.status}`);
                     }
                     
                     // Update field success status
-                    const responsesList = response.getResponseList();
+                    const responsesList = response.response;
                     for (let i = 0; i < Math.min(responsesList.length, requests.length); i++) {
-                        const success = responsesList[i].getSuccess();
+                        const success = responsesList[i].success;
                         if (!success) {
                             console.warn(`Field write failed for ${requests[i].entityId}:${requests[i].fieldType}`);
                         }
@@ -532,34 +550,32 @@ export const useDataStore = defineStore('data', {
         },
 
         prepareQuery(sql: string, args: any[] = []) {
-            const request = new ApiRuntimeQueryRequest();
-            request.setQuery(sql);
-            request.setPageSize(100);
-            request.setCursor(0);
-            
+            const request = create(ApiRuntimeQueryRequestSchema);
+            request.query = sql;
+            request.pageSize = BigInt(100);
+            request.cursor = BigInt(0);
+
             // Handle special args like page size, cursor, etc.
             args.forEach(arg => {
                 if (typeof arg === 'number' && arg > 0) {
-                    request.setPageSize(arg);
+                    request.pageSize = BigInt(arg);
                 }
             });
 
-            return this.sendMessage(request, ApiRuntimeQueryResponse)
+            return this.sendMessage(request, ApiRuntimeQueryResponseSchema)
                 .then((anyResponse) => {
                     const response = anyResponse as ApiRuntimeQueryResponse;
-                    if (response.getStatus() !== ApiRuntimeQueryResponse.StatusEnum.SUCCESS) {
-                        throw new Error(`Query failed: ${response.getStatus()}`);
+                    if (response.status !== ApiRuntimeQueryResponse_StatusEnum.SUCCESS) {
+                        throw new Error(`Query failed: ${response.status}`);
                     }
 
-                    const rows = response.getRowsList().map(row => {
+                    const rows = response.rows.map(row => {
                         const convertedRow: Record<string, any> = {};
-                        const columnsList = Array.isArray(row.getColumnsList?.()) 
-                            ? row.getColumnsList?.() 
-                            : [];
-                        
+                        const columnsList = Array.isArray(row.columns) ? row.columns : [];
+
                         columnsList.forEach((col: QueryColumn) => {
-                            if (col.getIsSelected()) {
-                                convertedRow[col.getKey()] = col.getValue();
+                            if (col.isSelected) {
+                                convertedRow[col.key] = col.value;
                             }
                         });
 
@@ -568,8 +584,8 @@ export const useDataStore = defineStore('data', {
 
                     return {
                         rows,
-                        nextCursor: response.getNextCursor(),
-                        hasMore: response.getNextCursor() >= 0
+                        nextCursor: response.nextCursor,
+                        hasMore: response.nextCursor >= 0
                     };
                 })
                 .catch(error => {
@@ -579,25 +595,25 @@ export const useDataStore = defineStore('data', {
 
         // Notification support
         registerNotification(config: NotificationConfig) {
-            const request = new ApiRuntimeRegisterNotificationRequest();
+            const request = create(ApiRuntimeRegisterNotificationRequestSchema);
             
-            const notificationConfig = new DatabaseNotificationConfig();
-            if (config.entityId) notificationConfig.setId(config.entityId);
-            if (config.fieldType) notificationConfig.setField(config.fieldType);
-            if (config.entityType) notificationConfig.setType(config.entityType);
-            if (config.serviceId) notificationConfig.setServiceid(config.serviceId);
-            
-            request.addRequests(notificationConfig);
+            const notificationConfig = create(DatabaseNotificationConfigSchema);
+            if (config.entityId) notificationConfig.id = config.entityId;
+            if (config.fieldType) notificationConfig.field = config.fieldType;
+            if (config.entityType) notificationConfig.type = config.entityType;
+            if (config.serviceId) notificationConfig.serviceId = config.serviceId;
 
-            return this.sendMessage(request, ApiRuntimeRegisterNotificationResponse)
+            request.requests.push(notificationConfig);
+
+            return this.sendMessage(request, ApiRuntimeRegisterNotificationResponseSchema)
                 .then((anyResponse) => {
                     const response = anyResponse as ApiRuntimeRegisterNotificationResponse;
-                    if (response.getStatus() !== ApiRuntimeRegisterNotificationResponse.StatusEnum.SUCCESS) {
-                        throw new Error(`Failed to register notification: ${response.getStatus()}`);
+                    if (response.status !== ApiRuntimeRegisterNotificationResponse_StatusEnum.SUCCESS) {
+                        throw new Error(`Failed to register notification: ${response.status}`);
                     }
 
                     // Return the token from the response
-                    return response.getTokensList()[0] || '';
+                    return response.tokens[0] || '';
                 })
                 .catch(error => {
                     throw new Error(`Failed to register notification: ${error}`);
@@ -605,14 +621,14 @@ export const useDataStore = defineStore('data', {
         },
 
         unregisterNotification(token: string) {
-            const request = new ApiRuntimeUnregisterNotificationRequest();
-            request.addTokens(token);
+            const request = create(ApiRuntimeUnregisterNotificationRequestSchema);
+            request.tokens.push(token);
 
-            return this.sendMessage(request, ApiRuntimeUnregisterNotificationResponse)
+            return this.sendMessage(request, ApiRuntimeUnregisterNotificationResponseSchema)
                 .then((anyResponse) => {
                     const response = anyResponse as ApiRuntimeUnregisterNotificationResponse;
-                    if (response.getStatus() !== ApiRuntimeUnregisterNotificationResponse.StatusEnum.SUCCESS) {
-                        throw new Error(`Failed to unregister notification: ${response.getStatus()}`);
+                    if (response.status !== ApiRuntimeUnregisterNotificationResponse_StatusEnum.SUCCESS) {
+                        throw new Error(`Failed to unregister notification: ${response.status}`);
                     }
                     return true;
                 })

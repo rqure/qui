@@ -52,18 +52,63 @@ async function loadEntities() {
   entities.value = [];
   
   try {
-    // For demo purposes, generate placeholder entities
-    entities.value = generatePlaceholderEntities(props.parentId);
+    // Initialize the data store if needed
+    if (!dataStore.isConnected) {
+      await dataStore.initialize();
+    }
     
-    // In a real implementation, we would query the dataStore
-    // const result = await dataStore.findEntities('', 100);
-    // entities.value = result.entities.map(...);
+    // For root entity (which has 'root' as ID), try to get entity types
+    if (props.parentId === 'root') {
+      // Try to get entity types
+      const result = await dataStore.getEntityTypes(100, 0);
+      const entityTypes = result.entityTypes || [];
+      
+      // Convert entity types to our EntityItem interface
+      entities.value = entityTypes.map((type: string) => ({
+        id: type, // Use the type name as ID
+        name: type, // Display the type name
+        hasChildren: true // Assume entity types have children
+      }));
+      
+      // If no entity types, provide some test data
+      if (entities.value.length === 0) {
+        // Mock data for demonstration
+        entities.value = [
+          { id: 'User', name: 'User', hasChildren: true },
+          { id: 'Document', name: 'Document', hasChildren: true },
+          { id: 'Project', name: 'Project', hasChildren: true }
+        ];
+      }
+    } else {
+      // For non-root entities, try to find entities of the given parent/type
+      const result = await dataStore.findEntities(props.parentId, 100);
+      
+      // Convert entities to our EntityItem interface
+      entities.value = (result.entities || []).map((entity: any) => {
+        const entityId = typeof entity === 'string' ? entity : (entity.getId ? entity.getId() : 'unknown');
+        const entityName = typeof entity === 'string' ? `Entity ${entityId.substring(0,5)}` : (entity.getName ? entity.getName() : 'Unnamed Entity');
+        
+        return {
+          id: entityId,
+          name: entityName,
+          hasChildren: Math.random() > 0.5 // Just for demo, we don't know if it has children
+        };
+      });
+      
+      // If no entities found, provide some test data
+      if (entities.value.length === 0 && props.parentId !== 'root') {
+        entities.value = generatePlaceholderEntities(props.parentId);
+      }
+    }
     
     loading.value = false;
   } catch (err) {
     console.error(`Error loading entities for parent ${props.parentId}:`, err);
     error.value = 'Failed to load entities';
     loading.value = false;
+    
+    // Fallback to placeholder entities
+    entities.value = generatePlaceholderEntities(props.parentId);
   }
 }
 

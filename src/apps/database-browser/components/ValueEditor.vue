@@ -45,8 +45,9 @@ const isChecked = computed(() => {
   return false;
 });
 
-// Format date value for datetime-local input
-const dateTimeValue = computed(() => {
+// Modify the dateTimeValue computed property to be a method
+// that will be used to set the initial value but not bind directly
+function getInitialDateTimeValue(): string {
   if (props.value?.type === "Timestamp") {
     try {
       const date = new Date(props.value.toString());
@@ -56,7 +57,7 @@ const dateTimeValue = computed(() => {
     }
   }
   return '';
-});
+}
 
 function handleSave() {
   // Create appropriate value based on type
@@ -97,6 +98,11 @@ function handleCancel() {
 }
 
 onMounted(() => {
+  // Set the initial value for timestamp type
+  if (props.value?.type === "Timestamp") {
+    editValue.value = getInitialDateTimeValue();
+  }
+  
   // Focus the input when mounted
   const input = document.querySelector('.value-editor input, .value-editor textarea');
   if (input) {
@@ -118,12 +124,11 @@ onMounted(() => {
       <label for="value-editor-checkbox">{{ isChecked ? 'True' : 'False' }}</label>
     </div>
     
-    <!-- Timestamp input -->
+    <!-- Timestamp input - Fix the issue by removing the :value binding -->
     <input 
       v-else-if="value.type === 'Timestamp'" 
       type="datetime-local" 
-      v-model="editValue" 
-      :value="dateTimeValue"
+      v-model="editValue"
       class="timestamp-input"
     />
     

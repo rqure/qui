@@ -1,4 +1,5 @@
-import { DatabaseNotification } from "@/core/data/protobufs_pb.d";
+import type { DatabaseNotification } from "@/generated/protobufs_pb";
+import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 
 /**
  * Represents unique identifiers for entities in the system
@@ -49,6 +50,9 @@ export type WriteTime = Date;
 export interface Value {
     type: ValueType;
     raw: any;
+
+    pbType(): string;
+    pbValue(): any;
 
     // Basic type getters
     getInt(): number;
@@ -188,6 +192,18 @@ class ValueImpl implements Value {
     constructor(type: ValueType, raw: any) {
         this.type = type;
         this.raw = raw;
+    }
+
+    pbType(): string {
+        return 'qprotobufs.' + this.type;
+    }
+    
+    pbValue(): any {
+        if (this.type === ValueType.Timestamp) {
+            return timestampFromDate(this.raw);
+        }
+        
+        return this.raw;
     }
 
     // Type getters

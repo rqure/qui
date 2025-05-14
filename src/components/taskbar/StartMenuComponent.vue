@@ -146,7 +146,14 @@ const initiateLogout = () => {
           class="menu-item"
           @click="launchApp(app)"
         >
-          <span class="item-icon">{{ app.icon }}</span>
+          <span class="item-icon">
+            <!-- Render SVG as image if it's a data URL, otherwise render as text emoji -->
+            <img v-if="typeof app.icon === 'string' && app.icon.startsWith('data:')" 
+                 :src="app.icon" 
+                 :alt="app.name"
+                 class="app-icon" />
+            <span v-else>{{ app.icon }}</span>
+          </span>
           <span class="item-name">{{ app.name }}</span>
         </button>
       </div>
@@ -291,6 +298,17 @@ const initiateLogout = () => {
 .item-icon {
   font-size: 18px;
   opacity: 0.9;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.app-icon {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
 }
 
 .item-name {
