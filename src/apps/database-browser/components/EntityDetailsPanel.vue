@@ -2,7 +2,7 @@
 import { ref, watch } from 'vue';
 import { useDataStore } from '@/stores/data';
 import type { EntityId, Field, EntitySchema, EntityType } from '@/core/data/types';
-import { Utils } from '@/core/data/types';
+import { EntityFactories, Utils } from '@/core/data/types';
 import { formatTimestamp } from '@/apps/database-browser/utils/formatters';
 import ValueDisplay from '@/apps/database-browser/components/ValueDisplay.vue';
 import ValueEditor from '@/apps/database-browser/components/ValueEditor.vue';
@@ -17,8 +17,6 @@ const error = ref<string | null>(null);
 const fields = ref<Field[]>([]);
 const entityName = ref('');
 const entityType = ref<EntityType>('');
-const parentId = ref<EntityId | null>(null);
-const children = ref<EntityId[]>([]);
 const editingField = ref<string | null>(null);
 
 // Load entity details when component mounts or entity ID changes
@@ -32,6 +30,33 @@ async function loadEntityDetails() {
   fields.value = [];
   
   try {
+    // Extract entity type from ID
+    entityType.value = Utils.getEntityTypeFromId(props.entityId);
+    
+    // Create entity instance
+    const entity = EntityFactories.newEntity(props.entityId);
+    
+    // Get the entity's schema to know what fields it has
+    const schema = await dataStore.getEntitySchema(entityType.value);
+    Object.keys(schema.fields).forEach((field: string) => {
+      entity.field(field);
+    });
+    
+    // Read basic entity info
+    const eFields = Object.values(entity.fields);
+    await dataStore.read([...eFields]);
+
+    fields.value = [...eFields].sort((a, b) => {
+      const aField = schema.fields[a.fieldType];
+      const bField = schema.fields[b.fieldType];
+      if (aField.rank === bField.rank) {
+        return aField.fieldType.localeCompare(bField.fieldType);
+      }
+
+      return aField.rank - bField.rank;
+    });
+    entityName.value = entity.field("Name").value.getString();
+
     loading.value = false;
   } catch (err) {
     console.error(`Error in loadEntityDetails: ${err}`);

@@ -502,7 +502,6 @@ export const useDataStore = defineStore('data', {
                     const responsesList = response.response;
                     for (let i = 0; i < Math.min(responsesList.length, requests.length); i++) {
                         const resp = responsesList[i];
-                        console.log('Field value:', resp);
                         if (resp.success) {
                             const field = requests[i];
                             
