@@ -27,10 +27,17 @@ export const useAuthStore = defineStore('auth', {
         
         if (keycloak.authenticated) {
           const profile = await getUserProfile()
-          return this.handleSuccessfulAuth(
+          const success = await this.handleSuccessfulAuth(
             profile?.username || keycloak.tokenParsed?.preferred_username || 'unknown',
             profile as Record<string, any> | null
           )
+          
+          if (success) {
+            // Register connection lost handler after successful authentication
+            this.setupConnectionLostHandler()
+          }
+          
+          return success
         }
         
         return false
@@ -126,6 +133,16 @@ export const useAuthStore = defineStore('auth', {
       }
     },
     
+    // Listen for connection loss events from the data store
+    setupConnectionLostHandler() {
+      const dataStore = useDataStore()
+      dataStore.onConnectionLost(() => {
+        console.warn('Database connection lost. Logging out user...')
+        this.logout()
+      })
+    },
+    
+    // Update the handleSuccessfulAuth to also set up the connection lost handler
     async handleSuccessfulAuth(username: string, profile: Record<string, any> | null = null) {
       // Security profile can come from Keycloak roles/groups
       const mockSecurityProfile: SecurityProfile = {
@@ -145,6 +162,9 @@ export const useAuthStore = defineStore('auth', {
       const dataStore = useDataStore()
       dataStore.initialize()
       
+      // Set up connection lost handler
+      this.setupConnectionLostHandler()
+      
       return true
     },
 
@@ -152,6 +172,10 @@ export const useAuthStore = defineStore('auth', {
       try {
         // First disconnect the data store
         const dataStore = useDataStore()
+        
+        // Remove our connection lost callback to avoid recursion during logout
+        dataStore.removeConnectionLostCallback(this.setupConnectionLostHandler)
+        
         dataStore.cleanup()
         
         // Clean up Keycloak resources

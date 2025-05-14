@@ -87,6 +87,7 @@ export const useDataStore = defineStore('data', {
         isConnected: false,
         waitingResponses: {} as Record<string, WaitingResponse>,
         notificationManager: new NotificationManager(),
+        connectionLostCallbacks: [] as (() => void)[],
     }),
 
     actions: {
@@ -110,6 +111,7 @@ export const useDataStore = defineStore('data', {
                     me.isConnected = true;
                 };
                 me.socket.onclose = () => {
+                    const wasConnected = me.isConnected;
                     me.isConnected = false;
                     me.socket = null;
 
@@ -119,6 +121,12 @@ export const useDataStore = defineStore('data', {
                     }
 
                     me.waitingResponses = {};
+
+                    // If we were previously connected and lost connection,
+                    // trigger the connection lost callbacks
+                    if (wasConnected) {
+                        this.triggerConnectionLostCallbacks();
+                    }
 
                     // reconnect after 1 second
                     setTimeout(() => {
@@ -687,6 +695,31 @@ export const useDataStore = defineStore('data', {
                         }
                     };
                 });
-        }
+        },
+
+        // Add callback to be executed when connection is lost
+        onConnectionLost(callback: () => void) {
+            this.connectionLostCallbacks.push(callback);
+        },
+
+        // Remove connection lost callback
+        removeConnectionLostCallback(callback: () => void) {
+            const index = this.connectionLostCallbacks.indexOf(callback);
+            if (index !== -1) {
+                this.connectionLostCallbacks.splice(index, 1);
+            }
+        },
+
+        // Trigger all connection lost callbacks
+        triggerConnectionLostCallbacks() {
+            console.warn('Database connection lost - triggering callbacks');
+            this.connectionLostCallbacks.forEach(callback => {
+                try {
+                    callback();
+                } catch (err) {
+                    console.error('Error in connection lost callback:', err);
+                }
+            });
+        },
     },
 })
