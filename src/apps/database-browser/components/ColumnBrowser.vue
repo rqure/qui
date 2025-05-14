@@ -23,6 +23,7 @@ const maxColumnWidth = 400; // Maximum column width in pixels
 
 // Store the last used column width to apply to new columns
 const lastUsedWidth = ref<number>(220); // Default starting width
+const columnBrowserRef = ref<HTMLElement | null>(null);
 
 // Initialize with root column
 onMounted(async () => {
@@ -97,7 +98,19 @@ const handleEntitySelect = async (entityId: EntityId, parentId?: EntityId) => {
     parentId: entityId,
     width: lastUsedWidth.value // Use the last used width for consistency
   });
+  
+  // After adding a new column, scroll to the end
+  setTimeout(() => {
+    scrollToEnd();
+  }, 50); // Short delay to ensure the DOM is updated
 };
+
+// Function to scroll to the end of the column browser
+function scrollToEnd() {
+  if (columnBrowserRef.value) {
+    columnBrowserRef.value.scrollLeft = columnBrowserRef.value.scrollWidth;
+  }
+}
 
 // Function to handle column scroll synchronization
 const syncColumnScroll = (event: Event) => {
@@ -170,7 +183,7 @@ function getColumnStyle(column: { id: string; width?: number }) {
 </script>
 
 <template>
-  <div class="column-browser">
+  <div class="column-browser" ref="columnBrowserRef">
     <div 
       v-for="(column, index) in columns" 
       :key="column.id"
