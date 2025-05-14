@@ -21,6 +21,9 @@ const startWidth = ref(0);
 const minColumnWidth = 150; // Minimum column width in pixels
 const maxColumnWidth = 400; // Maximum column width in pixels
 
+// Store the last used column width to apply to new columns
+const lastUsedWidth = ref<number>(220); // Default starting width
+
 // Initialize with root column
 onMounted(async () => {
   if (!columns.value.length) {
@@ -77,8 +80,14 @@ const handleEntitySelect = async (entityId: EntityId, parentId?: EntityId) => {
   // Update the selected entity in this column
   columns.value[columnIndex].selectedId = entityId;
   
-  // Remove any subsequent columns
+  // Before removing columns, update our lastUsedWidth with the width of the last column
   if (columnIndex < columns.value.length - 1) {
+    const lastColumn = columns.value[columns.value.length - 1];
+    if (lastColumn.width) {
+      lastUsedWidth.value = lastColumn.width;
+    }
+    
+    // Remove any subsequent columns
     columns.value = columns.value.slice(0, columnIndex + 1);
   }
   
@@ -86,7 +95,7 @@ const handleEntitySelect = async (entityId: EntityId, parentId?: EntityId) => {
   columns.value.push({
     id: columnId,
     parentId: entityId,
-    width: 220 // Default width for new columns
+    width: lastUsedWidth.value // Use the last used width for consistency
   });
 };
 
@@ -195,7 +204,6 @@ function getColumnStyle(column: { id: string; width?: number }) {
   overflow-y: hidden;
   height: 100%;
   background: var(--qui-bg-secondary);
-  border-right: 1px solid var(--qui-hover-border);
   box-shadow: inset -5px 0 10px -5px rgba(0, 0, 0, 0.1);
   
   /* Custom scrollbar for horizontal scrolling */
@@ -246,5 +254,10 @@ function getColumnStyle(column: { id: string; width?: number }) {
 .column-resize-handle:hover,
 .column-resize-handle:active {
   background: rgba(0, 255, 136, 0.2);
+}
+
+/* Make sure the resize handles still work when the parent is resizing */
+.column-container:not(.is-resizing) .column-resize-handle {
+  pointer-events: auto;
 }
 </style>

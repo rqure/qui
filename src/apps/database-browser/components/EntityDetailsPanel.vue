@@ -176,6 +176,8 @@ function cancelEditing() {
   overflow: hidden;
   background: var(--qui-bg-primary);
   border-left: 1px solid var(--qui-hover-border);
+  position: relative;
+  min-width: 300px; /* minimum width */
 }
 
 .details-header {

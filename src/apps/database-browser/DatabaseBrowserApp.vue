@@ -10,11 +10,54 @@ const dataStore = useDataStore();
 const selectedEntityId = ref<EntityId | null>(null);
 const loading = ref(true);
 const error = ref<string | null>(null);
+const browserWidth = ref<number>(500); // Set a default width
+const isResizingMainSplit = ref(false);
+const resizeStartX = ref(0);
+const resizeStartWidth = ref(0);
+const minBrowserWidth = 300;
+const maxBrowserWidth = window.innerWidth * 0.75;
 
 // Handle entity selection from the column browser
 const handleEntitySelect = (entityId: EntityId) => {
   selectedEntityId.value = entityId;
 };
+
+// Add handlers for main split resizing
+function startMainSplitResize(event: MouseEvent) {
+  event.preventDefault();
+  isResizingMainSplit.value = true;
+  resizeStartX.value = event.clientX;
+  resizeStartWidth.value = browserWidth.value;
+  
+  // Add event listeners for dragging
+  window.addEventListener('mousemove', handleMainSplitMove);
+  window.addEventListener('mouseup', endMainSplitResize);
+  
+  // Add a class to body to change cursor during resize
+  document.body.classList.add('resizing-horizontal');
+}
+
+function handleMainSplitMove(event: MouseEvent) {
+  if (!isResizingMainSplit.value) return;
+  
+  const delta = event.clientX - resizeStartX.value;
+  const newWidth = Math.max(minBrowserWidth, Math.min(maxBrowserWidth, resizeStartWidth.value + delta));
+  
+  browserWidth.value = newWidth;
+  
+  // Update the resizer position directly
+  const resizer = document.querySelector('.main-split-resizer') as HTMLElement;
+  if (resizer) {
+    resizer.style.left = `${newWidth}px`;
+  }
+}
+
+function endMainSplitResize() {
+  isResizingMainSplit.value = false;
+  window.removeEventListener('mousemove', handleMainSplitMove);
+  window.removeEventListener('mouseup', endMainSplitResize);
+  document.body.classList.remove('resizing-horizontal');
+}
 
 onMounted(async () => {
   try {
@@ -36,7 +79,9 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
-  // Clean up any subscriptions or resources
+  // Clean up event listeners on unmount
+  window.removeEventListener('mousemove', handleMainSplitMove);
+  window.removeEventListener('mouseup', endMainSplitResize);
 });
 
 // Utility to wait for connection
@@ -80,10 +125,18 @@ function waitForConnection(timeout = 5000): Promise<void> {
     </div>
     
     <div v-else class="browser-container">
-      <ColumnBrowser
-        :selectedEntityId="selectedEntityId"
-        @entity-select="handleEntitySelect" 
-      />
+      <div class="column-browser-wrapper" :style="`width: ${browserWidth}px`">
+        <ColumnBrowser
+          :selectedEntityId="selectedEntityId"
+          @entity-select="handleEntitySelect" 
+        />
+      </div>
+      
+      <div 
+        class="main-split-resizer" 
+        @mousedown="startMainSplitResize"
+        :style="`left: ${browserWidth}px`"
+      ></div>
       
       <EntityDetailsPanel 
         v-if="selectedEntityId && selectedEntityId !== 'root'" 
@@ -117,6 +170,38 @@ function waitForConnection(timeout = 5000): Promise<void> {
   display: flex;
   flex: 1;
   overflow: hidden;
+  position: relative;
+}
+
+.column-browser-wrapper {
+  position: relative;
+  overflow: hidden;
+  height: 100%;
+  min-width: 300px;
+  flex-shrink: 0;
+  flex-grow: 0;
+  border-right: 1px solid var(--qui-hover-border);
+}
+
+.main-split-resizer {
+  position: absolute;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 100;
+  transition: background-color 0.2s ease;
+  transform: translateX(-4px); /* Center on the border */
+}
+
+.main-split-resizer:hover, 
+.main-split-resizer:active {
+  background: rgba(0, 255, 136, 0.2);
+}
+
+/* During active resize, remove transitions to avoid lag */
+body.resizing-horizontal .main-split-resizer {
+  transition: none;
+  background: rgba(0, 255, 136, 0.3);
 }
 
 .loading-container, .error-container {
@@ -179,5 +264,15 @@ function waitForConnection(timeout = 5000): Promise<void> {
 
 .empty-state svg {
   opacity: 0.7;
+}
+
+/* Add global styles for when resizing is happening */
+:global(body.resizing-horizontal) {
+  cursor: col-resize !important;
+  user-select: none;
+}
+
+:global(body.resizing-horizontal *) {
+  cursor: col-resize !important;
 }
 </style>
