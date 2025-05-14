@@ -61,30 +61,66 @@ const handleSubmit = async () => {
   
   try {
     if (loginMethod.value === 'password') {
-      // Username/password login
+      // Username/password login with timeout
       if (!username.value || !password.value) {
         error.value = 'Please enter both username and password'
         isLoading.value = false
         return
       }
       
+      // Set up a 5-second timeout for the login request
+      const loginPromise = authStore.loginWithCredentials(username.value, password.value)
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Login timed out after 5 seconds')), 5000)
+      })
+      
       try {
-        await authStore.loginWithCredentials(username.value, password.value)
+        // Race the login promise against the timeout
+        await Promise.race([loginPromise, timeoutPromise])
         emit('login', username.value)
       } catch (err) {
         // Handle specific error messages from the auth endpoint
         const errorMessage = err instanceof Error ? err.message : 'Authentication failed'
-        error.value = errorMessage
+        error.value = errorMessage.includes('timed out') ? 
+          'Connection timed out. Please try again later.' : errorMessage
         throw err
       }
     } else if (loginMethod.value === 'sso') {
-      // Keycloak SSO
-      await authStore.login()
-      // Note: If successful, page will redirect to Keycloak
+      // Keycloak SSO with timeout
+      try {
+        // Set up a timeout for the redirect
+        const ssoPromise = authStore.login()
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('SSO login timed out after 5 seconds')), 5000)
+        })
+        
+        await Promise.race([ssoPromise, timeoutPromise])
+        // Note: If successful, page will redirect to Keycloak
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Authentication failed'
+        if (errorMessage.includes('timed out')) {
+          error.value = 'Connection timed out. Please try again later.'
+        }
+        throw err
+      }
     } else {
-      // Social login (Google, Microsoft, etc.)
-      await authStore.loginWithProvider(loginMethod.value)
-      // Will redirect to the provider's auth page
+      // Social login (Google, Microsoft, etc.) with timeout
+      try {
+        // Set up a timeout for the redirect
+        const providerPromise = authStore.loginWithProvider(loginMethod.value)
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error(`${loginMethod.value} login timed out after 5 seconds`)), 5000)
+        })
+        
+        await Promise.race([providerPromise, timeoutPromise])
+        // Will redirect to the provider's auth page
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Authentication failed'
+        if (errorMessage.includes('timed out')) {
+          error.value = 'Connection timed out. Please try again later.'
+        }
+        throw err
+      }
     }
   } catch (err) {
     console.error(err)
