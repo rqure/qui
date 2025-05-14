@@ -1,16 +1,17 @@
 <script setup lang="ts">
-import { defineComponent, markRaw, computed } from 'vue'
+import { markRaw, computed, ref } from 'vue'
 import { useWindowStore } from '@/stores/windows'
+import { useAppStore } from '@/stores/apps'
 import { useAuthStore } from '@/stores/auth'
 import LogoutConfirmWindow from '@/components/window/LogoutConfirmWindow.vue'
 import { logoutIconDataUrl } from '@/assets/logout-icon'
-import databaseBrowserApp from '@/apps/database-browser'
 
 const emit = defineEmits<{
   (e: 'close'): void
 }>()
 
 const windowStore = useWindowStore()
+const appStore = useAppStore()
 const authStore = useAuthStore()
 
 // Computed properties for user information
@@ -18,76 +19,44 @@ const username = computed(() => authStore.username || 'Guest')
 const userInitial = computed(() => (username.value ? username.value.charAt(0).toUpperCase() : 'G'))
 const userProfile = computed(() => authStore.userProfile)
 
-// Define apps with our new Database Browser app
-const testApps = [
-  {
-    id: 'database-browser',
-    name: 'Database Browser',
-    icon: databaseBrowserApp.manifest.icon || '📊',
-    component: databaseBrowserApp.component,
-  },
-  {
-    id: 'notepad',
-    name: 'Notepad',
-    icon: '📝',
-    component: markRaw(
-      defineComponent({
-        template: '<div class="p-4">Notepad Content</div>',
-      }),
-    ),
-  },
-  {
-    id: 'calculator',
-    name: 'Calculator',
-    icon: '🔢',
-    component: markRaw(
-      defineComponent({
-        template: '<div class="p-4">Calculator Content</div>',
-      }),
-    ),
-  },
-  {
-    id: 'settings',
-    name: 'Settings',
-    icon: '⚙️',
-    component: markRaw(
-      defineComponent({
-        template: '<div class="p-4">Settings Content</div>',
-      }),
-    ),
-  },
-  {
-    id: 'terminal',
-    name: 'Terminal',
-    icon: '💻',
-    component: markRaw(
-      defineComponent({
-        template: '<div class="p-4">Terminal Content</div>',
-      }),
-    ),
-  },
-]
+// Define a proper interface for app items
+interface AppItem {
+  id: string;
+  name: string;
+  icon: string;
+}
+
+// Get registered apps from the app store - with proper typing
+const registeredApps = computed<AppItem[]>(() => {
+  const apps: AppItem[] = [];
+  
+  // Iterate through the Map entries with explicit typing
+  appStore.registeredApps.forEach((app, _) => {
+    apps.push({
+      id: app.manifest.id,
+      name: app.manifest.name,
+      icon: app.manifest.icon || '📊'
+    });
+  });
+  
+  return apps.sort((a, b) => a.name.localeCompare(b.name));
+});
 
 const sections = [
   {
     title: 'Applications',
-    items: testApps,
+    items: registeredApps,
   },
 ]
 
-// Fix the app launching function to close menu first
-const launchApp = (app: (typeof testApps)[0]) => {
+// Launch app using the app store
+const launchApp = (appId: string) => {
   // First close the menu
   emit('close')
   
-  // Then create the window with a slight delay to prevent UI issues
+  // Then launch the app with a slight delay to prevent UI issues
   setTimeout(() => {
-    windowStore.createWindow({
-      title: app.name,
-      component: app.component,
-      width: 400,
-      height: 400,
-    })
+    appStore.launchApp(appId)
   }, 10)
 }
 
@@ -105,9 +74,9 @@ const initiateLogout = () => {
       id: logoutWindowId,
       title: 'Confirm Sign Out',
       component: markRaw(LogoutConfirmWindow),
-      width: 400,  // Slightly narrower
-      height: 200, // Shorter height to fit content perfectly
-      icon: logoutIconDataUrl, // Use the logout icon
+      width: 400,
+      height: 200,
+      icon: logoutIconDataUrl,
       props: {
         windowId: logoutWindowId
       }
@@ -141,10 +110,10 @@ const initiateLogout = () => {
       <div class="section-title">{{ section.title }}</div>
       <div class="menu-list">
         <button
-          v-for="app in section.items"
+          v-for="app in section.items.value"
           :key="app.id"
           class="menu-item"
-          @click="launchApp(app)"
+          @click="launchApp(app.id)"
         >
           <span class="item-icon">
             <!-- Render SVG as image if it's a data URL, otherwise render as text emoji -->

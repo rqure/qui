@@ -6,6 +6,10 @@ export interface AppManifest {
   version: string
   icon?: string
   permissions: string[]
+  defaultWindowSize?: {
+    width: number
+    height: number
+  }
 }
 
 export interface AppComponent {

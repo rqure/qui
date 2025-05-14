@@ -1,6 +1,7 @@
 import { markRaw } from 'vue'
 import DatabaseBrowserApp from './DatabaseBrowserApp.vue'
 import type { RegisteredApp } from '@/core/apps/types'
+import { useAppStore } from '@/stores/apps'
 
 // Define the icon as an SVG data URL for consistent appearance
 const databaseBrowserIcon = `
@@ -12,16 +13,31 @@ const databaseBrowserIcon = `
 // Convert SVG to data URL
 const iconDataUrl = `data:image/svg+xml;base64,${btoa(databaseBrowserIcon)}`
 
-// Define the app manifest
-export const databaseBrowserApp = {
+// Define the app object
+const databaseBrowserApp: RegisteredApp = {
   manifest: {
     id: 'database-browser',
     name: 'Database Browser',
     version: '1.0.0',
     icon: iconDataUrl,
     permissions: ['data.read', 'data.write'],
+    defaultWindowSize: {
+      width: 1200,
+      height: 800
+    }
   },
-  component: markRaw(DatabaseBrowserApp),
+  component: {
+    default: markRaw(DatabaseBrowserApp)
+  }
 }
+
+// Register the app with the app store
+function registerDatabaseBrowserApp() {
+  const appStore = useAppStore()
+  appStore.registerApp(databaseBrowserApp)
+}
+
+// Auto-register when this module is imported
+registerDatabaseBrowserApp()
 
 export default databaseBrowserApp

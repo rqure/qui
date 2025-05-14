@@ -14,10 +14,14 @@ export const useAppStore = defineStore('apps', () => {
   function launchApp(appId: string) {
     const app = registeredApps.value.get(appId)
     if (app) {
+      const defaultSize = app.manifest.defaultWindowSize || { width: 800, height: 600 }
+
       windowStore.createWindow({
         title: app.manifest.name,
         component: app.component.default,
         icon: app.manifest.icon,
+        width: defaultSize.width,
+        height: defaultSize.height,
       })
     }
   }
