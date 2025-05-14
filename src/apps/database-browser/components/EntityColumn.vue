@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
 import { useDataStore } from '@/stores/data';
-import { EntityFactories, type Entity, type EntityId } from '@/core/data/types';
+import { EntityFactories, type Entity, type EntityId, type EntityType } from '@/core/data/types';
 
 const props = defineProps<{
   columnId: string;
@@ -17,6 +17,7 @@ const emit = defineEmits<{
 interface EntityItem {
   id: EntityId;
   name: string;
+  type: EntityType;
   children: EntityId[];
 }
 
@@ -26,14 +27,36 @@ const error = ref<string | null>(null);
 const entities = ref<EntityItem[]>([]);
 const searchQuery = ref('');
 
-// Filtered entities based on search query
-const filteredEntities = computed(() => {
-  if (!searchQuery.value) return entities.value;
+// Group entities by their type
+const groupedEntities = computed(() => {
+  const filtered = searchQuery.value 
+    ? entities.value.filter(entity => entity.name.toLowerCase().includes(searchQuery.value.toLowerCase()))
+    : entities.value;
+
+  const groups: Record<EntityType, EntityItem[]> = {};
   
-  const query = searchQuery.value.toLowerCase();
-  return entities.value.filter(entity => 
-    entity.name.toLowerCase().includes(query)
-  );
+  filtered.forEach(entity => {
+    if (!groups[entity.type]) {
+      groups[entity.type] = [];
+    }
+    groups[entity.type].push(entity);
+  });
+
+  // Sort entities in each group by name
+  Object.keys(groups).forEach(type => {
+    groups[type].sort((a, b) => a.name.localeCompare(b.name));
+  });
+
+  // Sort the group keys alphabetically
+  const sortedGroups: [EntityType, EntityItem[]][] = Object.entries(groups)
+    .sort(([typeA], [typeB]) => typeA.localeCompare(typeB));
+
+  return sortedGroups;
+});
+
+// Count of all filtered entities
+const totalFilteredCount = computed(() => {
+  return groupedEntities.value.reduce((count, [_, entities]) => count + entities.length, 0);
 });
 
 // Load entities when column mounts or parent changes
@@ -54,12 +77,14 @@ async function loadEntities() {
   try {
     if (!props.parentId) {
       const roots = await dataStore.find("Root") as Entity[];
-      console.log("Roots:", roots);
-      entities.value.push({
-        id: roots[0].entityId,
-        name: roots[0].field("Name").value.getString(),
-        children: roots[0].field("Children").value.getEntityList()
-      });
+      if (roots.length > 0) {
+        entities.value.push({
+          id: roots[0].entityId,
+          name: roots[0].field("Name").value.getString(),
+          type: "Root",
+          children: roots[0].field("Children").value.getEntityList()
+        });
+      }
       loading.value = false;
       return;
     }
@@ -67,15 +92,33 @@ async function loadEntities() {
     const parentEntity = EntityFactories.newEntity(props.parentId);
     const children = parentEntity.field("Children");
     await dataStore.read([children]);
-    await children.value.getEntityList().forEach(async (childId: EntityId) => {
-      const childEntity = EntityFactories.newEntity(childId);
-      await dataStore.read([childEntity.field("Name"), childEntity.field("Children")]);
-      entities.value.push({
-        id: childId,
-        name: childEntity.field("Name").value.getString(),
-        children: childEntity.field("Children").value.getEntityList()
-      });
-    });
+    
+    const childrenIds = children.value.getEntityList();
+    
+    // Load all children entities with their basic info
+    await Promise.all(childrenIds.map(async (childId: EntityId) => {
+      try {
+        const childEntity = EntityFactories.newEntity(childId);
+        const nameField = childEntity.field("Name");
+        const childrenField = childEntity.field("Children");
+        
+        await dataStore.read([nameField, childrenField]);
+        
+        const entityType = childEntity.entityType;
+        const name = nameField.value.getString();
+        const childrenList = childrenField.value.getEntityList();
+        
+        entities.value.push({
+          id: childId,
+          name: name || 'Unnamed',
+          type: entityType,
+          children: childrenList
+        });
+      } catch (err) {
+        console.error(`Error loading child entity ${childId}:`, err);
+      }
+    }));
+    
     loading.value = false;
   } catch (err) {
     console.error(`Error in loadEntities for ${props.parentId}:`, err);
@@ -116,7 +159,7 @@ function handleScroll(event: Event) {
         />
         <span class="clear-search" v-if="searchQuery" @click="searchQuery = ''">
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24">
-            <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+            <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/>
           </svg>
         </span>
       </div>
@@ -132,28 +175,35 @@ function handleScroll(event: Event) {
       <button @click="loadEntities" class="retry-button">Retry</button>
     </div>
     
+    <div v-else-if="totalFilteredCount === 0" class="empty-message">
+      <span v-if="searchQuery">No matching entities</span>
+      <span v-else>No entities found</span>
+    </div>
+    
     <div v-else class="entity-list">
-      <div 
-        v-for="entity in filteredEntities" 
-        :key="entity.id"
-        class="entity-item"
-        :class="{ 
-          'selected': entity.id === selectedId,
-          'has-children': entity.children.length > 0
-        }"
-        @click="selectEntity(entity.id)"
-      >
-        <span class="entity-name">{{ entity.name }}</span>
-        <span v-if="entity.children.length > 0" class="child-indicator">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
-            <path fill="currentColor" d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/>
-          </svg>
-        </span>
-      </div>
-      
-      <div v-if="filteredEntities.length === 0" class="empty-message">
-        <span v-if="searchQuery">No matching entities</span>
-        <span v-else>No entities found</span>
+      <div v-for="[type, entitiesGroup] in groupedEntities" :key="type" class="entity-group">
+        <div class="entity-group-header">
+          <span class="entity-group-title">{{ type }}</span>
+          <span class="entity-group-count">{{ entitiesGroup.length }}</span>
+        </div>
+        
+        <div 
+          v-for="entity in entitiesGroup" 
+          :key="entity.id"
+          class="entity-item"
+          :class="{ 
+            'selected': entity.id === selectedId,
+            'has-children': entity.children.length > 0
+          }"
+          @click="selectEntity(entity.id)"
+        >
+          <span class="entity-name">{{ entity.name }}</span>
+          <span v-if="entity.children.length > 0" class="child-indicator">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
+              <path fill="currentColor" d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/>
+            </svg>
+          </span>
+        </div>
       </div>
     </div>
   </div>
@@ -254,6 +304,31 @@ function handleScroll(event: Event) {
 .entity-list {
   flex: 1;
   padding: 4px 0;
+}
+
+.entity-group {
+  margin-bottom: 8px;
+}
+
+.entity-group-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 12px;
+  color: var(--qui-accent-color);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: var(--qui-font-weight-medium);
+  background: rgba(0, 0, 0, 0.2);
+  border-bottom: 1px solid rgba(0, 255, 136, 0.1);
+}
+
+.entity-group-count {
+  background: rgba(0, 255, 136, 0.1);
+  border-radius: 10px;
+  padding: 1px 6px;
+  font-size: 9px;
 }
 
 .entity-item {
