@@ -3,7 +3,7 @@ import { getApiBaseUrl } from '@/core/utils/url';
 import { anyPack, anyUnpack, timestampFromDate, timestampDate, type Any } from '@bufbuild/protobuf/wkt';
 import { v4 as uuidv4 } from 'uuid';
 import type { ApiConfigCreateEntityResponse, DatabaseNotification, ApiRuntimeRegisterNotificationResponse, ApiRuntimeUnregisterNotificationResponse, ApiRuntimeDatabaseResponse, ApiRuntimeEntityExistsResponse, ApiRuntimeFieldExistsResponse, ApiConfigGetEntitySchemaRequest, ApiConfigGetEntitySchemaResponse, ApiConfigSetEntitySchemaRequest, ApiConfigSetEntitySchemaResponse, ApiConfigDeleteEntityRequest, ApiConfigDeleteEntityResponse, ApiRuntimeFindEntitiesRequest, ApiRuntimeFindEntitiesResponse, ApiRuntimeGetEntityTypesRequest, ApiRuntimeGetEntityTypesResponse, ApiRuntimeQueryRequest, ApiRuntimeQueryResponse, DatabaseEntitySchema, DatabaseFieldSchema, DatabaseRequest, String as PbString, QueryColumn, Int, Float, Bool, EntityReference, Timestamp, BinaryFile, Choice, EntityList } from '@/generated/protobufs_pb';
-import { ApiMessageSchema, ApiHeaderSchema, DatabaseNotificationSchema, ApiConfigCreateEntityRequestSchema, ApiConfigCreateEntityResponseSchema, ApiConfigCreateEntityResponse_StatusEnum, ApiConfigDeleteEntityRequestSchema, ApiConfigDeleteEntityResponseSchema, ApiConfigDeleteEntityResponse_StatusEnum, ApiRuntimeFindEntitiesRequestSchema, ApiRuntimeFindEntitiesResponseSchema, ApiRuntimeFindEntitiesResponse_StatusEnum, ApiRuntimeGetEntityTypesRequestSchema, ApiRuntimeGetEntityTypesResponseSchema, ApiRuntimeGetEntityTypesResponse_StatusEnum, ApiRuntimeEntityExistsRequestSchema, ApiRuntimeEntityExistsResponseSchema, ApiRuntimeEntityExistsResponse_StatusEnum, ApiRuntimeFieldExistsRequestSchema, ApiRuntimeFieldExistsResponseSchema, ApiRuntimeFieldExistsResponse_StatusEnum, ApiConfigGetEntitySchemaRequestSchema, ApiConfigGetEntitySchemaResponseSchema, ApiConfigGetEntitySchemaResponse_StatusEnum, ApiConfigSetEntitySchemaRequestSchema, DatabaseEntitySchemaSchema, DatabaseFieldSchemaSchema, ApiConfigSetEntitySchemaResponseSchema, ApiConfigSetEntitySchemaResponse_StatusEnum, ApiRuntimeDatabaseRequestSchema, ApiRuntimeDatabaseRequest_RequestTypeEnum, DatabaseRequestSchema, ApiRuntimeDatabaseResponseSchema, ApiRuntimeDatabaseResponse_StatusEnum, StringSchema, ApiRuntimeQueryRequestSchema, ApiRuntimeQueryResponseSchema, ApiRuntimeQueryResponse_StatusEnum, ApiRuntimeRegisterNotificationRequestSchema, DatabaseNotificationConfigSchema, ApiRuntimeRegisterNotificationResponseSchema, ApiRuntimeRegisterNotificationResponse_StatusEnum, ApiRuntimeUnregisterNotificationRequestSchema, ApiRuntimeUnregisterNotificationResponseSchema, ApiRuntimeUnregisterNotificationResponse_StatusEnum, file_protobufs } from '@/generated/protobufs_pb';
+import { ApiMessageSchema, ApiHeaderSchema, DatabaseNotificationSchema, ApiConfigCreateEntityRequestSchema, ApiConfigCreateEntityResponseSchema, ApiConfigCreateEntityResponse_StatusEnum, ApiConfigDeleteEntityRequestSchema, ApiConfigDeleteEntityResponseSchema, ApiConfigDeleteEntityResponse_StatusEnum, ApiRuntimeFindEntitiesRequestSchema, ApiRuntimeFindEntitiesResponseSchema, ApiRuntimeFindEntitiesResponse_StatusEnum, ApiRuntimeGetEntityTypesRequestSchema, ApiRuntimeGetEntityTypesResponseSchema, ApiRuntimeGetEntityTypesResponse_StatusEnum, ApiRuntimeEntityExistsRequestSchema, ApiRuntimeEntityExistsResponseSchema, ApiRuntimeEntityExistsResponse_StatusEnum, ApiRuntimeFieldExistsRequestSchema, ApiRuntimeFieldExistsResponseSchema, ApiRuntimeFieldExistsResponse_StatusEnum, ApiConfigGetEntitySchemaRequestSchema, ApiConfigGetEntitySchemaResponseSchema, ApiConfigGetEntitySchemaResponse_StatusEnum, ApiConfigSetEntitySchemaRequestSchema, DatabaseEntitySchemaSchema, DatabaseFieldSchemaSchema, ApiConfigSetEntitySchemaResponseSchema, ApiConfigSetEntitySchemaResponse_StatusEnum, ApiRuntimeDatabaseRequestSchema, ApiRuntimeDatabaseRequest_RequestTypeEnum, DatabaseRequestSchema, ApiRuntimeDatabaseResponseSchema, ApiRuntimeDatabaseResponse_StatusEnum, StringSchema, ApiRuntimeQueryRequestSchema, ApiRuntimeQueryResponseSchema, ApiRuntimeQueryResponse_StatusEnum, ApiRuntimeRegisterNotificationRequestSchema, DatabaseNotificationConfigSchema, ApiRuntimeRegisterNotificationResponseSchema, ApiRuntimeRegisterNotificationResponse_StatusEnum, ApiRuntimeUnregisterNotificationRequestSchema, ApiRuntimeUnregisterNotificationResponseSchema, ApiRuntimeUnregisterNotificationResponse_StatusEnum, file_protobufs, TimestampSchema } from '@/generated/protobufs_pb';
 import { fromBinary, create, type DescMessage, type MessageShape, toBinary, type Registry, createRegistry } from '@bufbuild/protobuf';
 import { EntityFactories, NotificationManager, ValueFactories } from '@/core/data/types';
 import type { EntityId, EntityType, FieldType, Value, Field, EntitySchema, WriteOpt, ValueType, Entity } from '@/core/data/types';
@@ -513,6 +513,7 @@ export const useDataStore = defineStore('data', {
                     for (let i = 0; i < Math.min(responsesList.length, requests.length); i++) {
                         const resp = responsesList[i];
                         if (resp.success) {
+                            console.log('Field read success:', resp);
                             const field = requests[i];
                             
                             // Handle value conversion from Any protobuf
@@ -526,11 +527,15 @@ export const useDataStore = defineStore('data', {
                             const writeTime = resp.writeTime;
                             if (writeTime && writeTime.raw) {
                                 field.writeTime = timestampDate(writeTime.raw);
+                            } else {
+                                field.writeTime = new Date(0);
                             }
 
                             const writerId = resp.writerId;
                             if (writerId && writerId.raw) {
                                 field.writerId = writerId.raw;
+                            } else {
+                                field.writerId = '';
                             }
                         }
                     }
@@ -559,13 +564,6 @@ export const useDataStore = defineStore('data', {
                 }
                 const anyValue = create(valueSchema, { raw: field.value.pbValue() });
                 pbRequest.value = anyPack(valueSchema, anyValue);
-
-                // Set writer ID if available
-                if (field.writerId) {
-                    const writerIdPb = create(StringSchema);
-                    writerIdPb.raw = field.writerId;
-                    pbRequest.writerId = writerIdPb;
-                }
                 
                 request.requests.push(pbRequest);
             });

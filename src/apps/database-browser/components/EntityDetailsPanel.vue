@@ -158,7 +158,7 @@ function cancelEditing() {
                 {{ field.writeTime ? formatTimestamp(field.writeTime) : 'N/A' }}
               </div>
               <div class="field-writer" :title="field.writerId || 'Unknown'">
-                {{ field.writerId || 'System' }}
+                {{ field.writerId || '' }}
               </div>
             </td>
           </tr>
