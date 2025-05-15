@@ -5,8 +5,8 @@ import { v4 as uuidv4 } from 'uuid';
 import type { ApiConfigCreateEntityResponse, DatabaseNotification, ApiRuntimeRegisterNotificationResponse, ApiRuntimeUnregisterNotificationResponse, ApiRuntimeDatabaseResponse, ApiRuntimeEntityExistsResponse, ApiRuntimeFieldExistsResponse, ApiConfigGetEntitySchemaRequest, ApiConfigGetEntitySchemaResponse, ApiConfigSetEntitySchemaRequest, ApiConfigSetEntitySchemaResponse, ApiConfigDeleteEntityRequest, ApiConfigDeleteEntityResponse, ApiRuntimeFindEntitiesRequest, ApiRuntimeFindEntitiesResponse, ApiRuntimeGetEntityTypesRequest, ApiRuntimeGetEntityTypesResponse, ApiRuntimeQueryRequest, ApiRuntimeQueryResponse, DatabaseEntitySchema, DatabaseFieldSchema, DatabaseRequest, String as PbString, QueryColumn, Int, Float, Bool, EntityReference, Timestamp, BinaryFile, Choice, EntityList } from '@/generated/protobufs_pb';
 import { ApiMessageSchema, ApiHeaderSchema, DatabaseNotificationSchema, ApiConfigCreateEntityRequestSchema, ApiConfigCreateEntityResponseSchema, ApiConfigCreateEntityResponse_StatusEnum, ApiConfigDeleteEntityRequestSchema, ApiConfigDeleteEntityResponseSchema, ApiConfigDeleteEntityResponse_StatusEnum, ApiRuntimeFindEntitiesRequestSchema, ApiRuntimeFindEntitiesResponseSchema, ApiRuntimeFindEntitiesResponse_StatusEnum, ApiRuntimeGetEntityTypesRequestSchema, ApiRuntimeGetEntityTypesResponseSchema, ApiRuntimeGetEntityTypesResponse_StatusEnum, ApiRuntimeEntityExistsRequestSchema, ApiRuntimeEntityExistsResponseSchema, ApiRuntimeEntityExistsResponse_StatusEnum, ApiRuntimeFieldExistsRequestSchema, ApiRuntimeFieldExistsResponseSchema, ApiRuntimeFieldExistsResponse_StatusEnum, ApiConfigGetEntitySchemaRequestSchema, ApiConfigGetEntitySchemaResponseSchema, ApiConfigGetEntitySchemaResponse_StatusEnum, ApiConfigSetEntitySchemaRequestSchema, DatabaseEntitySchemaSchema, DatabaseFieldSchemaSchema, ApiConfigSetEntitySchemaResponseSchema, ApiConfigSetEntitySchemaResponse_StatusEnum, ApiRuntimeDatabaseRequestSchema, ApiRuntimeDatabaseRequest_RequestTypeEnum, DatabaseRequestSchema, ApiRuntimeDatabaseResponseSchema, ApiRuntimeDatabaseResponse_StatusEnum, StringSchema, ApiRuntimeQueryRequestSchema, ApiRuntimeQueryResponseSchema, ApiRuntimeQueryResponse_StatusEnum, ApiRuntimeRegisterNotificationRequestSchema, DatabaseNotificationConfigSchema, ApiRuntimeRegisterNotificationResponseSchema, ApiRuntimeRegisterNotificationResponse_StatusEnum, ApiRuntimeUnregisterNotificationRequestSchema, ApiRuntimeUnregisterNotificationResponseSchema, ApiRuntimeUnregisterNotificationResponse_StatusEnum, file_protobufs, TimestampSchema } from '@/generated/protobufs_pb';
 import { fromBinary, create, type DescMessage, type MessageShape, toBinary, type Registry, createRegistry } from '@bufbuild/protobuf';
-import { EntityFactories, NotificationManager, ValueFactories } from '@/core/data/types';
-import type { EntityId, EntityType, FieldType, Value, Field, EntitySchema, WriteOpt, ValueType, Entity } from '@/core/data/types';
+import { EntityFactories, NotificationManager, registry, ValueFactories, valueFromProtobuf } from '@/core/data/types';
+import type { EntityId, EntityType, FieldType, Value, Field, EntitySchema, WriteOpt, ValueType, Entity, Notification } from '@/core/data/types';
 import { useAuthStore } from '@/stores/auth';
 import { getKeycloak } from '@/core/security/keycloak';
 
@@ -19,66 +19,14 @@ export interface NotificationConfig {
 }
 
 export interface NotificationCallback {
-  (notification: DatabaseNotification): void;
+  (notification: Notification): void;
 }
-
-const registry: Registry = createRegistry(file_protobufs);
 
 interface WaitingResponse {
     sentTimestamp: number;
     responsePrototype: DescMessage;
     resolve: (value: MessageShape<DescMessage>) => void;
     reject: (error: Error) => void;
-}
-
-// Add helper function to convert values from protobuf
-function valueFromProtobuf(anyValue: Any): Value {
-    // This is a simplified implementation - in a real app you'd need to
-    // check the type in the Any message and properly deserialize it
-    const typeUrl = anyValue.typeUrl.split('/').pop() || '';
-    const typeSchema = registry.getMessage(typeUrl);
-    if (!typeSchema) {
-        console.warn(`No schema found for type URL: ${typeUrl}`);
-        return ValueFactories.newString(''); // Default to string value
-    }
-
-    const value = anyUnpack(anyValue, typeSchema);
-    
-    if (typeUrl.includes('Int')) {
-        const intValue = value as Int;
-        return ValueFactories.newInt(Number(intValue.raw));
-    } else if (typeUrl.includes('Float')) {
-        const floatValue = value as Float;
-        return ValueFactories.newFloat(Number(floatValue.raw));
-    } else if (typeUrl.includes('String')) {
-        const stringValue = value as PbString;
-        return ValueFactories.newString(stringValue.raw);
-    } else if (typeUrl.includes('Bool')) {
-        const boolValue = value as Bool;
-        return ValueFactories.newBool(boolValue.raw);
-    } else if (typeUrl.includes('EntityReference')) {
-        const entityRefValue = value as EntityReference;
-        return ValueFactories.newEntityReference(entityRefValue.raw);
-    } else if (typeUrl.includes('Timestamp')) {
-        const timestampValue = value as Timestamp;
-        if (timestampValue.raw) {
-            return ValueFactories.newTimestamp(timestampDate(timestampValue.raw));
-        }
-
-        console.warn('Timestamp value is empty');
-        return ValueFactories.newTimestamp(new Date(0));
-    } else if (typeUrl.includes('BinaryFile')) {
-        const binaryFileValue = value as BinaryFile;
-        return ValueFactories.newBinaryFile(binaryFileValue.raw);
-    } else if (typeUrl.includes('Choice')) {
-        const choiceValue = value as Choice;
-        return ValueFactories.newChoice(Number(choiceValue.raw));
-    } else if (typeUrl.includes('EntityList')) {
-        const entityListValue = value as EntityList;
-        return ValueFactories.newEntityList(entityListValue.raw);
-    }
-
-    return ValueFactories.newString('');
 }
 
 export const useDataStore = defineStore('data', {
@@ -161,10 +109,6 @@ export const useDataStore = defineStore('data', {
             fileReader.onload = (e) => {
                 const message = fromBinary(ApiMessageSchema, new Uint8Array(e.target?.result as ArrayBuffer));
                 const requestId = message.header?.id;
-                if (!requestId) {
-                    console.warn('Received message without request ID:', message);
-                    return;
-                }
 
                 const payload = message.payload;
                 if (!payload) {
@@ -178,10 +122,16 @@ export const useDataStore = defineStore('data', {
                         const notificationBytes = payload.value;
                         const notification = fromBinary(DatabaseNotificationSchema, notificationBytes);
                         me.notificationManager.dispatch(notification.token, notification);
-                        return;
                     } catch (error) {
                         console.error('Error processing notification:', error);
                     }
+
+                    return;
+                }
+
+                if (!requestId) {
+                    console.warn('Received message without request ID:', message);
+                    return;
                 }
 
                 // Handle regular responses

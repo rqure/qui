@@ -1,5 +1,8 @@
-import type { DatabaseNotification } from "@/generated/protobufs_pb";
-import { timestampFromDate } from "@bufbuild/protobuf/wkt";
+import { file_protobufs, type BinaryFile, type Bool, type Choice, type DatabaseField, type DatabaseNotification, type EntityList, type EntityReference, type Float, type Int, type String, type Timestamp } from "@/generated/protobufs_pb";
+import { createRegistry, type Registry } from "@bufbuild/protobuf";
+import { anyUnpack, timestampDate, timestampFromDate, type Any } from "@bufbuild/protobuf/wkt";
+
+export const registry: Registry = createRegistry(file_protobufs);
 
 /**
  * Represents unique identifiers for entities in the system
@@ -815,11 +818,91 @@ export const Utils = {
     }
 };
 
+
+
+// Add helper function to convert values from protobuf
+export function valueFromProtobuf(anyValue: Any): Value {
+    // This is a simplified implementation - in a real app you'd need to
+    // check the type in the Any message and properly deserialize it
+    const typeUrl = anyValue.typeUrl.split('/').pop() || '';
+    const typeSchema = registry.getMessage(typeUrl);
+    if (!typeSchema) {
+        console.warn(`No schema found for type URL: ${typeUrl}`);
+        return ValueFactories.newString(''); // Default to string value
+    }
+
+    const value = anyUnpack(anyValue, typeSchema);
+    
+    if (typeUrl.includes('Int')) {
+        const intValue = value as Int;
+        return ValueFactories.newInt(Number(intValue.raw));
+    } else if (typeUrl.includes('Float')) {
+        const floatValue = value as Float;
+        return ValueFactories.newFloat(Number(floatValue.raw));
+    } else if (typeUrl.includes('String')) {
+        const stringValue = value as String;
+        return ValueFactories.newString(stringValue.raw);
+    } else if (typeUrl.includes('Bool')) {
+        const boolValue = value as Bool;
+        return ValueFactories.newBool(boolValue.raw);
+    } else if (typeUrl.includes('EntityReference')) {
+        const entityRefValue = value as EntityReference;
+        return ValueFactories.newEntityReference(entityRefValue.raw);
+    } else if (typeUrl.includes('Timestamp')) {
+        const timestampValue = value as Timestamp;
+        if (timestampValue.raw) {
+            return ValueFactories.newTimestamp(timestampDate(timestampValue.raw));
+        }
+
+        console.warn('Timestamp value is empty');
+        return ValueFactories.newTimestamp(new Date(0));
+    } else if (typeUrl.includes('BinaryFile')) {
+        const binaryFileValue = value as BinaryFile;
+        return ValueFactories.newBinaryFile(binaryFileValue.raw);
+    } else if (typeUrl.includes('Choice')) {
+        const choiceValue = value as Choice;
+        return ValueFactories.newChoice(Number(choiceValue.raw));
+    } else if (typeUrl.includes('EntityList')) {
+        const entityListValue = value as EntityList;
+        return ValueFactories.newEntityList(entityListValue.raw);
+    }
+
+    return ValueFactories.newString('');
+}
+
+export class Notification {
+    public current?: Field;
+    public previous?: Field;
+    public contexts?: Field[];
+
+    constructor(notification: DatabaseNotification) {
+        this.current = notification.current ? new FieldImpl(
+            notification.current.id,
+            notification.current.name,
+            notification.current.value ? valueFromProtobuf(notification.current.value) : ValueFactories.newString('')
+        ) : undefined;
+
+        this.previous = notification.previous ? new FieldImpl(
+            notification.previous.id,
+            notification.previous.name,
+            notification.previous.value ? valueFromProtobuf(notification.previous.value) : ValueFactories.newString('')
+        ) : undefined;
+
+        this.contexts = notification.context.map((context: DatabaseField) => {
+            return new FieldImpl(
+                context.id,
+                context.name,
+                context.value ? valueFromProtobuf(context.value) : ValueFactories.newString('')
+            );
+        });
+    }
+}
+
 class NotificationListener {
     private token: string;
-    private callback: (event: DatabaseNotification) => void;
+    private callback: (event: Notification) => void;
 
-    constructor(token: string, callback: (event: DatabaseNotification) => void) {
+    constructor(token: string, callback: (event: Notification) => void) {
         this.token = token;
         this.callback = callback;
     }
@@ -828,7 +911,7 @@ class NotificationListener {
         return this.token;
     }
 
-    get getCallback(): (event: DatabaseNotification) => void {
+    get getCallback(): (event: Notification) => void {
         return this.callback;
     }
 }
@@ -840,7 +923,7 @@ export class NotificationManager {
         this.listeners = {};
     }
 
-    addListener(token: string, callback: (notification: DatabaseNotification) => void): this {
+    addListener(token: string, callback: (notification: Notification) => void): this {
         if (!this.listeners[token]) {
             this.listeners[token] = [];
         }
@@ -850,7 +933,7 @@ export class NotificationManager {
         return this;
     }
 
-    removeListener(token: string, callback: (notification: DatabaseNotification) => void): this {
+    removeListener(token: string, callback: (notification: Notification) => void): this {
         if (!this.listeners[token]) {
             return this;
         }
@@ -864,6 +947,6 @@ export class NotificationManager {
             return;
         }
 
-        this.listeners[eventName].forEach(listener => listener.getCallback(notification));
+        this.listeners[eventName].forEach(listener => listener.getCallback(new Notification(notification)));
     }
 }

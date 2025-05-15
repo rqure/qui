@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue';
+import { ref, watch, onMounted, onUnmounted } from 'vue';
 import { useDataStore } from '@/stores/data';
-import type { EntityId, Field, EntitySchema, EntityType } from '@/core/data/types';
+import type { EntityId, Field, EntitySchema, EntityType, Notification } from '@/core/data/types';
 import { EntityFactories, Utils } from '@/core/data/types';
 import { formatTimestamp } from '@/apps/database-browser/utils/formatters';
 import ValueDisplay from '@/apps/database-browser/components/ValueDisplay.vue';
 import ValueEditor from '@/apps/database-browser/components/ValueEditor.vue';
+import type { DatabaseNotification } from '@/generated/protobufs_pb';
 
 const props = defineProps<{
   entityId: EntityId;
@@ -20,11 +21,36 @@ const entityType = ref<EntityType>('');
 const editingField = ref<string | null>(null);
 const writerNames = ref<Record<EntityId, string>>({});
 const loadingWriterNames = ref<Record<EntityId, boolean>>({});
+const notificationSubscriptions = ref<Array<{ token: string, unsubscribe: () => Promise<boolean> }>>([]);
 
 // Load entity details when component mounts or entity ID changes
 watch(() => props.entityId, async () => {
+  // Clean up previous notification subscriptions when entity changes
+  await cleanupNotifications();
   await loadEntityDetails();
 }, { immediate: true });
+
+// Clean up notifications when component is unmounted
+onUnmounted(async () => {
+  await cleanupNotifications();
+});
+
+async function cleanupNotifications() {
+  // Unsubscribe from all active notifications
+  if (notificationSubscriptions.value.length > 0) {
+    console.log(`Cleaning up ${notificationSubscriptions.value.length} notification subscriptions`);
+    
+    // Unsubscribe from all notifications in parallel
+    await Promise.all(
+      notificationSubscriptions.value.map(sub => sub.unsubscribe().catch(err => {
+        console.error(`Error unsubscribing from notification ${sub.token}:`, err);
+      }))
+    );
+    
+    // Clear the subscriptions array
+    notificationSubscriptions.value = [];
+  }
+}
 
 async function loadEntityDetails() {
   loading.value = true;
@@ -62,13 +88,114 @@ async function loadEntityDetails() {
     entityName.value = entity.field("Name").value.getString();
     
     // Load writer names after loading fields
-    loadWriterNames();
+    await loadWriterNames();
+    
+    // Register for notifications on all fields
+    await registerFieldNotifications();
 
     loading.value = false;
   } catch (err) {
     console.error(`Error in loadEntityDetails: ${err}`);
     error.value = `Error: ${err}`;
     loading.value = false;
+  }
+}
+
+async function registerFieldNotifications() {
+  try {
+    // Clear existing notification subscriptions first
+    await cleanupNotifications();
+    
+    // Register notifications for each field
+    const subscriptionPromises = fields.value.map(async (field) => {
+      // Set up notification config to watch this specific field
+      const notificationConfig = {
+        entityId: props.entityId,
+        fieldType: field.fieldType
+      };
+      
+      // Register the notification with debugging
+      console.log(`Registering notification for ${field.fieldType} on ${props.entityId}`);
+      
+      // Register the notification and get the subscription
+      try {
+        const subscription = await dataStore.notify(
+          notificationConfig,
+          handleFieldNotification
+        );
+        console.log(`Successfully registered notification for ${field.fieldType}, token: ${subscription.token}`);
+        return subscription;
+      } catch (error) {
+        console.error(`Failed to register notification for ${field.fieldType}:`, error);
+        // Return a dummy subscription that does nothing on unsubscribe
+        return {
+          token: `failed-${field.fieldType}`,
+          unsubscribe: async () => Promise.resolve(true)
+        };
+      }
+    });
+    
+    // Wait for all notification registrations to complete
+    const subscriptions = await Promise.all(subscriptionPromises);
+    
+    // Store subscriptions for cleanup later
+    notificationSubscriptions.value = subscriptions.filter(sub => !sub.token.startsWith('failed-'));
+    
+    console.log(`Registered ${notificationSubscriptions.value.length} field notifications for entity ${props.entityId}`);
+  } catch (err) {
+    console.error(`Error registering field notifications:`, err);
+  }
+}
+
+function handleFieldNotification(notification: Notification) {
+  console.log(`Received field notification: ${JSON.stringify(notification)}`);
+
+  try {
+    if (!notification.current) return;
+    
+    // Find the field in our fields array
+    const fieldIndex = fields.value.findIndex(f => 
+      f.fieldType === notification.current?.fieldType &&
+      f.entityId === props.entityId
+    );
+    
+    if (fieldIndex === -1) return;
+
+    console.log(`Field notification received for ${notification.current?.fieldType}`);
+
+    // Update the field with the new data
+    const field = fields.value[fieldIndex];
+    
+    // Update the value from the notification
+    if (notification.current?.value) {
+      field.value = notification.current?.value;
+    }
+    
+    // Update write time if available
+    if (notification.current.writeTime) {
+      field.writeTime = notification.current.writeTime;
+    }
+    
+    // Update writer ID if available and load the writer name
+    if (notification.current.writerId && notification.current.writerId !== field.writerId) {
+      field.writerId = notification.current.writerId;
+      
+      // Load the writer name for this new writer ID
+      if (!writerNames.value[field.writerId]) {
+        loadWriterName(field.writerId);
+      }
+    }
+    
+    // If this is the Name field, update the entity name
+    if (field.fieldType === 'Name') {
+      entityName.value = field.value.getString();
+    }
+    
+    // Force a UI update by creating a new array reference
+    fields.value = [...fields.value];
+    
+  } catch (err) {
+    console.error('Error handling field notification:', err);
   }
 }
 
@@ -116,33 +243,38 @@ async function loadWriterNames() {
   
   // Load each writer's name
   writerIds.forEach(async (writerId) => {
-    if (!writerId || writerNames.value[writerId]) return;
-    
-    loadingWriterNames.value[writerId] = true;
-    
-    try {
-      const writerEntity = EntityFactories.newEntity(writerId);
-      const nameField = writerEntity.field("Name");
-      
-      // Check if entity exists before trying to read it
-      const exists = await dataStore.entityExists(writerId);
-      if (!exists) {
-        writerNames.value[writerId] = "Unknown User";
-        loadingWriterNames.value[writerId] = false;
-        return;
-      }
-      
-      await dataStore.read([nameField]);
-      
-      const writerName = nameField.value.getString();
-      writerNames.value[writerId] = writerName || writerId;
-    } catch (err) {
-      console.error(`Error loading writer name for ${writerId}:`, err);
-      writerNames.value[writerId] = writerId; // Fallback to ID on error
-    } finally {
-      loadingWriterNames.value[writerId] = false;
-    }
+    await loadWriterName(writerId);
   });
+}
+
+// Extract the loading of a single writer name into a separate function
+async function loadWriterName(writerId: EntityId) {
+  if (!writerId || writerNames.value[writerId]) return;
+  
+  loadingWriterNames.value[writerId] = true;
+  
+  try {
+    const writerEntity = EntityFactories.newEntity(writerId);
+    const nameField = writerEntity.field("Name");
+    
+    // Check if entity exists before trying to read it
+    const exists = await dataStore.entityExists(writerId);
+    if (!exists) {
+      writerNames.value[writerId] = "Unknown User";
+      loadingWriterNames.value[writerId] = false;
+      return;
+    }
+    
+    await dataStore.read([nameField]);
+    
+    const writerName = nameField.value.getString();
+    writerNames.value[writerId] = writerName || writerId;
+  } catch (err) {
+    console.error(`Error loading writer name for ${writerId}:`, err);
+    writerNames.value[writerId] = writerId; // Fallback to ID on error
+  } finally {
+    loadingWriterNames.value[writerId] = false;
+  }
 }
 
 // Call loadWriterNames on component mount
