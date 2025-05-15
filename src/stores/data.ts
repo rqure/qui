@@ -214,7 +214,6 @@ export const useDataStore = defineStore('data', {
                 } else {
                     try {
                         this.socket.send(toBinary(ApiMessageSchema, message));
-                        console.log('Request sent:', requestId, request.constructor.name);
                     } catch (error) {
                         delete this.waitingResponses[requestId];
                         reject(error);
@@ -456,14 +455,11 @@ export const useDataStore = defineStore('data', {
                         throw new Error(`Read failed: ${response.status}`);
                     }
 
-                    console.log('Read response:', response);
-
                     // Update fields with responses
                     const responsesList = response.response;
                     for (let i = 0; i < Math.min(responsesList.length, requests.length); i++) {
                         const resp = responsesList[i];
                         if (resp.success) {
-                            console.log('Field read success:', resp);
                             const field = requests[i];
                             
                             // Handle value conversion from Any protobuf

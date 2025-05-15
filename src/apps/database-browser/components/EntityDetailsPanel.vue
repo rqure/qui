@@ -37,9 +37,7 @@ onUnmounted(async () => {
 
 async function cleanupNotifications() {
   // Unsubscribe from all active notifications
-  if (notificationSubscriptions.value.length > 0) {
-    console.log(`Cleaning up ${notificationSubscriptions.value.length} notification subscriptions`);
-    
+  if (notificationSubscriptions.value.length > 0) {    
     // Unsubscribe from all notifications in parallel
     await Promise.all(
       notificationSubscriptions.value.map(sub => sub.unsubscribe().catch(err => {
@@ -114,16 +112,12 @@ async function registerFieldNotifications() {
         fieldType: field.fieldType
       };
       
-      // Register the notification with debugging
-      console.log(`Registering notification for ${field.fieldType} on ${props.entityId}`);
-      
       // Register the notification and get the subscription
       try {
         const subscription = await dataStore.notify(
           notificationConfig,
           handleFieldNotification
         );
-        console.log(`Successfully registered notification for ${field.fieldType}, token: ${subscription.token}`);
         return subscription;
       } catch (error) {
         console.error(`Failed to register notification for ${field.fieldType}:`, error);
@@ -140,16 +134,12 @@ async function registerFieldNotifications() {
     
     // Store subscriptions for cleanup later
     notificationSubscriptions.value = subscriptions.filter(sub => !sub.token.startsWith('failed-'));
-    
-    console.log(`Registered ${notificationSubscriptions.value.length} field notifications for entity ${props.entityId}`);
   } catch (err) {
     console.error(`Error registering field notifications:`, err);
   }
 }
 
 function handleFieldNotification(notification: Notification) {
-  console.log(`Received field notification: ${JSON.stringify(notification)}`);
-
   try {
     if (!notification.current) return;
     
@@ -160,9 +150,7 @@ function handleFieldNotification(notification: Notification) {
     );
     
     if (fieldIndex === -1) return;
-
-    console.log(`Field notification received for ${notification.current?.fieldType}`);
-
+    
     // Update the field with the new data
     const field = fields.value[fieldIndex];
     
