@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref, watch, onMounted } from 'vue';
 import { useDataStore } from '@/stores/data';
 import type { EntityId, Field, EntitySchema, EntityType } from '@/core/data/types';
 import { EntityFactories, Utils } from '@/core/data/types';
@@ -18,6 +18,8 @@ const fields = ref<Field[]>([]);
 const entityName = ref('');
 const entityType = ref<EntityType>('');
 const editingField = ref<string | null>(null);
+const writerNames = ref<Record<EntityId, string>>({});
+const loadingWriterNames = ref<Record<EntityId, boolean>>({});
 
 // Load entity details when component mounts or entity ID changes
 watch(() => props.entityId, async () => {
@@ -28,6 +30,8 @@ async function loadEntityDetails() {
   loading.value = true;
   error.value = null;
   fields.value = [];
+  writerNames.value = {};
+  loadingWriterNames.value = {};
   
   try {
     // Extract entity type from ID
@@ -56,6 +60,9 @@ async function loadEntityDetails() {
       return aField.rank - bField.rank;
     });
     entityName.value = entity.field("Name").value.getString();
+    
+    // Load writer names after loading fields
+    loadWriterNames();
 
     loading.value = false;
   } catch (err) {
@@ -64,8 +71,6 @@ async function loadEntityDetails() {
     loading.value = false;
   }
 }
-
-
 
 async function startEditing(fieldType: string) {
   editingField.value = fieldType;
@@ -98,6 +103,54 @@ async function saveField(fieldType: string, newValue: any) {
 function cancelEditing() {
   editingField.value = null;
 }
+
+// Load writer names for all fields
+async function loadWriterNames() {
+  // Collect unique writer IDs
+  const writerIds = new Set<EntityId>();
+  fields.value.forEach(field => {
+    if (field.writerId) {
+      writerIds.add(field.writerId);
+    }
+  });
+  
+  // Load each writer's name
+  writerIds.forEach(async (writerId) => {
+    if (!writerId || writerNames.value[writerId]) return;
+    
+    loadingWriterNames.value[writerId] = true;
+    
+    try {
+      const writerEntity = EntityFactories.newEntity(writerId);
+      const nameField = writerEntity.field("Name");
+      
+      // Check if entity exists before trying to read it
+      const exists = await dataStore.entityExists(writerId);
+      if (!exists) {
+        writerNames.value[writerId] = "Unknown User";
+        loadingWriterNames.value[writerId] = false;
+        return;
+      }
+      
+      await dataStore.read([nameField]);
+      
+      const writerName = nameField.value.getString();
+      writerNames.value[writerId] = writerName || writerId;
+    } catch (err) {
+      console.error(`Error loading writer name for ${writerId}:`, err);
+      writerNames.value[writerId] = writerId; // Fallback to ID on error
+    } finally {
+      loadingWriterNames.value[writerId] = false;
+    }
+  });
+}
+
+// Call loadWriterNames on component mount
+onMounted(() => {
+  if (fields.value.length > 0) {
+    loadWriterNames();
+  }
+});
 </script>
 
 <template>
@@ -126,7 +179,7 @@ function cancelEditing() {
       <table class="fields-table">
         <thead>
           <tr>
-            <th class="field-name-header">Field</th>
+            <th class="field-name-header">Field Name</th>
             <th class="field-value-header">Value</th>
             <th class="field-meta-header">Last Modified</th>
           </tr>
@@ -158,7 +211,15 @@ function cancelEditing() {
                 {{ field.writeTime ? formatTimestamp(field.writeTime) : 'N/A' }}
               </div>
               <div class="field-writer" :title="field.writerId || 'Unknown'">
-                {{ field.writerId || '' }}
+                <span v-if="writerNames[field.writerId]">
+                  {{ writerNames[field.writerId] }}
+                </span>
+                <span v-else-if="loadingWriterNames[field.writerId]" class="loading-writer">
+                  Loading...
+                </span>
+                <span v-else>
+                  {{ field.writerId || '' }}
+                </span>
               </div>
             </td>
           </tr>
@@ -317,6 +378,11 @@ function cancelEditing() {
 }
 
 .field-writer {
+  font-size: var(--qui-font-size-small);
+  color: var(--qui-text-secondary);
+}
+
+.loading-writer {
   font-style: italic;
   opacity: 0.7;
 }
