@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { useSecurityStore } from './security'
 import { useDataStore } from './data'
 import { useAppStore } from './apps'
+import { hasKeycloakCallbackParams } from '@/core/security/keycloak'
 import type { SecurityProfile } from '@/core/security/types'
 import type { AuthProvider } from '@/core/security/auth-provider'
 import { KeycloakAuthProvider } from '@/core/security/keycloak-provider'
@@ -59,9 +60,28 @@ export const useAuthStore = defineStore('auth', {
       this.setupAuthProviders();
       
       try {
+        // Check if we're in a Keycloak callback
+        const isKeycloakCallback = hasKeycloakCallbackParams();
+        
+        // If we're in a Keycloak callback, try Keycloak first
+        if (isKeycloakCallback) {
+          console.log("Processing Keycloak callback");
+          const keycloakProvider = this.authProviders.keycloak;
+          const isAuthenticated = await keycloakProvider.initialize();
+          
+          if (isAuthenticated) {
+            return this.finalizeSuccessfulAuth(keycloakProvider);
+          }
+        }
+        
         // Try each provider in order until one works
         for (const provider of Object.values(this.authProviders)) {
           console.log(`Trying authentication provider: ${provider.getProviderName()}`);
+          
+          // Skip re-initializing Keycloak if we already tried it
+          if (isKeycloakCallback && provider.getProviderName() === 'keycloak') {
+            continue;
+          }
           
           const isAuthenticated = await provider.initialize();
           if (isAuthenticated) {
@@ -77,7 +97,7 @@ export const useAuthStore = defineStore('auth', {
     },
     
     /**
-     * Login with Keycloak SSO
+     * Login with Keycloak SSO (direct redirect approach)
      */
     async login(idpHint?: string) {
       this.setupAuthProviders();
@@ -89,8 +109,10 @@ export const useAuthStore = defineStore('auth', {
       
       const keycloakProvider = this.authProviders.keycloak;
       try {
+        // This will redirect to Keycloak
         await keycloakProvider.login(idpHint);
-        return false; // The page will redirect, so this won't actually return
+        // The page will redirect, so we won't actually reach this point
+        return true;
       } catch (error) {
         console.error('Keycloak login failed:', error);
         throw error;

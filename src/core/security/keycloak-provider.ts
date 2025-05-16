@@ -4,7 +4,8 @@ import {
   login as keycloakLogin, 
   logout as keycloakLogout,
   getUserProfile,
-  useKeycloakState
+  useKeycloakState,
+  hasKeycloakCallbackParams
 } from './keycloak';
 
 /**
@@ -27,7 +28,17 @@ export class KeycloakAuthProvider implements AuthProvider {
    */
   async initialize(): Promise<boolean> {
     try {
+      // Check if we are in the middle of a Keycloak callback
+      const isCallback = hasKeycloakCallbackParams();
+      
+      // Initialize Keycloak
       await initKeycloak();
+      
+      // If we're in a callback, we should be authenticated now
+      if (isCallback && !this.isAuthenticated()) {
+        console.warn("Received Keycloak callback but not authenticated");
+      }
+      
       return this.isAuthenticated();
     } catch (error) {
       console.error('Failed to initialize Keycloak:', error);
@@ -41,8 +52,9 @@ export class KeycloakAuthProvider implements AuthProvider {
    */
   async login(idpHint?: string): Promise<boolean> {
     try {
+      // This will redirect to Keycloak
       await keycloakLogin(idpHint);
-      // This will redirect, so we won't actually return true
+      // The page will redirect, so we won't get here
       return true;
     } catch (error) {
       console.error('Keycloak login failed:', error);

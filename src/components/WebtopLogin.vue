@@ -2,6 +2,7 @@
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import QeiLogo from '@/components/common/QeiLogo.vue'
 import { useAuthStore } from '@/stores/auth'
+import { hasKeycloakCallbackParams } from '@/core/security/keycloak'
 
 const emit = defineEmits<{
   (e: 'login', username: string): void
@@ -15,84 +16,36 @@ const password = ref('')
 const loginMethod = ref('password') // 'password', 'sso', 'google', 'microsoft'
 const isRecovering = ref(false)
 const ssoAvailable = ref(true) // Will be set based on Keycloak initialization
-
-// Handle messages from the silent-check-sso.html iframe
-const handleSsoMessage = (event: MessageEvent) => {
-  // Only process messages from our origin
-  if (event.origin !== window.location.origin) return;
-  
-  // Check if this is our SSO message
-  if (event.data && event.data.type === 'sso-auth-success') {
-    console.log('Received SSO auth success message');
-    // Force a re-check of authentication
-    checkAuthentication();
-  }
-}
-
-// Add listener for SSO messages
-onMounted(() => {
-  window.addEventListener('message', handleSsoMessage);
-});
-
-onBeforeUnmount(() => {
-  window.removeEventListener('message', handleSsoMessage);
-});
-
-// Function to check authentication status
-const checkAuthentication = async () => {
-  try {
-    const isAuthenticated = await authStore.initializeAuth();
-    if (isAuthenticated) {
-      emit('login', authStore.username);
-    }
-    return isAuthenticated;
-  } catch (error) {
-    console.error('Error checking authentication:', error);
-    return false;
-  }
-}
-
-// Extract token from URL if it's a callback from Keycloak
-const checkAuthenticationCallback = () => {
-  const urlParams = new URLSearchParams(window.location.search);
-  const code = urlParams.get('code');
-  const sessionState = urlParams.get('session_state');
-  
-  // If we have code and session_state, we might be in an OAuth callback
-  if (code && sessionState) {
-    isLoading.value = true;
-    return true;
-  }
-  return false;
-}
+const isKeycloakCallback = ref(false)
 
 onMounted(async () => {
   isLoading.value = true;
   isRecovering.value = true;
-  const isCallback = checkAuthenticationCallback();
+  
+  // Check if we're in a Keycloak callback
+  isKeycloakCallback.value = hasKeycloakCallbackParams();
+  
+  if (isKeycloakCallback.value) {
+    console.log("Detected Keycloak callback, processing...");
+  }
   
   try {
     // Set up auth providers and check if already authenticated
     const isAuthenticated = await checkAuthentication();
     
     // Update SSO availability status based on Keycloak provider
-    ssoAvailable.value = authStore.authProviders?.keycloak?.isAuthenticated != null;
+    ssoAvailable.value = !!authStore.authProviders?.keycloak;
     
-    if (!isAuthenticated && isCallback) {
+    if (isAuthenticated) {
+      emit('login', authStore.username);
+    } else if (isKeycloakCallback.value) {
       // If we were redirected but not authenticated, show error
-      error.value = 'Authentication failed. Please try again.';
+      error.value = 'SSO authentication failed. Please try again.';
       
-      // If we're in a callback but SSO is not available, show a clearer error
-      if (!ssoAvailable.value) {
-        error.value = 'SSO authentication is not available. Please use another login method.';
-        loginMethod.value = 'password'; // Fall back to password auth
-      }
-    }
-    
-    // Clean up URL if we came from a callback
-    if (isCallback) {
-      // Remove query parameters without reloading the page
-      window.history.replaceState({}, document.title, window.location.pathname);
+      // Remove callback params from URL without reloading
+      const url = new URL(window.location.href);
+      url.search = '';
+      window.history.replaceState({}, document.title, url.toString());
     }
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : 'Unknown error';
@@ -109,6 +62,17 @@ onMounted(async () => {
     isRecovering.value = false;
   }
 })
+
+// Function to check authentication status
+const checkAuthentication = async () => {
+  try {
+    const isAuthenticated = await authStore.initializeAuth();
+    return isAuthenticated;
+  } catch (error) {
+    console.error('Error checking authentication:', error);
+    return false;
+  }
+}
 
 const handleSubmit = async () => {
   isLoading.value = true
@@ -148,48 +112,29 @@ const handleSubmit = async () => {
         return
       }
       
-      // Keycloak SSO with timeout
+      // Redirect to Keycloak SSO - no need for timeout since it's a redirect
       try {
-        // Set up a timeout for the redirect
-        const ssoPromise = authStore.login()
-        const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('SSO login timed out after 5 seconds')), 5000)
-        })
-        
-        await Promise.race([ssoPromise, timeoutPromise])
-        // Note: If successful, page will redirect to Keycloak
+        await authStore.login();
+        // The page will redirect to Keycloak, so we won't reach here
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Authentication failed'
-        if (errorMessage.includes('timed out')) {
-          error.value = 'Connection timed out. Please try again later.'
-        } else {
-          error.value = errorMessage;
-          // If SSO is not available, update the UI
-          if (errorMessage.includes('SSO system is not available')) {
-            ssoAvailable.value = false;
-            loginMethod.value = 'password'; // Fall back to password auth
-          }
+        error.value = errorMessage;
+        
+        // If SSO is not available, update the UI
+        if (errorMessage.includes('SSO')) {
+          ssoAvailable.value = false;
+          loginMethod.value = 'password'; // Fall back to password auth
         }
         throw err
       }
     } else {
-      // Social login (Google, Microsoft, etc.) with timeout
+      // Social login (Google, Microsoft, etc.) - also a redirect
       try {
-        // Set up a timeout for the redirect
-        const providerPromise = authStore.loginWithProvider(loginMethod.value)
-        const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error(`${loginMethod.value} login timed out after 5 seconds`)), 5000)
-        })
-        
-        await Promise.race([providerPromise, timeoutPromise])
+        await authStore.loginWithProvider(loginMethod.value)
         // Will redirect to the provider's auth page
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Authentication failed'
-        if (errorMessage.includes('timed out')) {
-          error.value = 'Connection timed out. Please try again later.'
-        } else {
-          error.value = errorMessage;
-        }
+        error.value = errorMessage;
         throw err
       }
     }

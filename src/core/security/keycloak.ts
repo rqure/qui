@@ -26,11 +26,11 @@ export async function initKeycloak(config = keycloakConfig) {
 
     await keycloakInstance.init({
       onLoad: 'check-sso',
-      // Remove silent check since it uses iframes which are blocked by CSP
-      silentCheckSsoRedirectUri: undefined,
+      silentCheckSsoRedirectUri: undefined, // Disable silent check
       checkLoginIframe: false, // Disable iframe checks to avoid CSP issues
       pkceMethod: 'S256', // Use PKCE for more secure auth flow
-      enableLogging: true
+      enableLogging: true,
+      flow: 'standard' // Use standard flow with redirects
     })
 
     initialized.value = true
@@ -59,14 +59,15 @@ export function getKeycloak() {
 }
 
 /**
- * Login using Keycloak
+ * Login using Keycloak - direct redirect approach
  * @param idpHint Optional identity provider hint for social logins
  */
 export async function login(idpHint?: string) {
   const keycloak = getKeycloak()
   
   const options: Keycloak.KeycloakLoginOptions = {
-    redirectUri: window.location.origin
+    redirectUri: window.location.origin + window.location.pathname,
+    prompt: 'login' // Always show the login screen
   }
   
   // If idpHint is provided, add it to the options
@@ -123,4 +124,12 @@ export function useKeycloakState() {
     authenticated,
     keycloak: keycloakInstance
   }
+}
+
+/**
+ * Check if current URL contains Keycloak callback parameters
+ */
+export function hasKeycloakCallbackParams(): boolean {
+  const urlParams = new URLSearchParams(window.location.search)
+  return urlParams.has('code') && urlParams.has('session_state')
 }
