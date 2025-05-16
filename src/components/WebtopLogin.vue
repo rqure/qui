@@ -13,6 +13,7 @@ const error = ref('')
 const username = ref('')
 const password = ref('')
 const loginMethod = ref('password') // 'password', 'sso', 'google', 'microsoft'
+const isRecovering = ref(false)
 
 // Extract token from URL if it's a callback from Keycloak
 const checkAuthenticationCallback = () => {
@@ -30,6 +31,7 @@ const checkAuthenticationCallback = () => {
 
 onMounted(async () => {
   isLoading.value = true;
+  isRecovering.value = true;
   const isCallback = checkAuthenticationCallback();
   
   try {
@@ -52,6 +54,7 @@ onMounted(async () => {
     console.error(err);
   } finally {
     isLoading.value = false;
+    isRecovering.value = false;
   }
 })
 
@@ -144,7 +147,7 @@ const selectLoginMethod = (method: string) => {
       
       <div v-if="isLoading" class="loading-indicator">
         <span class="loading-spinner"></span>
-        <p>Authenticating...</p>
+        <p>{{ isRecovering ? 'Checking for saved session...' : 'Authenticating...' }}</p>
       </div>
       
       <form v-else class="login-form" @submit.prevent="handleSubmit">

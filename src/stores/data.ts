@@ -171,14 +171,24 @@ export const useDataStore = defineStore('data', {
             let accessToken = '';
             
             try {
-                // Try to get token from Keycloak first
-                const keycloak = getKeycloak();
-                if (keycloak && keycloak.token) {
-                    accessToken = keycloak.token;
-                } else {
-                    // Fallback to auth store if keycloak isn't available or initialized
-                    const authStore = useAuthStore();
-                    if (authStore.isAuthenticated && authStore.userProfile?.token) {
+                // Get auth store
+                const authStore = useAuthStore();
+                
+                // If authenticated with credentials, use token from profile
+                if (authStore.isAuthenticated && 
+                    authStore.authMethod === 'credentials' && 
+                    authStore.userProfile?.token) {
+                    accessToken = authStore.userProfile.token;
+                } 
+                // Otherwise try to get token from Keycloak
+                else {
+                    // Try to get token from Keycloak
+                    const keycloak = getKeycloak();
+                    if (keycloak && keycloak.token) {
+                        accessToken = keycloak.token;
+                    } 
+                    // Fallback to auth store if keycloak isn't available
+                    else if (authStore.isAuthenticated && authStore.userProfile?.token) {
                         accessToken = authStore.userProfile.token;
                     }
                 }

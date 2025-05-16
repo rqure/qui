@@ -28,8 +28,12 @@ export function withSecurity(component: Component, context: SecurityContext) {
       const security = useSecurityStore()
       const check = security.checkSecurity(context)
 
-      if (!check.hasPermission || !check.hasAOR) {
-        throw new Error('Access denied: Insufficient permissions')
+      if (!check.hasPermission) {
+        throw new Error(`Access denied: Missing required permission${context.requiredPermissions && context.requiredPermissions.length > 0 ? ': ' + context.requiredPermissions.join(', ') : ''}`)
+      }
+      
+      if (!check.hasAOR) {
+        throw new Error(`Access denied: Missing required area of responsibility${context.requiredAOR && context.requiredAOR.length > 0 ? ': ' + context.requiredAOR.join(', ') : ''}`)
       }
     },
   }

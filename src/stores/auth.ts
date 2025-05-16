@@ -14,17 +14,34 @@ import {
 import { getApiBaseUrl, getAuthServiceBaseUrl2 } from '@/core/utils/url'
 import databaseBrowserApp from '@/apps/database-browser'
 
+// Token refresh constants
+const TOKEN_REFRESH_INTERVAL_MS = 4 * 60 * 1000 // 4 minutes
+const REFRESH_TOKEN_STORAGE_KEY = 'qui_refresh_token'
+const USER_PROFILE_STORAGE_KEY = 'qui_user_profile'
+
+// Define specific auth method type
+type AuthMethod = 'keycloak' | 'credentials' | '';
+
 export const useAuthStore = defineStore('auth', {
   state: () => ({
     isAuthenticated: false,
     username: '',
     userProfile: null as Record<string, any> | null,
     isKeycloakInitialized: false,
+    refreshTokenInterval: null as number | null,
+    authMethod: '' as AuthMethod,
   }),
 
   actions: {
     async initializeAuth() {
       try {
+        // First try to recover session from stored refresh token
+        const recovered = await this.recoverSessionFromStorage()
+        if (recovered) {
+          return true
+        }
+        
+        // If no stored session, try Keycloak
         const keycloak = await initKeycloak()
         this.isKeycloakInitialized = true
         
@@ -32,7 +49,8 @@ export const useAuthStore = defineStore('auth', {
           const profile = await getUserProfile()
           const success = await this.handleSuccessfulAuth(
             profile?.username || keycloak.tokenParsed?.preferred_username || 'unknown',
-            profile as Record<string, any> | null
+            profile as Record<string, any> | null,
+            'keycloak'
           )
           
           if (success) {
@@ -49,6 +67,82 @@ export const useAuthStore = defineStore('auth', {
         return false
       } catch (error) {
         console.error('Failed to initialize authentication:', error)
+        return false
+      }
+    },
+    
+    // Try to recover session from stored refresh token
+    async recoverSessionFromStorage() {
+      try {
+        const refreshToken = localStorage.getItem(REFRESH_TOKEN_STORAGE_KEY)
+        if (!refreshToken) {
+          return false
+        }
+        
+        const storedProfile = localStorage.getItem(USER_PROFILE_STORAGE_KEY)
+        let parsedProfile: Record<string, any> | null = null
+        
+        if (storedProfile) {
+          try {
+            parsedProfile = JSON.parse(storedProfile)
+          } catch (e) {
+            console.warn('Failed to parse stored user profile')
+          }
+        }
+        
+        // Try to refresh the token
+        const authEndpoint = `${getAuthServiceBaseUrl2()}auth`
+        
+        const response = await fetch(authEndpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+          },
+          body: JSON.stringify({
+            refreshToken
+          }),
+          credentials: 'include',
+          mode: 'cors',
+        })
+        
+        if (!response.ok) {
+          // Clear invalid stored tokens
+          localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY)
+          localStorage.removeItem(USER_PROFILE_STORAGE_KEY)
+          return false
+        }
+        
+        const data = await response.json()
+        
+        if (!data.success) {
+          // Clear invalid stored tokens
+          localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY)
+          localStorage.removeItem(USER_PROFILE_STORAGE_KEY)
+          return false
+        }
+        
+        // Update the profile with new tokens
+        const updatedProfile = {
+          ...parsedProfile,
+          username: data.username || parsedProfile?.username || 'unknown',
+          token: data.accessToken,
+          refreshToken: data.refreshToken,
+        }
+        
+        const success = await this.handleSuccessfulAuth(
+          updatedProfile.username,
+          updatedProfile,
+          'credentials'
+        )
+        
+        if (success) {
+          console.log('Session recovered successfully from refresh token')
+        }
+        
+        return success
+      } catch (error) {
+        console.warn('Failed to recover session:', error)
         return false
       }
     },
@@ -110,17 +204,24 @@ export const useAuthStore = defineStore('auth', {
         // Process the successful response
         const data = await response.json()
         
+        if (!data.success) {
+          throw new Error(data.message || 'Authentication failed')
+        }
+        
         // Construct user profile from response data
         const profile = {
           username: data.username || username,
-          name: data.name || username,
+          name: data.username || username,
           email: data.email || '',
+          token: data.accessToken,
+          refreshToken: data.refreshToken,
           ...data, // Include any other data from the response
         }
         
         return this.handleSuccessfulAuth(
           profile.username,
-          profile
+          profile,
+          'credentials'
         )
       } catch (error) {
         console.error('Login failed:', error)
@@ -157,8 +258,88 @@ export const useAuthStore = defineStore('auth', {
       })
     },
     
+    // Setup token refresh for credentials-based authentication
+    setupTokenRefresh() {
+      // Clear any existing interval
+      if (this.refreshTokenInterval) {
+        clearInterval(this.refreshTokenInterval)
+      }
+      
+      // Only set up refresh for credentials-based auth
+      if (this.authMethod !== 'credentials' || !this.userProfile?.refreshToken) {
+        return
+      }
+      
+      // Set up interval to refresh token
+      this.refreshTokenInterval = window.setInterval(async () => {
+        try {
+          await this.refreshToken()
+        } catch (error) {
+          console.error('Failed to refresh token:', error)
+          // If token refresh fails, log out
+          this.logout()
+        }
+      }, TOKEN_REFRESH_INTERVAL_MS)
+    },
+    
+    // Refresh token for credentials-based auth
+    async refreshToken() {
+      if (this.authMethod !== 'credentials' || !this.userProfile?.refreshToken) {
+        return false
+      }
+      
+      try {
+        const authEndpoint = `${getAuthServiceBaseUrl2()}auth`
+        
+        const response = await fetch(authEndpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+          },
+          body: JSON.stringify({
+            refreshToken: this.userProfile.refreshToken
+          }),
+          credentials: 'include',
+          mode: 'cors',
+        })
+        
+        if (!response.ok) {
+          throw new Error(`Token refresh failed with status: ${response.status}`)
+        }
+        
+        const data = await response.json()
+        
+        if (!data.success) {
+          throw new Error(data.message || 'Token refresh failed')
+        }
+        
+        // Update tokens in profile
+        if (this.userProfile) {
+          this.userProfile.token = data.accessToken
+          this.userProfile.refreshToken = data.refreshToken
+          
+          // Update stored profile
+          this.persistUserSession()
+        }
+        
+        return true
+      } catch (error) {
+        console.error('Token refresh failed:', error)
+        throw error
+      }
+    },
+    
+    // Persist user session in localStorage
+    persistUserSession() {
+      if (this.userProfile?.refreshToken && this.authMethod === 'credentials') {
+        localStorage.setItem(REFRESH_TOKEN_STORAGE_KEY, this.userProfile.refreshToken)
+        localStorage.setItem(USER_PROFILE_STORAGE_KEY, JSON.stringify(this.userProfile))
+      }
+    },
+    
     // Update the handleSuccessfulAuth to also set up the connection lost handler
-    async handleSuccessfulAuth(username: string, profile: Record<string, any> | null = null) {
+    async handleSuccessfulAuth(username: string, profile: Record<string, any> | null = null, authMethod: 'keycloak' | 'credentials' = 'keycloak') {
       // Security profile can come from Keycloak roles/groups
       const mockSecurityProfile: SecurityProfile = {
         permissions: ['app.launch', 'window.create'],
@@ -168,6 +349,7 @@ export const useAuthStore = defineStore('auth', {
       this.username = username
       this.userProfile = profile
       this.isAuthenticated = true
+      this.authMethod = authMethod
       
       // Set security profile
       const securityStore = useSecurityStore()
@@ -179,6 +361,14 @@ export const useAuthStore = defineStore('auth', {
       
       // Set up connection lost handler
       this.setupConnectionLostHandler()
+      
+      // Set up token refresh for credentials-based auth
+      if (authMethod === 'credentials') {
+        this.setupTokenRefresh()
+        
+        // Persist the session
+        this.persistUserSession()
+      }
       
       // Register apps after successful login
       this.registerApps()
@@ -206,15 +396,34 @@ export const useAuthStore = defineStore('auth', {
         // Remove our connection lost callback to avoid recursion during logout
         dataStore.removeConnectionLostCallback(this.setupConnectionLostHandler)
         
+        // Clear token refresh interval
+        if (this.refreshTokenInterval) {
+          clearInterval(this.refreshTokenInterval)
+          this.refreshTokenInterval = null
+        }
+        
+        // Clear stored session
+        localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY)
+        localStorage.removeItem(USER_PROFILE_STORAGE_KEY)
+        
         dataStore.cleanup()
         
-        // Clean up Keycloak resources
-        cleanupKeycloak()
+        // Clean up Keycloak resources if that was our auth method
+        if (this.authMethod === 'keycloak') {          
+          try {
+            await keycloakLogout()
+          } catch (err) {
+            console.error('Failed to logout from Keycloak:', err)
+          }
+
+          cleanupKeycloak()
+        }
         
         // Then reset local state
         this.username = ''
         this.userProfile = null
         this.isAuthenticated = false
+        this.authMethod = ''
         
         // Reset security profile by setting an empty profile
         const securityStore = useSecurityStore()
@@ -222,16 +431,6 @@ export const useAuthStore = defineStore('auth', {
           permissions: [],
           areaOfResponsibility: []
         })
-        
-        // Log out of Keycloak if initialized
-        if (this.isKeycloakInitialized) {
-          try {
-            await keycloakLogout()
-          } catch (err) {
-            console.error('Failed to logout from Keycloak:', err)
-            // Continue with local logout even if Keycloak logout fails
-          }
-        }
         
         return true
       } catch (error) {
