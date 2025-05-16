@@ -11,7 +11,7 @@ const authenticated = ref(false)
 
 // Token refresh interval
 let tokenRefreshInterval: number | null = null
-const tokenRefreshIntervalMs = 30000 // Check every 30 seconds
+const tokenRefreshIntervalMs = 60000 // Check every minute
 
 // Event callbacks
 const onTokenRefreshedCallbacks: Array<(token: string) => void> = []
@@ -32,38 +32,23 @@ export async function initKeycloak(config = keycloakConfig) {
       clientId: config.clientId
     })
 
-    // Set up event handlers before initialization
+    // Set up token expired handler
     keycloakInstance.onTokenExpired = () => {
-      console.log('Token expired, attempting refresh')
-      refreshToken(60)
-        .then(refreshed => {
-          if (!refreshed) {
-            // If refresh fails, notify listeners
-            onTokenExpiredCallbacks.forEach(callback => {
-              try {
-                callback()
-              } catch (error) {
-                console.error('Error in token expired callback:', error)
-              }
-            })
-          }
-        })
+      refreshToken()
     }
 
     // Initialize Keycloak
     await keycloakInstance.init({
       onLoad: 'check-sso',
-      // Remove silent check since it uses iframes which are blocked by CSP
       silentCheckSsoRedirectUri: undefined,
-      checkLoginIframe: false, // Disable iframe checks to avoid CSP issues
-      pkceMethod: 'S256', // Use PKCE for more secure auth flow
-      enableLogging: true
+      checkLoginIframe: false,
+      pkceMethod: 'S256'
     })
 
     initialized.value = true
     authenticated.value = keycloakInstance.authenticated || false
     
-    // Setup refresh token mechanism
+    // Setup refresh token mechanism if authenticated
     if (authenticated.value) {
       setupTokenRefresh()
     }
@@ -106,18 +91,17 @@ export function onTokenExpired(callback: () => void): () => void {
 }
 
 /**
- * Explicitly refresh the token
+ * Refresh the token
  */
-export async function refreshToken(minValidity = 60): Promise<boolean> {
+export async function refreshToken(minValidity = 30): Promise<boolean> {
   try {
     if (!keycloakInstance) {
-      console.warn('Keycloak not initialized')
       return false
     }
 
     const refreshed = await keycloakInstance.updateToken(minValidity)
     
-    // Notify listeners when token is refreshed
+    // If token was refreshed, notify listeners
     if (refreshed && keycloakInstance.token) {
       onTokenRefreshedCallbacks.forEach(callback => {
         try {
@@ -126,11 +110,32 @@ export async function refreshToken(minValidity = 60): Promise<boolean> {
           console.error('Error in token refresh callback:', error)
         }
       })
+    } else if (!refreshed && keycloakInstance.isTokenExpired()) {
+      // Token is expired and couldn't be refreshed
+      onTokenExpiredCallbacks.forEach(callback => {
+        try {
+          callback()
+        } catch (error) {
+          console.error('Error in token expired callback:', error)
+        }
+      })
     }
     
     return refreshed
   } catch (error) {
     console.error('Failed to refresh token:', error)
+    
+    // If refresh fails due to an error and token is expired, notify listeners
+    if (keycloakInstance?.isTokenExpired()) {
+      onTokenExpiredCallbacks.forEach(callback => {
+        try {
+          callback()
+        } catch (error) {
+          console.error('Error in token expired callback:', error)
+        }
+      })
+    }
+    
     return false
   }
 }
@@ -147,7 +152,6 @@ export function getKeycloak() {
 
 /**
  * Login using Keycloak
- * @param idpHint Optional identity provider hint for social logins
  */
 export async function login(idpHint?: string) {
   const keycloak = getKeycloak()
@@ -156,7 +160,6 @@ export async function login(idpHint?: string) {
     redirectUri: window.location.origin
   }
   
-  // If idpHint is provided, add it to the options
   if (idpHint) {
     options.idpHint = idpHint
   }
@@ -204,18 +207,9 @@ function setupTokenRefresh() {
   
   // Create a new interval to check the token periodically
   tokenRefreshInterval = window.setInterval(() => {
-    if (keycloakInstance?.isTokenExpired(30)) {
-      refreshToken(60)
-        .then(refreshed => {
-          if (refreshed) {
-            console.log('Token was successfully refreshed')
-          }
-        })
-        .catch(error => {
-          console.error('Error refreshing token:', error)
-          authenticated.value = false
-          console.warn('Failed to refresh token, user may need to re-authenticate')
-        })
+    // Try to refresh if token will expire in next 90 seconds
+    if (keycloakInstance?.token) {
+      refreshToken(90)
     }
   }, tokenRefreshIntervalMs)
 }

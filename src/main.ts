@@ -10,6 +10,4 @@ const app = createApp(App)
 const pinia = createPinia()
 app.use(pinia)
 
-// Remove app registration from here - it will be handled after login
-
 app.mount('#app')

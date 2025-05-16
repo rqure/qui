@@ -8,7 +8,8 @@ import {
   login as keycloakLogin, 
   logout as keycloakLogout,
   getUserProfile,
-  cleanup as cleanupKeycloak
+  cleanup as cleanupKeycloak,
+  onTokenExpired
 } from '@/core/security/keycloak'
 import { getApiBaseUrl, getAuthServiceBaseUrl2 } from '@/core/utils/url'
 import databaseBrowserApp from '@/apps/database-browser'
@@ -37,6 +38,9 @@ export const useAuthStore = defineStore('auth', {
           if (success) {
             // Register connection lost handler after successful authentication
             this.setupConnectionLostHandler()
+            
+            // Set up token refresh monitor to detect invalid sessions
+            this.monitorTokenRefreshFailures()
           }
           
           return success
@@ -47,6 +51,15 @@ export const useAuthStore = defineStore('auth', {
         console.error('Failed to initialize authentication:', error)
         return false
       }
+    },
+    
+    // Add a new method to monitor token refresh failures
+    monitorTokenRefreshFailures() {
+      // Register for token expired notifications using the imported function
+      onTokenExpired(() => {
+        console.warn('Token expired and could not be refreshed. Logging out...')
+        this.logout()
+      })
     },
     
     async login() {
