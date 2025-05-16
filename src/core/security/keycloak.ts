@@ -48,10 +48,12 @@ export async function initKeycloak(config = keycloakConfig) {
 
     // Initialize with proper error handling - fixed type issue here
     await keycloakInstance.init({
-      onLoad: 'check-sso' as Keycloak.KeycloakOnLoad,
-      silentCheckSsoRedirectUri: window.location.origin + '/silent-check-sso.html',
-      checkLoginIframe: false,
-      pkceMethod: 'S256'
+      onLoad: 'check-sso',
+      // Remove silent check since it uses iframes which are blocked by CSP
+      silentCheckSsoRedirectUri: undefined,
+      checkLoginIframe: false, // Disable iframe checks to avoid CSP issues
+      pkceMethod: 'S256', // Use PKCE for more secure auth flow
+      enableLogging: true
     });
 
     initialized.value = true
