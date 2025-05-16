@@ -26,6 +26,7 @@ export async function initKeycloak(config = keycloakConfig) {
 
     await keycloakInstance.init({
       onLoad: 'check-sso',
+      silentCheckSsoRedirectUri: `${window.location.origin}/silent-check-sso.html`,
       pkceMethod: 'S256',
       enableLogging: true,
     })

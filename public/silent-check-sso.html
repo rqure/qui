@@ -1,7 +1,8 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
-<head>
-    <script type="module" src="/src/core/security/silent-sso-check.ts"></script>
-</head>
-<body></body>
+<body>
+    <script>
+        parent.postMessage(location.href, location.origin);
+    </script>
+</body>
 </html>
