@@ -54,18 +54,10 @@ export function getAuthServiceBaseUrl2(): string {
  * Gets the base URL for authentication services like Keycloak
  * By default uses the same hostname as the current page but with port 8080
  */
-export function getAuthServiceBaseUrl(): string {
-  const protocol = window.location.protocol
-  const hostname = window.location.hostname
-  
+export function getAuthServiceBaseUrl(): string {  
   // Use the environment variable if available
   if (import.meta.env.VITE_AUTH_SERVICE_URL) {
     return import.meta.env.VITE_AUTH_SERVICE_URL
-  }
-  
-  // Otherwise construct URL from current hostname
-  if (hostname === 'localhost' || hostname === '127.0.0.1') {
-    return `${protocol}//${hostname}:8080`
   }
   
   // In production, we might use the same domain/host with a path prefix

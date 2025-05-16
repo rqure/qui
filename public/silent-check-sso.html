@@ -1,25 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Silent SSO Check</title>
+    <script type="module" src="/src/core/security/silent-sso-check.ts"></script>
 </head>
-<body>
-  <script>
-    // This page is used by Keycloak to silently check SSO status
-    // without disturbing the user experience
-    
-    // Using safer cross-document messaging
-    try {
-      // Send only the URL string, which is what Keycloak expects
-      if (window.parent && window.location.origin) {
-        window.parent.postMessage(
-          window.location.href,
-          window.location.origin
-        );
-      }
-    } catch (error) {
-      console.error('Error during silent check SSO:', error);
-    }
-  </script>
-</body>
+<body></body>
 </html>

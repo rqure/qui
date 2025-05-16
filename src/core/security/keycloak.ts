@@ -26,11 +26,8 @@ export async function initKeycloak(config = keycloakConfig) {
 
     await keycloakInstance.init({
       onLoad: 'check-sso',
-      silentCheckSsoRedirectUri: undefined, // Disable silent check
-      checkLoginIframe: false, // Disable iframe checks to avoid CSP issues
-      pkceMethod: 'S256', // Use PKCE for more secure auth flow
+      pkceMethod: 'S256',
       enableLogging: true,
-      flow: 'standard' // Use standard flow with redirects
     })
 
     initialized.value = true
