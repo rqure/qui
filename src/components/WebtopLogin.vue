@@ -72,11 +72,11 @@ onMounted(async () => {
   const isCallback = checkAuthenticationCallback();
   
   try {
-    // Try to initialize Keycloak and check if already authenticated
+    // Set up auth providers and check if already authenticated
     const isAuthenticated = await checkAuthentication();
     
-    // Update SSO availability status
-    ssoAvailable.value = authStore.isKeycloakInitialized;
+    // Update SSO availability status based on Keycloak provider
+    ssoAvailable.value = authStore.authProviders?.keycloak?.isAuthenticated != null;
     
     if (!isAuthenticated && isCallback) {
       // If we were redirected but not authenticated, show error
