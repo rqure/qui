@@ -2,13 +2,29 @@
 <html>
 <head>
   <title>Silent SSO Check</title>
+</head>
+<body>
   <script>
     // This page is used by Keycloak to silently check SSO status
     // without disturbing the user experience
+    
+    // Fix for sandbox escape issue - use safer postMessage approach
+    if (window.parent !== window) {
+      // Only if we're in an iframe
+      try {
+        // Use origin-specific messaging for security
+        const parentOrigin = window.location.origin;
+        window.parent.postMessage({
+          type: 'sso-auth-success',
+          url: window.location.href
+        }, parentOrigin);
+      } catch (error) {
+        console.error('Silent check SSO error:', error);
+      }
+    }
+
+    // Fallback for older Keycloak versions that expect this behavior
     parent.postMessage(location.href, location.origin);
   </script>
-</head>
-<body>
-  <!-- This page intentionally left blank -->
 </body>
 </html>

@@ -42,10 +42,21 @@ export const useAuthStore = defineStore('auth', {
         }
         
         // If no stored session, try Keycloak
-        const keycloak = await initKeycloak()
-        this.isKeycloakInitialized = true
+        let keycloak = null;
+        try {
+          // Add explicit error handling
+          keycloak = await initKeycloak().catch(error => {
+            console.error('Explicit Keycloak initialization error:', error);
+            return null;
+          });
+          
+          this.isKeycloakInitialized = keycloak !== null;
+        } catch (error) {
+          console.error('Keycloak initialization failed:', error);
+          this.isKeycloakInitialized = false;
+        }
         
-        if (keycloak.authenticated) {
+        if (keycloak && keycloak.authenticated) {
           const profile = await getUserProfile()
           const success = await this.handleSuccessfulAuth(
             profile?.username || keycloak.tokenParsed?.preferred_username || 'unknown',
@@ -158,7 +169,12 @@ export const useAuthStore = defineStore('auth', {
     
     async login() {
       if (!this.isKeycloakInitialized) {
-        await this.initializeAuth()
+        try {
+          await this.initializeAuth()
+        } catch (error) {
+          console.error('Failed to initialize Keycloak during login:', error);
+          throw new Error('SSO system is not available. Please try another login method.');
+        }
       }
       
       // If already authenticated, return early
@@ -166,9 +182,18 @@ export const useAuthStore = defineStore('auth', {
         return true
       }
       
-      // Otherwise, redirect to Keycloak login
-      await keycloakLogin()
-      return false // The page will redirect, so this won't actually return
+      // Only try Keycloak login if initialization was successful
+      if (this.isKeycloakInitialized) {
+        try {
+          await keycloakLogin()
+          return false // The page will redirect, so this won't actually return
+        } catch (error) {
+          console.error('Keycloak login failed:', error);
+          throw new Error('SSO login failed. Please try another login method.');
+        }
+      } else {
+        throw new Error('SSO system is not available. Please try another login method.');
+      }
     },
     
     async loginWithCredentials(username: string, password: string) {

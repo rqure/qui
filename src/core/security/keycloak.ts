@@ -21,11 +21,20 @@ const onTokenExpiredCallbacks: Array<() => void> = []
  * Initialize Keycloak with configuration
  */
 export async function initKeycloak(config = keycloakConfig) {
+  // If already initialized, return the instance
   if (keycloakInstance) {
     return keycloakInstance
   }
 
   try {
+    if (!config.url || !config.realm || !config.clientId) {
+      console.warn('Keycloak configuration is incomplete:', config);
+      initialized.value = false;
+      authenticated.value = false;
+      return null; // Return null instead of throwing to allow fallback auth methods
+    }
+
+    // Create Keycloak instance with provided config
     keycloakInstance = new Keycloak({
       url: config.url,
       realm: config.realm,
@@ -37,16 +46,20 @@ export async function initKeycloak(config = keycloakConfig) {
       refreshToken()
     }
 
-    // Initialize Keycloak
-    await keycloakInstance.init({
+    // Initialize with proper error handling
+    // Fix: Use the correct type for initOptions
+    const initOptions: Keycloak.KeycloakInitOptions = {
       onLoad: 'check-sso',
-      silentCheckSsoRedirectUri: undefined,
+      silentCheckSsoRedirectUri: window.location.origin + '/silent-check-sso.html',
       checkLoginIframe: false,
       pkceMethod: 'S256'
-    })
+    };
+
+    // Initialize Keycloak
+    const isAuthenticated = await keycloakInstance.init(initOptions);
 
     initialized.value = true
-    authenticated.value = keycloakInstance.authenticated || false
+    authenticated.value = isAuthenticated || false
     
     // Setup refresh token mechanism if authenticated
     if (authenticated.value) {
@@ -56,7 +69,14 @@ export async function initKeycloak(config = keycloakConfig) {
     return keycloakInstance
   } catch (error) {
     console.error('Failed to initialize Keycloak:', error)
-    throw error
+    
+    // Clean up on failure
+    keycloakInstance = null
+    initialized.value = false
+    authenticated.value = false
+    
+    // Return null instead of throwing to allow fallback auth methods
+    return null
   }
 }
 

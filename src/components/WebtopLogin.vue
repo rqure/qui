@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import QeiLogo from '@/components/common/QeiLogo.vue'
 import { useAuthStore } from '@/stores/auth'
 
@@ -14,6 +14,43 @@ const username = ref('')
 const password = ref('')
 const loginMethod = ref('password') // 'password', 'sso', 'google', 'microsoft'
 const isRecovering = ref(false)
+const ssoAvailable = ref(true) // Will be set based on Keycloak initialization
+
+// Handle messages from the silent-check-sso.html iframe
+const handleSsoMessage = (event: MessageEvent) => {
+  // Only process messages from our origin
+  if (event.origin !== window.location.origin) return;
+  
+  // Check if this is our SSO message
+  if (event.data && event.data.type === 'sso-auth-success') {
+    console.log('Received SSO auth success message');
+    // Force a re-check of authentication
+    checkAuthentication();
+  }
+}
+
+// Add listener for SSO messages
+onMounted(() => {
+  window.addEventListener('message', handleSsoMessage);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('message', handleSsoMessage);
+});
+
+// Function to check authentication status
+const checkAuthentication = async () => {
+  try {
+    const isAuthenticated = await authStore.initializeAuth();
+    if (isAuthenticated) {
+      emit('login', authStore.username);
+    }
+    return isAuthenticated;
+  } catch (error) {
+    console.error('Error checking authentication:', error);
+    return false;
+  }
+}
 
 // Extract token from URL if it's a callback from Keycloak
 const checkAuthenticationCallback = () => {
@@ -36,12 +73,20 @@ onMounted(async () => {
   
   try {
     // Try to initialize Keycloak and check if already authenticated
-    const isAuthenticated = await authStore.initializeAuth();
-    if (isAuthenticated) {
-      emit('login', authStore.username);
-    } else if (isCallback) {
+    const isAuthenticated = await checkAuthentication();
+    
+    // Update SSO availability status
+    ssoAvailable.value = authStore.isKeycloakInitialized;
+    
+    if (!isAuthenticated && isCallback) {
       // If we were redirected but not authenticated, show error
       error.value = 'Authentication failed. Please try again.';
+      
+      // If we're in a callback but SSO is not available, show a clearer error
+      if (!ssoAvailable.value) {
+        error.value = 'SSO authentication is not available. Please use another login method.';
+        loginMethod.value = 'password'; // Fall back to password auth
+      }
     }
     
     // Clean up URL if we came from a callback
@@ -50,8 +95,15 @@ onMounted(async () => {
       window.history.replaceState({}, document.title, window.location.pathname);
     }
   } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
     error.value = 'Failed to initialize authentication. Please try again.';
-    console.error(err);
+    console.error('Authentication initialization error:', errorMessage);
+    
+    // If SSO initialization specifically failed, update UI accordingly
+    if (errorMessage.includes('SSO')) {
+      ssoAvailable.value = false;
+      loginMethod.value = 'password'; // Fall back to password auth
+    }
   } finally {
     isLoading.value = false;
     isRecovering.value = false;
@@ -89,6 +141,13 @@ const handleSubmit = async () => {
         throw err
       }
     } else if (loginMethod.value === 'sso') {
+      // Check if SSO is available first
+      if (!ssoAvailable.value) {
+        error.value = 'SSO login is not available. Please use another login method.'
+        isLoading.value = false
+        return
+      }
+      
       // Keycloak SSO with timeout
       try {
         // Set up a timeout for the redirect
@@ -103,6 +162,13 @@ const handleSubmit = async () => {
         const errorMessage = err instanceof Error ? err.message : 'Authentication failed'
         if (errorMessage.includes('timed out')) {
           error.value = 'Connection timed out. Please try again later.'
+        } else {
+          error.value = errorMessage;
+          // If SSO is not available, update the UI
+          if (errorMessage.includes('SSO system is not available')) {
+            ssoAvailable.value = false;
+            loginMethod.value = 'password'; // Fall back to password auth
+          }
         }
         throw err
       }
@@ -121,6 +187,8 @@ const handleSubmit = async () => {
         const errorMessage = err instanceof Error ? err.message : 'Authentication failed'
         if (errorMessage.includes('timed out')) {
           error.value = 'Connection timed out. Please try again later.'
+        } else {
+          error.value = errorMessage;
         }
         throw err
       }
@@ -136,7 +204,14 @@ const handleSubmit = async () => {
 }
 
 const selectLoginMethod = (method: string) => {
+  // Only allow selecting SSO if it's available
+  if (method === 'sso' && !ssoAvailable.value) {
+    error.value = 'SSO login is not available. Please use another login method.';
+    return;
+  }
+  
   loginMethod.value = method
+  error.value = '' // Clear errors when changing methods
 }
 </script>
 
@@ -179,6 +254,7 @@ const selectLoginMethod = (method: string) => {
           v-else-if="loginMethod === 'sso'" 
           type="submit" 
           class="login-button sso-button"
+          :disabled="!ssoAvailable"
         >
           Sign in with SSO
         </button>
@@ -210,9 +286,10 @@ const selectLoginMethod = (method: string) => {
             <button 
               type="button" 
               class="icon-button sso-icon" 
-              :class="{ active: loginMethod === 'sso' }"
+              :class="{ active: loginMethod === 'sso', 'unavailable': !ssoAvailable }"
               @click="selectLoginMethod('sso')"
-              title="Single Sign-On">
+              :title="ssoAvailable ? 'Single Sign-On' : 'SSO Unavailable'"
+              :disabled="!ssoAvailable">
               <span class="visually-hidden">Single Sign-On</span>
             </button>
             
@@ -470,5 +547,16 @@ const selectLoginMethod = (method: string) => {
 @keyframes shine {
   from { left: -100%; }
   to { left: 100%; }
+}
+
+.icon-button.unavailable {
+  opacity: 0.5;
+  cursor: not-allowed;
+  filter: grayscale(100%);
+}
+
+.icon-button.unavailable:hover {
+  transform: none;
+  box-shadow: none;
 }
 </style>
