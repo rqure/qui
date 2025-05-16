@@ -10,12 +10,12 @@
     
     // Using safer cross-document messaging
     try {
-      // Only pass the URL back to the parent
+      // Send only the URL string, which is what Keycloak expects
       if (window.parent && window.location.origin) {
-        window.parent.postMessage({
-          type: 'sso-callback',
-          url: window.location.href
-        }, window.location.origin);
+        window.parent.postMessage(
+          window.location.href,
+          window.location.origin
+        );
       }
     } catch (error) {
       console.error('Error during silent check SSO:', error);
