@@ -11,7 +11,7 @@ const authenticated = ref(false)
 
 // Token refresh interval
 let tokenRefreshInterval: number | null = null
-const tokenRefreshIntervalMs = 60000 // Check every minute
+const tokenRefreshIntervalMs = 1000 // Check every minute
 
 // Event callbacks
 const onTokenRefreshedCallbacks: Array<(token: string) => void> = []
@@ -207,6 +207,7 @@ function setupTokenRefresh() {
   
   // Create a new interval to check the token periodically
   tokenRefreshInterval = window.setInterval(() => {
+    console.log('Checking token validity...')
     // Try to refresh if token will expire in next 90 seconds
     if (keycloakInstance?.token) {
       refreshToken(90)
