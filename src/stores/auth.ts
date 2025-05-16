@@ -7,9 +7,7 @@ import {
   initKeycloak, 
   login as keycloakLogin, 
   logout as keycloakLogout,
-  getUserProfile,
-  cleanup as cleanupKeycloak,
-  onTokenExpired
+  getUserProfile
 } from '@/core/security/keycloak'
 import { getApiBaseUrl, getAuthServiceBaseUrl2 } from '@/core/utils/url'
 import databaseBrowserApp from '@/apps/database-browser'
@@ -440,8 +438,6 @@ export const useAuthStore = defineStore('auth', {
           } catch (err) {
             console.error('Failed to logout from Keycloak:', err)
           }
-
-          cleanupKeycloak()
         }
         
         // Then reset local state
