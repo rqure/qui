@@ -46,20 +46,16 @@ export async function initKeycloak(config = keycloakConfig) {
       refreshToken()
     }
 
-    // Initialize with proper error handling
-    // Fix: Use the correct type for initOptions
-    const initOptions: Keycloak.KeycloakInitOptions = {
-      onLoad: 'check-sso',
+    // Initialize with proper error handling - fixed type issue here
+    await keycloakInstance.init({
+      onLoad: 'check-sso' as Keycloak.KeycloakOnLoad,
       silentCheckSsoRedirectUri: window.location.origin + '/silent-check-sso.html',
       checkLoginIframe: false,
       pkceMethod: 'S256'
-    };
-
-    // Initialize Keycloak
-    const isAuthenticated = await keycloakInstance.init(initOptions);
+    });
 
     initialized.value = true
-    authenticated.value = isAuthenticated || false
+    authenticated.value = keycloakInstance.authenticated || false
     
     // Setup refresh token mechanism if authenticated
     if (authenticated.value) {

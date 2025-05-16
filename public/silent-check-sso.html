@@ -8,23 +8,18 @@
     // This page is used by Keycloak to silently check SSO status
     // without disturbing the user experience
     
-    // Fix for sandbox escape issue - use safer postMessage approach
-    if (window.parent !== window) {
-      // Only if we're in an iframe
-      try {
-        // Use origin-specific messaging for security
-        const parentOrigin = window.location.origin;
+    // Using safer cross-document messaging
+    try {
+      // Only pass the URL back to the parent
+      if (window.parent && window.location.origin) {
         window.parent.postMessage({
-          type: 'sso-auth-success',
+          type: 'sso-callback',
           url: window.location.href
-        }, parentOrigin);
-      } catch (error) {
-        console.error('Silent check SSO error:', error);
+        }, window.location.origin);
       }
+    } catch (error) {
+      console.error('Error during silent check SSO:', error);
     }
-
-    // Fallback for older Keycloak versions that expect this behavior
-    parent.postMessage(location.href, location.origin);
   </script>
 </body>
 </html>
