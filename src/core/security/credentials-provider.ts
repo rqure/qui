@@ -37,7 +37,7 @@ export class CredentialsAuthProvider implements AuthProvider {
         throw new Error('Username and password are required');
       }
       
-      const authEndpoint = `${getAuthServiceBaseUrl2()}auth`;
+      const authEndpoint = getAuthServiceBaseUrl2();
       
       const response = await fetch(authEndpoint, {
         method: 'POST',
@@ -125,7 +125,7 @@ export class CredentialsAuthProvider implements AuthProvider {
     }
     
     try {
-      const authEndpoint = `${getAuthServiceBaseUrl2()}auth`;
+      const authEndpoint = getAuthServiceBaseUrl2();
       
       const response = await fetch(authEndpoint, {
         method: 'POST',
@@ -195,7 +195,7 @@ export class CredentialsAuthProvider implements AuthProvider {
       }
       
       // Try to refresh the token
-      const authEndpoint = `${getAuthServiceBaseUrl2()}auth`;
+      const authEndpoint = getAuthServiceBaseUrl2();
       
       const response = await fetch(authEndpoint, {
         method: 'POST',
