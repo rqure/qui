@@ -5,7 +5,6 @@ import {
   logout as keycloakLogout,
   getUserProfile,
   useKeycloakState,
-  hasKeycloakCallbackParams
 } from './keycloak';
 
 /**
@@ -27,17 +26,9 @@ export class KeycloakAuthProvider implements AuthProvider {
    * Initialize Keycloak and check if user is already authenticated
    */
   async initialize(): Promise<boolean> {
-    try {
-      // Check if we are in the middle of a Keycloak callback
-      const isCallback = hasKeycloakCallbackParams();
-      
+    try {      
       // Initialize Keycloak
       await initKeycloak();
-      
-      // If we're in a callback, we should be authenticated now
-      if (isCallback && !this.isAuthenticated()) {
-        console.warn("Received Keycloak callback but not authenticated");
-      }
       
       return this.isAuthenticated();
     } catch (error) {
@@ -105,7 +96,7 @@ export class KeycloakAuthProvider implements AuthProvider {
    * Check if user is authenticated with Keycloak
    */
   isAuthenticated(): boolean {
-    return this.keycloakState.authenticated.value;
+    return this.keycloakState.authenticated as unknown as boolean;
   }
   
   /**

@@ -2,7 +2,6 @@
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import QeiLogo from '@/components/common/QeiLogo.vue'
 import { useAuthStore } from '@/stores/auth'
-import { hasKeycloakCallbackParams } from '@/core/security/keycloak'
 
 const emit = defineEmits<{
   (e: 'login', username: string): void
@@ -21,13 +20,6 @@ const isKeycloakCallback = ref(false)
 onMounted(async () => {
   isLoading.value = true;
   isRecovering.value = true;
-  
-  // Check if we're in a Keycloak callback
-  isKeycloakCallback.value = hasKeycloakCallbackParams();
-  
-  if (isKeycloakCallback.value) {
-    console.log("Detected Keycloak callback, processing...");
-  }
   
   try {
     // Set up auth providers and check if already authenticated

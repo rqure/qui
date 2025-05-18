@@ -28,6 +28,7 @@ export async function initKeycloak(config = keycloakConfig) {
       onLoad: 'check-sso',
       silentCheckSsoRedirectUri: `${window.location.origin}/silent-check-sso.html`,
       pkceMethod: 'S256',
+      checkLoginIframe: false,
       enableLogging: true,
     })
 
@@ -122,12 +123,4 @@ export function useKeycloakState() {
     authenticated,
     keycloak: keycloakInstance
   }
-}
-
-/**
- * Check if current URL contains Keycloak callback parameters
- */
-export function hasKeycloakCallbackParams(): boolean {
-  const urlParams = new URLSearchParams(window.location.search)
-  return urlParams.has('code') && urlParams.has('session_state')
 }

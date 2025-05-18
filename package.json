@@ -16,7 +16,7 @@
   "dependencies": {
     "@bufbuild/protobuf": "^2.4.0",
     "google-protobuf": "^3.21.4",
-    "keycloak-js": "^22.0.0",
+    "keycloak-js": "^26.2.0",
     "pinia": "^3.0.1",
     "protobufjs": "^7.5.1",
     "uuid": "^11.1.0",
