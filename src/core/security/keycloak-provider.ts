@@ -13,13 +13,8 @@ import {
  */
 export class KeycloakAuthProvider implements AuthProvider {
   private keycloakState = useKeycloakState();
-  private tokenExpiryListeners: Array<() => void> = [];
   
   constructor() {
-    // Set up token refresh monitoring if Keycloak has a method for that
-    if (this.keycloakState.keycloak) {
-      this.setupTokenRefreshMonitoring();
-    }
   }
   
   /**
@@ -104,30 +99,5 @@ export class KeycloakAuthProvider implements AuthProvider {
    */
   getProviderName(): string {
     return 'keycloak';
-  }
-  
-  /**
-   * Add listener for token expiry events
-   */
-  onTokenExpired(callback: () => void): void {
-    this.tokenExpiryListeners.push(callback);
-  }
-  
-  /**
-   * Setup monitoring for token refresh failures
-   */
-  private setupTokenRefreshMonitoring(): void {
-    const keycloak = this.keycloakState.keycloak;
-    if (!keycloak) return;
-    
-    // Add event listener for token expiry
-    keycloak.onTokenExpired = () => {
-      console.log('Token expired, attempting to refresh...');
-      
-      keycloak.updateToken(30).catch(() => {
-        console.warn('Token refresh failed');
-        this.tokenExpiryListeners.forEach(listener => listener());
-      });
-    };
   }
 }

@@ -37,9 +37,4 @@ export interface AuthProvider {
    * Refresh the authentication token (if applicable)
    */
   refreshToken?(): Promise<boolean>;
-  
-  /**
-   * Add listener for token expiry events
-   */
-  onTokenExpired?(callback: () => void): void;
 }

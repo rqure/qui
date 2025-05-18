@@ -39,16 +39,6 @@ export const useAuthStore = defineStore('auth', {
         keycloak: new KeycloakAuthProvider(),
         credentials: new CredentialsAuthProvider(),
       };
-      
-      // Set up token expiry handlers
-      Object.values(this.authProviders).forEach(provider => {
-        if ('onTokenExpired' in provider) {
-          (provider as any).onTokenExpired(() => {
-            console.warn('Token expired and could not be refreshed. Logging out...');
-            this.logout();
-          });
-        }
-      });
     },
 
     /**

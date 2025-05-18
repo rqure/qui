@@ -106,12 +106,13 @@ function setupTokenRefresh() {
   
   // Update token 30 seconds before expiry
   setInterval(() => {
+    console.log('Refreshing Keycloak token...')
     keycloakInstance?.updateToken(30)
       .catch(() => {
-        // If token refresh fails, force re-login
-        authenticated.value = false
+        console.warn('Failed to refresh Keycloak token. User might be logged out.')
+        // authenticated.value = false
       })
-  }, 60000) // Check every minute
+  }, 10000) // Check every minute
 }
 
 /**
