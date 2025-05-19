@@ -93,13 +93,14 @@ export const useDataStore = defineStore('data', {
         disconnect() {
             const me = this;
 
-            if (this.socket) {
+            if (me.socket) {
                 console.log('Disconnecting WebSocket')
-                this.socket.close();
-                this.socket = null;
-                this.isConnected = false;
+                me.socket.close();
+                me.socket = null;
+                me.isConnected = false;
+                
                 // Clear any pending responses
-                this.waitingResponses = {};
+                me.waitingResponses = {};
             }
         },
 

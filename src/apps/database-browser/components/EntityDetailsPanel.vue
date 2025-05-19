@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted } from 'vue';
+import { ref, watch, onMounted, onUnmounted, computed } from 'vue';
 import { useDataStore } from '@/stores/data';
 import type { EntityId, Field, EntitySchema, EntityType, Notification } from '@/core/data/types';
 import { EntityFactories, Utils } from '@/core/data/types';
@@ -22,6 +22,8 @@ const editingField = ref<string | null>(null);
 const writerNames = ref<Record<EntityId, string>>({});
 const loadingWriterNames = ref<Record<EntityId, boolean>>({});
 const notificationSubscriptions = ref<Array<{ token: string, unsubscribe: () => Promise<boolean> }>>([]);
+const refreshTimestampsTimer = ref<number | null>(null);
+const currentTimestamp = ref(Date.now());
 
 // Load entity details when component mounts or entity ID changes
 watch(() => props.entityId, async () => {
@@ -30,9 +32,30 @@ watch(() => props.entityId, async () => {
   await loadEntityDetails();
 }, { immediate: true });
 
-// Clean up notifications when component is unmounted
+// Function to format a timestamp with reactivity to currentTimestamp
+const formatTimestampReactive = (date: Date | string | number) => {
+  // The currentTimestamp dependency makes this reactive
+  currentTimestamp.value;
+  return formatTimestamp(date);
+};
+
+// Start a timer to update the current timestamp
+onMounted(() => {
+  // Update timestamps every 10 seconds
+  refreshTimestampsTimer.value = window.setInterval(() => {
+    currentTimestamp.value = Date.now();
+  }, 1000);
+});
+
+// Clean up notifications and timer when component is unmounted
 onUnmounted(async () => {
   await cleanupNotifications();
+  
+  // Clear the refresh timestamps timer
+  if (refreshTimestampsTimer.value !== null) {
+    clearInterval(refreshTimestampsTimer.value);
+    refreshTimestampsTimer.value = null;
+  }
 });
 
 async function cleanupNotifications() {
@@ -328,7 +351,7 @@ onMounted(() => {
             </td>
             <td class="field-meta">
               <div class="field-timestamp" :title="field.writeTime ? field.writeTime.toISOString() : 'Unknown'">
-                {{ field.writeTime ? formatTimestamp(field.writeTime) : 'N/A' }}
+                {{ field.writeTime ? formatTimestampReactive(field.writeTime) : 'N/A' }}
               </div>
               <div class="field-writer" :title="field.writerId || 'Unknown'">
                 <span v-if="writerNames[field.writerId]">

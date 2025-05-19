@@ -16,10 +16,12 @@ export function formatTimestamp(date: Date | string | number): string {
   const oneDay = 24 * 60 * 60 * 1000;
   const oneHour = 60 * 60 * 1000;
   const oneMinute = 60 * 1000;
+  const oneSecond = 1000;
   
-  // If less than a minute ago
+  // If less than a minute ago, show seconds
   if (diff < oneMinute) {
-    return 'Just now';
+    const seconds = Math.floor(diff / oneSecond);
+    return seconds <= 0 ? 'Just now' : `${seconds} second${seconds !== 1 ? 's' : ''} ago`;
   }
   
   // If less than an hour ago
