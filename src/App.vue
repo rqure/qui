@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref } from 'vue'
 import { useAuthStore } from '@/stores/auth'
-import { useDataStore } from '@/stores/data'
 import ThemeProvider from './core/theme/ThemeProvider.vue'
 import WebtopLogin from './components/WebtopLogin.vue'
 import WorkspaceComponent from './components/workspace/WorkspaceComponent.vue'
@@ -10,9 +9,7 @@ import ContextMenuComponent from './components/menu/ContextMenuComponent.vue'
 import { useMenuStore } from '@/stores/menu'
 
 const auth = useAuthStore()
-const dataStore = useDataStore()
 const menuStore = useMenuStore()
-const showConnectionLostMessage = ref(false)
 
 const handleLogin = () => {
   auth.login()
@@ -32,16 +29,6 @@ const handleGlobalContextMenu = (e: MouseEvent) => {
     )
   }
 }
-
-// Monitor for connection loss during session
-onMounted(() => {
-  dataStore.onConnectionLost(() => {
-    showConnectionLostMessage.value = true
-    setTimeout(() => {
-      showConnectionLostMessage.value = false
-    }, 5000) // Hide after 5 seconds
-  })
-})
 </script>
 
 <template>
@@ -53,16 +40,6 @@ onMounted(() => {
         <TaskbarComponent />
       </div>
       <ContextMenuComponent />
-      
-      <!-- Connection lost notification -->
-      <div v-if="showConnectionLostMessage" class="connection-lost-message">
-        <div class="message-content">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
-            <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
-          </svg>
-          <span>Connection to the database was lost. You have been logged out.</span>
-        </div>
-      </div>
     </div>
   </ThemeProvider>
 </template>
@@ -100,37 +77,5 @@ body {
   background: var(--qui-bg-secondary);
   border-top: var(--qui-window-border);
   padding: 0 1rem;
-}
-
-.connection-lost-message {
-  position: fixed;
-  top: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 9999;
-  background: var(--qui-danger-bg);
-  color: var(--qui-text-primary);
-  padding: 12px 24px;
-  border-radius: 8px;
-  box-shadow: var(--qui-shadow-default);
-  border: 1px solid var(--qui-danger-border);
-  animation: slideDown 0.3s ease-out;
-  max-width: 80%;
-}
-
-.message-content {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.message-content svg {
-  color: var(--qui-danger-color);
-  flex-shrink: 0;
-}
-
-@keyframes slideDown {
-  from { transform: translate(-50%, -50px); opacity: 0; }
-  to { transform: translate(-50%, 0); opacity: 1; }
 }
 </style>

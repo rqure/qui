@@ -181,8 +181,8 @@ export const useAuthStore = defineStore('auth', {
     setupConnectionLostHandler() {
       const dataStore = useDataStore();
       dataStore.onConnectionLost(() => {
-        console.warn('Database connection lost. Logging out user...');
-        this.logout();
+        console.warn('Database connection lost. Will attempt to reconnect automatically.');
+        // Connection loss no longer triggers logout - we attempt to reconnect instead
       });
     },
     

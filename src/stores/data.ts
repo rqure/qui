@@ -36,6 +36,9 @@ export const useDataStore = defineStore('data', {
         waitingResponses: {} as Record<string, WaitingResponse>,
         notificationManager: new NotificationManager(),
         connectionLostCallbacks: [] as (() => void)[],
+        reconnectAttempts: 0,
+        maxReconnectAttempts: 10,
+        reconnectDelay: 1000, // Start with 1 second delay
     }),
 
     actions: {
@@ -55,14 +58,18 @@ export const useDataStore = defineStore('data', {
 
             if (!me.socket) {
                 me.socket = new WebSocket(getApiBaseUrl());
+                
                 me.socket.onopen = () => {
                     me.isConnected = true;
+                    me.reconnectAttempts = 0;
                 };
-                me.socket.onclose = () => {
+                
+                me.socket.onclose = (event) => {
                     const wasConnected = me.isConnected;
                     me.isConnected = false;
                     me.socket = null;
 
+                    // Reject pending requests
                     for (const requestId in me.waitingResponses) {
                         const request = me.waitingResponses[requestId];
                         request.reject(new Error('WebSocket connection closed'));
@@ -76,14 +83,25 @@ export const useDataStore = defineStore('data', {
                         this.triggerConnectionLostCallbacks();
                     }
 
-                    // reconnect after 1 second
+                    // Implement exponential backoff for reconnection
+                    const delay = Math.min(
+                        30000, // Max 30 seconds
+                        me.reconnectDelay * Math.pow(1.5, me.reconnectAttempts)
+                    );
+                    
+                    // Increment the reconnect attempts counter
+                    me.reconnectAttempts++;
+                    
+                    // Schedule reconnection
                     setTimeout(() => {
                         me.connect();
-                    }, 1000);
+                    }, delay);
                 };
+                
                 me.socket.onerror = (error) => {
                     console.error('WebSocket error:', error);
                 };
+                
                 me.socket.onmessage = (event) => {
                     me.onMessage(event);
                 };
@@ -94,8 +112,8 @@ export const useDataStore = defineStore('data', {
             const me = this;
 
             if (me.socket) {
-                console.log('Disconnecting WebSocket')
-                me.socket.close();
+                console.log('Disconnecting WebSocket');
+                me.socket.close(1000, 'Normal closure'); // Use standard close code for normal closure
                 me.socket = null;
                 me.isConnected = false;
                 
