@@ -253,19 +253,19 @@ onMounted(() => {
 }
 
 .bool-true {
-  color: #4CAF50;
+  color: var(--qui-success-color);
 }
 
 .bool-true .bool-indicator {
-  background: rgba(76, 175, 80, 0.1);
+  background: var(--qui-success-bg);
 }
 
 .bool-false {
-  color: #F44336;
+  color: var(--qui-danger-color);
 }
 
 .bool-false .bool-indicator {
-  background: rgba(244, 67, 54, 0.1);
+  background: var(--qui-danger-bg);
 }
 
 .reference-container {
@@ -281,17 +281,17 @@ onMounted(() => {
   cursor: pointer;
   padding: 2px 6px;
   border-radius: 4px;
-  background: rgba(0, 255, 136, 0.05);
+  background: var(--qui-accent-secondary-bg);
   transition: all 0.2s var(--qui-animation-bounce);
 }
 
 .entity-reference:hover {
-  background: rgba(0, 255, 136, 0.1);
+  background: var(--qui-accent-secondary-hover);
   text-decoration-style: solid;
 }
 
 .reference-indicator {
-  background: rgba(0, 255, 136, 0.1);
+  background: var(--qui-accent-secondary-bg);
 }
 
 .timestamp-container {
@@ -301,7 +301,7 @@ onMounted(() => {
 }
 
 .timestamp-icon {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--qui-overlay-primary);
 }
 
 .timestamp {
@@ -309,7 +309,7 @@ onMounted(() => {
   opacity: 0.9;
   letter-spacing: 0.3px;
   padding: 2px 6px;
-  background: rgba(0, 0, 0, 0.1);
+  background: var(--qui-overlay-primary);
   border-radius: 4px;
 }
 
@@ -324,16 +324,16 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: rgba(124, 77, 255, 0.1);
+  background: var(--qui-accent-bg-faint);
   border-radius: 12px;
   padding: 2px 8px;
-  color: #9C27B0;
+  color: var(--qui-accent-color);
   font-weight: var(--qui-font-weight-medium);
 }
 
 .choice-icon {
-  background: rgba(124, 77, 255, 0.1);
-  color: #9C27B0;
+  background: var(--qui-accent-bg-faint);
+  color: var(--qui-accent-color);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -349,13 +349,13 @@ onMounted(() => {
 }
 
 .choice {
-  background: rgba(124, 77, 255, 0.1);
-  color: #9C27B0;
+  background: var(--qui-accent-bg-faint);
+  color: var(--qui-accent-color);
   font-weight: var(--qui-font-weight-medium);
   transition: all 0.2s var(--qui-animation-bounce);
 }
 
 .choice:hover {
-  background: rgba(124, 77, 255, 0.2);
+  background: var(--qui-accent-bg-light);
 }
 </style>

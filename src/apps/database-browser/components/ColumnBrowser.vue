@@ -292,7 +292,7 @@ function getColumnStyle(column: { id: string; width?: number }) {
 }
 
 .column-resize-handle:hover {
-  background: rgba(0, 255, 136, 0.1);
+  background: var(--qui-accent-bg-faint);
 }
 
 .column-resize-handle:hover .resize-handle-dots {
@@ -301,7 +301,7 @@ function getColumnStyle(column: { id: string; width?: number }) {
 }
 
 .column-resize-handle:active {
-  background: rgba(0, 255, 136, 0.2);
+  background: var(--qui-accent-bg-light);
 }
 
 .column-resize-handle:active .resize-handle-dots {

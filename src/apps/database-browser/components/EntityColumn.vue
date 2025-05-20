@@ -385,7 +385,7 @@ function handleScroll(event: Event) {
 
 .entity-item:hover::before {
   opacity: 1;
-  background: linear-gradient(to right, transparent, rgba(0, 255, 136, 0.03));
+  background: linear-gradient(to right, transparent, var(--qui-accent-bg-faint));
 }
 
 .entity-item.selected {
@@ -397,7 +397,7 @@ function handleScroll(event: Event) {
 
 .entity-item.selected::before {
   opacity: 1;
-  background: linear-gradient(to right, transparent, rgba(0, 255, 136, 0.1));
+  background: linear-gradient(to right, transparent, var(--qui-accent-bg-light));
 }
 
 .entity-name {
@@ -428,7 +428,7 @@ function handleScroll(event: Event) {
 .entity-item.selected .child-indicator {
   color: var(--qui-accent-color);
   opacity: 1;
-  filter: drop-shadow(0 0 3px rgba(0, 255, 136, 0.3));
+  filter: drop-shadow(0 0 3px var(--qui-accent-glow));
 }
 
 .column-loading, .column-error, .empty-message {
@@ -452,7 +452,7 @@ function handleScroll(event: Event) {
 .spinner {
   width: 24px;
   height: 24px;
-  border: 2px solid rgba(0, 255, 136, 0.1);
+  border: 2px solid var(--qui-accent-bg-faint);
   border-top-color: var(--qui-accent-color);
   border-radius: 50%;
   animation: spin 1s linear infinite;

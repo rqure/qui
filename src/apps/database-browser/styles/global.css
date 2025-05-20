@@ -211,8 +211,8 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: rgba(124, 77, 255, 0.1);
-  color: #9C27B0;
+  background: var(--qui-accent-bg-faint);
+  color: var(--qui-accent-color);
   padding: 3px 10px;
   border-radius: 12px;
   font-weight: 500;
@@ -221,7 +221,7 @@
 }
 
 .choice-value:hover {
-  background: rgba(124, 77, 255, 0.2);
+  background: var(--qui-accent-bg-light);
   transform: translateY(-1px);
 }
 
@@ -243,7 +243,7 @@
   cursor: pointer;
   transition: all 0.2s ease;
   appearance: none;
-  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%239C27B0'%3e%3cpath d='M7 10l5 5 5-5z'/%3e%3c/svg%3e");
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23888888'%3e%3cpath d='M7 10l5 5 5-5z'/%3e%3c/svg%3e");
   background-repeat: no-repeat;
   background-position: right 8px center;
   background-size: 16px;
@@ -251,9 +251,9 @@
 }
 
 .choice-select:focus {
-  border-color: #9C27B0;
+  border-color: var(--qui-accent-color);
   outline: none;
-  box-shadow: 0 0 0 2px rgba(156, 39, 176, 0.2);
+  box-shadow: 0 0 0 2px var(--qui-accent-bg);
 }
 
 .choice-select option {
@@ -280,5 +280,15 @@
 }
 
 .choice-loading {
-  animation: pulse-purple 1.5s infinite;
+  animation: pulse-theme 1.5s infinite;
+}
+
+/* Loading indicator for choices */
+@keyframes pulse-theme {
+  0%, 100% { background-color: var(--qui-accent-bg-faint); }
+  50% { background-color: var(--qui-accent-bg-light); }
+}
+
+.choice-loading {
+  animation: pulse-theme 1.5s infinite;
 }

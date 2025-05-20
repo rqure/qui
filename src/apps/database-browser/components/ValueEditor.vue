@@ -431,16 +431,16 @@ watch(
 .choice-select {
   appearance: none;
   padding-right: 30px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath fill='%2300ff88' d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath fill='%23888888' d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 8px center;
   background-size: 16px;
   cursor: pointer;
-  color: #9C27B0; /* Purple color for choice values */
+  color: var(--qui-accent-color);
 }
 
 .choice-container .input-icon {
-  color: #9C27B0;
+  color: var(--qui-accent-color);
   opacity: 0.7;
 }
 
@@ -478,7 +478,7 @@ watch(
 .save-button:hover {
   background: var(--qui-accent-secondary);
   transform: translateY(-1px);
-  box-shadow: 0 3px 8px rgba(0, 255, 136, 0.2);
+  box-shadow: 0 3px 8px var(--qui-accent-glow);
 }
 
 .save-button:active {

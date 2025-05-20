@@ -437,7 +437,7 @@ onMounted(() => {
 }
 
 .entity-type {
-  background: rgba(0, 255, 136, 0.1);
+  background: var(--qui-accent-bg-faint);
   color: var(--qui-accent-color);
   font-weight: var(--qui-font-weight-medium);
 }
@@ -449,7 +449,7 @@ onMounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 200px;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--qui-overlay-primary);
 }
 
 .fields-container {
@@ -612,7 +612,7 @@ onMounted(() => {
 .spinner {
   width: 32px;
   height: 32px;
-  border: 2px solid rgba(0, 255, 136, 0.1);
+  border: 2px solid var(--qui-accent-bg-faint);
   border-top-color: var(--qui-accent-color);
   border-radius: 50%;
   animation: spin 1s linear infinite;
@@ -634,7 +634,7 @@ onMounted(() => {
   background: var(--qui-accent-color);
   color: var(--qui-bg-primary);
   transform: translateY(-2px);
-  box-shadow: 0 3px 10px rgba(0, 255, 136, 0.2);
+  box-shadow: 0 3px 10px var(--qui-accent-glow);
 }
 
 .value-display-container {
@@ -672,9 +672,9 @@ onMounted(() => {
 }
 
 .edit-button:hover {
-  background: rgba(0, 255, 136, 0.1);
+  background: var(--qui-accent-bg-faint);
   transform: translateX(0) scale(1.1);
-  box-shadow: 0 0 0 2px rgba(0, 255, 136, 0.1);
+  box-shadow: 0 0 0 2px var(--qui-accent-bg-faint);
 }
 
 @keyframes spin {
