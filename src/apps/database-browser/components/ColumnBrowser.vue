@@ -2,6 +2,7 @@
 import { ref, watch, onMounted, onUnmounted } from 'vue';
 import { useDataStore } from '@/stores/data';
 import type { Entity, EntityId } from '@/core/data/types';
+import { EntityFactories } from '@/core/data/types';
 import EntityColumn from './EntityColumn.vue';
 import { v4 as uuidv4 } from 'uuid';
 import { useEntityDropZone } from '@/core/utils/composables';
@@ -13,6 +14,9 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'entity-select', entityId: EntityId): void;
 }>();
+
+// Add the dataStore instance
+const dataStore = useDataStore();
 
 const columns = ref<{ id: string; parentId?: EntityId; selectedId?: EntityId; width?: number }[]>([]);
 const isResizing = ref(false);
@@ -214,11 +218,104 @@ async function navigateToEntity(entityId: EntityId) {
       return;
     }
     
+    // Build navigation path by traversing up the parent chain
+    const navigationPath = await buildNavigationPath(entityId);
+    
+    // Apply the navigation path to build columns
+    await applyNavigationPath(navigationPath);
+    
     // Select the entity
     emit('entity-select', entityId);
   } catch (error) {
     console.error('Error navigating to entity:', error);
   }
+}
+
+// Build a navigation path from the entity to the root
+async function buildNavigationPath(entityId: EntityId): Promise<EntityId[]> {
+  const path: EntityId[] = [entityId];
+  let currentId = entityId;
+  
+  try {
+    // Limit to reasonable number of iterations to prevent infinite loops
+    const maxIterations = 20;
+    let iterations = 0;
+    
+    while (iterations < maxIterations) {
+      iterations++;
+      
+      // Create entity and read its Parent field
+      const entity = EntityFactories.newEntity(currentId);
+      const parentField = entity.field("Parent");
+      await dataStore.read([parentField]);
+      
+      // Get the parent ID
+      const parentId = parentField.value.getEntityReference();
+      
+      // If parent is empty or the same as current (circular reference), stop
+      if (!parentId || parentId === currentId) {
+        break;
+      }
+      
+      // Add to path and continue
+      path.push(parentId);
+      currentId = parentId;
+    }
+  } catch (error) {
+    console.error('Error building navigation path:', error);
+  }
+  
+  // Return reversed path (root to target)
+  return path.reverse();
+}
+
+// Apply navigation path by creating columns
+async function applyNavigationPath(path: EntityId[]) {
+  if (!path.length) return;
+  
+  // Reset columns - create a single root column
+  columns.value = [{ 
+    id: uuidv4(),
+    width: 220
+  }];
+  
+  // Build the path through the entities
+  // Start with the first entity in the path
+  if (path.length > 0) {
+    let previousEntity = null;
+    
+    for (let i = 0; i < path.length; i++) {
+      const entityId = path[i];
+      
+      // For the first entity in the path, make it the selection in the root column
+      if (i === 0) {
+        columns.value[0].selectedId = entityId;
+      } else {
+        // For subsequent entities, create a column with the previous entity as parent
+        columns.value.push({
+          id: uuidv4(),
+          parentId: previousEntity,
+          selectedId: entityId,
+          width: lastUsedWidth.value
+        });
+      }
+      
+      // Remember this entity as the parent for the next iteration
+      previousEntity = entityId;
+    }
+    
+    // Add one final empty column for children of the last entity
+    columns.value.push({
+      id: uuidv4(),
+      parentId: previousEntity,
+      width: lastUsedWidth.value
+    });
+  }
+  
+  // After building columns, scroll to the end
+  setTimeout(() => {
+    scrollToEnd();
+  }, 50);
 }
 
 // Handle drop event when an entity is dropped onto the browser
