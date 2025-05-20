@@ -425,6 +425,9 @@ export const useDataStore = defineStore('data', {
                             fieldSchema.valueType = valueType;
                             fieldSchema.readPermissions = field.readPermissions;
                             fieldSchema.writePermissions = field.writePermissions;
+                            fieldSchema.rank = field.rank;
+                            fieldSchema.choices = field.choiceOptions;
+                            fieldSchema.entityType = pbSchema.name;
                         });
                     }
                     return schema;
