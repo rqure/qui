@@ -314,6 +314,9 @@ onMounted(() => {
     </div>
     
     <div v-else-if="error" class="details-error">
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+        <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+      </svg>
       <span>{{ error }}</span>
       <button @click="loadEntityDetails" class="retry-button">Retry</button>
     </div>
@@ -322,7 +325,7 @@ onMounted(() => {
       <table class="fields-table">
         <thead>
           <tr>
-            <th class="field-name-header">Field Name</th>
+            <th class="field-name-header">Field</th>
             <th class="field-value-header">Value</th>
             <th class="field-meta-header">Last Modified</th>
           </tr>
@@ -331,7 +334,7 @@ onMounted(() => {
           <tr v-for="field in fields" :key="field.fieldType" class="field-row">
             <td class="field-name">
               {{ field.fieldType }}
-              <span class="field-type">{{ field.value.type }}</span>
+              <div class="field-type-badge">{{ field.value.type }}</div>
             </td>
             <td class="field-value">
               <ValueEditor
@@ -342,8 +345,8 @@ onMounted(() => {
               />
               <div v-else class="value-display-container" @dblclick="startEditing(field.fieldType)">
                 <ValueDisplay :value="field.value" />
-                <button class="edit-button" @click="startEditing(field.fieldType)">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24">
+                <button class="edit-button" @click="startEditing(field.fieldType)" title="Edit value">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24">
                     <path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
                   </svg>
                 </button>
@@ -354,6 +357,11 @@ onMounted(() => {
                 {{ field.writeTime ? formatTimestampReactive(field.writeTime) : 'N/A' }}
               </div>
               <div class="field-writer" :title="field.writerId || 'Unknown'">
+                <span class="writer-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24">
+                    <path fill="currentColor" d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                  </svg>
+                </span>
                 <span v-if="writerNames[field.writerId]">
                   {{ writerNames[field.writerId] }}
                 </span>
@@ -385,10 +393,12 @@ onMounted(() => {
 }
 
 .details-header {
-  padding: 16px;
+  padding: 18px;
   border-bottom: 1px solid var(--qui-hover-border);
-  background: var(--qui-gradient-primary);
+  background: linear-gradient(to right, var(--qui-bg-secondary), rgba(0, 0, 0, 0.3));
   position: relative;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  margin-bottom: 2px;
 }
 
 .header-content {
@@ -397,10 +407,12 @@ onMounted(() => {
 }
 
 .entity-title {
-  margin: 0 0 8px 0;
-  font-size: 18px;
+  margin: 0 0 10px 0;
+  font-size: 20px;
   font-weight: var(--qui-font-weight-medium);
   color: var(--qui-text-primary);
+  letter-spacing: 0.3px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
 .entity-metadata {
@@ -412,9 +424,16 @@ onMounted(() => {
 .entity-type, .entity-id {
   font-size: var(--qui-font-size-small);
   color: var(--qui-text-secondary);
-  padding: 2px 6px;
+  padding: 3px 8px;
   border-radius: 4px;
   background: rgba(0, 0, 0, 0.2);
+  letter-spacing: 0.3px;
+}
+
+.entity-type {
+  background: rgba(0, 255, 136, 0.1);
+  color: var(--qui-accent-color);
+  font-weight: var(--qui-font-weight-medium);
 }
 
 .entity-id {
@@ -424,6 +443,7 @@ onMounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 200px;
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .fields-container {
@@ -456,15 +476,21 @@ onMounted(() => {
 .fields-table {
   width: 100%;
   border-collapse: collapse;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
 }
 
 .fields-table th {
   text-align: left;
-  padding: 8px;
+  padding: 12px;
   font-size: var(--qui-font-size-small);
   font-weight: var(--qui-font-weight-medium);
   color: var(--qui-text-secondary);
   border-bottom: 1px solid var(--qui-hover-border);
+  background: rgba(0, 0, 0, 0.1);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
 }
 
 .field-name-header {
@@ -481,14 +507,19 @@ onMounted(() => {
 
 .field-row {
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  transition: background 0.2s ease;
 }
 
 .field-row:hover {
   background: var(--qui-overlay-hover);
 }
 
+.field-row:last-child {
+  border-bottom: none;
+}
+
 .field-name, .field-value, .field-meta {
-  padding: 10px 8px;
+  padding: 12px 10px;
   vertical-align: top;
 }
 
@@ -496,14 +527,21 @@ onMounted(() => {
   font-weight: var(--qui-font-weight-medium);
   color: var(--qui-text-primary);
   position: relative;
+  letter-spacing: 0.2px;
+  padding-right: 12px;
+  border-right: 1px solid rgba(255, 255, 255, 0.03);
 }
 
-.field-type {
-  display: block;
+.field-type-badge {
+  display: inline-block;
   font-size: 10px;
   color: var(--qui-text-secondary);
   font-weight: normal;
-  margin-top: 2px;
+  margin-top: 4px;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 2px 6px;
+  border-radius: 10px;
+  letter-spacing: 0.5px;
 }
 
 .field-value {
@@ -514,20 +552,40 @@ onMounted(() => {
 .field-meta {
   font-size: var(--qui-font-size-small);
   color: var(--qui-text-secondary);
+  border-left: 1px solid rgba(255, 255, 255, 0.03);
 }
 
 .field-timestamp {
-  margin-bottom: 2px;
+  margin-bottom: 6px;
+  padding: 3px 0;
+  display: inline-block;
+  position: relative;
+}
+
+.field-timestamp::before {
+  content: "🕒 ";
+  opacity: 0.7;
+  font-size: 10px;
 }
 
 .field-writer {
   font-size: var(--qui-font-size-small);
   color: var(--qui-text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.writer-icon {
+  display: flex;
+  align-items: center;
+  opacity: 0.5;
 }
 
 .loading-writer {
   font-style: italic;
   opacity: 0.7;
+  animation: pulse 1.5s infinite;
 }
 
 .details-loading, .details-error {
@@ -537,12 +595,18 @@ onMounted(() => {
   justify-content: center;
   flex: 1;
   color: var(--qui-text-secondary);
+  gap: 16px;
+}
+
+.details-error svg {
+  opacity: 0.6;
+  color: var(--qui-danger-color);
 }
 
 .spinner {
-  width: 24px;
-  height: 24px;
-  border: 2px solid transparent;
+  width: 32px;
+  height: 32px;
+  border: 2px solid rgba(0, 255, 136, 0.1);
   border-top-color: var(--qui-accent-color);
   border-radius: 50%;
   animation: spin 1s linear infinite;
@@ -553,14 +617,18 @@ onMounted(() => {
   margin-top: 12px;
   padding: 8px 16px;
   background: var(--qui-overlay-primary);
-  border: none;
-  border-radius: 4px;
+  border: 1px solid var(--qui-hover-border);
+  border-radius: 20px;
   color: var(--qui-text-primary);
   cursor: pointer;
+  transition: all 0.2s var(--qui-animation-bounce);
 }
 
 .retry-button:hover {
-  background: var(--qui-overlay-secondary);
+  background: var(--qui-accent-color);
+  color: var(--qui-bg-primary);
+  transform: translateY(-2px);
+  box-shadow: 0 3px 10px rgba(0, 255, 136, 0.2);
 }
 
 .value-display-container {
@@ -568,10 +636,18 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
   position: relative;
+  padding: 2px;
+  border-radius: 4px;
+  transition: background 0.2s ease;
+}
+
+.value-display-container:hover {
+  background: rgba(0, 0, 0, 0.1);
 }
 
 .value-display-container:hover .edit-button {
   opacity: 1;
+  transform: translateX(0);
 }
 
 .edit-button {
@@ -580,17 +656,29 @@ onMounted(() => {
   border: none;
   color: var(--qui-accent-color);
   cursor: pointer;
-  padding: 4px;
+  padding: 6px;
   border-radius: 4px;
-  transition: all 0.2s var(--qui-animation-bounce);
+  transition: all 0.25s var(--qui-animation-bounce);
+  transform: translateX(-5px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .edit-button:hover {
-  background: var(--qui-overlay-primary);
+  background: rgba(0, 255, 136, 0.1);
+  transform: translateX(0) scale(1.1);
+  box-shadow: 0 0 0 2px rgba(0, 255, 136, 0.1);
 }
 
 @keyframes spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
+}
+
+@keyframes pulse {
+  0% { opacity: 0.3; }
+  50% { opacity: 0.7; }
+  100% { opacity: 0.3; }
 }
 </style>

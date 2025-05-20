@@ -4,8 +4,13 @@
 
 <template>
   <div class="loading-indicator">
-    <div class="spinner"></div>
-    <div class="loading-text">Loading</div>
+    <div class="spinner-container">
+      <div class="spinner-ring"></div>
+      <div class="spinner-ring"></div>
+      <div class="spinner-ring"></div>
+      <div class="spinner-dot"></div>
+    </div>
+    <div class="loading-text">Connecting to database...</div>
   </div>
 </template>
 
@@ -19,19 +24,61 @@
   color: var(--qui-text-secondary);
 }
 
-.spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid transparent;
-  border-top-color: var(--qui-accent-color);
+.spinner-container {
+  position: relative;
+  width: 60px;
+  height: 60px;
+  margin-bottom: 20px;
+}
+
+.spinner-ring {
+  position: absolute;
+  width: 100%;
+  height: 100%;
   border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: 16px;
+  border: 2px solid transparent;
+  border-top-color: var(--qui-accent-color);
+  animation: spin 1.2s linear infinite;
+}
+
+.spinner-ring:nth-child(2) {
+  width: 80%;
+  height: 80%;
+  top: 10%;
+  left: 10%;
+  border-top-color: var(--qui-accent-secondary);
+  animation-duration: 1.8s;
+  animation-direction: reverse;
+}
+
+.spinner-ring:nth-child(3) {
+  width: 60%;
+  height: 60%;
+  top: 20%;
+  left: 20%;
+  border-top-color: var(--qui-text-secondary);
+  animation-duration: 2.4s;
+}
+
+.spinner-dot {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  top: 50%;
+  left: 50%;
+  background-color: var(--qui-accent-color);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 10px var(--qui-accent-color);
+  animation: pulse 1.2s ease-in-out infinite;
 }
 
 .loading-text {
   font-size: var(--qui-font-size-base);
+  font-weight: var(--qui-font-weight-medium);
   animation: pulse 1.5s infinite;
+  letter-spacing: 0.3px;
+  margin-top: 10px;
 }
 
 @keyframes spin {

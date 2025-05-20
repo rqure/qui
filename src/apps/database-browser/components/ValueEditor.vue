@@ -169,33 +169,85 @@ onMounted(() => {
     </div>
     
     <!-- Timestamp input - Fix the issue by removing the :value binding -->
-    <input 
-      v-else-if="value.type === 'Timestamp'" 
-      type="datetime-local" 
-      v-model="editValue"
-      class="timestamp-input"
-    />
+    <div v-else-if="value.type === 'Timestamp'" class="timestamp-container">
+      <div class="input-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
+          <path fill="currentColor" d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.5-13H11v6l5.2 3.2.8-1.3-4.5-2.7V7z"/>
+        </svg>
+      </div>
+      <input 
+        type="datetime-local" 
+        v-model="editValue"
+        class="timestamp-input"
+      />
+    </div>
     
     <!-- Text area for longer text content -->
-    <textarea 
-      v-else-if="value.type === 'String' && value.toString().length > 50" 
-      v-model="editValue" 
-      class="text-area"
-      rows="4"
-    ></textarea>
+    <div v-else-if="value.type === 'String' && value.toString().length > 50" class="text-container">
+      <div class="input-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
+          <path fill="currentColor" d="M14 17H4v2h10v-2zm6-8H4v2h16V9zM4 15h16v-2H4v2zM4 5v2h16V5H4z"/>
+        </svg>
+      </div>
+      <textarea 
+        v-model="editValue" 
+        class="text-area"
+        rows="4"
+      ></textarea>
+    </div>
+    
+    <!-- Entity Reference input -->
+    <div v-else-if="value.type === 'EntityReference'" class="reference-container">
+      <div class="input-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
+          <path fill="currentColor" d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/>
+        </svg>
+      </div>
+      <input 
+        type="text"
+        v-model="editValue" 
+        class="reference-input"
+        placeholder="Entity ID"
+      />
+    </div>
     
     <!-- Default input for most types -->
-    <input 
-      v-else 
-      :type="inputType" 
-      v-model="editValue" 
-      class="text-input"
-      :step="value.type === 'Float' ? '0.01' : '1'"
-    />
+    <div v-else class="input-container">
+      <div class="input-icon" v-if="value.type === 'Int' || value.type === 'Float'">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
+          <path fill="currentColor" d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14z M7.5 17h2v-7h-4v2h2zM13.5 17h2v-7h-4v2h2z"/>
+        </svg>
+      </div>
+      <div class="input-icon" v-else-if="value.type === 'String'">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
+          <path fill="currentColor" d="M9.93 13.5h4.14L12 7.98zM20 2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-4.05 16.5-1.14-3H9.17l-1.12 3H5.96l5.11-13h1.86l5.11 13h-2.09z"/>
+        </svg>
+      </div>
+      <input 
+        :type="inputType" 
+        v-model="editValue" 
+        class="text-input"
+        :step="value.type === 'Float' ? '0.01' : '1'"
+      />
+    </div>
     
     <div class="editor-buttons">
-      <button class="save-button" @click="handleSave">Save</button>
-      <button class="cancel-button" @click="handleCancel">Cancel</button>
+      <button class="save-button" @click="handleSave">
+        <span class="button-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24">
+            <path fill="currentColor" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+          </svg>
+        </span>
+        Save
+      </button>
+      <button class="cancel-button" @click="handleCancel">
+        <span class="button-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24">
+            <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+          </svg>
+        </span>
+        Cancel
+      </button>
     </div>
   </div>
 </template>
@@ -204,52 +256,117 @@ onMounted(() => {
 .value-editor {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 6px;
+  padding: 10px;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-.text-input, .timestamp-input, .text-area, .checkbox-container {
+.input-container, .timestamp-container, .text-container, .reference-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--qui-text-secondary);
+  opacity: 0.6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.text-container .input-icon {
+  top: 12px;
+  transform: none;
+}
+
+.text-input, .timestamp-input, .text-area, .reference-input {
   font-family: var(--qui-font-family);
   font-size: var(--qui-font-size-base);
-  padding: 6px 8px;
-  background: var(--qui-bg-secondary);
+  padding: 8px 10px 8px 36px;
+  background: var(--qui-bg-primary);
   border: 1px solid var(--qui-hover-border);
-  border-radius: 4px;
+  border-radius: 6px;
   color: var(--qui-text-primary);
   width: 100%;
+  transition: all 0.2s var(--qui-animation-bounce);
+}
+
+.text-input:focus, .timestamp-input:focus, .text-area:focus, .reference-input:focus {
+  border-color: var(--qui-accent-color);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(0, 255, 136, 0.2);
 }
 
 .text-area {
   resize: vertical;
-  min-height: 80px;
+  min-height: 100px;
+  padding-top: 32px; /* Make room for the icon */
 }
 
 .checkbox-container {
   display: flex;
   align-items: center;
-  gap: 8px;
-  background: transparent;
-  border: none;
+  gap: 12px;
+  background: var(--qui-bg-primary);
+  border: 1px solid var(--qui-hover-border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  transition: all 0.2s var(--qui-animation-bounce);
+}
+
+.checkbox-container:hover {
+  border-color: var(--qui-accent-color);
+  box-shadow: 0 0 0 2px rgba(0, 255, 136, 0.1);
 }
 
 .bool-checkbox {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   accent-color: var(--qui-accent-color);
+  cursor: pointer;
+}
+
+.timestamp-input {
+  font-family: monospace;
+  letter-spacing: 0.5px;
+}
+
+.reference-input {
+  color: var(--qui-accent-secondary);
+  font-family: monospace;
 }
 
 .editor-buttons {
   display: flex;
   gap: 8px;
-  margin-top: 4px;
+  margin-top: 6px;
+  justify-content: flex-end;
 }
 
 .save-button, .cancel-button {
-  padding: 4px 12px;
-  border-radius: 4px;
+  padding: 6px 14px;
+  border-radius: 20px;
   border: none;
   font-size: var(--qui-font-size-small);
+  font-weight: var(--qui-font-weight-medium);
   cursor: pointer;
   transition: all 0.2s var(--qui-animation-bounce);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.button-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .save-button {
@@ -260,14 +377,25 @@ onMounted(() => {
 .save-button:hover {
   background: var(--qui-accent-secondary);
   transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(0, 255, 136, 0.2);
+}
+
+.save-button:active {
+  transform: translateY(0);
 }
 
 .cancel-button {
   background: var(--qui-overlay-primary);
   color: var(--qui-text-primary);
+  border: 1px solid var(--qui-hover-border);
 }
 
 .cancel-button:hover {
   background: var(--qui-overlay-secondary);
+  transform: translateY(-1px);
+}
+
+.cancel-button:active {
+  transform: translateY(0);
 }
 </style>

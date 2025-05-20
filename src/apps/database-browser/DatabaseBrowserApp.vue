@@ -120,6 +120,11 @@ function waitForConnection(timeout = 5000): Promise<void> {
         <span>{{ error }}</span>
       </div>
       <button class="retry-button" @click="loading = true; dataStore.initialize(); error = null">
+        <span class="retry-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
+            <path fill="currentColor" d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+          </svg>
+        </span>
         Retry Connection
       </button>
     </div>
@@ -145,7 +150,7 @@ function waitForConnection(timeout = 5000): Promise<void> {
       
       <div v-else class="no-selection-message">
         <div class="empty-state">
-          <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24">
+          <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24">
             <path fill="currentColor" d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/>
           </svg>
           <p>Select an entity from the browser to view its details</p>
@@ -164,6 +169,7 @@ function waitForConnection(timeout = 5000): Promise<void> {
   color: var(--qui-text-primary);
   border-radius: var(--qui-window-radius);
   overflow: hidden;
+  box-shadow: var(--qui-shadow-window);
 }
 
 .browser-container {
@@ -171,6 +177,7 @@ function waitForConnection(timeout = 5000): Promise<void> {
   flex: 1;
   overflow: hidden;
   position: relative;
+  background: linear-gradient(to right bottom, rgba(0,0,0,0.05), rgba(0,0,0,0.2));
 }
 
 .column-browser-wrapper {
@@ -181,6 +188,8 @@ function waitForConnection(timeout = 5000): Promise<void> {
   flex-shrink: 0;
   flex-grow: 0;
   border-right: 1px solid var(--qui-hover-border);
+  box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+  z-index: 2;
 }
 
 .main-split-resizer {
@@ -189,13 +198,17 @@ function waitForConnection(timeout = 5000): Promise<void> {
   height: 100%;
   cursor: col-resize;
   z-index: 100;
-  transition: background-color 0.2s ease;
-  transform: translateX(-4px); /* Center on the border */
+  transform: translateX(-4px);
+  transition: background-color 0.2s var(--qui-animation-bounce);
 }
 
-.main-split-resizer:hover, 
-.main-split-resizer:active {
+.main-split-resizer:hover {
   background: rgba(0, 255, 136, 0.2);
+}
+
+.main-split-resizer:active {
+  background: rgba(0, 255, 136, 0.3);
+  box-shadow: 0 0 10px rgba(0, 255, 136, 0.2);
 }
 
 /* During active resize, remove transitions to avoid lag */
@@ -211,35 +224,56 @@ body.resizing-horizontal .main-split-resizer {
   justify-content: center;
   flex: 1;
   color: var(--qui-text-secondary);
+  background: linear-gradient(to bottom, rgba(0,0,0,0.1), rgba(0,0,0,0.2));
 }
 
 .error-message {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
   color: var(--qui-danger-color);
-  margin-bottom: 20px;
+  margin-bottom: 24px;
+  text-align: center;
+  max-width: 300px;
 }
 
 .error-message svg {
   width: 48px;
   height: 48px;
+  opacity: 0.8;
+  filter: drop-shadow(0 0 8px rgba(244, 67, 54, 0.3));
 }
 
 .retry-button {
-  padding: 8px 16px;
+  padding: 10px 18px;
   background: var(--qui-overlay-primary);
   border: 1px solid var(--qui-hover-border);
-  border-radius: 4px;
+  border-radius: 20px;
   color: var(--qui-text-primary);
   cursor: pointer;
   transition: all 0.2s var(--qui-animation-bounce);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: var(--qui-font-weight-medium);
 }
 
 .retry-button:hover {
   background: var(--qui-accent-color);
   color: var(--qui-bg-primary);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 255, 136, 0.2);
+}
+
+.retry-button:active {
+  transform: translateY(0);
+}
+
+.retry-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .no-selection-message {
@@ -250,20 +284,35 @@ body.resizing-horizontal .main-split-resizer {
   color: var(--qui-text-secondary);
   border-left: 1px solid var(--qui-hover-border);
   background: var(--qui-bg-primary);
+  background-image: radial-gradient(circle at 50% 50%, rgba(0,255,136,0.03) 0%, rgba(0,0,0,0) 70%);
 }
 
 .empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
-  opacity: 0.5;
+  gap: 24px;
+  opacity: 0.6;
   text-align: center;
-  max-width: 250px;
+  max-width: 300px;
+  transform: translateY(-20px);
+  transition: all 0.3s var(--qui-animation-bounce);
 }
 
 .empty-state svg {
   opacity: 0.7;
+  filter: drop-shadow(0 0 10px rgba(0,255,136,0.1));
+  transition: all 0.3s var(--qui-animation-bounce);
+}
+
+.empty-state:hover {
+  opacity: 0.8;
+  transform: translateY(-25px);
+}
+
+.empty-state:hover svg {
+  transform: scale(1.05);
+  opacity: 0.9;
 }
 
 /* Add global styles for when resizing is happening */

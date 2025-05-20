@@ -154,7 +154,7 @@ function handleScroll(event: Event) {
         <input 
           type="text" 
           v-model="searchQuery" 
-          placeholder="Filter items..." 
+          placeholder="Search entities..." 
           class="search-input"
         />
         <span class="clear-search" v-if="searchQuery" @click="searchQuery = ''">
@@ -167,15 +167,21 @@ function handleScroll(event: Event) {
     
     <div v-if="loading" class="column-loading">
       <div class="spinner"></div>
-      <span>Loading...</span>
+      <span>Loading entities...</span>
     </div>
     
     <div v-else-if="error" class="column-error">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24">
+        <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+      </svg>
       <span>{{ error }}</span>
       <button @click="loadEntities" class="retry-button">Retry</button>
     </div>
     
     <div v-else-if="totalFilteredCount === 0" class="empty-message">
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+        <path fill="currentColor" d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+      </svg>
       <span v-if="searchQuery">No matching entities</span>
       <span v-else>No entities found</span>
     </div>
@@ -250,13 +256,14 @@ function handleScroll(event: Event) {
 }
 
 .column-header {
-  padding: 8px;
+  padding: 12px;
   border-bottom: 1px solid var(--qui-hover-border);
   position: sticky;
   top: 0;
   background: var(--qui-bg-secondary);
   z-index: 5;
   backdrop-filter: blur(5px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .search-container {
@@ -267,58 +274,69 @@ function handleScroll(event: Event) {
 
 .search-input {
   width: 100%;
-  padding: 6px 28px 6px 28px;
-  border-radius: 16px;
+  padding: 8px 32px 8px 32px;
+  border-radius: 20px;
   border: 1px solid var(--qui-hover-border);
   background: rgba(0, 0, 0, 0.2);
   color: var(--qui-text-primary);
   font-size: var(--qui-font-size-small);
-  transition: all 0.2s ease;
+  transition: all 0.2s var(--qui-animation-bounce);
 }
 
 .search-input:focus {
   background: rgba(0, 0, 0, 0.3);
   border-color: var(--qui-accent-color);
   outline: none;
+  box-shadow: 0 0 0 2px rgba(0, 255, 136, 0.2);
 }
 
 .search-icon {
   position: absolute;
-  left: 8px;
+  left: 12px;
   color: var(--qui-text-secondary);
   opacity: 0.6;
 }
 
 .clear-search {
   position: absolute;
-  right: 8px;
+  right: 10px;
   color: var(--qui-text-secondary);
   cursor: pointer;
   opacity: 0.6;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  transition: all 0.2s var(--qui-animation-bounce);
 }
 
 .clear-search:hover {
   opacity: 1;
+  background: rgba(255, 255, 255, 0.2);
+  transform: scale(1.1);
 }
 
 .entity-list {
   flex: 1;
-  padding: 4px 0;
+  padding: 8px 0;
 }
 
 .entity-group {
-  margin-bottom: 8px;
+  margin-bottom: 12px;
 }
 
 .entity-group-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 4px 12px;
+  padding: 6px 16px;
   color: var(--qui-accent-color);
-  font-size: 10px;
+  font-size: 11px;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.7px;
   font-weight: var(--qui-font-weight-medium);
   background: rgba(0, 0, 0, 0.2);
   border-bottom: 1px solid rgba(0, 255, 136, 0.1);
@@ -326,31 +344,60 @@ function handleScroll(event: Event) {
 
 .entity-group-count {
   background: rgba(0, 255, 136, 0.1);
-  border-radius: 10px;
-  padding: 1px 6px;
-  font-size: 9px;
+  border-radius: 12px;
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: var(--qui-font-weight-bold);
+  box-shadow: 0 0 5px rgba(0, 255, 136, 0.1);
 }
 
 .entity-item {
   display: flex;
   align-items: center;
-  padding: 8px 12px;
+  padding: 10px 16px;
   cursor: pointer;
-  border-radius: 4px;
-  margin: 2px 4px;
+  border-radius: 6px;
+  margin: 3px 6px;
   transition: all 0.15s var(--qui-animation-bounce);
   justify-content: space-between;
   border-left: 2px solid transparent;
+  position: relative;
+  overflow: hidden;
+}
+
+.entity-item::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(to right, transparent, transparent);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: 0;
 }
 
 .entity-item:hover {
   background: var(--qui-overlay-hover);
+  transform: translateX(2px);
+}
+
+.entity-item:hover::before {
+  opacity: 1;
+  background: linear-gradient(to right, transparent, rgba(0, 255, 136, 0.03));
 }
 
 .entity-item.selected {
   background: var(--qui-overlay-active);
   border-left: 2px solid var(--qui-accent-color);
   color: var(--qui-accent-color);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.entity-item.selected::before {
+  opacity: 1;
+  background: linear-gradient(to right, transparent, rgba(0, 255, 136, 0.1));
 }
 
 .entity-name {
@@ -358,6 +405,10 @@ function handleScroll(event: Event) {
   overflow: hidden;
   text-overflow: ellipsis;
   flex: 1;
+  position: relative;
+  z-index: 1;
+  font-weight: var(--qui-font-weight-medium);
+  letter-spacing: 0.2px;
 }
 
 .child-indicator {
@@ -365,15 +416,19 @@ function handleScroll(event: Event) {
   opacity: 0.6;
   transform: translateX(0);
   transition: transform 0.2s var(--qui-animation-bounce);
+  position: relative;
+  z-index: 1;
 }
 
 .entity-item:hover .child-indicator {
   opacity: 1;
-  transform: translateX(2px);
+  transform: translateX(3px);
 }
 
 .entity-item.selected .child-indicator {
   color: var(--qui-accent-color);
+  opacity: 1;
+  filter: drop-shadow(0 0 3px rgba(0, 255, 136, 0.3));
 }
 
 .column-loading, .column-error, .empty-message {
@@ -381,17 +436,23 @@ function handleScroll(event: Event) {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 16px;
+  padding: 24px 16px;
   color: var(--qui-text-secondary);
-  height: 100px;
+  height: 150px;
   font-size: var(--qui-font-size-small);
   text-align: center;
+  gap: 12px;
+}
+
+.column-error svg, .empty-message svg {
+  opacity: 0.6;
+  margin-bottom: 4px;
 }
 
 .spinner {
-  width: 20px;
-  height: 20px;
-  border: 2px solid transparent;
+  width: 24px;
+  height: 24px;
+  border: 2px solid rgba(0, 255, 136, 0.1);
   border-top-color: var(--qui-accent-color);
   border-radius: 50%;
   animation: spin 1s linear infinite;
@@ -400,17 +461,20 @@ function handleScroll(event: Event) {
 
 .retry-button {
   margin-top: 8px;
-  padding: 4px 8px;
+  padding: 6px 12px;
   background: var(--qui-overlay-primary);
-  border: none;
-  border-radius: 4px;
+  border: 1px solid var(--qui-hover-border);
+  border-radius: 16px;
   color: var(--qui-text-primary);
   cursor: pointer;
   font-size: var(--qui-font-size-small);
+  transition: all 0.2s var(--qui-animation-bounce);
 }
 
 .retry-button:hover {
-  background: var(--qui-overlay-secondary);
+  background: var(--qui-accent-color);
+  color: var(--qui-bg-primary);
+  transform: translateY(-1px);
 }
 
 @keyframes spin {

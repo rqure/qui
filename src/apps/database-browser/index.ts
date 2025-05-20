@@ -1,6 +1,7 @@
 import { markRaw } from 'vue'
 import DatabaseBrowserApp from './DatabaseBrowserApp.vue'
 import type { RegisteredApp } from '@/core/apps/types'
+import './styles/global.css'
 
 // Define the icon as an SVG data URL for consistent appearance
 const databaseBrowserIcon = `

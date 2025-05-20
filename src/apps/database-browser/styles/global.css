@@ -1,0 +1,207 @@
+/* Database Browser Global Styles */
+
+/* Consistent transitions and animations */
+.db-animation-bounce {
+  transition: all 0.2s var(--qui-animation-bounce);
+}
+
+.db-animation-smooth {
+  transition: all 0.3s ease;
+}
+
+/* Consistent shadow effects */
+.db-shadow-card {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.db-shadow-inner {
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.db-shadow-accent {
+  box-shadow: 0 0 10px rgba(0, 255, 136, 0.2);
+}
+
+/* Badge styles */
+.db-badge {
+  display: inline-block;
+  font-size: 10px;
+  color: var(--qui-text-secondary);
+  font-weight: normal;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 2px 6px;
+  border-radius: 10px;
+  letter-spacing: 0.5px;
+}
+
+.db-badge-accent {
+  background: rgba(0, 255, 136, 0.1);
+  color: var(--qui-accent-color);
+}
+
+.db-badge-secondary {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Button styles */
+.db-button {
+  padding: 8px 16px;
+  border-radius: 20px;
+  border: 1px solid var(--qui-hover-border);
+  background: var(--qui-overlay-primary);
+  color: var(--qui-text-primary);
+  cursor: pointer;
+  font-weight: var(--qui-font-weight-medium);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s var(--qui-animation-bounce);
+}
+
+.db-button:hover {
+  background: var(--qui-overlay-secondary);
+  transform: translateY(-1px);
+}
+
+.db-button:active {
+  transform: translateY(0);
+}
+
+.db-button-primary {
+  background: var(--qui-accent-color);
+  color: var(--qui-bg-primary);
+  border: none;
+}
+
+.db-button-primary:hover {
+  background: var(--qui-accent-secondary);
+  box-shadow: 0 3px 8px rgba(0, 255, 136, 0.2);
+}
+
+/* Input field styles */
+.db-input {
+  font-family: var(--qui-font-family);
+  font-size: var(--qui-font-size-base);
+  padding: 8px 12px;
+  background: var(--qui-bg-primary);
+  border: 1px solid var(--qui-hover-border);
+  border-radius: 6px;
+  color: var(--qui-text-primary);
+  transition: all 0.2s var(--qui-animation-bounce);
+}
+
+.db-input:focus {
+  border-color: var(--qui-accent-color);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(0, 255, 136, 0.2);
+}
+
+/* Search input styles */
+.db-search-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.db-search-input {
+  width: 100%;
+  padding: 8px 32px;
+  border-radius: 20px;
+  border: 1px solid var(--qui-hover-border);
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--qui-text-primary);
+  font-size: var(--qui-font-size-small);
+  transition: all 0.2s var(--qui-animation-bounce);
+}
+
+.db-search-input:focus {
+  background: rgba(0, 0, 0, 0.3);
+  border-color: var(--qui-accent-color);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(0, 255, 136, 0.2);
+}
+
+.db-search-icon {
+  position: absolute;
+  left: 12px;
+  color: var(--qui-text-secondary);
+  opacity: 0.6;
+}
+
+.db-search-clear {
+  position: absolute;
+  right: 10px;
+  color: var(--qui-text-secondary);
+  cursor: pointer;
+  opacity: 0.6;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  transition: all 0.2s var(--qui-animation-bounce);
+}
+
+.db-search-clear:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.2);
+  transform: scale(1.1);
+}
+
+/* Card layout */
+.db-card {
+  background: var(--qui-bg-secondary);
+  border-radius: 6px;
+  border: 1px solid var(--qui-hover-border);
+  overflow: hidden;
+}
+
+.db-card-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--qui-hover-border);
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.db-card-body {
+  padding: 16px;
+}
+
+/* Loading spinner */
+.db-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid rgba(0, 255, 136, 0.1);
+  border-top-color: var(--qui-accent-color);
+  border-radius: 50%;
+  animation: db-spin 1s linear infinite;
+}
+
+@keyframes db-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes db-pulse {
+  0% { opacity: 0.4; }
+  50% { opacity: 1; }
+  100% { opacity: 0.4; }
+}
+
+/* Status colors */
+.db-status-success {
+  color: #4CAF50;
+}
+
+.db-status-warning {
+  color: #FFC107;
+}
+
+.db-status-error {
+  color: #F44336;
+}
+
+.db-status-info {
+  color: #2196F3;
+}

@@ -204,7 +204,12 @@ function getColumnStyle(column: { id: string; width?: number }) {
         v-if="index < columns.length - 1"
         class="column-resize-handle"
         @mousedown="startResize($event, column.id)"
-      ></div>
+      >
+        <div class="resize-handle-dots">
+          <span></span>
+          <span></span>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -217,7 +222,7 @@ function getColumnStyle(column: { id: string; width?: number }) {
   overflow-y: hidden;
   height: 100%;
   background: var(--qui-bg-secondary);
-  box-shadow: inset -5px 0 10px -5px rgba(0, 0, 0, 0.1);
+  box-shadow: inset 0 5px 10px -5px rgba(0, 0, 0, 0.15);
   
   /* Custom scrollbar for horizontal scrolling */
   scrollbar-width: thin;
@@ -246,6 +251,7 @@ function getColumnStyle(column: { id: string; width?: number }) {
   display: flex;
   position: relative;
   height: 100%;
+  box-shadow: 1px 0 3px rgba(0, 0, 0, 0.1);
 }
 
 .column-container.is-resizing * {
@@ -254,7 +260,7 @@ function getColumnStyle(column: { id: string; width?: number }) {
 }
 
 .column-resize-handle {
-  width: 5px;
+  width: 10px;
   height: 100%;
   cursor: col-resize;
   background: transparent;
@@ -262,11 +268,44 @@ function getColumnStyle(column: { id: string; width?: number }) {
   right: 0;
   top: 0;
   z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s ease;
 }
 
-.column-resize-handle:hover,
+.resize-handle-dots {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 16px;
+  opacity: 0.4;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.resize-handle-dots span {
+  width: 3px;
+  height: 3px;
+  background-color: var(--qui-accent-color);
+  border-radius: 50%;
+  margin: 2px 0;
+}
+
+.column-resize-handle:hover {
+  background: rgba(0, 255, 136, 0.1);
+}
+
+.column-resize-handle:hover .resize-handle-dots {
+  opacity: 0.8;
+  transform: scaleY(1.2);
+}
+
 .column-resize-handle:active {
   background: rgba(0, 255, 136, 0.2);
+}
+
+.column-resize-handle:active .resize-handle-dots {
+  opacity: 1;
 }
 
 /* Make sure the resize handles still work when the parent is resizing */
