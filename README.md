@@ -627,6 +627,166 @@ await webtop.installApp({
 })
 ```
 
+## Entity Drag and Drop System
+
+QUI includes a powerful entity drag and drop system that allows users to drag entity references and entity lists between applications, even across multiple windows.
+
+### Core Components
+
+The drag and drop system is built around these components:
+
+- **Drag Source**: Component that initiates the drag operation
+- **Drop Target**: Component that receives the drop
+- **Cross-Window Communication**: System to synchronize across browser windows
+
+### Usage
+
+#### Setting Up a Draggable Entity
+
+To make an element draggable:
+
+```vue
+<script setup>
+import { useEntityDrag } from '@/core/utils/composables';
+
+// Get drag functionality
+const { startEntityDrag, navigateToEntity } = useEntityDrag();
+
+// Use in drag event handlers
+function handleDragStart(event, entityId, entityType, fieldType) {
+  startEntityDrag(event, entityId, entityType, undefined, fieldType);
+}
+</script>
+
+<template>
+  <div 
+    draggable="true"
+    @dragstart="handleDragStart($event, entity.id, entity.type, 'fieldName')"
+  >
+    {{ entity.name }}
+  </div>
+</template>
+```
+
+#### Creating a Drop Target
+
+To make an element accept entity drops:
+
+```vue
+<script setup>
+import { useEntityDropZone } from '@/core/utils/composables';
+
+// Set up target with a callback function
+const { handleDrop, isEntityDrag } = useEntityDropZone((entityId) => {
+  // Actions to perform when entity is dropped
+  console.log(`Entity dropped: ${entityId}`);
+});
+
+// Visual feedback for dragging over
+const isTargetActive = ref(false);
+
+function handleDragOver(event) {
+  if (isEntityDrag(event)) {
+    event.preventDefault();
+    isTargetActive.value = true;
+  }
+}
+
+function handleDragLeave() {
+  isTargetActive.value = false;
+}
+
+function onDrop(event) {
+  event.preventDefault();
+  isTargetActive.value = false;
+  
+  // Process the drop
+  handleDrop(event);
+}
+</script>
+
+<template>
+  <div 
+    :class="{ 'active-drop-zone': isTargetActive }"
+    @dragover="handleDragOver"
+    @dragleave="handleDragLeave"
+    @drop="onDrop"
+  >
+    Drop zone
+  </div>
+</template>
+```
+
+#### EntityDragData Structure
+
+When entities are dragged, they carry contextual information:
+
+```typescript
+interface EntityDragData {
+  entityId: string;       // ID of the entity being dragged
+  entityType?: string;    // Type of the entity (if available)
+  entityName?: string;    // Name of the entity (if available)
+  fieldType?: string;     // Field type the entity came from (if available)
+  sourceWindowId: string; // ID of the source window
+  timestamp: number;      // When the drag operation started
+}
+```
+
+### Cross-Window Functionality
+
+The entity drag and drop system works across multiple windows using:
+
+1. **LocalStorage**: For cross-window communication
+2. **Custom Events**: For real-time coordination
+3. **Window IDs**: To avoid circular operations
+
+This allows for seamless workflows where users can drag entities between:
+
+- Different components within an application
+- Different applications within the same window
+- Applications across multiple QUI windows
+
+### Styling Drag Operations
+
+Global CSS classes are provided for consistent drag appearance:
+
+```css
+/* Target element being dragged */
+.qui-entity-drag-icon {
+  /* Custom appearance for dragged element */
+}
+
+/* Body class during drag operation */
+body.qui-entity-drag-in-progress {
+  cursor: grabbing !important;
+}
+
+/* Drop zone styling */
+.entity-drop-zone {
+  /* Styling for drop zones */
+}
+
+.entity-drop-active {
+  /* Active state for drop zones */
+}
+```
+
+### Best Practices
+
+1. **Rich Metadata**: Pass entity type and field information when starting drags
+2. **Visual Feedback**: Use drop zone indicators to show valid targets
+3. **Error Handling**: Validate dropped entities before processing
+4. **Performance**: Minimize drag image size for smooth operations
+
+### Advanced Usage
+
+For advanced drag and drop operations, the system supports:
+
+- **Data Transformation**: Process entity data during drag operations
+- **Validation Rules**: Create context-specific drop zones
+- **Multi-Entity Operations**: Drag multiple entities at once
+- **Custom Drop Effects**: Show specialized cursors based on modifiers
+
 ## Recommended IDE Setup
 
 [VSCode](https://code.visualstudio.com/) + [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
@@ -667,8 +827,6 @@ npm run test:unit
 
 ```sh
 npm run lint
-```
-
 ```
 
 ```

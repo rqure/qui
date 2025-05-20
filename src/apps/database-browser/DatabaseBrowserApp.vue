@@ -5,6 +5,7 @@ import ColumnBrowser from './components/ColumnBrowser.vue';
 import EntityDetailsPanel from './components/EntityDetailsPanel.vue';
 import LoadingIndicator from './components/LoadingIndicator.vue';
 import type { Entity, EntityId } from '@/core/data/types';
+import { useEntityDropZone } from '@/core/utils/composables';
 
 const dataStore = useDataStore();
 const selectedEntityId = ref<EntityId | null>(null);
@@ -119,6 +120,9 @@ function handleEntityNavigation(event: Event) {
     navigateToEntity(customEvent.detail.entityId);
   }
 }
+
+// Set up drop zone functionality
+const { handleDrop: processEntityDrop } = useEntityDropZone(navigateToEntity);
 
 // Navigate to a specific entity
 async function navigateToEntity(entityId: EntityId) {

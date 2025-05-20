@@ -4,6 +4,7 @@ import { useDataStore } from '@/stores/data';
 import type { Entity, EntityId } from '@/core/data/types';
 import EntityColumn from './EntityColumn.vue';
 import { v4 as uuidv4 } from 'uuid';
+import { useEntityDropZone } from '@/core/utils/composables';
 
 const props = defineProps<{
   selectedEntityId?: EntityId | null;
@@ -27,6 +28,9 @@ const columnBrowserRef = ref<HTMLElement | null>(null);
 
 // Add drop handling functionality
 const isDropTarget = ref(false);
+
+// Set up drop zone functionality with our composable
+const { handleDrop: processEntityDrop, isEntityDrag } = useEntityDropZone(navigateToEntity);
 
 // Initialize with root column
 onMounted(async () => {
@@ -221,20 +225,13 @@ async function navigateToEntity(entityId: EntityId) {
 function handleDrop(event: DragEvent) {
   event.preventDefault();
   isDropTarget.value = false;
-  
-  if (!event.dataTransfer) return;
-  
-  // Check for our custom entity ID data
-  const entityId = event.dataTransfer.getData('application/x-entity-id');
-  if (entityId) {
-    navigateToEntity(entityId);
-  }
+  processEntityDrop(event);
 }
 
 // Show drop target indicator when dragging over
 function handleDragOver(event: DragEvent) {
-  // Only accept our specific data type
-  if (event.dataTransfer?.types.includes('application/x-entity-id')) {
+  // Only accept our specific entity data type
+  if (isEntityDrag(event)) {
     event.preventDefault();
     isDropTarget.value = true;
     

@@ -2,6 +2,7 @@
 import { computed, ref, onMounted, watch } from 'vue';
 import { useDataStore } from '@/stores/data';
 import { ValueType } from '@/core/data/types';
+import { useEntityDrag } from '@/core/utils/composables';
 
 // Define our own Value interface to avoid type errors
 interface Value {
@@ -165,49 +166,17 @@ onMounted(() => {
   }
 });
 
+// Get drag and drop utilities from composable
+const { startEntityDrag, navigateToEntity } = useEntityDrag();
+
 // Add drag functionality for entity references and entity lists
 function handleDragStart(event: DragEvent, entityId: string) {
-  if (!event.dataTransfer) return;
-  
-  // Set data for the drag operation
-  event.dataTransfer.setData('application/x-entity-id', entityId);
-  event.dataTransfer.setData('text/plain', entityId);
-  event.dataTransfer.effectAllowed = 'all';
-  
-  // Set a custom drag image if needed
-  const dragIcon = document.createElement('div');
-  dragIcon.className = 'entity-drag-icon';
-  dragIcon.textContent = 'Entity';
-  dragIcon.style.padding = '4px 8px';
-  dragIcon.style.background = 'var(--qui-accent-bg-faint)';
-  dragIcon.style.color = 'var(--qui-accent-color)';
-  dragIcon.style.borderRadius = '4px';
-  dragIcon.style.fontSize = '12px';
-  dragIcon.style.fontWeight = 'bold';
-  dragIcon.style.pointerEvents = 'none';
-  document.body.appendChild(dragIcon);
-  
-  event.dataTransfer.setDragImage(dragIcon, 15, 15);
-  
-  // Remove the temporary element after a delay
-  setTimeout(() => {
-    document.body.removeChild(dragIcon);
-  }, 100);
-  
-  // Dispatch a custom event for potential cross-window communication
-  const customEvent = new CustomEvent('entity:drag-start', {
-    detail: { entityId }
-  });
-  window.dispatchEvent(customEvent);
+  startEntityDrag(event, entityId, props.entityType, undefined, props.fieldType);
 }
 
 // Make an EntityId clickable - emitting a navigation event
 function handleEntityClick(entityId: string) {
-  const event = new CustomEvent('entity:navigate', {
-    detail: { entityId },
-    bubbles: true
-  });
-  window.dispatchEvent(event);
+  navigateToEntity(entityId);
 }
 </script>
 
