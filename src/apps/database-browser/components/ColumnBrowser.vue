@@ -5,7 +5,7 @@ import type { Entity, EntityId } from '@/core/data/types';
 import { EntityFactories } from '@/core/data/types';
 import EntityColumn from './EntityColumn.vue';
 import { v4 as uuidv4 } from 'uuid';
-import { useEntityDropZone } from '@/core/utils/composables';
+import { useEntityDropZone, initCrossWindowEntityHandling } from '@/core/utils/composables';
 
 const props = defineProps<{
   selectedEntityId?: EntityId | null;
@@ -36,8 +36,8 @@ const isDropTarget = ref(false);
 // Set up drop zone functionality with our composable
 const { handleDrop: processEntityDrop, isEntityDrag } = useEntityDropZone(navigateToEntity);
 
-// Initialize with root column
-onMounted(async () => {
+// Initialize with root column and set up event handlers
+onMounted(() => {
   if (!columns.value.length) {
     columns.value = [
       { 
@@ -51,18 +51,14 @@ onMounted(async () => {
   window.addEventListener('mousemove', handleMouseMove);
   window.addEventListener('mouseup', handleMouseUp);
   
-  // Remove event listeners when component is unmounted
+  // Set up cross-window entity navigation using the new helper
+  const cleanup = initCrossWindowEntityHandling(navigateToEntity);
+  
+  // Store the cleanup function for onUnmounted
   onUnmounted(() => {
     window.removeEventListener('mousemove', handleMouseMove);
     window.removeEventListener('mouseup', handleMouseUp);
-  });
-
-  // Set up event listeners for cross-window entity navigation
-  window.addEventListener('entity:navigate', handleEntityNavigation);
-  
-  // Clean up on unmount
-  onUnmounted(() => {
-    window.removeEventListener('entity:navigate', handleEntityNavigation);
+    cleanup();
   });
 });
 
@@ -335,6 +331,11 @@ function handleDragOver(event: DragEvent) {
     // Set the visual feedback for drop
     if (event.dataTransfer) {
       event.dataTransfer.dropEffect = 'link';
+      
+      // Reduce flickering by making the drag image partially transparent
+      const img = new Image();
+      img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'; // 1px transparent gif
+      event.dataTransfer.setDragImage(img, 0, 0);
     }
   }
 }
@@ -498,6 +499,7 @@ function handleDragLeave() {
   outline: 2px dashed var(--qui-accent-color);
   outline-offset: -2px;
   background-color: rgba(0, 255, 136, 0.05);
+  z-index: 0; /* Ensure this is behind other elements */
 }
 
 .drop-zone-overlay {
@@ -512,6 +514,13 @@ function handleDragLeave() {
   background-color: rgba(0, 0, 0, 0.4);
   z-index: 1000;
   pointer-events: none;
+  backdrop-filter: blur(2px); /* Add subtle blur effect */
+  animation: fade-in 0.3s ease; /* Smooth animation */
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .drop-zone-message {

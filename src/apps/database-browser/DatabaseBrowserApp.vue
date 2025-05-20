@@ -18,6 +18,13 @@ const resizeStartWidth = ref(0);
 const minBrowserWidth = 300;
 const maxBrowserWidth = window.innerWidth * 0.75;
 
+// Register cleanup handlers at the top level of the component
+onUnmounted(() => {
+  window.removeEventListener('entity:navigate', handleEntityNavigation);
+  window.removeEventListener('mousemove', handleMainSplitMove);
+  window.removeEventListener('mouseup', endMainSplitResize);
+});
+
 // Handle entity selection from the column browser
 const handleEntitySelect = (entityId: EntityId) => {
   selectedEntityId.value = entityId;
@@ -62,7 +69,10 @@ function endMainSplitResize() {
 
 onMounted(async () => {
   try {
-    // Initialize connection when app mounts
+    // First register event listeners that need to be cleaned up
+    window.addEventListener('entity:navigate', handleEntityNavigation);
+    
+    // Then perform async operations
     if (!dataStore.isConnected) {
       await dataStore.initialize();
     }
@@ -77,19 +87,6 @@ onMounted(async () => {
     error.value = 'Failed to connect to the database. Please try again later.';
     loading.value = false;
   }
-  
-  window.addEventListener('entity:navigate', handleEntityNavigation);
-  
-  // Clean up on unmount
-  onUnmounted(() => {
-    window.removeEventListener('entity:navigate', handleEntityNavigation);
-  });
-});
-
-onUnmounted(() => {
-  // Clean up event listeners on unmount
-  window.removeEventListener('mousemove', handleMainSplitMove);
-  window.removeEventListener('mouseup', endMainSplitResize);
 });
 
 // Utility to wait for connection

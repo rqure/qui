@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, watch } from 'vue';
+import { computed, ref, onMounted, onUnmounted, watch } from 'vue';
 import { useDataStore } from '@/stores/data';
 import { ValueType } from '@/core/data/types';
 import { useEntityDrag } from '@/core/utils/composables';
@@ -21,6 +21,14 @@ const props = defineProps<{
 const dataStore = useDataStore();
 const choiceOptions = ref<string[]>([]);
 const choiceLabel = ref<string>('');
+let cleanupFunction = null;
+
+// Register onUnmounted at the top level before any async operations
+onUnmounted(() => {
+  if (cleanupFunction) {
+    cleanupFunction();
+  }
+});
 
 // Determine display format based on value type
 const displayValue = computed(() => {
@@ -160,10 +168,18 @@ watch(
   { immediate: true }
 );
 
-onMounted(() => {
+onMounted(async () => {
   if (props.value?.type === ValueType.Choice && props.entityType && props.fieldType) {
-    loadChoiceOptions();
+    await loadChoiceOptions();
   }
+  
+  // Store any cleanup function from hooks used inside onMounted
+  // so we can call it in onUnmounted
+  const dragCleanup = () => {
+    // Any cleanup needed for drag functionality
+  };
+  
+  cleanupFunction = dragCleanup;
 });
 
 // Get drag and drop utilities from composable

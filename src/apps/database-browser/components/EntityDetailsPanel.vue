@@ -7,6 +7,8 @@ import { formatTimestamp } from '@/apps/database-browser/utils/formatters';
 import ValueDisplay from '@/apps/database-browser/components/ValueDisplay.vue';
 import ValueEditor from '@/apps/database-browser/components/ValueEditor.vue';
 import type { DatabaseNotification } from '@/generated/protobufs_pb';
+import { useEntityDropZone } from '@/core/utils/composables';
+import { ValueType, ValueFactories } from '@/core/data/types';
 
 const props = defineProps<{
   entityId: EntityId;
@@ -24,6 +26,32 @@ const loadingWriterNames = ref<Record<EntityId, boolean>>({});
 const notificationSubscriptions = ref<Array<{ token: string, unsubscribe: () => Promise<boolean> }>>([]);
 const refreshTimestampsTimer = ref<number | null>(null);
 const currentTimestamp = ref(Date.now());
+const fieldDropTargets = ref<Record<string, boolean>>({});
+const schema = ref<any>(null);
+
+// Register cleanup function at top level before any await
+onUnmounted(async () => {
+  await cleanupNotifications();
+  
+  // Clear the refresh timestamps timer
+  if (refreshTimestampsTimer.value !== null) {
+    clearInterval(refreshTimestampsTimer.value);
+    refreshTimestampsTimer.value = null;
+  }
+});
+
+// Start a timer to update the current timestamp
+onMounted(() => {
+  // Update timestamps every 10 seconds
+  refreshTimestampsTimer.value = window.setInterval(() => {
+    currentTimestamp.value = Date.now();
+  }, 1000);
+  
+  // If there are already fields loaded, ensure writer names are loaded
+  if (fields.value.length > 0) {
+    loadWriterNames();
+  }
+});
 
 // Load entity details when component mounts or entity ID changes
 watch(() => props.entityId, async () => {
@@ -38,25 +66,6 @@ const formatTimestampReactive = (date: Date | string | number) => {
   currentTimestamp.value;
   return formatTimestamp(date);
 };
-
-// Start a timer to update the current timestamp
-onMounted(() => {
-  // Update timestamps every 10 seconds
-  refreshTimestampsTimer.value = window.setInterval(() => {
-    currentTimestamp.value = Date.now();
-  }, 1000);
-});
-
-// Clean up notifications and timer when component is unmounted
-onUnmounted(async () => {
-  await cleanupNotifications();
-  
-  // Clear the refresh timestamps timer
-  if (refreshTimestampsTimer.value !== null) {
-    clearInterval(refreshTimestampsTimer.value);
-    refreshTimestampsTimer.value = null;
-  }
-});
 
 async function cleanupNotifications() {
   // Unsubscribe from all active notifications
@@ -73,23 +82,139 @@ async function cleanupNotifications() {
   }
 }
 
+// Process drop on a specific field
+async function handleFieldDrop(fieldType: string, entityId: EntityId) {
+  try {
+    // Find the field in our fields array
+    const field = fields.value.find(f => f.fieldType === fieldType);
+    if (!field) return;
+    
+    // First, clear the drop target highlight to prevent flickering
+    fieldDropTargets.value[fieldType] = false;
+    
+    // Check the field's value type to determine handling
+    if (field.value.type === ValueType.EntityReference) {
+      // For entity reference, set the reference to the dropped entity
+      field.value = ValueFactories.newEntityReference(entityId);
+      await dataStore.write([field]);
+      console.log(`Updated reference field ${fieldType} to ${entityId}`);
+    } 
+    else if (field.value.type === ValueType.EntityList) {
+      // For entity list, append the entity to the list if not already present
+      const currentList = field.value.getEntityList();
+      
+      // Check if the entity is already in the list
+      if (!currentList.includes(entityId)) {
+        // Create a new list with the added entity
+        const newList = [...currentList, entityId];
+        field.value = ValueFactories.newEntityList(newList);
+        await dataStore.write([field]);
+        console.log(`Added ${entityId} to entity list ${fieldType}`);
+      } else {
+        console.log(`Entity ${entityId} already exists in list ${fieldType}`);
+      }
+    }
+  } catch (error) {
+    console.error(`Error handling drop on field ${fieldType}:`, error);
+  }
+}
+
+// Set up drop zones for entity fields without using composable lifecycle hooks
+function setupFieldDropZones() {
+  // Create drop zones for appropriate field types
+  fields.value.forEach(field => {
+    if (field.value.type === ValueType.EntityReference || field.value.type === ValueType.EntityList) {
+      // Just create the handlers without the composable's lifecycle hooks
+      
+      // Manual implementation of drop handling
+      const isEntityDrag = (event: DragEvent): boolean => {
+        if (!event.dataTransfer) return false;
+        return event.dataTransfer.types.includes('application/x-qui-entity');
+      };
+      
+      let dragOverTimeout: number | null = null;
+      
+      const handleFieldDragOver = (event: DragEvent) => {
+        if (isEntityDrag(event)) {
+          event.preventDefault();
+          
+          // Clear any existing timeout to debounce the state change
+          if (dragOverTimeout) {
+            window.clearTimeout(dragOverTimeout);
+          }
+          
+          // Set the state after a small delay to avoid flickering
+          dragOverTimeout = window.setTimeout(() => {
+            fieldDropTargets.value[field.fieldType] = true;
+          }, 50);
+          
+          // Set drop effect based on field type
+          if (event.dataTransfer) {
+            event.dataTransfer.dropEffect = field.value.type === ValueType.EntityReference ? 'link' : 'copy';
+          }
+        }
+      };
+      
+      const handleFieldDragLeave = () => {
+        // Clear any pending timeout
+        if (dragOverTimeout) {
+          window.clearTimeout(dragOverTimeout);
+          dragOverTimeout = null;
+        }
+        
+        // Delay the state update slightly to prevent flickering
+        window.setTimeout(() => {
+          fieldDropTargets.value[field.fieldType] = false;
+        }, 50);
+      };
+      
+      const handleFieldDrop = (event: DragEvent) => {
+        event.preventDefault();
+        
+        if (!event.dataTransfer) return;
+        
+        // Get the entity ID
+        const entityId = event.dataTransfer.getData('application/x-qui-entity');
+        if (entityId) {
+          handleFieldDrop(field.fieldType, entityId);
+        }
+        
+        // Reset the drop target state
+        fieldDropTargets.value[field.fieldType] = false;
+      };
+      
+      // Store these in a map keyed by field type
+      field._dragHandlers = {
+        isEntityDrag,
+        handleDragOver: handleFieldDragOver,
+        handleDragLeave: handleFieldDragLeave,
+        handleDrop: handleFieldDrop
+      };
+    }
+  });
+}
+
+// Enhanced loadEntityDetails to include schema and setup drop zones
 async function loadEntityDetails() {
   loading.value = true;
   error.value = null;
   fields.value = [];
   writerNames.value = {};
   loadingWriterNames.value = {};
+  fieldDropTargets.value = {};
   
   try {
     // Extract entity type from ID
     entityType.value = Utils.getEntityTypeFromId(props.entityId);
     
+    // Get the entity's schema to know what fields it has
+    schema.value = await dataStore.getEntitySchema(entityType.value);
+    
     // Create entity instance
     const entity = EntityFactories.newEntity(props.entityId);
     
-    // Get the entity's schema to know what fields it has
-    const schema = await dataStore.getEntitySchema(entityType.value);
-    Object.keys(schema.fields).forEach((field: string) => {
+    // Add fields based on schema
+    Object.keys(schema.value.fields).forEach((field: string) => {
       entity.field(field);
     });
     
@@ -98,8 +223,8 @@ async function loadEntityDetails() {
     await dataStore.read([...eFields]);
 
     fields.value = [...eFields].sort((a, b) => {
-      const aField = schema.fields[a.fieldType];
-      const bField = schema.fields[b.fieldType];
+      const aField = schema.value.fields[a.fieldType];
+      const bField = schema.value.fields[b.fieldType];
       if (aField.rank === bField.rank) {
         return aField.fieldType.localeCompare(bField.fieldType);
       }
@@ -107,6 +232,9 @@ async function loadEntityDetails() {
       return aField.rank - bField.rank;
     });
     entityName.value = entity.field("Name").value.getString();
+    
+    // Set up drop zones for entity reference and entity list fields
+    setupFieldDropZones();
     
     // Load writer names after loading fields
     await loadWriterNames();
@@ -293,6 +421,18 @@ onMounted(() => {
     loadWriterNames();
   }
 });
+
+// Check if a field is droppable (entity reference or entity list)
+function isFieldDroppable(field: Field): boolean {
+  return field.value.type === ValueType.EntityReference || field.value.type === ValueType.EntityList;
+}
+
+// Get appropriate drop message based on field type
+function getDropMessage(field: Field): string {
+  return field.value.type === ValueType.EntityReference 
+    ? 'Drop to set reference' 
+    : 'Drop to add to list';
+}
 </script>
 
 <template>
@@ -334,6 +474,11 @@ onMounted(() => {
             <td class="field-name">
               {{ field.fieldType }}
               <div class="field-type-badge">{{ field.value.type }}</div>
+              <div v-if="isFieldDroppable(field)" class="droppable-indicator">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24">
+                  <path fill="currentColor" d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+                </svg>
+              </div>
             </td>
             <td class="field-value">
               <ValueEditor
@@ -344,12 +489,31 @@ onMounted(() => {
                 @save="saveField(field.fieldType, $event)"
                 @cancel="cancelEditing"
               />
-              <div v-else class="value-display-container" @dblclick="startEditing(field.fieldType)">
+              <div 
+                v-else 
+                class="value-display-container" 
+                :class="{
+                  'droppable': isFieldDroppable(field),
+                  'drop-target': fieldDropTargets[field.fieldType]
+                }"
+                @dblclick="startEditing(field.fieldType)"
+                @dragover="field._dragHandlers?.handleDragOver($event)"
+                @dragleave="field._dragHandlers?.handleDragLeave()"
+                @drop.prevent="fieldDropTargets[field.fieldType] = false"
+              >
                 <ValueDisplay 
                   :value="field.value"
                   :field-type="field.fieldType"
                   :entity-type="entityType"
                 />
+                
+                <!-- Drop zone overlay for droppable fields - improved for less flickering -->
+                <div v-if="fieldDropTargets[field.fieldType]" class="field-drop-overlay">
+                  <div class="field-drop-message">
+                    {{ getDropMessage(field) }}
+                  </div>
+                </div>
+                
                 <button class="edit-button" @click="startEditing(field.fieldType)" title="Edit value">
                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24">
                     <path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
@@ -676,6 +840,62 @@ onMounted(() => {
   box-shadow: 0 0 0 2px var(--qui-accent-bg-faint);
 }
 
+/* Add styles for droppable fields */
+.droppable-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 4px;
+  opacity: 0.5;
+  color: var(--qui-accent-color);
+}
+
+.value-display-container.droppable {
+  position: relative;
+  transition: all 0.25s ease;
+  border: 1px dashed transparent;
+}
+
+.value-display-container.droppable:hover {
+  border-color: var(--qui-accent-color);
+  background: var(--qui-accent-bg-faint);
+}
+
+.value-display-container.drop-target {
+  border-color: var(--qui-accent-color);
+  background: var(--qui-accent-bg-light);
+  outline: none;
+  box-shadow: 0 0 0 2px var(--qui-accent-glow);
+}
+
+.field-drop-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 255, 136, 0.1);
+  backdrop-filter: blur(1px);
+  z-index: 10;
+  animation: fade-in 0.2s ease; /* Smoother fade in */
+  pointer-events: none; /* Ensure events pass through to container */
+}
+
+.field-drop-message {
+  background: var(--qui-bg-primary);
+  color: var(--qui-accent-color);
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: var(--qui-font-size-small);
+  font-weight: var(--qui-font-weight-medium);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--qui-accent-color);
+  white-space: nowrap;
+}
+
 @keyframes spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
@@ -685,5 +905,15 @@ onMounted(() => {
   0% { opacity: 0.3; }
   50% { opacity: 0.7; }
   100% { opacity: 0.3; }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes pulse-bg {
+  0%, 100% { background-color: rgba(0, 255, 136, 0.1); }
+  50% { background-color: rgba(0, 255, 136, 0.15); } /* Less dramatic pulsing */
 }
 </style>

@@ -1,11 +1,10 @@
-import { onMounted, onUnmounted } from 'vue';
+import { ref } from 'vue';
 import type { EntityId } from '../data/types';
 import { 
   ENTITY_MIME_TYPE, 
   ENTITY_NAVIGATE_EVENT,
   broadcastEntityNavigation,
   createDragImage,
-  initCrossWindowDragDrop,
   addDragStyles,
   removeDragStyles
 } from './dragdrop';
@@ -33,12 +32,14 @@ export function useEntityDrag() {
       event.dataTransfer.setData(`${ENTITY_MIME_TYPE}:fieldType`, fieldType);
     }
     
+    // Make the drag effect more consistent and less flickery
     event.dataTransfer.effectAllowed = 'all';
     
-    // Set custom drag image
+    // Reduce flickering with improved drag image handling
     const dragIcon = createDragImage(entityId, entityType);
     
-    event.dataTransfer.setDragImage(dragIcon, 15, 15);
+    // Use a fixed offset for more stability
+    event.dataTransfer.setDragImage(dragIcon, 20, 20);
     
     // Remove the temporary element after a delay
     setTimeout(() => {
@@ -72,26 +73,22 @@ export function useEntityDrag() {
 
 /**
  * Composable for entity drop zone capability
+ * COMPLETELY REWRITTEN to avoid any lifecycle hooks
  */
 export function useEntityDropZone(
   onEntityDrop: (entityId: EntityId) => void
 ) {
-  // Set up cross-window communication for navigation
-  let cleanup: (() => void) | null = null;
-  
-  onMounted(() => {
-    cleanup = initCrossWindowDragDrop(onEntityDrop);
-  });
-  
-  onUnmounted(() => {
-    if (cleanup) cleanup();
-  });
-  
-  // Handle drop event
+  // Check if this is an entity drag event
+  const isEntityDrag = (event: DragEvent): boolean => {
+    if (!event.dataTransfer) return false;
+    return event.dataTransfer.types.includes(ENTITY_MIME_TYPE);
+  };
+
+  // Process a drop event
   const handleDrop = (event: DragEvent) => {
     event.preventDefault();
     
-    if (!event.dataTransfer) return;
+    if (!event.dataTransfer) return false;
     
     // Check for our custom entity ID data
     const entityId = event.dataTransfer.getData(ENTITY_MIME_TYPE);
@@ -103,14 +100,28 @@ export function useEntityDropZone(
     return false;
   };
   
-  // Check if this is a valid entity being dragged
-  const isEntityDrag = (event: DragEvent): boolean => {
-    if (!event.dataTransfer) return false;
-    return event.dataTransfer.types.includes(ENTITY_MIME_TYPE);
+  // Return only the necessary functions, no lifecycle hooks
+  return {
+    isEntityDrag,
+    handleDrop
+  };
+}
+
+// Helper function to initialize cross-window communication if needed
+// This is called directly by components, not inside the composable
+export function initCrossWindowEntityHandling(callback: (entityId: EntityId) => void) {
+  // Listen for entity navigation events
+  const listener = (event: Event) => {
+    const customEvent = event as CustomEvent;
+    if (customEvent.detail?.entityId) {
+      callback(customEvent.detail.entityId);
+    }
   };
   
-  return {
-    handleDrop,
-    isEntityDrag
+  window.addEventListener('entity:navigate', listener);
+  
+  // Return a cleanup function 
+  return () => {
+    window.removeEventListener('entity:navigate', listener);
   };
 }
