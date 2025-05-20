@@ -879,20 +879,26 @@ export class Notification {
         this.current = notification.current ? new FieldImpl(
             notification.current.id,
             notification.current.name,
-            notification.current.value ? valueFromProtobuf(notification.current.value) : ValueFactories.newString('')
-        ) : undefined;
+            notification.current.value ? valueFromProtobuf(notification.current.value) : ValueFactories.newString(''),
+            notification.current.writeTime ? timestampDate(notification.current.writeTime) : new Date(0),
+            notification.current.writerId ? notification.current.writerId : ''
+        ): undefined;
 
         this.previous = notification.previous ? new FieldImpl(
             notification.previous.id,
             notification.previous.name,
-            notification.previous.value ? valueFromProtobuf(notification.previous.value) : ValueFactories.newString('')
+            notification.previous.value ? valueFromProtobuf(notification.previous.value) : ValueFactories.newString(''),
+            notification.previous.writeTime ? timestampDate(notification.previous.writeTime) : new Date(0),
+            notification.previous.writerId ? notification.previous.writerId : ''
         ) : undefined;
 
         this.contexts = notification.context.map((context: DatabaseField) => {
             return new FieldImpl(
                 context.id,
                 context.name,
-                context.value ? valueFromProtobuf(context.value) : ValueFactories.newString('')
+                context.value ? valueFromProtobuf(context.value) : ValueFactories.newString(''),
+                context.writeTime ? timestampDate(context.writeTime) : new Date(0),
+                context.writerId ? context.writerId : ''
             );
         });
     }
