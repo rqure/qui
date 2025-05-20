@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
-import { ValueFactories } from '@/core/data/types';
+import { ref, computed, onMounted, watch } from 'vue';
+import { ValueFactories, ValueType } from '@/core/data/types';
+import { useDataStore } from '@/stores/data';
 
 // Define our own Value interface to avoid type errors
 interface Value {
@@ -14,10 +15,13 @@ interface Value {
   getBool?: () => boolean;
   getTimestamp?: () => Date;
   getEntityReference?: () => string;
+  getChoice?: () => number;
 }
 
 const props = defineProps<{
   value: Value;
+  fieldType?: string;
+  entityType?: string;
 }>();
 
 const emit = defineEmits<{
@@ -25,23 +29,30 @@ const emit = defineEmits<{
   (e: 'cancel'): void;
 }>();
 
+const dataStore = useDataStore();
+const choiceOptions = ref<string[]>([]);
+const currentChoiceIndex = ref<number>(0);
+
 // Get the initial value based on the type
 function getInitialValue(): string {
   if (!props.value) return '';
   
   // Use type-specific getters if available
-  if (props.value.type === 'String' && typeof props.value.getString === 'function') {
+  if (props.value.type === ValueType.String && typeof props.value.getString === 'function') {
     return props.value.getString();
-  } else if (props.value.type === 'Int' && typeof props.value.getInt === 'function') {
+  } else if (props.value.type === ValueType.Int && typeof props.value.getInt === 'function') {
     return props.value.getInt().toString();
-  } else if (props.value.type === 'Float' && typeof props.value.getFloat === 'function') {
+  } else if (props.value.type === ValueType.Float && typeof props.value.getFloat === 'function') {
     return props.value.getFloat().toString();
-  } else if (props.value.type === 'Bool' && typeof props.value.getBool === 'function') {
+  } else if (props.value.type === ValueType.Bool && typeof props.value.getBool === 'function') {
     return props.value.getBool().toString();
-  } else if (props.value.type === 'EntityReference' && typeof props.value.getEntityReference === 'function') {
+  } else if (props.value.type === ValueType.EntityReference && typeof props.value.getEntityReference === 'function') {
     return props.value.getEntityReference();
-  } else if (props.value.type === 'Timestamp' && typeof props.value.getTimestamp === 'function') {
+  } else if (props.value.type === ValueType.Timestamp && typeof props.value.getTimestamp === 'function') {
     return formatDateForInput(props.value.getTimestamp());
+  } else if (props.value.type === ValueType.Choice && typeof props.value.getChoice === 'function') {
+    currentChoiceIndex.value = props.value.getChoice();
+    return currentChoiceIndex.value.toString();
   }
   
   // Use asString if available
@@ -60,14 +71,16 @@ const inputType = computed(() => {
   const valueType = props.value.type;
   
   switch (valueType) {
-    case "Int":
+    case ValueType.Int:
       return 'number';
-    case "Float":
+    case ValueType.Float:
       return 'number';
-    case "Bool":
+    case ValueType.Bool:
       return 'checkbox';
-    case "Timestamp":
+    case ValueType.Timestamp:
       return 'datetime-local';
+    case ValueType.Choice:
+      return 'choice';
     default:
       return 'text';
   }
@@ -75,7 +88,7 @@ const inputType = computed(() => {
 
 // For boolean values, convert to checked state
 const isChecked = computed(() => {
-  if (props.value?.type === "Bool") {
+  if (props.value?.type === ValueType.Bool) {
     const val = props.value.toString().toLowerCase();
     return val === 'true' || val === '1';
   }
@@ -85,7 +98,7 @@ const isChecked = computed(() => {
 // Modify the dateTimeValue computed property to be a method
 // that will be used to set the initial value but not bind directly
 function getInitialDateTimeValue(): string {
-  if (props.value?.type === "Timestamp") {
+  if (props.value?.type === ValueType.Timestamp) {
     try {
       const date = new Date(props.value.toString());
       return date.toISOString().slice(0, 16); // Format as yyyy-MM-ddThh:mm
@@ -105,26 +118,54 @@ function formatDateForInput(date: Date): string {
   }
 }
 
+// Load choice options for Choice type values
+async function loadChoiceOptions() {
+  if (props.value?.type !== ValueType.Choice || !props.entityType || !props.fieldType) {
+    return;
+  }
+  
+  try {
+    console.log(`Editor: Loading choice options for ${props.entityType}.${props.fieldType}`);
+    const schema = await dataStore.getEntitySchema(props.entityType);
+    if (schema?.fields && schema.fields[props.fieldType]) {
+      const fieldSchema = schema.fields[props.fieldType];
+      choiceOptions.value = fieldSchema.choices || [];
+      console.log(`Editor: Found choices:`, choiceOptions.value);
+      
+      // Set current choice index
+      if (typeof props.value.getChoice === 'function') {
+        currentChoiceIndex.value = props.value.getChoice();
+        console.log(`Editor: Current choice index:`, currentChoiceIndex.value);
+      }
+    }
+  } catch (error) {
+    console.error('Error loading choice options:', error);
+  }
+}
+
 function handleSave() {
   // Create appropriate value based on type
   let newValue;
   
   try {
-    if (props.value.type === 'Bool') {
+    if (props.value.type === ValueType.Bool) {
       // For checkbox, use checked state
       const checkboxEl = document.getElementById('value-editor-checkbox') as HTMLInputElement;
       newValue = ValueFactories.newBool(checkboxEl.checked);
-    } else if (props.value.type === 'Int') {
+    } else if (props.value.type === ValueType.Int) {
       newValue = ValueFactories.newInt(parseInt(editValue.value, 10));
-    } else if (props.value.type === 'Float') {
+    } else if (props.value.type === ValueType.Float) {
       newValue = ValueFactories.newFloat(parseFloat(editValue.value));
-    } else if (props.value.type === 'String') {
+    } else if (props.value.type === ValueType.String) {
       newValue = ValueFactories.newString(editValue.value);
-    } else if (props.value.type === 'EntityReference') {
+    } else if (props.value.type === ValueType.EntityReference) {
       newValue = ValueFactories.newEntityReference(editValue.value);
-    } else if (props.value.type === 'Timestamp') {
+    } else if (props.value.type === ValueType.Timestamp) {
       const date = new Date(editValue.value);
       newValue = ValueFactories.newTimestamp(date);
+    } else if (props.value.type === ValueType.Choice) {
+      // For Choice type, use the selected index
+      newValue = ValueFactories.newChoice(currentChoiceIndex.value);
     } else {
       // Default fallback
       newValue = ValueFactories.newString(editValue.value);
@@ -141,24 +182,45 @@ function handleCancel() {
   emit('cancel');
 }
 
+function handleChoiceChange(event: Event) {
+  const selectElement = event.target as HTMLSelectElement;
+  currentChoiceIndex.value = parseInt(selectElement.value, 10);
+}
+
 onMounted(() => {
   // Set the initial value for timestamp type
-  if (props.value?.type === "Timestamp") {
+  if (props.value?.type === ValueType.Timestamp) {
     editValue.value = getInitialDateTimeValue();
+  }
+
+  // Load choice options if this is a Choice type
+  if (props.value?.type === ValueType.Choice && props.entityType && props.fieldType) {
+    loadChoiceOptions();
   }
   
   // Focus the input when mounted
-  const input = document.querySelector('.value-editor input, .value-editor textarea');
+  const input = document.querySelector('.value-editor input, .value-editor textarea, .value-editor select');
   if (input) {
     (input as HTMLElement).focus();
   }
 });
+
+// Watch for relevant prop changes
+watch(
+  [() => props.value?.type === ValueType.Choice, () => props.entityType, () => props.fieldType],
+  () => {
+    if (props.value?.type === ValueType.Choice && props.entityType && props.fieldType) {
+      loadChoiceOptions();
+    }
+  },
+  { immediate: true }
+);
 </script>
 
 <template>
   <div class="value-editor">
     <!-- Boolean checkbox -->
-    <div v-if="value.type === 'Bool'" class="checkbox-container">
+    <div v-if="value.type === ValueType.Bool" class="checkbox-container">
       <input 
         id="value-editor-checkbox" 
         type="checkbox" 
@@ -168,8 +230,30 @@ onMounted(() => {
       <label for="value-editor-checkbox">{{ isChecked ? 'True' : 'False' }}</label>
     </div>
     
+    <!-- Choice dropdown -->
+    <div v-else-if="value.type === ValueType.Choice" class="choice-container">
+      <div class="input-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
+          <path fill="currentColor" d="M4 14h4v-4H4v4zm0 5h4v-4H4v4zM4 9h4V5H4v4zm5 5h12v-4H9v4zm0 5h12v-4H9v4zM9 5v4h12V5H9z"/>
+        </svg>
+      </div>
+      <select 
+        class="choice-select"
+        :value="currentChoiceIndex"
+        @change="handleChoiceChange"
+      >
+        <option 
+          v-for="(option, index) in choiceOptions" 
+          :key="index" 
+          :value="index"
+        >
+          {{ option }}
+        </option>
+      </select>
+    </div>
+    
     <!-- Timestamp input - Fix the issue by removing the :value binding -->
-    <div v-else-if="value.type === 'Timestamp'" class="timestamp-container">
+    <div v-else-if="value.type === ValueType.Timestamp" class="timestamp-container">
       <div class="input-icon">
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
           <path fill="currentColor" d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.5-13H11v6l5.2 3.2.8-1.3-4.5-2.7V7z"/>
@@ -183,7 +267,7 @@ onMounted(() => {
     </div>
     
     <!-- Text area for longer text content -->
-    <div v-else-if="value.type === 'String' && value.toString().length > 50" class="text-container">
+    <div v-else-if="value.type === ValueType.String && value.toString().length > 50" class="text-container">
       <div class="input-icon">
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
           <path fill="currentColor" d="M14 17H4v2h10v-2zm6-8H4v2h16V9zM4 15h16v-2H4v2zM4 5v2h16V5H4z"/>
@@ -197,7 +281,7 @@ onMounted(() => {
     </div>
     
     <!-- Entity Reference input -->
-    <div v-else-if="value.type === 'EntityReference'" class="reference-container">
+    <div v-else-if="value.type === ValueType.EntityReference" class="reference-container">
       <div class="input-icon">
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
           <path fill="currentColor" d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/>
@@ -213,12 +297,12 @@ onMounted(() => {
     
     <!-- Default input for most types -->
     <div v-else class="input-container">
-      <div class="input-icon" v-if="value.type === 'Int' || value.type === 'Float'">
+      <div class="input-icon" v-if="value.type === ValueType.Int || value.type === ValueType.Float">
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
           <path fill="currentColor" d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14z M7.5 17h2v-7h-4v2h2zM13.5 17h2v-7h-4v2h2z"/>
         </svg>
       </div>
-      <div class="input-icon" v-else-if="value.type === 'String'">
+      <div class="input-icon" v-else-if="value.type === ValueType.String">
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
           <path fill="currentColor" d="M9.93 13.5h4.14L12 7.98zM20 2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-4.05 16.5-1.14-3H9.17l-1.12 3H5.96l5.11-13h1.86l5.11 13h-2.09z"/>
         </svg>
@@ -263,7 +347,7 @@ onMounted(() => {
   box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-.input-container, .timestamp-container, .text-container, .reference-container {
+.input-container, .timestamp-container, .text-container, .reference-container, .choice-container {
   position: relative;
   display: flex;
   align-items: center;
@@ -286,7 +370,7 @@ onMounted(() => {
   transform: none;
 }
 
-.text-input, .timestamp-input, .text-area, .reference-input {
+.text-input, .timestamp-input, .text-area, .reference-input, .choice-select {
   font-family: var(--qui-font-family);
   font-size: var(--qui-font-size-base);
   padding: 8px 10px 8px 36px;
@@ -298,7 +382,7 @@ onMounted(() => {
   transition: all 0.2s var(--qui-animation-bounce);
 }
 
-.text-input:focus, .timestamp-input:focus, .text-area:focus, .reference-input:focus {
+.text-input:focus, .timestamp-input:focus, .text-area:focus, .reference-input:focus, .choice-select:focus {
   border-color: var(--qui-accent-color);
   outline: none;
   box-shadow: 0 0 0 2px rgba(0, 255, 136, 0.2);
@@ -341,6 +425,23 @@ onMounted(() => {
 .reference-input {
   color: var(--qui-accent-secondary);
   font-family: monospace;
+}
+
+/* Choice select styling */
+.choice-select {
+  appearance: none;
+  padding-right: 30px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath fill='%2300ff88' d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 16px;
+  cursor: pointer;
+  color: #9C27B0; /* Purple color for choice values */
+}
+
+.choice-container .input-icon {
+  color: #9C27B0;
+  opacity: 0.7;
 }
 
 .editor-buttons {

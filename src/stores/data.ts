@@ -430,6 +430,7 @@ export const useDataStore = defineStore('data', {
                             fieldSchema.entityType = pbSchema.name;
                         });
                     }
+                    console.log('Entity schema:', schema);
                     return schema;
                 })
                 .catch(error => {

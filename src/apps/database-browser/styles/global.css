@@ -205,3 +205,80 @@
 .db-status-info {
   color: #2196F3;
 }
+
+/* Choice values styling */
+.choice-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(124, 77, 255, 0.1);
+  color: #9C27B0;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-weight: 500;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.choice-value:hover {
+  background: rgba(124, 77, 255, 0.2);
+  transform: translateY(-1px);
+}
+
+.choice-value .choice-index {
+  font-size: 0.8em;
+  opacity: 0.7;
+  margin-left: 4px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* Enhanced dropdown select for choices */
+.choice-select {
+  background: var(--qui-bg-primary);
+  border: 1px solid var(--qui-hover-border);
+  color: var(--qui-text-primary);
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%239C27B0'%3e%3cpath d='M7 10l5 5 5-5z'/%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 16px;
+  padding-right: 30px;
+}
+
+.choice-select:focus {
+  border-color: #9C27B0;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(156, 39, 176, 0.2);
+}
+
+.choice-select option {
+  background: var(--qui-bg-primary);
+  color: var(--qui-text-primary);
+}
+
+/* Badge for choice values */
+.choice-badge {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(124, 77, 255, 0.1);
+  color: #9C27B0;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.9em;
+  font-weight: 500;
+}
+
+/* Visual loading indicator for choices that are loading */
+@keyframes pulse-purple {
+  0%, 100% { background-color: rgba(124, 77, 255, 0.1); }
+  50% { background-color: rgba(124, 77, 255, 0.2); }
+}
+
+.choice-loading {
+  animation: pulse-purple 1.5s infinite;
+}
