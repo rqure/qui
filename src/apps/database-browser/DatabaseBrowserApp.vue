@@ -76,6 +76,13 @@ onMounted(async () => {
     error.value = 'Failed to connect to the database. Please try again later.';
     loading.value = false;
   }
+  
+  window.addEventListener('entity:navigate', handleEntityNavigation);
+  
+  // Clean up on unmount
+  onUnmounted(() => {
+    window.removeEventListener('entity:navigate', handleEntityNavigation);
+  });
 });
 
 onUnmounted(() => {
@@ -103,6 +110,33 @@ function waitForConnection(timeout = 5000): Promise<void> {
       }
     }, 100);
   });
+}
+
+// Handle entity navigation event from entities (like from dragging/clicking references)
+function handleEntityNavigation(event: Event) {
+  const customEvent = event as CustomEvent;
+  if (customEvent.detail?.entityId) {
+    navigateToEntity(customEvent.detail.entityId);
+  }
+}
+
+// Navigate to a specific entity
+async function navigateToEntity(entityId: EntityId) {
+  if (!entityId) return;
+  
+  try {
+    // Check if entity exists
+    const exists = await dataStore.entityExists(entityId);
+    if (!exists) {
+      console.warn(`Entity ${entityId} does not exist`);
+      return;
+    }
+    
+    // Update selected ID - this will trigger the browser to navigate
+    selectedEntityId.value = entityId;
+  } catch (error) {
+    console.error('Error navigating to entity:', error);
+  }
 }
 </script>
 

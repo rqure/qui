@@ -164,6 +164,51 @@ onMounted(() => {
     loadChoiceOptions();
   }
 });
+
+// Add drag functionality for entity references and entity lists
+function handleDragStart(event: DragEvent, entityId: string) {
+  if (!event.dataTransfer) return;
+  
+  // Set data for the drag operation
+  event.dataTransfer.setData('application/x-entity-id', entityId);
+  event.dataTransfer.setData('text/plain', entityId);
+  event.dataTransfer.effectAllowed = 'all';
+  
+  // Set a custom drag image if needed
+  const dragIcon = document.createElement('div');
+  dragIcon.className = 'entity-drag-icon';
+  dragIcon.textContent = 'Entity';
+  dragIcon.style.padding = '4px 8px';
+  dragIcon.style.background = 'var(--qui-accent-bg-faint)';
+  dragIcon.style.color = 'var(--qui-accent-color)';
+  dragIcon.style.borderRadius = '4px';
+  dragIcon.style.fontSize = '12px';
+  dragIcon.style.fontWeight = 'bold';
+  dragIcon.style.pointerEvents = 'none';
+  document.body.appendChild(dragIcon);
+  
+  event.dataTransfer.setDragImage(dragIcon, 15, 15);
+  
+  // Remove the temporary element after a delay
+  setTimeout(() => {
+    document.body.removeChild(dragIcon);
+  }, 100);
+  
+  // Dispatch a custom event for potential cross-window communication
+  const customEvent = new CustomEvent('entity:drag-start', {
+    detail: { entityId }
+  });
+  window.dispatchEvent(customEvent);
+}
+
+// Make an EntityId clickable - emitting a navigation event
+function handleEntityClick(entityId: string) {
+  const event = new CustomEvent('entity:navigate', {
+    detail: { entityId },
+    bubbles: true
+  });
+  window.dispatchEvent(event);
+}
 </script>
 
 <template>
@@ -178,7 +223,13 @@ onMounted(() => {
       <span class="bool-label">{{ displayValue }}</span>
     </span>
     
-    <span v-else-if="value.type === ValueType.EntityReference" class="reference-container">
+    <span 
+      v-else-if="value.type === ValueType.EntityReference" 
+      class="reference-container"
+      draggable="true"
+      @dragstart="handleDragStart($event, value.getEntityReference())"
+      @click="handleEntityClick(value.getEntityReference())"
+    >
       <span class="reference-indicator">
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24">
           <path fill="currentColor" d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/>
@@ -203,6 +254,30 @@ onMounted(() => {
         </svg>
       </span>
       {{ displayValue }}
+    </span>
+    
+    <!-- Add EntityList rendering with draggable items -->
+    <span v-else-if="value.type === ValueType.EntityList" class="entity-list-container">
+      <div class="entity-list-value">
+        <div 
+          v-for="(entityId, index) in value.getEntityList()" 
+          :key="`${entityId}-${index}`"
+          class="entity-list-item"
+          draggable="true"
+          @dragstart="handleDragStart($event, entityId)"
+          @click="handleEntityClick(entityId)"
+        >
+          <span class="entity-list-item-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24">
+              <path fill="currentColor" d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/>
+            </svg>
+          </span>
+          {{ entityId }}
+        </div>
+        <div v-if="value.getEntityList().length === 0" class="entity-list-empty">
+          No items
+        </div>
+      </div>
     </span>
     
     <span v-else>{{ displayValue }}</span>
@@ -344,5 +419,83 @@ onMounted(() => {
 
 .choice:hover {
   background: var(--qui-accent-bg-light);
+}
+
+/* Add styling for the Reference Container to make it obviously draggable */
+.reference-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  border: 1px dotted transparent;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.reference-container:hover {
+  border-color: var(--qui-accent-secondary);
+  background: var(--qui-accent-secondary-bg);
+}
+
+.reference-container:active {
+  transform: scale(0.98);
+}
+
+/* New styles for entity lists */
+.entity-list-container {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.entity-list-value {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 150px;
+  overflow-y: auto;
+  padding: 4px;
+  background: var(--qui-overlay-primary);
+  border-radius: 4px;
+}
+
+.entity-list-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px;
+  border-radius: 4px;
+  font-family: monospace;
+  background: var(--qui-accent-secondary-bg);
+  color: var(--qui-accent-secondary);
+  font-size: var(--qui-font-size-small);
+  transition: all 0.2s var(--qui-animation-bounce);
+  cursor: pointer;
+  border: 1px dotted transparent;
+}
+
+.entity-list-item:hover {
+  background: var(--qui-accent-secondary-hover);
+  border-color: var(--qui-accent-secondary);
+}
+
+.entity-list-item:active {
+  transform: scale(0.98);
+}
+
+.entity-list-item-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.7;
+}
+
+.entity-list-empty {
+  font-style: italic;
+  color: var(--qui-text-secondary);
+  opacity: 0.7;
+  padding: 4px;
+  text-align: center;
 }
 </style>

@@ -292,3 +292,34 @@
 .choice-loading {
   animation: pulse-theme 1.5s infinite;
 }
+
+/* Entity reference drag visual */
+.entity-drag-in-progress {
+  cursor: grabbing !important;
+}
+
+.entity-reference-draggable {
+  cursor: grab;
+}
+
+/* Entity drop zone */
+.entity-drop-zone {
+  outline: 2px dashed var(--qui-accent-color);
+  background: var(--qui-accent-bg-faint);
+  transition: all 0.2s ease;
+}
+
+.entity-drop-active {
+  background: var(--qui-accent-bg-light);
+  outline-offset: -4px;
+}
+
+/* Add animation for drop zones */
+@keyframes pulse-border {
+  0%, 100% { outline-color: var(--qui-accent-color); }
+  50% { outline-color: transparent; }
+}
+
+.entity-drop-zone.animated {
+  animation: pulse-border 1s infinite ease-in-out;
+}

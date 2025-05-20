@@ -25,6 +25,9 @@ const maxColumnWidth = 400; // Maximum column width in pixels
 const lastUsedWidth = ref<number>(220); // Default starting width
 const columnBrowserRef = ref<HTMLElement | null>(null);
 
+// Add drop handling functionality
+const isDropTarget = ref(false);
+
 // Initialize with root column
 onMounted(async () => {
   if (!columns.value.length) {
@@ -44,6 +47,14 @@ onMounted(async () => {
   onUnmounted(() => {
     window.removeEventListener('mousemove', handleMouseMove);
     window.removeEventListener('mouseup', handleMouseUp);
+  });
+
+  // Set up event listeners for cross-window entity navigation
+  window.addEventListener('entity:navigate', handleEntityNavigation);
+  
+  // Clean up on unmount
+  onUnmounted(() => {
+    window.removeEventListener('entity:navigate', handleEntityNavigation);
   });
 });
 
@@ -180,10 +191,85 @@ function getColumnStyle(column: { id: string; width?: number }) {
   }
   return {};
 }
+
+// Handle the global entity navigation event
+function handleEntityNavigation(event: Event) {
+  const customEvent = event as CustomEvent;
+  if (customEvent.detail?.entityId) {
+    navigateToEntity(customEvent.detail.entityId);
+  }
+}
+
+// Function to navigate to an entity by ID
+async function navigateToEntity(entityId: EntityId) {
+  try {
+    // First, check if entity exists
+    const exists = await dataStore.entityExists(entityId);
+    if (!exists) {
+      console.warn(`Entity ${entityId} does not exist`);
+      return;
+    }
+    
+    // Select the entity
+    emit('entity-select', entityId);
+  } catch (error) {
+    console.error('Error navigating to entity:', error);
+  }
+}
+
+// Handle drop event when an entity is dropped onto the browser
+function handleDrop(event: DragEvent) {
+  event.preventDefault();
+  isDropTarget.value = false;
+  
+  if (!event.dataTransfer) return;
+  
+  // Check for our custom entity ID data
+  const entityId = event.dataTransfer.getData('application/x-entity-id');
+  if (entityId) {
+    navigateToEntity(entityId);
+  }
+}
+
+// Show drop target indicator when dragging over
+function handleDragOver(event: DragEvent) {
+  // Only accept our specific data type
+  if (event.dataTransfer?.types.includes('application/x-entity-id')) {
+    event.preventDefault();
+    isDropTarget.value = true;
+    
+    // Set the visual feedback for drop
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = 'link';
+    }
+  }
+}
+
+// Clear drop target when leaving
+function handleDragLeave() {
+  isDropTarget.value = false;
+}
 </script>
 
 <template>
-  <div class="column-browser" ref="columnBrowserRef">
+  <div 
+    class="column-browser" 
+    ref="columnBrowserRef"
+    :class="{ 'drop-target': isDropTarget }"
+    @dragover="handleDragOver"
+    @dragleave="handleDragLeave"
+    @drop="handleDrop"
+  >
+    <!-- Overlay for drop zone indication -->
+    <div v-if="isDropTarget" class="drop-zone-overlay">
+      <div class="drop-zone-message">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+          <path fill="currentColor" d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+        </svg>
+        <span>Drop to navigate</span>
+      </div>
+    </div>
+    
     <div 
       v-for="(column, index) in columns" 
       :key="column.id"
@@ -311,5 +397,44 @@ function getColumnStyle(column: { id: string; width?: number }) {
 /* Make sure the resize handles still work when the parent is resizing */
 .column-container:not(.is-resizing) .column-resize-handle {
   pointer-events: auto;
+}
+
+/* Drop target styling */
+.column-browser.drop-target {
+  outline: 2px dashed var(--qui-accent-color);
+  outline-offset: -2px;
+  background-color: rgba(0, 255, 136, 0.05);
+}
+
+.drop-zone-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(0, 0, 0, 0.4);
+  z-index: 1000;
+  pointer-events: none;
+}
+
+.drop-zone-message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 20px;
+  border-radius: 8px;
+  background: var(--qui-bg-primary);
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+  color: var(--qui-accent-color);
+}
+
+.drop-zone-message svg {
+  width: 48px;
+  height: 48px;
+  filter: drop-shadow(0 0 5px var(--qui-accent-glow));
 }
 </style>
