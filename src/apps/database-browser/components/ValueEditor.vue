@@ -125,17 +125,14 @@ async function loadChoiceOptions() {
   }
   
   try {
-    console.log(`Editor: Loading choice options for ${props.entityType}.${props.fieldType}`);
     const schema = await dataStore.getEntitySchema(props.entityType);
     if (schema?.fields && schema.fields[props.fieldType]) {
       const fieldSchema = schema.fields[props.fieldType];
       choiceOptions.value = fieldSchema.choices || [];
-      console.log(`Editor: Found choices:`, choiceOptions.value);
       
       // Set current choice index
       if (typeof props.value.getChoice === 'function') {
         currentChoiceIndex.value = props.value.getChoice();
-        console.log(`Editor: Current choice index:`, currentChoiceIndex.value);
       }
     }
   } catch (error) {

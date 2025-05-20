@@ -143,7 +143,6 @@ async function registerFieldNotifications() {
         );
         return subscription;
       } catch (error) {
-        console.error(`Failed to register notification for ${field.fieldType}:`, error);
         // Return a dummy subscription that does nothing on unsubscribe
         return {
           token: `failed-${field.fieldType}`,

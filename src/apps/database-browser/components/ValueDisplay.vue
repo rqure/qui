@@ -31,7 +31,6 @@ const displayValue = computed(() => {
   if (valueType === ValueType.Choice) {
     // If we have a choice label already resolved, use that
     if (choiceLabel.value) {
-      console.log(`Returning choice label: ${choiceLabel.value} instead of raw value`);
       return choiceLabel.value;
     }
     
@@ -111,8 +110,6 @@ async function loadChoiceOptions() {
   }
   
   try {
-    console.log(`Loading choice options for ${props.entityType}.${props.fieldType}`);
-    
     // Get the entity schema
     const schema = await dataStore.getEntitySchema(props.entityType);
     
@@ -120,20 +117,16 @@ async function loadChoiceOptions() {
     if (schema?.fields && schema.fields[props.fieldType]) {
       const fieldSchema = schema.fields[props.fieldType];
       
-      console.log(`Found field schema with choices:`, fieldSchema.choices);
-      
       // Store the choice options
       choiceOptions.value = fieldSchema.choices || [];
       
       // If we have a getChoice method, get the choice index and resolve the label
       if (typeof props.value.getChoice === 'function') {
         const choiceIndex = props.value.getChoice();
-        console.log(`Choice index from getChoice():`, choiceIndex);
         
         // Get the choice label based on the index
         if (choiceIndex >= 0 && choiceIndex < choiceOptions.value.length) {
           choiceLabel.value = choiceOptions.value[choiceIndex];
-          console.log(`Setting choice label to "${choiceLabel.value}"`);
         } else {
           choiceLabel.value = `Unknown choice (${choiceIndex})`;
         }
@@ -142,15 +135,11 @@ async function loadChoiceOptions() {
         const index = parseInt(props.value.toString(), 10);
         if (!isNaN(index) && index >= 0 && index < choiceOptions.value.length) {
           choiceLabel.value = choiceOptions.value[index];
-          console.log(`Setting choice label from parsed index to "${choiceLabel.value}"`);
         } else {
           choiceLabel.value = `Invalid choice (${props.value.toString()})`;
         }
       }
-      
-      console.log(`Final choice label:`, choiceLabel.value);
     } else {
-      console.warn(`No field schema found for ${props.entityType}.${props.fieldType}`);
       choiceLabel.value = 'Unknown choice';
     }
   } catch (error) {
@@ -163,7 +152,6 @@ async function loadChoiceOptions() {
 watch(
   [() => props.value?.type === ValueType.Choice, () => props.entityType, () => props.fieldType], 
   (newVals) => {
-    console.log('Watch triggered for choice detection:', newVals);
     if (props.value?.type === ValueType.Choice) {
       loadChoiceOptions();
     }
@@ -173,7 +161,6 @@ watch(
 
 onMounted(() => {
   if (props.value?.type === ValueType.Choice && props.entityType && props.fieldType) {
-    console.log('Mounted: loading choice options');
     loadChoiceOptions();
   }
 });
