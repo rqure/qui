@@ -17,6 +17,7 @@ export const createWindowState = (options: WindowOptions): WindowState => ({
   minHeight: 150,
   isResizing: false,
   resizeHandle: '',
+  props: options.props || {},
 })
 
 // We can add more window-related utilities here in the future

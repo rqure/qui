@@ -12,6 +12,7 @@ import { ValueType, ValueFactories } from '@/core/data/types';
 
 const props = defineProps<{
   entityId: EntityId;
+  standalone?: boolean; // Add new prop for standalone mode in window
 }>();
 
 const dataStore = useDataStore();
@@ -207,34 +208,92 @@ async function loadEntityDetails() {
   fieldDropTargets.value = {};
   
   try {
-    // Extract entity type from ID
-    entityType.value = Utils.getEntityTypeFromId(props.entityId);
+    // Check if props.entityId is defined before proceeding
+    if (!props.entityId) {
+      error.value = "No entity ID provided";
+      loading.value = false;
+      return;
+    }
+
+    // Extract entity type from ID - Add null check to prevent 'split' of undefined error
+    try {
+      entityType.value = Utils.getEntityTypeFromId(props.entityId);
+    } catch (err) {
+      console.error(`Error extracting entity type from ID ${props.entityId}:`, err);
+      entityType.value = "Unknown";
+    }
+    
+    // Verify if the entity exists before trying to load its schema
+    const exists = await dataStore.entityExists(props.entityId);
+    if (!exists) {
+      error.value = `Entity ${props.entityId} does not exist`;
+      loading.value = false;
+      return;
+    }
     
     // Get the entity's schema to know what fields it has
-    schema.value = await dataStore.getEntitySchema(entityType.value);
+    try {
+      schema.value = await dataStore.getEntitySchema(entityType.value);
+    } catch (schemaErr) {
+      console.error(`Error loading schema for ${entityType.value}:`, schemaErr);
+      error.value = `Failed to load schema for ${entityType.value}`;
+      loading.value = false;
+      return;
+    }
     
     // Create entity instance
     const entity = EntityFactories.newEntity(props.entityId);
     
-    // Add fields based on schema
-    Object.keys(schema.value.fields).forEach((field: string) => {
-      entity.field(field);
-    });
+    // Add fields based on schema - check if schema has fields property
+    if (schema.value && schema.value.fields) {
+      Object.keys(schema.value.fields).forEach((field: string) => {
+        entity.field(field);
+      });
+    } else {
+      console.warn(`Schema for ${entityType.value} has no fields property`);
+      // Load basic fields at minimum
+      entity.field("Name");
+      entity.field("Children");
+      entity.field("Parent");
+    }
     
     // Read basic entity info
     const eFields = Object.values(entity.fields);
+    if (eFields.length === 0) {
+      error.value = "Entity has no fields";
+      loading.value = false;
+      return;
+    }
+    
     await dataStore.read([...eFields]);
 
-    fields.value = [...eFields].sort((a, b) => {
-      const aField = schema.value.fields[a.fieldType];
-      const bField = schema.value.fields[b.fieldType];
-      if (aField.rank === bField.rank) {
-        return aField.fieldType.localeCompare(bField.fieldType);
+    // Use conditional check before sorting fields
+    if (schema.value && schema.value.fields) {
+      fields.value = [...eFields].sort((a, b) => {
+        const aField = schema.value.fields[a.fieldType];
+        const bField = schema.value.fields[b.fieldType];
+        if (!aField || !bField) return 0;
+        if (aField.rank === bField.rank) {
+          return aField.fieldType.localeCompare(bField.fieldType);
+        }
+        return (aField.rank || 0) - (bField.rank || 0);
+      });
+    } else {
+      fields.value = [...eFields];
+    }
+    
+    // Safely get entity name
+    const nameField = entity.field("Name");
+    if (nameField && nameField.value) {
+      try {
+        entityName.value = nameField.value.getString();
+      } catch (nameErr) {
+        console.error("Error getting entity name:", nameErr);
+        entityName.value = props.entityId;
       }
-
-      return aField.rank - bField.rank;
-    });
-    entityName.value = entity.field("Name").value.getString();
+    } else {
+      entityName.value = props.entityId;
+    }
     
     // Set up drop zones for entity reference and entity list fields
     setupFieldDropZones();
@@ -535,10 +594,18 @@ async function updateFieldWithEntityId(fieldType: string, entityId: EntityId) {
     fieldDropTargets.value[fieldType] = false;
   }
 }
+
+// Add computed property for container class
+const containerClass = computed(() => {
+  return {
+    'entity-details': true,
+    'entity-details-standalone': props.standalone
+  };
+});
 </script>
 
 <template>
-  <div class="entity-details">
+  <div :class="containerClass">
     <div class="details-header">
       <div class="header-content">
         <h2 class="entity-title">{{ entityName }}</h2>
@@ -661,6 +728,13 @@ async function updateFieldWithEntityId(fieldType: string, entityId: EntityId) {
   border-left: 1px solid var(--qui-hover-border);
   position: relative;
   min-width: 300px; /* minimum width */
+}
+
+/* Add styling for standalone mode in window */
+.entity-details-standalone {
+  border-left: none;
+  border-radius: var(--qui-window-radius);
+  height: 100%;
 }
 
 .details-header {

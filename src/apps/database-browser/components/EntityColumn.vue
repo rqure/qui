@@ -13,20 +13,40 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'entity-select', entityId: EntityId): void;
   (e: 'scroll', event: Event): void;
+  (e: 'open-in-window', data: { entityId: EntityId, entityName: string }): void;
+  (e: 'context-menu', data: { x: number, y: number, items: any[] }): void; // Add new emit
 }>();
-
-interface EntityItem {
-  id: EntityId;
-  name: string;
-  type: EntityType;
-  children: EntityId[];
-}
 
 const dataStore = useDataStore();
 const loading = ref(true);
 const error = ref<string | null>(null);
 const entities = ref<EntityItem[]>([]);
 const searchQuery = ref('');
+
+// Setup context menu - updated to use emit instead of custom event
+function handleContextMenu(event: MouseEvent, entity: EntityItem) {
+  event.preventDefault();
+  event.stopPropagation();
+  
+  // Emit the context menu event to parent components
+  emit('context-menu', {
+    x: event.clientX,
+    y: event.clientY,
+    items: [
+      {
+        id: 'open-in-window',
+        label: 'Open in Window',
+        action: () => openEntityInWindow(entity.id, entity.name)
+      }
+    ]
+  });
+}
+
+// Add function to open entity in window
+function openEntityInWindow(entityId: EntityId, entityName: string) {
+  // Emit a custom event to be handled by parent components
+  emit('open-in-window', { entityId, entityName });
+}
 
 // Group entities by their type
 const groupedEntities = computed(() => {
@@ -211,6 +231,7 @@ function handleDragStart(event: DragEvent, entity: EntityItem) {
             'has-children': entity.children.length > 0
           }"
           @click="selectEntity(entity.id)"
+          @contextmenu="handleContextMenu($event, entity)"
           draggable="true"
           @dragstart="handleDragStart($event, entity)"
         >

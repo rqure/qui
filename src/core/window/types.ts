@@ -23,7 +23,8 @@ export interface WindowState {
     y: number
     width: number
     height: number
-  }
+  },
+  props?: Record<string, any>
 }
 
 export interface WindowOptions {

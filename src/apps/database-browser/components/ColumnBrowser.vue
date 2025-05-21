@@ -6,13 +6,20 @@ import { EntityFactories } from '@/core/data/types';
 import EntityColumn from './EntityColumn.vue';
 import { v4 as uuidv4 } from 'uuid';
 import { useEntityDropZone, initCrossWindowEntityHandling } from '@/core/utils/composables';
+import { useWindowStore } from '@/stores/windows'; // Add windows store import
 
 const props = defineProps<{
   selectedEntityId?: EntityId | null;
 }>();
 
+// Add windows store for opening entity details in a window
+const windowStore = useWindowStore();
+
+// Update the emit to include openInWindow
 const emit = defineEmits<{
   (e: 'entity-select', entityId: EntityId): void;
+  (e: 'open-in-window', data: { entityId: EntityId, entityName: string }): void;
+  (e: 'context-menu', data: { x: number, y: number, items: any[] }): void; // Add new emit
 }>();
 
 // Add the dataStore instance
@@ -344,6 +351,16 @@ function handleDragOver(event: DragEvent) {
 function handleDragLeave() {
   isDropTarget.value = false;
 }
+
+// Handle request to open entity in window
+function handleOpenInWindow(data: { entityId: EntityId, entityName: string }) {
+  emit('open-in-window', data);
+}
+
+// Handle context menu from EntityColumn
+function handleContextMenu(data: { x: number, y: number, items: any[] }) {
+  emit('context-menu', data);
+}
 </script>
 
 <template>
@@ -378,6 +395,8 @@ function handleDragLeave() {
         :style="getColumnStyle(column)"
         @entity-select="handleEntitySelect($event, column.parentId)"
         @scroll="syncColumnScroll"
+        @open-in-window="handleOpenInWindow"
+        @context-menu="handleContextMenu"
       />
       
       <!-- Add resize handle after each column except the last -->

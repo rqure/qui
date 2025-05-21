@@ -1,13 +1,17 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted, onUnmounted, markRaw } from 'vue';
 import { useDataStore } from '@/stores/data';
 import ColumnBrowser from './components/ColumnBrowser.vue';
 import EntityDetailsPanel from './components/EntityDetailsPanel.vue';
 import LoadingIndicator from './components/LoadingIndicator.vue';
 import type { Entity, EntityId } from '@/core/data/types';
 import { useEntityDropZone } from '@/core/utils/composables';
+import { useWindowStore } from '@/stores/windows'; // Add windows store import
+import { useMenuStore } from '@/stores/menu'; // Import the menu store
 
 const dataStore = useDataStore();
+const windowStore = useWindowStore();
+const menuStore = useMenuStore(); // Add menu store
 const selectedEntityId = ref<EntityId | null>(null);
 const loading = ref(true);
 const error = ref<string | null>(null);
@@ -23,12 +27,49 @@ onUnmounted(() => {
   window.removeEventListener('entity:navigate', handleEntityNavigation);
   window.removeEventListener('mousemove', handleMainSplitMove);
   window.removeEventListener('mouseup', endMainSplitResize);
+  window.removeEventListener('show-context-menu', handleShowContextMenu);
 });
 
 // Handle entity selection from the column browser
 const handleEntitySelect = (entityId: EntityId) => {
   selectedEntityId.value = entityId;
 };
+
+// Setup context menu handler
+function handleShowContextMenu(event: CustomEvent) {
+  if (event.detail) {
+    const { x, y, items } = event.detail;
+    
+    // Check if window.createContextMenu exists and is a function
+    if (typeof window.createContextMenu === 'function') {
+      window.createContextMenu(x, y, items);
+    }
+  }
+}
+
+// Updated handler for open in window requests to correctly use windowStore
+function openEntityInWindow(data: { entityId: EntityId, entityName: string }) {
+  // Log detailed information about what we're receiving
+  console.log('Opening entity in window with data:', JSON.stringify(data));
+  
+  if (!data || !data.entityId) {
+    console.error('Cannot open window: Missing entity ID');
+    return;
+  }
+
+  // Create a window with the entity details panel
+  windowStore.createWindow({
+    title: `Entity: ${data.entityName || 'Unknown'}`,
+    component: markRaw(EntityDetailsPanel),
+    props: {
+      entityId: data.entityId
+    },
+    width: 700,
+    height: 600,
+    minWidth: 500,
+    minHeight: 400
+  });
+}
 
 // Add handlers for main split resizing
 function startMainSplitResize(event: MouseEvent) {
@@ -71,6 +112,7 @@ onMounted(async () => {
   try {
     // First register event listeners that need to be cleaned up
     window.addEventListener('entity:navigate', handleEntityNavigation);
+    window.addEventListener('show-context-menu', handleShowContextMenu);
     
     // Then perform async operations
     if (!dataStore.isConnected) {
@@ -139,6 +181,13 @@ async function navigateToEntity(entityId: EntityId) {
     console.error('Error navigating to entity:', error);
   }
 }
+
+// Handle context menu from ColumnBrowser
+function handleContextMenu(data: { x: number, y: number, items: any[] }) {
+  const { x, y, items } = data;
+  // Use the menu store to show the context menu
+  menuStore.showMenu({ x, y }, items);
+}
 </script>
 
 <template>
@@ -169,6 +218,8 @@ async function navigateToEntity(entityId: EntityId) {
         <ColumnBrowser
           :selectedEntityId="selectedEntityId"
           @entity-select="handleEntitySelect" 
+          @open-in-window="openEntityInWindow"
+          @context-menu="handleContextMenu"
         />
       </div>
       
