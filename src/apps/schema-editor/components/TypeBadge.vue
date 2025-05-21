@@ -42,46 +42,52 @@ const badgeClass = computed(() => {
   padding: 3px 8px;
   border-radius: 12px;
   font-size: 11px;
-  font-weight: var(--qui-font-weight-medium);
-  background: var(--qui-overlay-primary);
-  color: var(--qui-text-secondary);
+  font-weight: var(--qui-font-weight-bold, 700);
+  box-shadow: var(--qui-shadow-default);
 }
 
 .schema-editor-type-badge-string {
-  background: var(--qui-overlay-primary);
+  background: var(--qui-bg-secondary);
   color: var(--qui-text-primary);
+  border: 1px solid var(--qui-hover-border);
 }
 
 .schema-editor-type-badge-int, 
 .schema-editor-type-badge-float {
   background: var(--qui-overlay-accent);
-  color: var(--qui-accent-color);
+  color: var(--qui-accent-deep);
+  border: 1px solid var(--qui-accent-color);
 }
 
 .schema-editor-type-badge-bool {
-  background: rgba(76, 175, 80, 0.1);
-  color: #4CAF50;
+  background: var(--qui-overlay-primary);
+  color: var(--qui-text-primary);
+  border: 1px solid var(--qui-hover-border);
 }
 
 .schema-editor-type-badge-entityreference, 
 .schema-editor-type-badge-entitylist {
-  background: var(--qui-overlay-secondary);
-  color: var(--qui-accent-deep);
+  background: var(--qui-accent-deep);
+  color: white;
+  border: 1px solid var(--qui-accent-color);
 }
 
 .schema-editor-type-badge-timestamp {
-  background: rgba(0, 188, 212, 0.1);
-  color: #00BCD4;
+  background: var(--qui-bg-secondary);
+  color: var(--qui-text-primary);
+  border: 1px solid var(--qui-hover-border);
 }
 
 .schema-editor-type-badge-choice {
-  background: rgba(233, 30, 99, 0.1);
-  color: #E91E63;
+  background: var(--qui-danger-bg);
+  color: var(--qui-danger-color);
+  border: 1px solid var(--qui-danger-border);
 }
 
 .schema-editor-type-badge-binaryfile {
-  background: rgba(158, 158, 158, 0.1);
-  color: #9E9E9E;
+  background: var(--qui-overlay-secondary);
+  color: var(--qui-text-secondary);
+  border: 1px solid var(--qui-hover-border);
 }
 
 .size-sm {
