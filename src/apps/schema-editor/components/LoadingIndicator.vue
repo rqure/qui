@@ -20,7 +20,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: 40px;
   color: var(--qui-text-secondary);
 }
 
@@ -28,7 +28,7 @@
   position: relative;
   width: 60px;
   height: 60px;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
 }
 
 .spinner-ring {
@@ -37,7 +37,7 @@
   height: 100%;
   border-radius: 50%;
   border: 2px solid transparent;
-  border-top-color: #9c27b0;
+  border-top-color: var(--qui-accent-color);
   animation: spin 1.2s linear infinite;
 }
 
@@ -46,7 +46,7 @@
   height: 80%;
   top: 10%;
   left: 10%;
-  border-top-color: #673ab7;
+  border-top-color: var(--qui-accent-secondary);
   animation-duration: 1.8s;
   animation-direction: reverse;
 }
@@ -56,7 +56,7 @@
   height: 60%;
   top: 20%;
   left: 20%;
-  border-top-color: #8e24aa;
+  border-top-color: var(--qui-accent-deep);
   animation-duration: 2.4s;
 }
 
@@ -66,10 +66,10 @@
   height: 10px;
   top: 50%;
   left: 50%;
-  background-color: #9c27b0;
+  background-color: var(--qui-accent-color);
   border-radius: 50%;
   transform: translate(-50%, -50%);
-  box-shadow: 0 0 10px #9c27b0;
+  box-shadow: var(--qui-shadow-glow);
   animation: pulse 1.2s ease-in-out infinite;
 }
 
@@ -78,7 +78,7 @@
   font-weight: var(--qui-font-weight-medium);
   animation: pulse 1.5s infinite;
   letter-spacing: 0.3px;
-  margin-top: 10px;
+  color: var(--qui-text-primary);
 }
 
 @keyframes spin {
