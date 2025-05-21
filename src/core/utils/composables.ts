@@ -1,13 +1,9 @@
 import { ref } from 'vue';
 import type { EntityId } from '../data/types';
-import { 
-  ENTITY_MIME_TYPE, 
-  ENTITY_NAVIGATE_EVENT,
-  broadcastEntityNavigation,
-  createDragImage,
-  addDragStyles,
-  removeDragStyles
-} from './dragdrop';
+
+// MIME Type constant that matches what's used elsewhere
+export const ENTITY_MIME_TYPE = 'application/x-qui-entity';
+export const ENTITY_NAVIGATE_EVENT = 'entity:navigate';
 
 /**
  * Composable for entity drag capability
@@ -19,11 +15,11 @@ export function useEntityDrag() {
     entityId: string, 
     entityType?: string,
     entityName?: string,
-    fieldType?: string // Added parameter for fieldType
+    fieldType?: string
   ) => {
     if (!event.dataTransfer) return;
     
-    // Set data for the drag operation
+    // Set data for the drag operation - use the consistent MIME type
     event.dataTransfer.setData(ENTITY_MIME_TYPE, entityId);
     event.dataTransfer.setData('text/plain', entityId);
     
@@ -32,13 +28,11 @@ export function useEntityDrag() {
       event.dataTransfer.setData(`${ENTITY_MIME_TYPE}:fieldType`, fieldType);
     }
     
-    // Make the drag effect more consistent and less flickery
+    // Set up visual effects for dragging
     event.dataTransfer.effectAllowed = 'all';
     
-    // Reduce flickering with improved drag image handling
+    // Create a drag image
     const dragIcon = createDragImage(entityId, entityType);
-    
-    // Use a fixed offset for more stability
     event.dataTransfer.setDragImage(dragIcon, 20, 20);
     
     // Remove the temporary element after a delay
@@ -73,18 +67,17 @@ export function useEntityDrag() {
 
 /**
  * Composable for entity drop zone capability
- * COMPLETELY REWRITTEN to avoid any lifecycle hooks
  */
 export function useEntityDropZone(
   onEntityDrop: (entityId: EntityId) => void
 ) {
-  // Check if this is an entity drag event
+  // Check if this is an entity drag event - use the consistent MIME type
   const isEntityDrag = (event: DragEvent): boolean => {
     if (!event.dataTransfer) return false;
     return event.dataTransfer.types.includes(ENTITY_MIME_TYPE);
   };
 
-  // Process a drop event
+  // Process a drop event - use the consistent MIME type
   const handleDrop = (event: DragEvent) => {
     event.preventDefault();
     
@@ -100,15 +93,44 @@ export function useEntityDropZone(
     return false;
   };
   
-  // Return only the necessary functions, no lifecycle hooks
   return {
     isEntityDrag,
     handleDrop
   };
 }
 
+// Helper functions to maintain consistency
+export function broadcastEntityNavigation(entityId: EntityId) {
+  window.dispatchEvent(
+    new CustomEvent(ENTITY_NAVIGATE_EVENT, {
+      bubbles: true,
+      detail: { entityId }
+    })
+  );
+}
+
+export function createDragImage(entityId: string, entityType?: string) {
+  const dragText = entityType ? `${entityType}: ${entityId}` : entityId;
+  
+  const element = document.createElement('div');
+  element.className = 'qui-entity-drag-icon';
+  element.textContent = dragText;
+  element.style.position = 'fixed';
+  element.style.top = '-1000px';
+  document.body.appendChild(element);
+  
+  return element;
+}
+
+export function addDragStyles() {
+  document.body.classList.add('qui-entity-drag-in-progress');
+}
+
+export function removeDragStyles() {
+  document.body.classList.remove('qui-entity-drag-in-progress');
+}
+
 // Helper function to initialize cross-window communication if needed
-// This is called directly by components, not inside the composable
 export function initCrossWindowEntityHandling(callback: (entityId: EntityId) => void) {
   // Listen for entity navigation events
   const listener = (event: Event) => {
@@ -118,10 +140,10 @@ export function initCrossWindowEntityHandling(callback: (entityId: EntityId) => 
     }
   };
   
-  window.addEventListener('entity:navigate', listener);
+  window.addEventListener(ENTITY_NAVIGATE_EVENT, listener);
   
   // Return a cleanup function 
   return () => {
-    window.removeEventListener('entity:navigate', listener);
+    window.removeEventListener(ENTITY_NAVIGATE_EVENT, listener);
   };
 }

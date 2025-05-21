@@ -360,3 +360,20 @@ body.qui-entity-drag-in-progress .value-display-container[data-field-type="Entit
 ::-webkit-drag {
   opacity: 0.6 !important;
 }
+
+/* Enhanced drop zone styling for better visibility */
+.value-display-container.droppable {
+  border: 1px dashed transparent;
+  transition: all 0.2s ease;
+}
+
+.value-display-container.droppable:hover {
+  border-color: var(--qui-accent-color);
+  background: rgba(0, 255, 136, 0.1);
+}
+
+.value-display-container.drop-target {
+  border-color: var(--qui-accent-color) !important;
+  background: rgba(0, 255, 136, 0.15) !important;
+  box-shadow: 0 0 8px var(--qui-accent-glow) !important;
+}

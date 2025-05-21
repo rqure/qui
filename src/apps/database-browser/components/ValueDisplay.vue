@@ -2,7 +2,7 @@
 import { computed, ref, onMounted, onUnmounted, watch } from 'vue';
 import { useDataStore } from '@/stores/data';
 import { ValueType } from '@/core/data/types';
-import { useEntityDrag } from '@/core/utils/composables';
+import { useEntityDrag, ENTITY_MIME_TYPE } from '@/core/utils/composables';
 
 // Define our own Value interface to avoid type errors
 interface Value {

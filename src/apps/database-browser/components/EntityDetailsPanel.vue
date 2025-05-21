@@ -83,7 +83,7 @@ async function cleanupNotifications() {
 }
 
 // Process drop on a specific field
-async function handleFieldDrop(fieldType: string, entityId: EntityId) {
+async function processFieldDrop(fieldType: string, entityId: EntityId) {
   try {
     // Find the field in our fields array
     const field = fields.value.find(f => f.fieldType === fieldType);
@@ -124,11 +124,10 @@ function setupFieldDropZones() {
   // Create drop zones for appropriate field types
   fields.value.forEach(field => {
     if (field.value.type === ValueType.EntityReference || field.value.type === ValueType.EntityList) {
-      // Just create the handlers without the composable's lifecycle hooks
-      
       // Manual implementation of drop handling
       const isEntityDrag = (event: DragEvent): boolean => {
         if (!event.dataTransfer) return false;
+        // Fix: Check for the correct MIME type 
         return event.dataTransfer.types.includes('application/x-qui-entity');
       };
       
@@ -168,19 +167,24 @@ function setupFieldDropZones() {
         }, 50);
       };
       
-      const handleFieldDrop = (event: DragEvent) => {
-        event.preventDefault();
+      // Fix the field drop handler to properly handle the drop event
+      const handleFieldDrop = (dropEvent: DragEvent) => {
+        if (!isEntityDrag(dropEvent) || !dropEvent.dataTransfer) return;
         
-        if (!event.dataTransfer) return;
+        dropEvent.preventDefault();
+        dropEvent.stopPropagation();
         
-        // Get the entity ID
-        const entityId = event.dataTransfer.getData('application/x-qui-entity');
-        if (entityId) {
-          handleFieldDrop(field.fieldType, entityId);
-        }
-        
-        // Reset the drop target state
+        // Immediately clear the drop highlight
         fieldDropTargets.value[field.fieldType] = false;
+        
+        // Get the entity ID from the dataTransfer
+        const entityId = dropEvent.dataTransfer.getData('application/x-qui-entity');
+        
+        if (entityId) {
+          // Call our handler function with the entityId
+          // We need to use a different local name to avoid the naming conflict
+          updateFieldWithEntityId(field.fieldType, entityId);
+        }
       };
       
       // Store these in a map keyed by field type
@@ -433,6 +437,55 @@ function getDropMessage(field: Field): string {
     ? 'Drop to set reference' 
     : 'Drop to add to list';
 }
+
+// Process drop on a specific field - renamed to avoid naming conflict
+async function updateFieldWithEntityId(fieldType: string, entityId: EntityId) {
+  try {
+    console.log(`Updating field ${fieldType} with entity ${entityId}`);
+    
+    // Find the field in our fields array
+    const field = fields.value.find(f => f.fieldType === fieldType);
+    if (!field) {
+      console.error(`Field ${fieldType} not found`);
+      return;
+    }
+    
+    // Check the field's value type to determine handling
+    if (field.value.type === ValueType.EntityReference) {
+      // For entity reference, set the reference to the dropped entity
+      field.value = ValueFactories.newEntityReference(entityId);
+      
+      // Write to database and log results
+      const writeResult = await dataStore.write([field]);
+      console.log(`Updated reference field ${fieldType} to ${entityId}, write result:`, writeResult);
+      
+      // Force a UI update
+      fields.value = [...fields.value];
+    } 
+    else if (field.value.type === ValueType.EntityList) {
+      // For entity list, append the entity to the list if not already present
+      const currentList = field.value.getEntityList();
+      
+      // Check if the entity is already in the list
+      if (!currentList.includes(entityId)) {
+        // Create a new list with the added entity
+        const newList = [...currentList, entityId];
+        field.value = ValueFactories.newEntityList(newList);
+        
+        // Write to database and log results
+        const writeResult = await dataStore.write([field]);
+        console.log(`Added ${entityId} to entity list ${fieldType}, write result:`, writeResult);
+        
+        // Force a UI update
+        fields.value = [...fields.value];
+      } else {
+        console.log(`Entity ${entityId} already exists in list ${fieldType}`);
+      }
+    }
+  } catch (error) {
+    console.error(`Error handling drop on field ${fieldType}:`, error);
+  }
+}
 </script>
 
 <template>
@@ -499,7 +552,7 @@ function getDropMessage(field: Field): string {
                 @dblclick="startEditing(field.fieldType)"
                 @dragover="field._dragHandlers?.handleDragOver($event)"
                 @dragleave="field._dragHandlers?.handleDragLeave()"
-                @drop.prevent="fieldDropTargets[field.fieldType] = false"
+                @drop="field._dragHandlers?.handleDrop($event)"
               >
                 <ValueDisplay 
                   :value="field.value"
