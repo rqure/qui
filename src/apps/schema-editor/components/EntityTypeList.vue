@@ -194,11 +194,27 @@ watch(() => props.selectedType, (newValue, oldValue) => {
   flex-direction: column;
   height: 100%;
   background: var(--qui-bg-secondary);
+  overflow: hidden;
+  width: 100%;
+  position: relative;
+  box-sizing: border-box;
+}
+
+.search-container {
+  padding: 12px 16px;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .search-input-wrapper {
   position: relative;
-  margin: 12px 16px;
+  width: 100%;
+  box-sizing: border-box;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+  border-radius: 20px;
+  transition: all 0.2s ease;
+  overflow: hidden;
 }
 
 .search-icon {
@@ -208,24 +224,31 @@ watch(() => props.selectedType, (newValue, oldValue) => {
   transform: translateY(-50%);
   color: var(--qui-text-secondary);
   opacity: 0.7;
+  z-index: 1;
+  transition: color 0.2s ease;
+}
+
+.search-input-wrapper:focus-within .search-icon {
+  color: var(--qui-accent-color);
+  opacity: 1;
 }
 
 .search-input {
   width: 100%;
-  height: 36px;
-  padding: 0 36px 0 36px;
-  border-radius: 18px;
+  height: 38px;
+  padding: 0 36px 0 38px;
+  border-radius: 20px;
   border: 1px solid var(--qui-hover-border);
   background: var(--qui-bg-primary);
   color: var(--qui-text-primary);
   font-size: var(--qui-font-size-small);
-  transition: all 0.2s ease;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  box-sizing: border-box;
 }
 
 .search-input:focus {
   outline: none;
   border-color: var(--qui-accent-color);
-  box-shadow: 0 0 0 2px var(--qui-overlay-accent);
 }
 
 .search-clear {
@@ -236,19 +259,25 @@ watch(() => props.selectedType, (newValue, oldValue) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   background: var(--qui-overlay-primary);
   color: var(--qui-text-secondary);
   border: none;
   cursor: pointer;
   transition: all 0.2s ease;
+  z-index: 1;
 }
 
 .search-clear:hover {
   background: var(--qui-overlay-secondary);
   color: var(--qui-text-primary);
+  transform: translateY(-50%) scale(1.05);
+}
+
+.search-clear:active {
+  transform: translateY(-50%) scale(0.95);
 }
 
 .list-state-container {
@@ -265,20 +294,28 @@ watch(() => props.selectedType, (newValue, oldValue) => {
   align-items: center;
   text-align: center;
   color: var(--qui-text-secondary);
-  gap: 12px;
+  gap: 16px;
+  max-width: 240px;
+  animation: fade-in 0.3s ease-out;
 }
 
 .spinner {
-  width: 32px;
-  height: 32px;
-  border: 2px solid var(--qui-overlay-accent);
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--qui-overlay-accent);
   border-top-color: var(--qui-accent-color);
   border-radius: 50%;
-  animation: spin 1s linear infinite;
+  animation: spin 1s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.05);
 }
 
 .error-state {
   color: var(--qui-danger-color);
+}
+
+.error-state svg {
+  filter: drop-shadow(0 2px 5px rgba(244, 67, 54, 0.3));
+  animation: pulse 2s ease-in-out infinite;
 }
 
 .retry-button, .clear-button {
@@ -286,19 +323,26 @@ watch(() => props.selectedType, (newValue, oldValue) => {
   align-items: center;
   gap: 8px;
   margin-top: 8px;
-  padding: 6px 12px;
-  border-radius: 16px;
+  padding: 8px 16px;
+  border-radius: 18px;
   background: var(--qui-overlay-primary);
   color: var(--qui-text-primary);
   border: 1px solid var(--qui-hover-border);
   font-size: var(--qui-font-size-small);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .retry-button:hover, .clear-button:hover {
   background: var(--qui-overlay-secondary);
-  transform: translateY(-1px);
+  transform: translateY(-2px);
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
+}
+
+.retry-button:active, .clear-button:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
 .entity-types-container {
@@ -306,6 +350,9 @@ watch(() => props.selectedType, (newValue, oldValue) => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  animation: fade-in 0.3s ease-out;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .entity-count {
@@ -314,12 +361,18 @@ watch(() => props.selectedType, (newValue, oldValue) => {
   color: var(--qui-text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  background: var(--qui-overlay-primary);
+  border-top: 1px solid var(--qui-hover-border);
+  border-bottom: 1px solid var(--qui-hover-border);
 }
 
 .entity-list {
   flex: 1;
   overflow-y: auto;
-  padding-bottom: 16px;
+  overflow-x: hidden;
+  padding: 8px 8px 16px;
+  box-sizing: border-box;
+  width: 100%;
   
   /* Scrollbar styling */
   scrollbar-width: thin;
@@ -346,34 +399,68 @@ watch(() => props.selectedType, (newValue, oldValue) => {
 .entity-item {
   display: flex;
   align-items: center;
-  padding: 10px 16px;
+  padding: 12px 16px;
+  margin: 4px 0;
   gap: 12px;
   cursor: pointer;
-  transition: background 0.2s ease, transform 0.1s ease;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 8px;
   border-left: 3px solid transparent;
+  position: relative;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .entity-item:hover {
   background: var(--qui-overlay-primary);
+  transform: translateX(2px);
 }
 
 .entity-item.selected {
   background: var(--qui-overlay-accent);
   border-left-color: var(--qui-accent-color);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+}
+
+.entity-item.selected::after {
+  content: '';
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--qui-accent-color);
+  box-shadow: 0 0 5px var(--qui-overlay-accent);
+  animation: pulse 2s infinite;
 }
 
 .entity-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
   color: var(--qui-accent-color);
   opacity: 0.8;
+  background: var(--qui-overlay-primary);
+  transition: all 0.3s ease;
+}
+
+.entity-item:hover .entity-icon {
+  transform: rotate(-5deg) scale(1.05);
+  background: var(--qui-overlay-accent);
 }
 
 .entity-item.selected .entity-icon {
   opacity: 1;
+  background: var(--qui-accent-color);
+  color: white;
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.1);
+  transform: rotate(0) scale(1);
 }
 
 .entity-name {
@@ -382,9 +469,59 @@ watch(() => props.selectedType, (newValue, oldValue) => {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: var(--qui-font-size-base);
+  font-weight: 400;
+  transition: all 0.2s ease;
+  min-width: 0; /* This helps with text overflow */
+}
+
+.entity-item.selected .entity-name {
+  font-weight: 500;
+  letter-spacing: 0.2px;
+}
+
+.empty-state svg {
+  opacity: 0.5;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.1));
+  transition: all 0.3s ease;
+}
+
+.empty-state:hover svg {
+  opacity: 0.7;
+  transform: scale(1.05);
 }
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+@keyframes pulse {
+  0% { opacity: 0.6; }
+  50% { opacity: 1; }
+  100% { opacity: 0.6; }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (max-width: 768px) {
+  .entity-item {
+    padding: 12px 8px;
+  }
+  
+  .entity-icon {
+    width: 28px;
+    height: 28px;
+  }
+
+  .search-container {
+    padding: 8px 12px;
+  }
+  
+  .search-input-wrapper {
+    margin: 0;
+    max-width: 100%;
+  }
 }
 </style>

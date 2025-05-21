@@ -22,13 +22,15 @@
   justify-content: center;
   padding: 40px;
   color: var(--qui-text-secondary);
+  animation: fade-in 0.5s ease-out;
 }
 
 .spinner-container {
   position: relative;
-  width: 60px;
-  height: 60px;
-  margin-bottom: 24px;
+  width: 80px;
+  height: 80px;
+  margin-bottom: 30px;
+  filter: drop-shadow(0 5px 15px rgba(0, 0, 0, 0.1));
 }
 
 .spinner-ring {
@@ -36,9 +38,9 @@
   width: 100%;
   height: 100%;
   border-radius: 50%;
-  border: 2px solid transparent;
+  border: 3px solid transparent;
   border-top-color: var(--qui-accent-color);
-  animation: spin 1.2s linear infinite;
+  animation: spin 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 
 .spinner-ring:nth-child(2) {
@@ -62,14 +64,14 @@
 
 .spinner-dot {
   position: absolute;
-  width: 10px;
-  height: 10px;
+  width: 14px;
+  height: 14px;
   top: 50%;
   left: 50%;
   background-color: var(--qui-accent-color);
   border-radius: 50%;
   transform: translate(-50%, -50%);
-  box-shadow: var(--qui-shadow-glow);
+  box-shadow: var(--qui-shadow-glow), 0 0 15px var(--qui-overlay-accent);
   animation: pulse 1.2s ease-in-out infinite;
 }
 
@@ -79,6 +81,23 @@
   animation: pulse 1.5s infinite;
   letter-spacing: 0.3px;
   color: var(--qui-text-primary);
+  background: linear-gradient(120deg, var(--qui-text-primary), var(--qui-accent-color));
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  text-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+  position: relative;
+}
+
+.loading-text::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: -8px;
+  width: 100%;
+  height: 1px;
+  background: linear-gradient(to right, transparent, var(--qui-accent-color), transparent);
+  animation: loading-line 2s ease-in-out infinite;
 }
 
 @keyframes spin {
@@ -90,5 +109,16 @@
   0% { opacity: 0.6; }
   50% { opacity: 1; }
   100% { opacity: 0.6; }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes loading-line {
+  0% { transform: scaleX(0.2); opacity: 0.5; }
+  50% { transform: scaleX(1); opacity: 1; }
+  100% { transform: scaleX(0.2); opacity: 0.5; }
 }
 </style>

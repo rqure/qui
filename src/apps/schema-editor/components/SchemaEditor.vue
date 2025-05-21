@@ -351,48 +351,101 @@ function getValueTypeClass(type: ValueType): string {
 .schema-editor {
   display: flex;
   flex-direction: column;
-  padding: 24px;
+  padding: 32px;
   height: 100%;
   overflow-y: auto;
   box-sizing: border-box;
+  animation: fade-in 0.3s ease-out;
 }
 
 .schema-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 24px;
-  padding-bottom: 16px;
+  margin-bottom: 32px;
+  padding-bottom: 24px;
   border-bottom: 1px solid var(--qui-hover-border);
+  position: relative;
+}
+
+.schema-header::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: -1px;
+  width: 60px;
+  height: 2px;
+  background: var(--qui-accent-color);
+  box-shadow: var(--qui-shadow-accent);
+  animation: expand 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .schema-info {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 20px;
 }
 
 .schema-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 48px;
-  height: 48px;
-  border-radius: 8px;
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
   background: var(--qui-overlay-accent);
   color: var(--qui-accent-color);
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.schema-icon::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0) 70%);
+  opacity: 0;
+  transform: scale(0.5);
+  transition: opacity 0.5s, transform 0.5s;
+}
+
+.schema-icon:hover::before {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.schema-icon:hover {
+  transform: rotate(-5deg) translateY(-3px);
+  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.12);
 }
 
 .schema-title {
-  margin: 0 0 4px 0;
-  font-size: 24px;
+  margin: 0 0 10px 0;
+  font-size: 28px;
   font-weight: var(--qui-font-weight-medium);
   color: var(--qui-text-primary);
+  background: linear-gradient(120deg, var(--qui-text-primary), var(--qui-accent-deep));
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  transition: all 0.3s ease;
 }
 
 .schema-subtitle {
   font-size: var(--qui-font-size-small);
   color: var(--qui-text-secondary);
+  letter-spacing: 0.5px;
+  opacity: 0.8;
+  transition: opacity 0.3s ease;
+}
+
+.schema-info:hover .schema-subtitle {
+  opacity: 1;
 }
 
 .btn-primary {
@@ -400,22 +453,55 @@ function getValueTypeClass(type: ValueType): string {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 0 16px;
-  height: 38px;
+  padding: 0 18px;
+  height: 40px;
   border: none;
-  border-radius: 4px;
+  border-radius: 8px;
   background: var(--qui-accent-color);
   color: white;
   font-size: var(--qui-font-size-base);
   font-weight: var(--qui-font-weight-medium);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-primary::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 150%;
+  height: 150%;
+  background: radial-gradient(circle, rgba(255,255,255,0.3) 0%, rgba(255,255,255,0) 70%);
+  transform: translate(-50%, -50%) scale(0);
+  opacity: 0;
+  transition: transform 0.5s, opacity 0.5s;
+  pointer-events: none;
 }
 
 .btn-primary:hover {
   background: var(--qui-accent-secondary);
-  transform: translateY(-1px);
-  box-shadow: var(--qui-shadow-accent);
+  transform: translateY(-2px);
+  box-shadow: var(--qui-shadow-accent), 0 6px 15px rgba(0, 0, 0, 0.15);
+}
+
+.btn-primary:hover::after {
+  transform: translate(-50%, -50%) scale(1);
+  opacity: 1;
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 3px rgba(0, 0, 0, 0.1);
+}
+
+.btn-add-field {
+  height: 46px;
+  border-radius: 10px;
+  padding: 0 24px;
 }
 
 .btn-secondary {
@@ -426,16 +512,23 @@ function getValueTypeClass(type: ValueType): string {
   padding: 0 16px;
   height: 38px;
   border: 1px solid var(--qui-hover-border);
-  border-radius: 4px;
+  border-radius: 8px;
   background: var(--qui-overlay-primary);
   color: var(--qui-text-primary);
   font-size: var(--qui-font-size-base);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .btn-secondary:hover {
   background: var(--qui-overlay-secondary);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.05);
+}
+
+.btn-secondary:active {
+  transform: translateY(0);
+  box-shadow: none;
 }
 
 .btn-icon {
@@ -444,43 +537,63 @@ function getValueTypeClass(type: ValueType): string {
   justify-content: center;
   width: 32px;
   height: 32px;
-  border-radius: 4px;
+  border-radius: 6px;
   border: 1px solid var(--qui-hover-border);
   background: var(--qui-overlay-primary);
   color: var(--qui-text-secondary);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .btn-icon:hover {
   background: var(--qui-overlay-secondary);
   color: var(--qui-text-primary);
   transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.05);
+}
+
+.btn-icon:active {
+  transform: translateY(0);
+  box-shadow: none;
 }
 
 .btn-danger:hover {
   background: var(--qui-danger-bg);
   color: var(--qui-danger-color);
   border-color: var(--qui-danger-border);
+  box-shadow: 0 0 0 2px var(--qui-danger-glow);
 }
 
 .add-field-panel {
-  margin-bottom: 24px;
-  border-radius: 8px;
+  margin-bottom: 32px;
+  border-radius: 12px;
   overflow: hidden;
   background: var(--qui-bg-secondary);
-  box-shadow: var(--qui-shadow-default);
+  box-shadow: var(--qui-shadow-default), 0 8px 20px rgba(0, 0, 0, 0.08);
   border: 1px solid var(--qui-hover-border);
-  animation: slide-down 0.3s ease;
+  animation: slide-down 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transform-origin: top center;
 }
 
 .panel-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 16px;
+  padding: 18px 24px;
   background: var(--qui-titlebar-bg);
   border-bottom: 1px solid var(--qui-hover-border);
+  position: relative;
+}
+
+.panel-header::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: -1px;
+  width: 40px;
+  height: 2px;
+  background: var(--qui-accent-color);
+  box-shadow: var(--qui-shadow-accent);
 }
 
 .panel-title {
@@ -491,13 +604,13 @@ function getValueTypeClass(type: ValueType): string {
 }
 
 .panel-body {
-  padding: 16px;
+  padding: 24px;
 }
 
 .form-row {
   display: flex;
-  gap: 16px;
-  margin-bottom: 16px;
+  gap: 24px;
+  margin-bottom: 20px;
 }
 
 .form-group {
@@ -507,7 +620,7 @@ function getValueTypeClass(type: ValueType): string {
 
 .form-group label {
   display: block;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
   font-weight: var(--qui-font-weight-medium);
   color: var(--qui-text-primary);
 }
@@ -515,19 +628,20 @@ function getValueTypeClass(type: ValueType): string {
 .form-control {
   display: block;
   width: 100%;
-  padding: 10px 12px;
+  padding: 14px;
   font-size: var(--qui-font-size-base);
   border: 1px solid var(--qui-hover-border);
-  border-radius: 4px;
+  border-radius: 8px;
   background: var(--qui-bg-primary);
   color: var(--qui-text-primary);
-  transition: all 0.2s ease;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .form-control:focus {
   outline: none;
   border-color: var(--qui-accent-color);
-  box-shadow: 0 0 0 2px var(--qui-overlay-accent);
+  box-shadow: 0 0 0 3px var(--qui-overlay-accent), inset 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .select-wrapper {
@@ -536,36 +650,45 @@ function getValueTypeClass(type: ValueType): string {
 
 .select-arrow {
   position: absolute;
-  right: 10px;
+  right: 12px;
   top: 50%;
   transform: translateY(-50%);
   pointer-events: none;
   color: var(--qui-text-secondary);
+  transition: transform 0.2s ease;
+}
+
+.select-wrapper:hover .select-arrow {
+  color: var(--qui-text-primary);
+  transform: translateY(-50%) translateY(1px);
 }
 
 .form-text {
-  margin-top: 6px;
+  margin-top: 8px;
   font-size: var(--qui-font-size-small);
   color: var(--qui-text-secondary);
+  line-height: 1.5;
 }
 
 .form-error {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 16px;
-  padding: 12px;
-  border-radius: 4px;
+  gap: 10px;
+  margin-bottom: 20px;
+  padding: 14px;
+  border-radius: 8px;
   background: var(--qui-danger-bg);
   color: var(--qui-danger-color);
   font-size: var(--qui-font-size-small);
+  animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+  box-shadow: 0 2px 5px rgba(244, 67, 54, 0.1);
 }
 
 .form-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 12px;
-  margin-top: 16px;
+  gap: 16px;
+  margin-top: 24px;
 }
 
 .empty-fields {
@@ -574,43 +697,76 @@ function getValueTypeClass(type: ValueType): string {
   align-items: center;
   justify-content: center;
   padding: 32px;
+  background: linear-gradient(to bottom, transparent, var(--qui-overlay-primary) 90%);
 }
 
 .empty-state-content {
-  max-width: 400px;
+  max-width: 450px;
   text-align: center;
   display: flex;
   flex-direction: column;
   align-items: center;
+  padding: 40px;
+  background: var(--qui-bg-secondary);
+  border-radius: 16px;
+  box-shadow: var(--qui-shadow-default), 0 15px 35px rgba(0, 0, 0, 0.08);
+  animation: scale-in 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid var(--qui-hover-border);
+  position: relative;
+  overflow: hidden;
+}
+
+.empty-state-content::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--qui-accent-color);
+  box-shadow: var(--qui-shadow-accent);
 }
 
 .empty-icon {
   color: var(--qui-accent-deep);
-  opacity: 0.3;
+  opacity: 0.2;
   margin-bottom: 24px;
+  filter: drop-shadow(0 5px 10px rgba(0, 0, 0, 0.1));
+  animation: float 3s ease-in-out infinite;
 }
 
 .empty-title {
   margin: 0 0 16px 0;
-  font-size: 24px;
+  font-size: 28px;
   font-weight: var(--qui-font-weight-medium);
   color: var(--qui-text-primary);
+  background: linear-gradient(120deg, var(--qui-text-primary), var(--qui-accent-deep));
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
 }
 
 .empty-description {
   margin: 0 0 32px 0;
   color: var(--qui-text-secondary);
-  line-height: 1.5;
+  line-height: 1.6;
+  font-size: 16px;
 }
 
 .schema-editor-table-container {
   flex: 1;
   overflow: auto;
   border: 1px solid var(--qui-hover-border);
-  border-radius: 8px;
+  border-radius: 12px;
   background: var(--qui-bg-primary);
-  box-shadow: var(--qui-shadow-default);
-  margin-bottom: 24px;
+  box-shadow: var(--qui-shadow-default), 0 8px 20px rgba(0, 0, 0, 0.05);
+  margin-bottom: 32px;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.schema-editor-table-container:hover {
+  box-shadow: var(--qui-shadow-default), 0 12px 30px rgba(0, 0, 0, 0.08);
+  border-color: var(--qui-accent-color);
 }
 
 .schema-editor-table {
@@ -628,21 +784,30 @@ function getValueTypeClass(type: ValueType): string {
 
 .schema-editor-table th {
   text-align: left;
-  padding: 12px 16px;
+  padding: 16px 20px;
   font-weight: var(--qui-font-weight-medium);
   color: var(--qui-text-secondary);
   border-bottom: 1px solid var(--qui-hover-border);
   font-size: var(--qui-font-size-small);
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  transition: color 0.2s ease;
+}
+
+.schema-editor-table th:hover {
+  color: var(--qui-text-primary);
 }
 
 .schema-editor-table .field-row {
-  transition: background-color 0.2s ease;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .schema-editor-table .field-row:not(.editing):hover {
   background-color: var(--qui-overlay-primary);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  z-index: 2;
+  position: relative;
 }
 
 .schema-editor-table .field-row.selected {
@@ -650,7 +815,7 @@ function getValueTypeClass(type: ValueType): string {
 }
 
 .schema-editor-table .field-row td {
-  padding: 14px 16px;
+  padding: 18px 20px;
   border-bottom: 1px solid var(--qui-hover-border);
   vertical-align: middle;
 }
@@ -661,6 +826,9 @@ function getValueTypeClass(type: ValueType): string {
 
 .schema-editor-table .field-row.editing {
   background-color: var(--qui-bg-secondary);
+  box-shadow: inset 0 0 0 1px var(--qui-accent-color), 0 5px 15px rgba(0, 0, 0, 0.1);
+  position: relative;
+  z-index: 3;
 }
 
 .field-editor-cell {
@@ -720,6 +888,12 @@ function getValueTypeClass(type: ValueType): string {
   background: var(--qui-overlay-secondary);
   color: var(--qui-accent-deep);
   font-size: 11px;
+  transition: all 0.2s ease;
+}
+
+.permission-chip:hover {
+  background: var(--qui-overlay-accent);
+  transform: scale(1.05);
 }
 
 /* Choices preview */
@@ -732,22 +906,30 @@ function getValueTypeClass(type: ValueType): string {
 .options-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
+  gap: 6px;
 }
 
 .option-chip {
-  padding: 2px 8px;
-  border-radius: 4px;
+  padding: 4px 10px;
+  border-radius: 6px;
   background: var(--qui-overlay-primary);
   color: var(--qui-text-primary);
   font-size: 12px;
   white-space: nowrap;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+}
+
+.option-chip:hover {
+  background: var(--qui-overlay-secondary);
+  border-color: var(--qui-hover-border);
 }
 
 .option-more {
   font-size: 12px;
   color: var(--qui-text-secondary);
   white-space: nowrap;
+  padding: 4px 6px;
 }
 
 /* Action buttons */
@@ -761,37 +943,154 @@ function getValueTypeClass(type: ValueType): string {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 4px;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
   border: 1px solid var(--qui-hover-border);
   background: var(--qui-overlay-primary);
   color: var(--qui-text-secondary);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.schema-editor-btn-icon::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0) 70%);
+  opacity: 0;
+  transform: scale(0.5);
+  transition: opacity 0.3s, transform 0.3s;
 }
 
 .schema-editor-btn-icon:hover {
   background: var(--qui-overlay-secondary);
   color: var(--qui-text-primary);
-  transform: translateY(-1px);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.schema-editor-btn-icon:hover::before {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.schema-editor-btn-icon:active {
+  transform: translateY(0);
+  box-shadow: none;
 }
 
 .schema-editor-btn-icon.schema-editor-btn-danger:hover {
   background: var(--qui-danger-bg);
   color: var(--qui-danger-color);
   border-color: var(--qui-danger-border);
+  box-shadow: 0 0 0 2px var(--qui-danger-glow), 0 4px 8px rgba(244, 67, 54, 0.2);
 }
 
-/* Retain existing animation styles */
 @keyframes slide-down {
   from {
     opacity: 0;
-    transform: translateY(-20px);
+    transform: translateY(-20px) scale(0.98);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes shake {
+  10%, 90% { transform: translateX(-1px); }
+  20%, 80% { transform: translateX(2px); }
+  30%, 50%, 70% { transform: translateX(-3px); }
+  40%, 60% { transform: translateX(3px); }
+}
+
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+  100% { transform: translateY(0px); }
+}
+
+@keyframes expand {
+  from { width: 0; }
+  to { width: 60px; }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (max-width: 1200px) {
+  .schema-editor {
+    padding: 24px;
+  }
+  
+  .schema-header {
+    margin-bottom: 24px;
+  }
+  
+  .form-row {
+    gap: 16px;
+  }
+}
+
+@media (max-width: 768px) {
+  .schema-editor {
+    padding: 16px;
+  }
+  
+  .schema-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+  }
+  
+  .btn-add-field {
+    align-self: stretch;
+    width: 100%;
+  }
+  
+  .form-row {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .schema-editor-table th,
+  .schema-editor-table td {
+    padding: 12px 10px;
+  }
+  
+  .field-properties {
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .schema-icon {
+    width: 42px;
+    height: 42px;
+  }
+  
+  .schema-title {
+    font-size: 24px;
   }
 }
 </style>
