@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, watch, computed } from 'vue';
 import { useDataStore } from '@/stores/data';
-import { EntityType } from '@/core/data/types';
+import type { EntityType } from '@/core/data/types';
 
 const props = defineProps<{
   selectedType: EntityType | null;
@@ -53,9 +53,10 @@ async function loadEntityTypes() {
     // Sort alphabetically
     entityTypes.value = result.entityTypes.sort((a, b) => a.localeCompare(b));
     
-    // If there is a cursor and more types to load, load them
-    if (result.cursor > 0) {
-      let cursor = result.cursor;
+    // Check if there are more results to load (using nextCursor instead of cursor)
+    if (result.nextCursor > 0) {
+      // Convert bigint to number for pagination
+      let cursor = Number(result.nextCursor);
       
       while (cursor > 0) {
         const moreResults = await dataStore.getEntityTypes(1000, cursor);
@@ -65,11 +66,13 @@ async function loadEntityTypes() {
         
         entityTypes.value = [...entityTypes.value, ...moreResults.entityTypes].sort((a, b) => a.localeCompare(b));
         
-        if (moreResults.cursor <= 0) {
+        // Check if there are more results to load
+        if (!moreResults.nextCursor || moreResults.nextCursor <= 0) {
           break;
         }
         
-        cursor = moreResults.cursor;
+        // Convert bigint to number for the next iteration
+        cursor = Number(moreResults.nextCursor);
       }
     }
     

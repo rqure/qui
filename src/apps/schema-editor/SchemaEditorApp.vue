@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue';
 import { useDataStore } from '@/stores/data';
-import { EntityType, EntitySchema, ValueType, EntityFactories, FieldSchemaOptions } from '@/core/data/types';
+import type { EntityType, EntitySchema } from '@/core/data/types';
+import { ValueType, EntityFactories, FieldSchemaOptions } from '@/core/data/types';
 import EntityTypeList from './components/EntityTypeList.vue';
 import SchemaEditor from './components/SchemaEditor.vue';
 import LoadingIndicator from './components/LoadingIndicator.vue';

@@ -140,7 +140,8 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
-import { FieldSchema, ValueType } from '@/core/data/types';
+import type { FieldSchema } from '@/core/data/types';
+import { ValueType } from '@/core/data/types';
 
 const props = defineProps<{
   fieldSchema: FieldSchema;

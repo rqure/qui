@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-import { EntitySchema, FieldSchema, ValueType } from '@/core/data/types';
+import type { EntitySchema, FieldSchema } from '@/core/data/types';
+import { ValueType } from '@/core/data/types';
 import FieldEditor from './FieldEditor.vue';
 import TypeBadge from './TypeBadge.vue';
 import ConfirmDialog from './ConfirmDialog.vue';
@@ -96,7 +97,8 @@ function addNewField() {
     rank: Object.keys(workingSchema.value.fields).length, // Add at the end
     readPermissions: [],
     writePermissions: [],
-    choices: newFieldType.value === ValueType.Choice ? ['Option 1', 'Option 2'] : []
+    choices: newFieldType.value === ValueType.Choice ? ['Option 1', 'Option 2'] : [],
+    clone: function() { return JSON.parse(JSON.stringify(this)); }
   };
   
   // Add to working schema
