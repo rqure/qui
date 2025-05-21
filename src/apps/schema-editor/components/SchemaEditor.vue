@@ -255,72 +255,81 @@ function getValueTypeClass(type: ValueType): string {
       </div>
     </div>
     
-    <div v-else class="fields-container">
-      <div v-for="{ fieldType, fieldSchema } in sortedFields" :key="fieldType" class="field-card" :class="{ 'editing': editingField === fieldType }">
-        <template v-if="editingField === fieldType">
-          <FieldEditor 
-            :field-schema="fieldSchema"
-            @update="updateField(fieldType, $event)"
-            @cancel="cancelEditField"
-          />
-        </template>
-        
-        <template v-else>
-          <div class="field-card-header">
-            <div class="field-name-container">
-              <span class="field-name">{{ fieldType }}</span>
-              <TypeBadge :type="fieldSchema.valueType" />
-            </div>
-            
-            <div class="field-actions">
-              <button class="btn-icon" @click="startEditField(fieldType)" title="Edit field">
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24">
-                  <path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
-                </svg>
-              </button>
-              <button class="btn-icon btn-danger" @click="deleteField(fieldType)" title="Delete field">
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24">
-                  <path fill="currentColor" d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
-                </svg>
-              </button>
-            </div>
-          </div>
-          
-          <div class="field-card-body">
-            <div class="field-properties">
-              <div class="property">
-                <div class="property-label">Display Order</div>
-                <div class="property-value">{{ fieldSchema.rank || 0 }}</div>
-              </div>
-              
-              <div v-if="fieldSchema.valueType === ValueType.Choice" class="property">
-                <div class="property-label">Options</div>
-                <div class="property-value">{{ fieldSchema.choices.length }}</div>
-              </div>
-              
-              <div v-if="fieldSchema.readPermissions.length > 0" class="property">
-                <div class="property-label">Read Permissions</div>
-                <div class="property-value permission-chip">{{ fieldSchema.readPermissions.length }}</div>
-              </div>
-              
-              <div v-if="fieldSchema.writePermissions.length > 0" class="property">
-                <div class="property-label">Write Permissions</div>
-                <div class="property-value permission-chip">{{ fieldSchema.writePermissions.length }}</div>
-              </div>
-            </div>
-            
-            <!-- For Choice type fields, show options -->
-            <div v-if="fieldSchema.valueType === ValueType.Choice && fieldSchema.choices.length > 0" class="choice-options">
-              <div class="section-label">Options</div>
-              <div class="options-list">
-                <div v-for="(choice, index) in fieldSchema.choices" :key="index" class="option-chip">
-                  {{ choice }}
+    <div v-else class="schema-editor-table-container">
+      <table class="schema-editor-table">
+        <thead>
+          <tr>
+            <th class="col-name">Field Name</th>
+            <th class="col-type">Type</th>
+            <th class="col-order">Order</th>
+            <th class="col-info">Properties</th>
+            <th class="col-actions">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <template v-for="{ fieldType, fieldSchema } in sortedFields" :key="fieldType">
+            <tr v-if="editingField !== fieldType" class="field-row" :class="{ 'selected': editingField === fieldType }">
+              <td class="col-name">{{ fieldType }}</td>
+              <td class="col-type">
+                <TypeBadge :type="fieldSchema.valueType" />
+              </td>
+              <td class="col-order">{{ fieldSchema.rank || 0 }}</td>
+              <td class="col-info">
+                <div class="field-properties">
+                  <span v-if="fieldSchema.valueType === ValueType.Choice" class="field-property">
+                    <span class="property-label">Options:</span>
+                    <span class="property-value">{{ fieldSchema.choices.length }}</span>
+                  </span>
+                  
+                  <span v-if="fieldSchema.readPermissions.length > 0" class="field-property">
+                    <span class="property-label">Read Perms:</span>
+                    <span class="property-value permission-chip">{{ fieldSchema.readPermissions.length }}</span>
+                  </span>
+                  
+                  <span v-if="fieldSchema.writePermissions.length > 0" class="field-property">
+                    <span class="property-label">Write Perms:</span>
+                    <span class="property-value permission-chip">{{ fieldSchema.writePermissions.length }}</span>
+                  </span>
+                  
+                  <span v-if="fieldSchema.valueType === ValueType.Choice && fieldSchema.choices.length > 0" class="field-property choices-preview">
+                    <span class="options-list">
+                      <span v-for="(choice, index) in fieldSchema.choices.slice(0, 3)" :key="index" class="option-chip">
+                        {{ choice }}
+                      </span>
+                      <span v-if="fieldSchema.choices.length > 3" class="option-more">
+                        +{{ fieldSchema.choices.length - 3 }} more
+                      </span>
+                    </span>
+                  </span>
                 </div>
-              </div>
-            </div>
-          </div>
-        </template>
-      </div>
+              </td>
+              <td class="col-actions">
+                <div class="action-buttons">
+                  <button class="schema-editor-btn-icon" @click="startEditField(fieldType)" title="Edit field">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24">
+                      <path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+                    </svg>
+                  </button>
+                  <button class="schema-editor-btn-icon schema-editor-btn-danger" @click="deleteField(fieldType)" title="Delete field">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24">
+                      <path fill="currentColor" d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                    </svg>
+                  </button>
+                </div>
+              </td>
+            </tr>
+            <tr v-else class="field-row editing">
+              <td colspan="5" class="field-editor-cell">
+                <FieldEditor 
+                  :field-schema="fieldSchema"
+                  @update="updateField(fieldType, $event)"
+                  @cancel="cancelEditField"
+                />
+              </td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
     </div>
     
     <!-- Confirmation Dialog for field deletion -->
@@ -592,93 +601,110 @@ function getValueTypeClass(type: ValueType): string {
   line-height: 1.5;
 }
 
-.fields-container {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 16px;
+.schema-editor-table-container {
+  flex: 1;
+  overflow: auto;
+  border: 1px solid var(--qui-hover-border);
+  border-radius: 8px;
+  background: var(--qui-bg-primary);
+  box-shadow: var(--qui-shadow-default);
   margin-bottom: 24px;
 }
 
-.field-card {
-  background: var(--qui-bg-secondary);
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: var(--qui-shadow-default);
-  border: 1px solid var(--qui-hover-border);
-  transition: all 0.2s ease;
+.schema-editor-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--qui-font-size-base);
 }
 
-.field-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--qui-shadow-glow);
-  border-color: var(--qui-hover-border);
-}
-
-.field-card.editing {
-  transform: none;
-  border-color: var(--qui-accent-color);
-  box-shadow: 0 0 0 2px var(--qui-overlay-accent);
-}
-
-.field-card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px;
-  border-bottom: 1px solid var(--qui-hover-border);
+.schema-editor-table thead {
+  position: sticky;
+  top: 0;
   background: var(--qui-titlebar-bg);
+  z-index: 1;
 }
 
-.field-name-container {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.field-name {
+.schema-editor-table th {
+  text-align: left;
+  padding: 12px 16px;
   font-weight: var(--qui-font-weight-medium);
-  color: var(--qui-text-primary);
-}
-
-.field-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 3px 8px;
-  border-radius: 12px;
-  font-size: 11px;
-  font-weight: var(--qui-font-weight-medium);
-  background: var(--qui-overlay-primary);
   color: var(--qui-text-secondary);
+  border-bottom: 1px solid var(--qui-hover-border);
+  font-size: var(--qui-font-size-small);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
-.field-actions {
-  display: flex;
-  gap: 8px;
+.schema-editor-table .field-row {
+  transition: background-color 0.2s ease;
 }
 
-.field-card-body {
-  padding: 16px;
+.schema-editor-table .field-row:not(.editing):hover {
+  background-color: var(--qui-overlay-primary);
 }
 
+.schema-editor-table .field-row.selected {
+  background-color: var(--qui-overlay-accent);
+}
+
+.schema-editor-table .field-row td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--qui-hover-border);
+  vertical-align: middle;
+}
+
+.schema-editor-table .field-row:last-child td {
+  border-bottom: none;
+}
+
+.schema-editor-table .field-row.editing {
+  background-color: var(--qui-bg-secondary);
+}
+
+.field-editor-cell {
+  padding: 0 !important;
+}
+
+/* Column widths */
+.col-name {
+  min-width: 180px;
+  font-weight: var(--qui-font-weight-medium);
+}
+
+.col-type {
+  width: 120px;
+}
+
+.col-order {
+  width: 80px;
+  text-align: center;
+}
+
+.col-actions {
+  width: 100px;
+  text-align: right;
+}
+
+/* Field properties */
 .field-properties {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  display: flex;
+  flex-wrap: wrap;
   gap: 12px;
 }
 
-.property {
-  margin-bottom: 4px;
+.field-property {
+  display: flex;
+  align-items: center;
+  gap: 5px;
 }
 
 .property-label {
-  font-size: 11px;
+  font-size: var(--qui-font-size-small);
   color: var(--qui-text-secondary);
-  margin-bottom: 4px;
 }
 
 .property-value {
   font-weight: var(--qui-font-weight-medium);
-  color: var(--qui-text-primary);
 }
 
 .permission-chip {
@@ -694,67 +720,68 @@ function getValueTypeClass(type: ValueType): string {
   font-size: 11px;
 }
 
-.choice-options {
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid var(--qui-hover-border);
-}
-
-.section-label {
-  font-size: 11px;
-  color: var(--qui-text-secondary);
-  margin-bottom: 8px;
+/* Choices preview */
+.choices-preview {
+  display: block;
+  margin-top: 8px;
+  width: 100%;
 }
 
 .options-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 5px;
 }
 
 .option-chip {
-  padding: 4px 8px;
+  padding: 2px 8px;
   border-radius: 4px;
   background: var(--qui-overlay-primary);
   color: var(--qui-text-primary);
   font-size: 12px;
+  white-space: nowrap;
 }
 
-.schema-editor-type-String {
+.option-more {
+  font-size: 12px;
+  color: var(--qui-text-secondary);
+  white-space: nowrap;
+}
+
+/* Action buttons */
+.action-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.schema-editor-btn-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  border: 1px solid var(--qui-hover-border);
   background: var(--qui-overlay-primary);
-  color: var(--qui-text-primary);
+  color: var(--qui-text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
-.schema-editor-type-Int, .schema-editor-type-Float {
-  background: var(--qui-overlay-accent);
-  color: var(--qui-accent-color);
-}
-
-.schema-editor-type-Bool {
-  background: rgba(76, 175, 80, 0.1);
-  color: #4CAF50;
-}
-
-.schema-editor-type-EntityReference, .schema-editor-type-EntityList {
+.schema-editor-btn-icon:hover {
   background: var(--qui-overlay-secondary);
-  color: var(--qui-accent-deep);
+  color: var(--qui-text-primary);
+  transform: translateY(-1px);
 }
 
-.schema-editor-type-Timestamp {
-  background: rgba(0, 188, 212, 0.1);
-  color: #00BCD4;
+.schema-editor-btn-icon.schema-editor-btn-danger:hover {
+  background: var(--qui-danger-bg);
+  color: var(--qui-danger-color);
+  border-color: var(--qui-danger-border);
 }
 
-.schema-editor-type-Choice {
-  background: rgba(233, 30, 99, 0.1);
-  color: #E91E63;
-}
-
-.schema-editor-type-BinaryFile {
-  background: rgba(158, 158, 158, 0.1);
-  color: #9E9E9E;
-}
-
+/* Retain existing animation styles */
 @keyframes slide-down {
   from {
     opacity: 0;
