@@ -1,0 +1,96 @@
+/* Schema Editor Global Styles */
+
+/* Type badges for field types */
+.schema-editor-type-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-weight: 500;
+  font-size: 0.85em;
+}
+
+.schema-editor-type-String {
+  background: rgba(33, 150, 243, 0.1);
+  color: #2196F3;
+}
+
+.schema-editor-type-Int, .schema-editor-type-Float {
+  background: rgba(255, 152, 0, 0.1);
+  color: #FF9800;
+}
+
+.schema-editor-type-Bool {
+  background: rgba(76, 175, 80, 0.1);
+  color: #4CAF50;
+}
+
+.schema-editor-type-EntityReference, .schema-editor-type-EntityList {
+  background: rgba(156, 39, 176, 0.1);
+  color: #9C27B0;
+}
+
+.schema-editor-type-Timestamp {
+  background: rgba(0, 188, 212, 0.1);
+  color: #00BCD4;
+}
+
+.schema-editor-type-Choice {
+  background: rgba(233, 30, 99, 0.1);
+  color: #E91E63;
+}
+
+.schema-editor-type-BinaryFile {
+  background: rgba(158, 158, 158, 0.1);
+  color: #9E9E9E;
+}
+
+/* Enhanced field form styles */
+.schema-editor-field-row {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.schema-editor-field-group {
+  flex: 1;
+}
+
+.schema-editor-field-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: var(--qui-font-weight-medium);
+}
+
+.schema-editor-field-input,
+.schema-editor-field-select {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--qui-bg-primary);
+  border: 1px solid var(--qui-hover-border);
+  border-radius: 6px;
+  color: var(--qui-text-primary);
+  transition: all 0.2s var(--qui-animation-bounce);
+}
+
+.schema-editor-field-input:focus,
+.schema-editor-field-select:focus {
+  outline: none;
+  border-color: #9c27b0;
+  box-shadow: 0 0 0 2px rgba(156, 39, 176, 0.2);
+}
+
+.schema-editor-field-help {
+  margin-top: 6px;
+  font-size: var(--qui-font-size-small);
+  color: var(--qui-text-secondary);
+}
+
+.schema-editor-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+

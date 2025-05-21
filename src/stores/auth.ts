@@ -7,6 +7,7 @@ import type { AuthProvider } from '@/core/security/auth-provider'
 import { KeycloakAuthProvider } from '@/core/security/keycloak-provider'
 import { CredentialsAuthProvider } from '@/core/security/credentials-provider'
 import databaseBrowserApp from '@/apps/database-browser'
+import schemaEditorApp from '@/apps/schema-editor'
 
 // Define auth method type
 type AuthMethod = 'keycloak' | 'credentials' | '';
@@ -194,6 +195,7 @@ export const useAuthStore = defineStore('auth', {
       
       // Register database browser app
       appStore.registerApp(databaseBrowserApp);
+      appStore.registerApp(schemaEditorApp);
       
       console.log('Apps registered successfully after login');
     },

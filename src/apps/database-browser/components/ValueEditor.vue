@@ -235,7 +235,7 @@ watch(
         </svg>
       </div>
       <select 
-        class="choice-select"
+        class="db-choice-select"
         :value="currentChoiceIndex"
         @change="handleChoiceChange"
       >
@@ -367,7 +367,7 @@ watch(
   transform: none;
 }
 
-.text-input, .timestamp-input, .text-area, .reference-input, .choice-select {
+.text-input, .timestamp-input, .text-area, .reference-input, .db-choice-select {
   font-family: var(--qui-font-family);
   font-size: var(--qui-font-size-base);
   padding: 8px 10px 8px 36px;
@@ -379,7 +379,7 @@ watch(
   transition: all 0.2s var(--qui-animation-bounce);
 }
 
-.text-input:focus, .timestamp-input:focus, .text-area:focus, .reference-input:focus, .choice-select:focus {
+.text-input:focus, .timestamp-input:focus, .text-area:focus, .reference-input:focus, .db-choice-select:focus {
   border-color: var(--qui-accent-color);
   outline: none;
   box-shadow: 0 0 0 2px rgba(0, 255, 136, 0.2);
@@ -425,7 +425,7 @@ watch(
 }
 
 /* Choice select styling */
-.choice-select {
+.db-choice-select {
   appearance: none;
   padding-right: 30px;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath fill='%23888888' d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");

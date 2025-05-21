@@ -207,7 +207,7 @@
 }
 
 /* Choice values styling */
-.choice-value {
+.db-choice-value {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -220,12 +220,12 @@
   transition: all 0.2s ease;
 }
 
-.choice-value:hover {
+.db-choice-value:hover {
   background: var(--qui-accent-bg-light);
   transform: translateY(-1px);
 }
 
-.choice-value .choice-index {
+.db-choice-value .choice-index {
   font-size: 0.8em;
   opacity: 0.7;
   margin-left: 4px;
@@ -233,7 +233,7 @@
 }
 
 /* Enhanced dropdown select for choices */
-.choice-select {
+.db-choice-select {
   background: var(--qui-bg-primary);
   border: 1px solid var(--qui-hover-border);
   color: var(--qui-text-primary);
@@ -250,121 +250,15 @@
   padding-right: 30px;
 }
 
-.choice-select:focus {
+.db-choice-select:focus {
   border-color: var(--qui-accent-color);
   outline: none;
   box-shadow: 0 0 0 2px var(--qui-accent-bg);
 }
 
-.choice-select option {
+.db-choice-select option {
   background: var(--qui-bg-primary);
   color: var(--qui-text-primary);
-}
-
-/* Badge for choice values */
-.choice-badge {
-  display: inline-flex;
-  align-items: center;
-  background: rgba(124, 77, 255, 0.1);
-  color: #9C27B0;
-  padding: 2px 8px;
-  border-radius: 12px;
-  font-size: 0.9em;
-  font-weight: 500;
-}
-
-/* Visual loading indicator for choices that are loading */
-@keyframes pulse-purple {
-  0%, 100% { background-color: rgba(124, 77, 255, 0.1); }
-  50% { background-color: rgba(124, 77, 255, 0.2); }
-}
-
-.choice-loading {
-  animation: pulse-theme 1.5s infinite;
-}
-
-/* Loading indicator for choices */
-@keyframes pulse-theme {
-  0%, 100% { background-color: var(--qui-accent-bg-faint); }
-  50% { background-color: var(--qui-accent-bg-light); }
-}
-
-.choice-loading {
-  animation: pulse-theme 1.5s infinite;
-}
-
-/* Entity reference drag visual */
-.qui-entity-drag-icon {
-  padding: 8px 12px;
-  background: var(--qui-accent-color);
-  color: var(--qui-bg-primary);
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: var(--qui-font-weight-medium);
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
-  border: 1px solid var(--qui-accent-border);
-  /* Provide predictable visibility */
-  opacity: 0.9 !important;
-  position: fixed;
-  z-index: 9999; /* Ensure it's always visible */
-  font-family: var(--qui-font-family);
-  font-size: var(--qui-font-size-small);
-  pointer-events: none;
-}
-
-/* Global body class during entity drag */
-body.qui-entity-drag-in-progress {
-  cursor: grabbing !important;
-  /* Prevent text selection during drag that can cause flickering */
-  user-select: none !important;
-}
-
-body.qui-entity-drag-in-progress * {
-  cursor: grabbing !important;
-}
-
-/* Entity draggable */
-.entity-reference-draggable {
-  cursor: grab;
-}
-
-.entity-draggable {
-  cursor: grab;
-}
-
-.entity-draggable:active {
-  cursor: grabbing;
-}
-
-/* Entity drop zone */
-.entity-drop-zone {
-  outline: 2px dashed var(--qui-accent-color);
-  background: var(--qui-accent-bg-faint);
-  transition: all 0.2s ease;
-}
-
-.entity-drop-active {
-  background: var(--qui-accent-bg-light);
-  outline-offset: -4px;
-}
-
-/* Add animation for drop zones with reduced intensity for less flickering */
-@keyframes pulse-border {
-  0%, 100% { outline-color: var(--qui-accent-color); }
-  50% { outline-color: rgba(0, 255, 136, 0.3); } /* Less contrast in pulse */
-}
-
-.entity-drop-zone.animated {
-  animation: pulse-border 1.5s infinite ease-in-out;
-}
-
-/* Drop cursor indicators */
-body.qui-entity-drag-in-progress .droppable {
-  cursor: copy !important;
-}
-
-body.qui-entity-drag-in-progress .value-display-container[data-field-type="EntityReference"] {
-  cursor: link !important;
 }
 
 /* Improve drag ghosting to reduce flickering */
@@ -373,29 +267,18 @@ body.qui-entity-drag-in-progress .value-display-container[data-field-type="Entit
 }
 
 /* Enhanced drop zone styling for better visibility */
-.value-display-container.droppable {
+.db-value-display-container.droppable {
   border: 1px dashed transparent;
   transition: all 0.2s ease;
 }
 
-.value-display-container.droppable:hover {
+.db-value-display-container.droppable:hover {
   border-color: var(--qui-accent-color);
   background: rgba(0, 255, 136, 0.1);
 }
 
-.value-display-container.drop-target {
+.db-value-display-container.drop-target {
   border-color: var(--qui-accent-color) !important;
   background: rgba(0, 255, 136, 0.15) !important;
   box-shadow: 0 0 8px var(--qui-accent-glow) !important;
-}
-
-/* Custom styling for drag feedback */
-.drag-feedback {
-  position: absolute;
-  pointer-events: none;
-  z-index: 1000;
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-  border-radius: 4px;
-  transform-origin: left top;
-  will-change: transform;
 }

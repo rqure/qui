@@ -642,7 +642,7 @@ const containerClass = computed(() => {
           <tr v-for="field in fields" :key="field.fieldType" class="field-row">
             <td class="field-name">
               {{ field.fieldType }}
-              <div class="field-type-badge">{{ field.value.type }}</div>
+              <div class="field-schema-editor-type-badge">{{ field.value.type }}</div>
               <div v-if="isFieldDroppable(field)" class="droppable-indicator">
                 <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24">
                   <path fill="currentColor" d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
@@ -660,7 +660,7 @@ const containerClass = computed(() => {
               />
               <div 
                 v-else 
-                class="value-display-container" 
+                class="db-value-display-container" 
                 :class="{
                   'droppable': isFieldDroppable(field),
                   'drop-target': fieldDropTargets[field.fieldType]
@@ -877,7 +877,7 @@ const containerClass = computed(() => {
   border-right: 1px solid rgba(255, 255, 255, 0.03);
 }
 
-.field-type-badge {
+.field-schema-editor-type-badge {
   display: inline-block;
   font-size: 10px;
   color: var(--qui-text-secondary);
@@ -976,7 +976,7 @@ const containerClass = computed(() => {
   box-shadow: 0 3px 10px var(--qui-accent-glow);
 }
 
-.value-display-container {
+.db-value-display-container {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -986,11 +986,11 @@ const containerClass = computed(() => {
   transition: background 0.2s ease;
 }
 
-.value-display-container:hover {
+.db-value-display-container:hover {
   background: rgba(0, 0, 0, 0.1);
 }
 
-.value-display-container:hover .edit-button {
+.db-value-display-container:hover .edit-button {
   opacity: 1;
   transform: translateX(0);
 }
@@ -1026,18 +1026,18 @@ const containerClass = computed(() => {
   color: var(--qui-accent-color);
 }
 
-.value-display-container.droppable {
+.db-value-display-container.droppable {
   position: relative;
   transition: all 0.25s ease;
   border: 1px dashed transparent;
 }
 
-.value-display-container.droppable:hover {
+.db-value-display-container.droppable:hover {
   border-color: var(--qui-accent-color);
   background: var(--qui-accent-bg-faint);
 }
 
-.value-display-container.drop-target {
+.db-value-display-container.drop-target {
   border-color: var(--qui-accent-color);
   background: var(--qui-accent-bg-light);
   outline: none;

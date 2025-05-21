@@ -82,3 +82,42 @@
 .taskbar .start-btn:hover::after {
   opacity: 0.5;
 }
+
+/* Entity reference drag visual */
+.qui-entity-drag-icon {
+  padding: 8px 12px;
+  background: var(--qui-accent-color);
+  color: var(--qui-bg-primary);
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: var(--qui-font-weight-medium);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--qui-accent-border);
+  /* Provide predictable visibility */
+  opacity: 0.9 !important;
+  position: fixed;
+  z-index: 9999; /* Ensure it's always visible */
+  font-family: var(--qui-font-family);
+  font-size: var(--qui-font-size-small);
+  pointer-events: none;
+}
+
+/* Global body class during entity drag */
+body.qui-entity-drag-in-progress {
+  cursor: grabbing !important;
+  /* Prevent text selection during drag that can cause flickering */
+  user-select: none !important;
+}
+
+body.qui-entity-drag-in-progress * {
+  cursor: grabbing !important;
+}
+
+/* Drop cursor indicators */
+body.qui-entity-drag-in-progress .droppable {
+  cursor: copy !important;
+}
+
+body.qui-entity-drag-in-progress .db-value-display-container[data-field-type="EntityReference"] {
+  cursor: link !important;
+}
