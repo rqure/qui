@@ -129,11 +129,37 @@ export function createDragImage(entityId: string, entityType?: string) {
 }
 
 export function addDragStyles() {
+  // Use a more subtle class for drag operations that doesn't create a white fade
   document.body.classList.add('qui-entity-drag-in-progress');
+  
+  // Add a style tag for temporary drag styles if not already present
+  if (!document.getElementById('qui-drag-styles')) {
+    const styleTag = document.createElement('style');
+    styleTag.id = 'qui-drag-styles';
+    styleTag.textContent = `
+      body.qui-entity-drag-in-progress {
+        cursor: grabbing !important;
+      }
+      
+      /* Avoid white fade effect but still show drag feedback */
+      .dragging {
+        opacity: 0.7;
+        outline: 1px dashed var(--qui-accent-color);
+        background-color: var(--qui-accent-bg-faint) !important;
+      }
+    `;
+    document.head.appendChild(styleTag);
+  }
 }
 
 export function removeDragStyles() {
   document.body.classList.remove('qui-entity-drag-in-progress');
+  
+  // Clean up drag styles
+  const dragStyles = document.getElementById('qui-drag-styles');
+  if (dragStyles) {
+    document.head.removeChild(dragStyles);
+  }
 }
 
 // Helper function to initialize cross-window communication if needed

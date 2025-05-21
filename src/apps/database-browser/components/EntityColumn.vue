@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import { useDataStore } from '@/stores/data';
 import { EntityFactories, type Entity, type EntityId, type EntityType } from '@/core/data/types';
+import { useEntityDrag } from '@/core/utils/composables';
 
 const props = defineProps<{
   columnId: string;
@@ -136,6 +137,14 @@ function selectEntity(entityId: EntityId) {
 function handleScroll(event: Event) {
   emit('scroll', event);
 }
+
+// Add drag functionality with the composable
+const { startEntityDrag } = useEntityDrag();
+
+// Start dragging an entity
+function handleDragStart(event: DragEvent, entity: EntityItem) {
+  startEntityDrag(event, entity.id, entity.type, entity.name);
+}
 </script>
 
 <template>
@@ -202,8 +211,17 @@ function handleScroll(event: Event) {
             'has-children': entity.children.length > 0
           }"
           @click="selectEntity(entity.id)"
+          draggable="true"
+          @dragstart="handleDragStart($event, entity)"
         >
-          <span class="entity-name">{{ entity.name }}</span>
+          <div class="entity-item-content">
+            <span class="entity-drag-handle">
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24">
+                <path fill="currentColor" d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/>
+              </svg>
+            </span>
+            <span class="entity-name">{{ entity.name }}</span>
+          </div>
           <span v-if="entity.children.length > 0" class="child-indicator">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
               <path fill="currentColor" d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/>
@@ -365,50 +383,48 @@ function handleScroll(event: Event) {
   overflow: hidden;
 }
 
-.entity-item::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(to right, transparent, transparent);
-  opacity: 0;
-  transition: opacity 0.3s ease;
-  z-index: 0;
+/* Add entity-item-content class for layout with drag handle */
+.entity-item-content {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.entity-item:hover {
-  background: var(--qui-overlay-hover);
-  transform: translateX(2px);
+.entity-drag-handle {
+  opacity: 0.4;
+  display: flex;
+  align-items: center;
+  cursor: grab;
+  transition: opacity 0.2s ease;
 }
 
-.entity-item:hover::before {
-  opacity: 1;
-  background: linear-gradient(to right, transparent, var(--qui-accent-bg-faint));
+.entity-item:hover .entity-drag-handle {
+  opacity: 0.7;
 }
 
-.entity-item.selected {
-  background: var(--qui-overlay-active);
-  border-left: 2px solid var(--qui-accent-color);
+.entity-item.selected .entity-drag-handle {
   color: var(--qui-accent-color);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  opacity: 0.8;
 }
 
-.entity-item.selected::before {
-  opacity: 1;
-  background: linear-gradient(to right, transparent, var(--qui-accent-bg-light));
-}
-
+/* Update entity-name to work with the new structure */
 .entity-name {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  flex: 1;
   position: relative;
   z-index: 1;
   font-weight: var(--qui-font-weight-medium);
   letter-spacing: 0.2px;
+}
+
+/* Add styles for active dragging */
+.entity-item:active {
+  cursor: grabbing;
 }
 
 .child-indicator {

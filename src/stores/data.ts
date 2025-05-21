@@ -671,6 +671,7 @@ export const useDataStore = defineStore('data', {
                             if (!this.notificationManager.hasListener(receivedToken)) {
                                 return this.unregisterNotification(receivedToken);
                             }
+                            return Promise.resolve(true);
                         }
                     };
                 });

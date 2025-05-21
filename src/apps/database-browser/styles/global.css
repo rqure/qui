@@ -295,18 +295,21 @@
 
 /* Entity reference drag visual */
 .qui-entity-drag-icon {
-  padding: 4px 10px;
-  background: var(--qui-accent-bg-faint);
-  color: var(--qui-accent-color);
+  padding: 8px 12px;
+  background: var(--qui-accent-color);
+  color: var(--qui-bg-primary);
   border-radius: 4px;
   font-size: 12px;
   font-weight: var(--qui-font-weight-medium);
-  box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
   border: 1px solid var(--qui-accent-border);
   /* Provide predictable visibility */
   opacity: 0.9 !important;
   position: fixed;
   z-index: 9999; /* Ensure it's always visible */
+  font-family: var(--qui-font-family);
+  font-size: var(--qui-font-size-small);
+  pointer-events: none;
 }
 
 /* Global body class during entity drag */
@@ -323,6 +326,14 @@ body.qui-entity-drag-in-progress * {
 /* Entity draggable */
 .entity-reference-draggable {
   cursor: grab;
+}
+
+.entity-draggable {
+  cursor: grab;
+}
+
+.entity-draggable:active {
+  cursor: grabbing;
 }
 
 /* Entity drop zone */
@@ -376,4 +387,15 @@ body.qui-entity-drag-in-progress .value-display-container[data-field-type="Entit
   border-color: var(--qui-accent-color) !important;
   background: rgba(0, 255, 136, 0.15) !important;
   box-shadow: 0 0 8px var(--qui-accent-glow) !important;
+}
+
+/* Custom styling for drag feedback */
+.drag-feedback {
+  position: absolute;
+  pointer-events: none;
+  z-index: 1000;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
+  transform-origin: left top;
+  will-change: transform;
 }
