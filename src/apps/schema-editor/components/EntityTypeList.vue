@@ -418,9 +418,11 @@ watch(() => props.selectedType, (newValue, oldValue) => {
 }
 
 .entity-item.selected {
-  background: var(--qui-overlay-accent);
+  background: var(--qui-accent-deep);
   border-left-color: var(--qui-accent-color);
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  color: white;
+  font-weight: var(--qui-font-weight-medium);
 }
 
 .entity-item.selected::after {
@@ -432,10 +434,25 @@ watch(() => props.selectedType, (newValue, oldValue) => {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--qui-accent-color);
-  box-shadow: 0 0 5px var(--qui-overlay-accent);
+  background: white;
+  box-shadow: 0 0 5px rgba(255, 255, 255, 0.5);
   animation: pulse 2s infinite;
 }
+
+.entity-item.selected .entity-name {
+  font-weight: 500;
+  color: white;
+  letter-spacing: 0.2px;
+}
+
+.entity-item.selected .entity-icon {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.3);
+  color: white;
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.2);
+}
+
+/* ...existing code... */
 
 .entity-icon {
   display: flex;
@@ -457,9 +474,9 @@ watch(() => props.selectedType, (newValue, oldValue) => {
 
 .entity-item.selected .entity-icon {
   opacity: 1;
-  background: var(--qui-accent-color);
+  background: rgba(255, 255, 255, 0.3);
   color: white;
-  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.2);
   transform: rotate(0) scale(1);
 }
 
