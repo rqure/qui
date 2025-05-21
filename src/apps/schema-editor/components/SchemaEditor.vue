@@ -379,7 +379,7 @@ function getValueTypeLabel(type: ValueType): string {
   width: 100%;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: auto; /* Add overflow: auto to enable scrolling */
 }
 
 .schema-editor-table {
