@@ -668,7 +668,9 @@ export const useDataStore = defineStore('data', {
                         token: receivedToken,
                         unsubscribe: () => {
                             this.notificationManager.removeListener(receivedToken, callback);
-                            return this.unregisterNotification(receivedToken);
+                            if (!this.notificationManager.hasListener(receivedToken)) {
+                                return this.unregisterNotification(receivedToken);
+                            }
                         }
                     };
                 });

@@ -959,7 +959,15 @@ export class NotificationManager {
         }
 
         this.listeners[token] = this.listeners[token].filter(listener => listener.getCallback !== callback);
+        if (this.listeners[token].length === 0) {
+            delete this.listeners[token];
+        }
+
         return this;
+    }
+
+    hasListener(token: string): boolean {
+        return !!this.listeners[token];
     }
 
     dispatch(eventName: string, notification: DatabaseNotification): void {
