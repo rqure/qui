@@ -8,18 +8,7 @@ const props = defineProps<{
 }>();
 
 const displayName = computed(() => {
-  switch (props.type) {
-    case ValueType.Int: return 'Integer';
-    case ValueType.Float: return 'Decimal';
-    case ValueType.String: return 'Text';
-    case ValueType.Bool: return 'Boolean';
-    case ValueType.BinaryFile: return 'File';
-    case ValueType.EntityReference: return 'Reference';
-    case ValueType.Timestamp: return 'Date & Time';
-    case ValueType.Choice: return 'Choice';
-    case ValueType.EntityList: return 'List';
-    default: return props.type;
-  }
+  return props.type;
 });
 
 const badgeClass = computed(() => {
