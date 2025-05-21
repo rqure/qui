@@ -49,17 +49,23 @@ function handleShowContextMenu(event: CustomEvent) {
 
 // Updated handler for open in window requests to correctly use windowStore
 function openEntityInWindow(data: { entityId: EntityId, entityName: string }) {
-  // Log detailed information about what we're receiving
-  console.log('Opening entity in window with data:', JSON.stringify(data));
+  const { entityId, entityName } = data;
+
+  // Create window icon as an SVG data URL
+  const entityIconSvg = `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+      <path fill="#00ff88" d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zM6 20V4h7v5h5v11H6z M13 9V4l5 5h-5z"/>
+      <path fill="#00ff88" d="M14 14H8v-2h6v2zm4 3H8v-2h10v2z"/>
+    </svg>
+  `;
   
-  if (!data || !data.entityId) {
-    console.error('Cannot open window: Missing entity ID');
-    return;
-  }
+  // Convert SVG to data URL for the window icon
+  const iconDataUrl = `data:image/svg+xml;base64,${btoa(entityIconSvg)}`;
 
   // Create a window with the entity details panel
   windowStore.createWindow({
     title: `Entity: ${data.entityName || 'Unknown'}`,
+    icon: iconDataUrl,
     component: markRaw(EntityDetailsPanel),
     props: {
       entityId: data.entityId
