@@ -203,8 +203,39 @@ async function handleSchemaUpdate(schema: EntitySchema) {
       </aside>
       
       <main class="main-content">
+        <div v-if="showCreateNewForm" class="create-new-container">
+          <div class="panel-header">
+            <h2 class="panel-title">Create New Entity Type</h2>
+          </div>
+          
+          <div class="panel-body">
+            <div class="form-group">
+              <label for="entity-type-name">Entity Type Name</label>
+              <input 
+                id="entity-type-name" 
+                v-model="newEntityType" 
+                placeholder="Enter a name (e.g. User, Document, Product)" 
+                class="form-control"
+              />
+              <p class="form-text">Name must start with a letter and can only contain letters, numbers, and underscores</p>
+            </div>
+            
+            <div class="form-error" v-if="error">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16">
+                <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15h2v2h-2v-2zm0-8h2v6h-2V9z"/>
+              </svg>
+              <span>{{ error }}</span>
+            </div>
+            
+            <div class="form-actions">
+              <button class="btn-secondary" @click="showCreateNewForm = false">Cancel</button>
+              <button class="btn-primary" @click="createNewEntityType">Create Entity Type</button>
+            </div>
+          </div>
+        </div>
+        
         <SchemaEditor 
-          v-if="selectedEntityType && currentSchema" 
+          v-else-if="selectedEntityType && currentSchema" 
           :schema="currentSchema"
           @update:schema="handleSchemaUpdate"
         />
