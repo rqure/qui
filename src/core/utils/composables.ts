@@ -83,8 +83,14 @@ export function useEntityDropZone(
     
     if (!event.dataTransfer) return false;
     
-    // Check for our custom entity ID data
+    // Check for our custom entity ID data using the consistent MIME type
     const entityId = event.dataTransfer.getData(ENTITY_MIME_TYPE);
+    console.log('Drop event data:', {
+      types: event.dataTransfer.types,
+      entityId: entityId,
+      mimeType: ENTITY_MIME_TYPE
+    });
+    
     if (entityId) {
       onEntityDrop(entityId);
       return true;

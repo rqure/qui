@@ -198,7 +198,21 @@ class ValueImpl implements Value {
     }
 
     pbType(): string {
-        return 'qprotobufs.' + String(this.type).charAt(0).toUpperCase() + String(this.type).slice(1);
+        // Fix: Map ValueType to correct protobuf type name
+        // The error shows it expects qprotobufs.Entity_reference, not EntityReference
+        const typeMap: Record<ValueType, string> = {
+            [ValueType.Int]: 'qprotobufs.Int',
+            [ValueType.Float]: 'qprotobufs.Float',
+            [ValueType.String]: 'qprotobufs.String',
+            [ValueType.Bool]: 'qprotobufs.Bool',
+            [ValueType.BinaryFile]: 'qprotobufs.BinaryFile',
+            [ValueType.EntityReference]: 'qprotobufs.EntityReference',
+            [ValueType.Timestamp]: 'qprotobufs.Timestamp',
+            [ValueType.Choice]: 'qprotobufs.Choice',
+            [ValueType.EntityList]: 'qprotobufs.EntityList'
+        };
+        
+        return typeMap[this.type] || 'qprotobufs.String'; // Default to String if type not found
     }
     
     pbValue(): any {

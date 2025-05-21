@@ -449,37 +449,81 @@ async function updateFieldWithEntityId(fieldType: string, entityId: EntityId) {
       console.error(`Field ${fieldType} not found`);
       return;
     }
+
+    // Double check the current value before changing
+    console.log('Current field value before update:', {
+      type: field.value.type,
+      raw: field.value.raw,
+      asString: field.value.asString()
+    });
     
-    // Check the field's value type to determine handling
-    if (field.value.type === ValueType.EntityReference) {
-      // For entity reference, set the reference to the dropped entity
-      field.value = ValueFactories.newEntityReference(entityId);
-      
-      // Write to database and log results
-      const writeResult = await dataStore.write([field]);
-      console.log(`Updated reference field ${fieldType} to ${entityId}, write result:`, writeResult);
-      
-      // Force a UI update
-      fields.value = [...fields.value];
-    } 
-    else if (field.value.type === ValueType.EntityList) {
-      // For entity list, append the entity to the list if not already present
-      const currentList = field.value.getEntityList();
-      
-      // Check if the entity is already in the list
-      if (!currentList.includes(entityId)) {
-        // Create a new list with the added entity
-        const newList = [...currentList, entityId];
-        field.value = ValueFactories.newEntityList(newList);
+    try {
+      // Check the field's value type to determine handling
+      if (field.value.type === ValueType.EntityReference) {
+        // For entity reference, create a new field for writing
+        const newField = EntityFactories.newField(props.entityId, fieldType, ValueFactories.newEntityReference(entityId));
         
-        // Write to database and log results
-        const writeResult = await dataStore.write([field]);
-        console.log(`Added ${entityId} to entity list ${fieldType}, write result:`, writeResult);
+        console.log('Prepared field for write:', {
+          entityId: newField.entityId,
+          fieldType: newField.fieldType,
+          valueType: newField.value.type,
+          pbType: newField.value.pbType(),
+          valueRaw: newField.value.raw
+        });
         
-        // Force a UI update
-        fields.value = [...fields.value];
-      } else {
-        console.log(`Entity ${entityId} already exists in list ${fieldType}`);
+        // Perform direct write operation with minimal processing
+        const result = await dataStore.write([newField]);
+        console.log('Write result:', result);
+        
+        // Only update UI after successful write
+        field.value = ValueFactories.newEntityReference(entityId);
+        fields.value = [...fields.value]; // Force reactivity
+        
+        console.log(`Updated reference field ${fieldType} to ${entityId}`);
+      } 
+      else if (field.value.type === ValueType.EntityList) {
+        // For entity list, append the entity to the list if not already present
+        const currentList = field.value.getEntityList();
+        
+        // Check if the entity is already in the list
+        if (!currentList.includes(entityId)) {
+          // Create a new list with the added entity
+          const newList = [...currentList, entityId];
+          
+          // Create a new field for writing
+          const newField = EntityFactories.newField(
+            props.entityId, 
+            fieldType, 
+            ValueFactories.newEntityList(newList)
+          );
+          
+          console.log('Prepared field for write:', {
+            entityId: newField.entityId,
+            fieldType: newField.fieldType,
+            valueType: newField.value.type,
+            pbType: newField.value.pbType(),
+            valueRaw: newField.value.raw
+          });
+          
+          // Perform direct write operation
+          const result = await dataStore.write([newField]);
+          console.log('Write result:', result);
+          
+          // Only update UI after successful write
+          field.value = ValueFactories.newEntityList(newList);
+          fields.value = [...fields.value]; // Force reactivity
+          
+          console.log(`Added ${entityId} to entity list ${fieldType}`);
+        } else {
+          console.log(`Entity ${entityId} already exists in list ${fieldType}`);
+        }
+      }
+    } catch (writeError) {
+      console.error('Error during write operation:', writeError);
+      // Provide more detailed error info
+      if (writeError instanceof Error) {
+        console.error(writeError.message);
+        if (writeError.stack) console.error(writeError.stack);
       }
     }
   } catch (error) {
