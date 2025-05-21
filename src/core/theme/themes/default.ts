@@ -45,7 +45,7 @@ export const defaultTheme: Theme = {
     '--qui-titlebar-border': '1px solid rgba(0, 255, 136, 0.2)',
     '--qui-titlebar-active-bg': 'var(--qui-gradient-active)',
     '--qui-window-bg': 'linear-gradient(135deg, rgba(16, 24, 45, 0.95), rgba(14, 17, 39, 0.95))',
-    '--qui-window-padding': '1rem',
+    '--qui-window-padding': '0',
 
     // Taskbar
     '--qui-taskbar-height': '44px',
