@@ -174,7 +174,7 @@ function setupFieldDropZones() {
         dropEvent.preventDefault();
         dropEvent.stopPropagation();
         
-        // Immediately clear the drop highlight
+        // Immediately clear the drop highlight - Critical for visual feedback
         fieldDropTargets.value[field.fieldType] = false;
         
         // Get the entity ID from the dataTransfer
@@ -182,7 +182,6 @@ function setupFieldDropZones() {
         
         if (entityId) {
           // Call our handler function with the entityId
-          // We need to use a different local name to avoid the naming conflict
           updateFieldWithEntityId(field.fieldType, entityId);
         }
       };
@@ -450,6 +449,9 @@ async function updateFieldWithEntityId(fieldType: string, entityId: EntityId) {
       return;
     }
 
+    // Important: Immediately clear the drop target highlight 
+    fieldDropTargets.value[fieldType] = false;
+
     // Double check the current value before changing
     console.log('Current field value before update:', {
       type: field.value.type,
@@ -471,13 +473,13 @@ async function updateFieldWithEntityId(fieldType: string, entityId: EntityId) {
           valueRaw: newField.value.raw
         });
         
+        // Force UI update before write request to clear visual feedback
+        field.value = ValueFactories.newEntityReference(entityId);
+        fields.value = [...fields.value]; // Force reactivity
+        
         // Perform direct write operation with minimal processing
         const result = await dataStore.write([newField]);
         console.log('Write result:', result);
-        
-        // Only update UI after successful write
-        field.value = ValueFactories.newEntityReference(entityId);
-        fields.value = [...fields.value]; // Force reactivity
         
         console.log(`Updated reference field ${fieldType} to ${entityId}`);
       } 
@@ -505,13 +507,13 @@ async function updateFieldWithEntityId(fieldType: string, entityId: EntityId) {
             valueRaw: newField.value.raw
           });
           
+          // Force UI update before write request to clear visual feedback
+          field.value = ValueFactories.newEntityList(newList);
+          fields.value = [...fields.value]; // Force reactivity
+          
           // Perform direct write operation
           const result = await dataStore.write([newField]);
           console.log('Write result:', result);
-          
-          // Only update UI after successful write
-          field.value = ValueFactories.newEntityList(newList);
-          fields.value = [...fields.value]; // Force reactivity
           
           console.log(`Added ${entityId} to entity list ${fieldType}`);
         } else {
@@ -528,6 +530,9 @@ async function updateFieldWithEntityId(fieldType: string, entityId: EntityId) {
     }
   } catch (error) {
     console.error(`Error handling drop on field ${fieldType}:`, error);
+  } finally {
+    // Ensure drop targets are cleared in all cases
+    fieldDropTargets.value[fieldType] = false;
   }
 }
 </script>
