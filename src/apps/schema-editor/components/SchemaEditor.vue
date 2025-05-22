@@ -680,7 +680,7 @@ function getValueTypeLabel(type: ValueType): string {
 }
 
 .main-add-btn {
-  background: var(--qui-accent-deep);
+  background: var(--qui-accent-color);
   color: white;
   border-radius: 6px;
   border: none;
@@ -689,9 +689,45 @@ function getValueTypeLabel(type: ValueType): string {
 }
 
 .main-add-btn:hover {
-  background: var(--qui-accent-color);
+  background: var(--qui-accent-secondary);
   transform: translateY(-2px);
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.schema-editor-btn-primary {
+  background: var(--qui-accent-color);
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-weight: var(--qui-font-weight-medium);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  transition: all 0.2s ease;
+}
+
+.schema-editor-btn-primary:hover {
+  background: var(--qui-accent-secondary);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.schema-editor-btn-secondary {
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: var(--qui-font-size-small);
+  font-weight: var(--qui-font-weight-medium);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.schema-editor-btn-secondary {
+  background: var(--qui-overlay-primary);
+  color: var(--qui-text-primary);
+  border: 1px solid var(--qui-hover-border);
+}
+
+.schema-editor-btn-secondary:hover {
+  background: var(--qui-overlay-secondary);
 }
 
 .action-buttons {
@@ -919,7 +955,7 @@ function getValueTypeLabel(type: ValueType): string {
 .schema-editor-btn-primary:hover {
   background: var(--qui-accent-secondary);
   transform: translateY(-2px);
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
 }
 
 .schema-editor-btn-secondary {

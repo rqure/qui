@@ -532,38 +532,12 @@ function handleCancel() {
   cursor: pointer;
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-  position: relative;
-  overflow: hidden;
-}
-
-.btn-primary::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 150%;
-  height: 150%;
-  background: radial-gradient(circle, rgba(255,255,255,0.3) 0%, rgba(255,255,255,0) 70%);
-  transform: translate(-50%, -50%) scale(0);
-  opacity: 0;
-  transition: transform 0.5s, opacity 0.5s;
-  pointer-events: none;
 }
 
 .btn-primary:hover {
   background: var(--qui-accent-secondary);
   transform: translateY(-2px);
-  box-shadow: var(--qui-shadow-accent), 0 6px 15px rgba(0, 0, 0, 0.15);
-}
-
-.btn-primary:hover::after {
-  transform: translate(-50%, -50%) scale(1);
-  opacity: 1;
-}
-
-.btn-primary:active {
-  transform: translateY(0);
-  box-shadow: 0 2px 3px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.15);
 }
 
 .btn-secondary {

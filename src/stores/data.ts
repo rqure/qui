@@ -451,6 +451,8 @@ export const useDataStore = defineStore('data', {
                 pbField.type = fieldSchema.valueType;
                 pbField.readPermissions = fieldSchema.readPermissions;
                 pbField.writePermissions = fieldSchema.writePermissions;
+                pbField.rank = fieldSchema.rank;
+                pbField.choiceOptions = fieldSchema.choices;
                 pbSchema.fields.push(pbField);
             });
 

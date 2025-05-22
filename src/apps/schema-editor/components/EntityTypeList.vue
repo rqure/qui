@@ -418,11 +418,15 @@ watch(() => props.selectedType, (newValue, oldValue) => {
 }
 
 .entity-item.selected {
-  background: var(--qui-accent-deep);
-  border-left-color: var(--qui-accent-color);
+  background: var(--qui-accent-color);
+  border-left-color: var(--qui-accent-deep);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   color: white;
   font-weight: var(--qui-font-weight-medium);
+}
+
+.entity-item.selected:hover {
+  background: var(--qui-accent-secondary);
 }
 
 .entity-item.selected::after {
