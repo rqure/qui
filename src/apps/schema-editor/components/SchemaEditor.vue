@@ -672,7 +672,7 @@ function getValueTypeLabel(type: ValueType): string {
   background: none;
   border: none;
   padding: 8px 12px;
-  color: var(--qui-accent-color);
+  color: var(--qui-bg-primary);
   cursor: pointer;
   border-radius: 4px;
   font-size: var(--qui-font-size-small);
@@ -681,7 +681,7 @@ function getValueTypeLabel(type: ValueType): string {
 
 .main-add-btn {
   background: var(--qui-accent-color);
-  color: white;
+  color: var(--qui-bg-primary);
   border-radius: 6px;
   border: none;
   transition: all 0.2s ease;
@@ -696,7 +696,7 @@ function getValueTypeLabel(type: ValueType): string {
 
 .schema-editor-btn-primary {
   background: var(--qui-accent-color);
-  color: white;
+  color: var(--qui-bg-primary);
   border: none;
   padding: 8px 16px;
   border-radius: 6px;
@@ -948,7 +948,7 @@ function getValueTypeLabel(type: ValueType): string {
 
 .schema-editor-btn-primary {
   background: var(--qui-accent-color);
-  color: white;
+  color: var(--qui-bg-primary);
   border: none;
 }
 

@@ -419,9 +419,9 @@ watch(() => props.selectedType, (newValue, oldValue) => {
 
 .entity-item.selected {
   background: var(--qui-accent-color);
+  color: var(--qui-bg-primary);
   border-left-color: var(--qui-accent-deep);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  color: white;
   font-weight: var(--qui-font-weight-medium);
 }
 
@@ -445,14 +445,14 @@ watch(() => props.selectedType, (newValue, oldValue) => {
 
 .entity-item.selected .entity-name {
   font-weight: 500;
-  color: white;
+  color: var(--qui-bg-primary);
   letter-spacing: 0.2px;
 }
 
 .entity-item.selected .entity-icon {
   opacity: 1;
   background: rgba(255, 255, 255, 0.3);
-  color: white;
+  color: var(--qui-bg-primary);
   box-shadow: 0 3px 6px rgba(0, 0, 0, 0.2);
 }
 
@@ -479,7 +479,7 @@ watch(() => props.selectedType, (newValue, oldValue) => {
 .entity-item.selected .entity-icon {
   opacity: 1;
   background: rgba(255, 255, 255, 0.3);
-  color: white;
+  color: var(--qui-bg-primary);
   box-shadow: 0 3px 6px rgba(0, 0, 0, 0.2);
   transform: rotate(0) scale(1);
 }
