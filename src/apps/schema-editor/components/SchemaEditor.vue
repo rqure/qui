@@ -41,9 +41,9 @@
       <table class="schema-editor-table">
         <thead>
           <tr>
+            <th class="col-drag"></th>
             <th class="col-name">Field Name</th>
             <th class="col-type">Type</th>
-            <th class="col-order">Order</th>
             <th class="col-info">Properties</th>
             <th class="col-actions"></th>
           </tr>
@@ -51,13 +51,13 @@
         <tbody>
           <!-- New Field Row -->
           <tr v-if="showAddField" class="new-field-row">
+            <td class="col-drag"></td>
             <td><input v-model="newFieldName" placeholder="Enter field name" class="field-input" @keyup.enter="addNewField" /></td>
             <td>
               <select v-model="newFieldType" class="field-select">
                 <option v-for="type in Object.values(ValueType)" :key="type" :value="type">{{ getValueTypeLabel(type) }}</option>
               </select>
             </td>
-            <td><input type="number" v-model="newFieldRank" min="0" class="field-input" /></td>
             <td class="properties-cell">
               <div v-if="newFieldType === ValueType.Choice" class="property-group">
                 <label>Choices:</label>
@@ -83,73 +83,85 @@
             </td>
           </tr>
 
-          <!-- Existing Fields -->
-          <tr v-for="{ fieldType, fieldSchema } in sortedFields" :key="fieldType" class="field-row" :class="{ 'editing': editingField === fieldType, 'modified': isFieldModified(fieldType) }">
+          <!-- Use a simpler approach without vuedraggable - We'll implement simple drag functionality with direct DOM manipulation -->
+          <tr 
+            v-for="(field, index) in sortedFields" 
+            :key="field.fieldType" 
+            :class="[
+              'field-row',
+              { 'editing': editingField === field.fieldType, 'modified': isFieldModified(field.fieldType) }
+            ]"
+            :draggable="editingField !== field.fieldType"
+            @dragstart="handleDragStart($event, index)"
+            @dragover.prevent
+            @dragenter="handleDragEnter($event, index)"
+            @drop="handleDrop($event, index)"
+            @dragend="handleDragEnd"
+          >
+            <td class="col-drag">
+              <div v-if="editingField !== field.fieldType" class="drag-handle" title="Drag to reorder">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
+                  <path fill="currentColor" d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/>
+                </svg>
+              </div>
+            </td>
             <td class="col-name">
-              {{ fieldType }}
-              <span v-if="isFieldModified(fieldType)" class="modified-badge" title="Field has unsaved changes">*</span>
+              {{ field.fieldType }}
+              <span v-if="isFieldModified(field.fieldType)" class="modified-badge" title="Field has unsaved changes">*</span>
             </td>
             <td class="col-type">
-              <TypeBadge :type="fieldSchema.valueType" />
-            </td>
-            <td class="col-order">
-              <template v-if="editingField === fieldType">
-                <input type="number" v-model="fieldSchema.rank" min="0" class="field-input order-input" />
-              </template>
-              <template v-else>
-                {{ fieldSchema.rank || 0 }}
-              </template>
+              <TypeBadge :type="field.fieldSchema.valueType" />
             </td>
             <td class="col-info">
-              <template v-if="editingField === fieldType">
+              <template v-if="editingField === field.fieldType">
                 <!-- Inline editing mode -->
-                <div v-if="fieldSchema.valueType === ValueType.Choice" class="property-group">
+                <div v-if="field.fieldSchema.valueType === ValueType.Choice" class="property-group">
                   <label>Choices:</label>
                   <div class="choices-list">
-                    <div v-for="(choice, index) in fieldSchema.choices" :key="index" class="choice-tag">
+                    <div v-for="(choice, index) in field.fieldSchema.choices" :key="index" class="choice-tag">
                       {{ choice }}
-                      <button class="delete-choice-btn" @click="removeChoice(fieldType, fieldSchema, index)" title="Remove option">×</button>
+                      <button class="delete-choice-btn" @click="removeChoice(field.fieldType, field.fieldSchema, index)" title="Remove option">×</button>
                     </div>
-                    <button class="add-choice-btn" @click="addChoiceToField(fieldType, fieldSchema)" title="Add option">+</button>
+                    <button class="add-choice-btn" @click="addChoiceToField(field.fieldType, field.fieldSchema)" title="Add option">+</button>
                   </div>
                 </div>
                 <div class="property-group">
                   <label>Permissions:</label>
                   <div class="permissions-row">
                     <span>Read:</span>
-                    <input v-model="permissionInputs[fieldType].read" class="field-input" />
+                    <input v-model="permissionInputs[field.fieldType].read" class="field-input" />
                   </div>
                   <div class="permissions-row">
                     <span>Write:</span>
-                    <input v-model="permissionInputs[fieldType].write" class="field-input" />
+                    <input v-model="permissionInputs[field.fieldType].write" class="field-input" />
                   </div>
                 </div>
               </template>
               <template v-else>
                 <!-- Display mode -->
                 <div class="field-properties">
-                  <span v-if="fieldSchema.valueType === ValueType.Choice" class="field-property">
+                  <span v-if="field.fieldSchema.valueType === ValueType.Choice" class="field-property">
                     <span class="property-label">Options:</span>
-                    <span class="property-value">{{ fieldSchema.choices.length }}</span>
+                    <span class="property-value">{{ field.fieldSchema.choices.length }}</span>
                   </span>
                   
-                  <span v-if="fieldSchema.readPermissions.length > 0" class="field-property">
+                  <span v-if="field.fieldSchema.readPermissions.length > 0" class="field-property">
                     <span class="property-label">Read Perms:</span>
-                    <span class="property-value permission-chip">{{ fieldSchema.readPermissions.length }}</span>
+                    <span class="property-value permission-chip">{{ field.fieldSchema.readPermissions.length }}</span>
                   </span>
                   
-                  <span v-if="fieldSchema.writePermissions.length > 0" class="field-property">
+                  <span v-if="field.fieldSchema.writePermissions.length > 0" class="field-property">
                     <span class="property-label">Write Perms:</span>
-                    <span class="property-value permission-chip">{{ fieldSchema.writePermissions.length }}</span>
+                    <span class="property-value permission-chip">{{ field.fieldSchema.writePermissions.length }}</span>
                   </span>
                   
-                  <span v-if="fieldSchema.valueType === ValueType.Choice && fieldSchema.choices.length > 0" class="field-property choices-preview">
+                  <span v-if="field.fieldSchema.valueType === ValueType.Choice && field.fieldSchema.choices.length > 0" class="field-property choices-preview">
                     <span class="options-list">
-                      <span v-for="(choice, index) in fieldSchema.choices.slice(0, 3)" :key="index" class="option-chip">
+                      <span v-for="(choice, index) in field.fieldSchema.choices.slice(0, 3)" :key="index" class="option-chip">
                         {{ choice }}
                       </span>
-                      <span v-if="fieldSchema.choices.length > 3" class="option-more">
-                        +{{ fieldSchema.choices.length - 3 }} more
+                      <span v-if="field.fieldSchema.choices.length > 3" class="option-more">
+                        +{{ field.fieldSchema.choices.length - 3 }} more
                       </span>
                     </span>
                   </span>
@@ -158,17 +170,17 @@
             </td>
             <td class="col-actions">
               <div class="action-buttons">
-                <template v-if="editingField === fieldType">
-                  <button class="schema-editor-btn-secondary" @click="cancelEditField(fieldType)">Cancel</button>
-                  <button class="schema-editor-btn-primary" @click="confirmEdit(fieldType, fieldSchema)">Apply</button>
+                <template v-if="editingField === field.fieldType">
+                  <button class="schema-editor-btn-secondary" @click="cancelEditField(field.fieldType)">Cancel</button>
+                  <button class="schema-editor-btn-primary" @click="confirmEdit(field.fieldType, field.fieldSchema)">Apply</button>
                 </template>
                 <template v-else>
-                  <button class="schema-editor-btn-icon" @click="startEditField(fieldType)" title="Edit field">
+                  <button class="schema-editor-btn-icon" @click="startEditField(field.fieldType)" title="Edit field">
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24">
                       <path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
                     </svg>
                   </button>
-                  <button class="schema-editor-btn-icon schema-editor-btn-danger" @click="deleteField(fieldType)" title="Delete field">
+                  <button class="schema-editor-btn-icon schema-editor-btn-danger" @click="deleteField(field.fieldType)" title="Delete field">
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24">
                       <path fill="currentColor" d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
                     </svg>
@@ -272,6 +284,10 @@ const choiceDialog = ref({
   value: ''
 });
 
+// Drag-n-drop state
+const draggedIndex = ref<number | null>(null);
+const dragTargetIndex = ref<number | null>(null);
+
 // Sort fields by rank
 const sortedFields = computed(() => {
   const result = Object.entries(workingSchema.value.fields).map(([fieldType, fieldSchema]) => {
@@ -296,6 +312,64 @@ watch(() => workingSchema.value.fields, (newFields) => {
     }
   });
 }, { immediate: true, deep: true });
+
+// Native HTML5 Drag and Drop handlers
+function handleDragStart(event: DragEvent, index: number) {
+  if (!event.dataTransfer) return;
+  
+  draggedIndex.value = index;
+  event.dataTransfer.effectAllowed = 'move';
+  
+  // Add visual indicator to the dragged element
+  if (event.target instanceof HTMLElement) {
+    setTimeout(() => {
+      if (event.target instanceof HTMLElement) {
+        event.target.classList.add('dragging');
+      }
+    }, 0);
+  }
+}
+
+function handleDragEnter(event: DragEvent, index: number) {
+  dragTargetIndex.value = index;
+}
+
+function handleDrop(event: DragEvent, index: number) {
+  if (draggedIndex.value === null || draggedIndex.value === index) return;
+  
+  // Get the dragged and target items
+  const draggedItem = sortedFields.value[draggedIndex.value];
+  
+  // Create a new array with the reordered items
+  const newSortedFields = [...sortedFields.value];
+  
+  // Remove the dragged item from its original position
+  newSortedFields.splice(draggedIndex.value, 1);
+  
+  // Insert the dragged item at the new position
+  newSortedFields.splice(index, 0, draggedItem);
+  
+  // Update the rank values
+  newSortedFields.forEach((item, idx) => {
+    if (item.fieldSchema.rank !== idx) {
+      item.fieldSchema.rank = idx;
+      modifiedFields.value.add(item.fieldType);
+    }
+  });
+  
+  // Reset drag state
+  draggedIndex.value = null;
+  dragTargetIndex.value = null;
+}
+
+function handleDragEnd(event: DragEvent) {
+  if (event.target instanceof HTMLElement) {
+    event.target.classList.remove('dragging');
+  }
+  
+  draggedIndex.value = null;
+  dragTargetIndex.value = null;
+}
 
 // Check if a field has been modified
 function isFieldModified(fieldType: string): boolean {
@@ -336,7 +410,7 @@ function addNewField() {
   let newFieldSchema = workingSchema.value.fields[newFieldName.value]?.clone() || {
     fieldType: newFieldName.value,
     valueType: newFieldType.value,
-    rank: newFieldRank.value,
+    rank: sortedFields.value.length, // Set rank to the end of the list
     choices: [],
     readPermissions: [],
     writePermissions: [],
@@ -585,6 +659,12 @@ function getValueTypeLabel(type: ValueType): string {
 .schema-editor-table {
   width: 100%;
   border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.col-drag {
+  width: 40px;
+  position: relative;
 }
 
 .col-name {
@@ -596,16 +676,50 @@ function getValueTypeLabel(type: ValueType): string {
   width: 12%;
 }
 
-.col-order {
-  width: 8%;
-}
-
 .col-info {
   width: auto;
 }
 
 .col-actions {
   width: 120px;
+}
+
+.drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  color: var(--qui-text-secondary);
+  opacity: 0.6;
+  cursor: grab;
+  transition: all 0.2s ease;
+}
+
+.drag-handle:hover {
+  background: var(--qui-overlay-primary);
+  color: var(--qui-text-primary);
+  opacity: 1;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+  background: var(--qui-overlay-accent);
+  color: var(--qui-accent-color);
+}
+
+.field-row.dragging {
+  opacity: 0.5;
+  background: var(--qui-overlay-accent) !important;
+}
+
+.field-row.dragging td {
+  border-color: transparent;
+}
+
+.field-row.drag-over {
+  border-top: 2px solid var(--qui-accent-color);
 }
 
 .new-field-row {
@@ -617,7 +731,7 @@ function getValueTypeLabel(type: ValueType): string {
 }
 
 .field-row {
-  transition: background-color 0.2s ease;
+  transition: background-color 0.2s ease, transform 0.2s ease;
 }
 
 .field-row:hover {
@@ -657,12 +771,6 @@ function getValueTypeLabel(type: ValueType): string {
   outline: none;
   border-color: var(--qui-accent-color);
   box-shadow: 0 0 0 2px var(--qui-overlay-accent);
-}
-
-.order-input {
-  width: 60px;
-  padding: 6px 8px;
-  text-align: center;
 }
 
 .btn-add-field {
