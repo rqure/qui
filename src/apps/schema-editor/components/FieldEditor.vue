@@ -17,7 +17,15 @@
         <div class="form-row">
           <div class="form-group">
             <label>Field Name</label>
-            <input type="text" class="form-control disabled" :value="fieldName" disabled />
+            <div class="input-with-info">
+              <input type="text" class="form-control disabled" :value="fieldName" disabled />
+              <div class="input-info-tooltip">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
+                  <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+                </svg>
+                <span class="tooltip-text">Field names cannot be changed after creation</span>
+              </div>
+            </div>
             <p class="form-text">Field name cannot be changed</p>
           </div>
           
@@ -26,7 +34,7 @@
             <div class="select-wrapper">
               <select id="field-type" class="form-control" v-model="selectedValueType" @change="onFieldTypeChange">
                 <option v-for="type in availableFieldTypes" :key="type" :value="type">
-                  {{ type }}
+                  {{ getValueTypeLabel(type) }}
                 </option>
               </select>
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" class="select-arrow">
@@ -37,13 +45,36 @@
           
           <div class="form-group">
             <label for="field-rank">Display Order</label>
-            <input id="field-rank" type="number" class="form-control" v-model="fieldRank" min="0" />
+            <div class="number-input-wrapper">
+              <button 
+                type="button"
+                class="number-decrement"
+                @click="fieldRank = Math.max(0, Number(fieldRank) - 1)"
+                :disabled="fieldRank <= 0"
+                tabindex="-1"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
+                  <path fill="currentColor" d="M19 13H5v-2h14v2z"/>
+                </svg>
+              </button>
+              <input id="field-rank" type="number" class="form-control" v-model="fieldRank" min="0" />
+              <button 
+                type="button"
+                class="number-increment"
+                @click="fieldRank = Number(fieldRank) + 1"
+                tabindex="-1"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
+                  <path fill="currentColor" d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                </svg>
+              </button>
+            </div>
             <p class="form-text">Lower numbers appear first</p>
           </div>
         </div>
       </div>
       
-      <!-- Choice options -->
+      <!-- Choice options - replace with TagInput -->
       <div v-if="isChoiceType" class="form-section">
         <div class="section-header">
           <h4 class="section-title">Choice Options</h4>
@@ -58,73 +89,41 @@
         <div v-if="choiceError" class="form-error">{{ choiceError }}</div>
         
         <div class="choices-container">
-          <div v-for="(choice, index) in choices" :key="index" class="choice-item">
-            <div class="choice-number">{{ index + 1 }}</div>
-            <input 
-              type="text" 
-              class="form-control" 
-              v-model="choice.value" 
-              placeholder="Enter choice option"
-            />
-            <div class="choice-actions">
-              <button 
-                class="btn-icon-sm" 
-                :disabled="index === 0" 
-                @click="moveChoice(index, 'up')" 
-                title="Move up"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
-                  <path fill="currentColor" d="M7 14l5-5 5 5z"/>
-                </svg>
-              </button>
-              <button 
-                class="btn-icon-sm" 
-                :disabled="index === choices.length - 1" 
-                @click="moveChoice(index, 'down')" 
-                title="Move down"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
-                  <path fill="currentColor" d="M7 10l5 5 5-5z"/>
-                </svg>
-              </button>
-              <button 
-                class="btn-icon-sm btn-danger" 
-                @click="removeChoice(index)" 
-                title="Remove option"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
-                  <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-                </svg>
-              </button>
-            </div>
-          </div>
+          <TagInput
+            v-model="choiceInputValues"
+            placeholder="Add an option and press Enter"
+            @update:modelValue="updateChoices"
+          />
+          
+          <p class="choice-instructions">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24">
+              <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+            </svg>
+            Type an option and press Enter to add it to the list
+          </p>
         </div>
       </div>
       
-      <!-- Permissions -->
+      <!-- Permissions - replace with TagInput -->
       <div class="form-section">
         <h4 class="section-title">Access Permissions</h4>
         
         <div class="form-group">
           <label for="read-perm">Read Permissions</label>
-          <input 
-            id="read-perm"
-            type="text"
-            class="form-control"
-            v-model="readPermissions"
-            placeholder="Enter entity IDs (comma separated)"
+          <TagInput
+            v-model="readPermissionsArray"
+            placeholder="Enter entity IDs and press Enter"
+            @update:modelValue="updateReadPermissions"
           />
           <p class="form-text">Leave empty for public read access</p>
         </div>
         
         <div class="form-group">
           <label for="write-perm">Write Permissions</label>
-          <input 
-            id="write-perm"
-            type="text"
-            class="form-control"
-            v-model="writePermissions"
-            placeholder="Enter entity IDs (comma separated)"
+          <TagInput
+            v-model="writePermissionsArray"
+            placeholder="Enter entity IDs and press Enter"
+            @update:modelValue="updateWritePermissions"
           />
           <p class="form-text">Leave empty for public write access</p>
         </div>
@@ -139,9 +138,11 @@
 </template>
 
 <script setup lang="ts">
+// Import the TagInput component
 import { ref, computed, onMounted } from 'vue';
 import type { FieldSchema } from '@/core/data/types';
 import { ValueType } from '@/core/data/types';
+import TagInput from './TagInput.vue';
 
 const props = defineProps<{
   fieldSchema: FieldSchema;
@@ -166,9 +167,13 @@ const readPermissions = ref(workingSchema.value.readPermissions.join(','));
 const writePermissions = ref(workingSchema.value.writePermissions.join(','));
 const choiceError = ref<string | null>(null);
 
-// Computed properties for field type checks
-const isStringType = computed(() => selectedValueType.value === ValueType.String);
-const isNumberType = computed(() => 
+// Convert comma-separated strings to arrays for TagInput
+const readPermissionsArray = ref<string[]>(workingSchema.value.readPermissions);
+const writePermissionsArray = ref<string[]>(workingSchema.value.writePermissions);
+const choiceInputValues = ref<string[]>(workingSchema.value.choices || []);
+
+// Computed properties for value type detection
+const isNumericType = computed(() => 
   selectedValueType.value === ValueType.Int || 
   selectedValueType.value === ValueType.Float
 );
@@ -215,6 +220,38 @@ function moveChoice(index: number, direction: 'up' | 'down') {
   }
 }
 
+// Update methods for TagInput components
+function updateChoices(value: string[]) {
+  choiceInputValues.value = value;
+  workingSchema.value.choices = value;
+}
+
+function updateReadPermissions(value: string[]) {
+  readPermissionsArray.value = value;
+  workingSchema.value.readPermissions = value;
+}
+
+function updateWritePermissions(value: string[]) {
+  writePermissionsArray.value = value;
+  workingSchema.value.writePermissions = value;
+}
+
+// Helper function to get user-friendly value type labels
+function getValueTypeLabel(type: ValueType): string {
+  switch (type) {
+    case ValueType.Int: return 'Integer';
+    case ValueType.Float: return 'Decimal Number';
+    case ValueType.String: return 'Text';
+    case ValueType.Bool: return 'Boolean (Yes/No)';
+    case ValueType.BinaryFile: return 'File';
+    case ValueType.EntityReference: return 'Reference';
+    case ValueType.Timestamp: return 'Date & Time';
+    case ValueType.Choice: return 'Dropdown';
+    case ValueType.EntityList: return 'List of References';
+    default: return type;
+  }
+}
+
 function handleSave() {
   // Validate choices for choice type
   if (selectedValueType.value === ValueType.Choice && choices.value.length === 0) {
@@ -258,6 +295,11 @@ function handleCancel() {
   flex-direction: column;
   height: 100%;
   animation: fade-in 0.3s ease-out;
+  background: var(--qui-bg-primary);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: var(--qui-shadow-default), 0 8px 24px rgba(0, 0, 0, 0.12);
+  border: 1px solid var(--qui-hover-border);
 }
 
 .editor-header {
@@ -321,6 +363,16 @@ function handleCancel() {
   margin-bottom: 32px;
   padding-bottom: 32px;
   border-bottom: 1px solid var(--qui-hover-border);
+  animation: slide-up 0.3s ease;
+  animation-fill-mode: both;
+}
+
+.form-section:nth-child(2) {
+  animation-delay: 0.05s;
+}
+
+.form-section:nth-child(3) {
+  animation-delay: 0.1s;
 }
 
 .form-section:last-child {
@@ -401,6 +453,7 @@ function handleCancel() {
   outline: none;
   border-color: var(--qui-accent-color);
   box-shadow: 0 0 0 3px var(--qui-overlay-accent), inset 0 1px 2px rgba(0, 0, 0, 0.05);
+  transform: translateY(-1px);
 }
 
 .form-control.disabled {
@@ -454,83 +507,162 @@ function handleCancel() {
   padding: 4px;
 }
 
-.choice-item {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  background: var(--qui-bg-primary);
-  padding: 12px 14px;
-  border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-  transition: all 0.2s ease;
+/* Input with info tooltip */
+.input-with-info {
   position: relative;
-  overflow: hidden;
-  box-sizing: border-box;
 }
 
-.choice-item:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.1);
-}
-
-.choice-item::before {
-  content: '';
+.input-info-tooltip {
   position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: var(--qui-accent-color);
-  opacity: 0;
-  transition: opacity 0.2s ease;
-}
-
-.choice-item:hover::before {
-  opacity: 1;
-}
-
-.choice-number {
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 14px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--qui-overlay-primary);
+  color: var(--qui-text-secondary);
+  cursor: help;
+}
+
+.input-info-tooltip:hover {
   background: var(--qui-overlay-accent);
   color: var(--qui-accent-color);
-  font-size: var(--qui-font-size-small);
-  font-weight: var(--qui-font-weight-medium);
-  flex-shrink: 0;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.tooltip-text {
+  position: absolute;
+  bottom: 100%;
+  right: 0;
+  background: var(--qui-accent-color);
+  color: white;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  white-space: nowrap;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(5px);
+  transition: all 0.2s ease;
+  pointer-events: none;
+  z-index: 10;
+  font-weight: normal;
+}
+
+.input-info-tooltip:hover .tooltip-text {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.tooltip-text::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  right: 8px;
+  border-width: 6px;
+  border-style: solid;
+  border-color: var(--qui-accent-color) transparent transparent transparent;
+}
+
+/* Number input styling */
+.number-input-wrapper {
+  display: flex;
+  align-items: stretch;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--qui-hover-border);
+  background: var(--qui-bg-primary);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.number-input-wrapper:focus-within {
+  border-color: var(--qui-accent-color);
+  box-shadow: 0 0 0 3px var(--qui-overlay-accent);
+  transform: translateY(-1px);
+}
+
+.number-input-wrapper input {
+  flex: 1;
+  border: none;
+  box-shadow: none;
+  text-align: center;
+  padding: 12px 4px;
+}
+
+.number-input-wrapper input:focus {
+  box-shadow: none;
+  transform: none;
+}
+
+.number-decrement,
+.number-increment {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  background: var(--qui-overlay-primary);
+  border: none;
+  color: var(--qui-text-secondary);
+  cursor: pointer;
   transition: all 0.2s ease;
 }
 
-.choice-item:hover .choice-number {
-  background: var(--qui-accent-color);
-  color: white;
-  transform: scale(1.05);
+.number-decrement:hover,
+.number-increment:hover {
+  background: var(--qui-overlay-secondary);
+  color: var(--qui-text-primary);
 }
 
-.choice-actions {
+.number-decrement:active,
+.number-increment:active {
+  background: var(--qui-overlay-accent);
+  color: var(--qui-accent-color);
+}
+
+.number-decrement:disabled,
+.number-increment:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* Choice instructions */
+.choice-instructions {
   display: flex;
-  gap: 6px;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--qui-font-size-small);
+  color: var(--qui-text-secondary);
+  background: var(--qui-overlay-primary);
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin: 4px 0 0;
 }
 
-.btn-primary {
+/* Button styles */
+.btn-primary,
+.btn-secondary {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 10px;
-  padding: 0 20px;
   height: 44px;
-  border: none;
   border-radius: 8px;
-  background: var(--qui-accent-color);
-  color: white;
   font-size: var(--qui-font-size-base);
   font-weight: var(--qui-font-weight-medium);
   cursor: pointer;
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-primary {
+  padding: 0 20px;
+  border: none;
+  background: var(--qui-accent-color);
+  color: white;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
 }
 
@@ -541,30 +673,16 @@ function handleCancel() {
 }
 
 .btn-secondary {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
   padding: 0 20px;
-  height: 44px;
   border: 1px solid var(--qui-hover-border);
-  border-radius: 8px;
   background: var(--qui-overlay-primary);
   color: var(--qui-text-primary);
-  font-size: var(--qui-font-size-base);
-  cursor: pointer;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .btn-secondary:hover {
   background: var(--qui-overlay-secondary);
   transform: translateY(-1px);
   box-shadow: 0 3px 8px rgba(0, 0, 0, 0.05);
-}
-
-.btn-secondary:active {
-  transform: translateY(0);
-  box-shadow: none;
 }
 
 .btn-text {
@@ -603,51 +721,17 @@ function handleCancel() {
 .btn-icon:hover {
   background: rgba(255, 255, 255, 0.3);
   transform: translateY(-1px);
-}
-
-.btn-icon-sm {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
-  border: 1px solid var(--qui-hover-border);
-  background: var(--qui-overlay-primary);
-  color: var(--qui-text-secondary);
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.btn-icon-sm:hover {
-  background: var(--qui-overlay-secondary);
-  color: var(--qui-text-primary);
-  transform: translateY(-1px);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.btn-icon-sm:active {
-  transform: translateY(0);
-  box-shadow: none;
-}
-
-.btn-icon-sm:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
-}
-
-.btn-icon-sm.btn-danger:hover {
-  background: var(--qui-danger-bg);
-  color: var(--qui-danger-color);
-  border-color: var(--qui-danger-border);
-  box-shadow: 0 0 0 2px var(--qui-danger-glow);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
 }
 
 @keyframes fade-in {
   from { opacity: 0; }
   to { opacity: 1; }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes shake {

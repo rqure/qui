@@ -52,33 +52,75 @@
           <!-- New Field Row -->
           <tr v-if="showAddField" class="new-field-row">
             <td class="col-drag"></td>
-            <td><input v-model="newFieldName" placeholder="Enter field name" class="field-input" @keyup.enter="addNewField" /></td>
             <td>
-              <select v-model="newFieldType" class="field-select">
-                <option v-for="type in Object.values(ValueType)" :key="type" :value="type">{{ getValueTypeLabel(type) }}</option>
+              <div class="field-input-wrapper">
+                <input 
+                  v-model="newFieldName" 
+                  placeholder="Enter field name" 
+                  class="field-input" 
+                  :class="{'has-error': nameError}" 
+                  @keyup.enter="addNewField"
+                  @keyup.esc="cancelAddField"
+                  ref="newFieldNameInput"
+                  @input="validateFieldName"
+                />
+                <div v-if="nameError" class="input-error-message">{{ nameError }}</div>
+                <div v-else class="input-help-text">Field name must start with a letter and contain only letters, numbers, and underscores</div>
+              </div>
+            </td>
+            <td>
+              <select 
+                v-model="newFieldType" 
+                class="field-select"
+                @keyup.enter="addNewField"
+              >
+                <option v-for="type in Object.values(ValueType)" :key="type" :value="type">
+                  {{ getValueTypeLabel(type) }}
+                </option>
               </select>
             </td>
             <td class="properties-cell">
               <div v-if="newFieldType === ValueType.Choice" class="property-group">
                 <label>Choices:</label>
-                <input v-model="newFieldChoices" placeholder="Option1, Option2, Option3" class="field-input" />
+                <TagInput
+                  v-model="newFieldChoicesList"
+                  placeholder="Add an option and press Enter"
+                  class="field-tag-input"
+                  @keyup.esc="cancelAddField"
+                />
               </div>
               <div class="property-group">
                 <label>Permissions:</label>
                 <div class="permissions-row">
                   <span>Read:</span>
-                  <input v-model="newFieldReadPerms" placeholder="user1,user2" class="field-input" />
+                  <TagInput
+                    v-model="newFieldReadPermsList"
+                    placeholder="Add a permission and press Enter"
+                    class="field-tag-input"
+                    @keyup.esc="cancelAddField"
+                  />
                 </div>
                 <div class="permissions-row">
                   <span>Write:</span>
-                  <input v-model="newFieldWritePerms" placeholder="user1,user2" class="field-input" />
+                  <TagInput
+                    v-model="newFieldWritePermsList"
+                    placeholder="Add a permission and press Enter"
+                    class="field-tag-input"
+                    @keyup.esc="cancelAddField"
+                  />
                 </div>
               </div>
             </td>
             <td>
               <div class="action-buttons">
                 <button class="schema-editor-btn-secondary" @click="cancelAddField">Cancel</button>
-                <button class="schema-editor-btn-primary" @click="addNewField">Add</button>
+                <button 
+                  class="schema-editor-btn-primary" 
+                  @click="addNewField"
+                  :disabled="!!nameError || !newFieldName"
+                >
+                  Add
+                </button>
               </div>
             </td>
           </tr>
@@ -129,11 +171,19 @@
                   <label>Permissions:</label>
                   <div class="permissions-row">
                     <span>Read:</span>
-                    <input v-model="permissionInputs[field.fieldType].read" class="field-input" />
+                    <TagInput
+                      v-model="permissionInputsList[field.fieldType].read"
+                      placeholder="Add a permission and press Enter"
+                      class="field-tag-input"
+                    />
                   </div>
                   <div class="permissions-row">
                     <span>Write:</span>
-                    <input v-model="permissionInputs[field.fieldType].write" class="field-input" />
+                    <TagInput
+                      v-model="permissionInputsList[field.fieldType].write"
+                      placeholder="Add a permission and press Enter"
+                      class="field-tag-input"
+                    />
                   </div>
                 </div>
               </template>
@@ -218,12 +268,23 @@
         <div class="dialog-body">
           <div class="form-group">
             <label>Choice Value</label>
-            <input v-model="choiceDialog.value" class="field-input" placeholder="Enter a choice option" />
+            <input 
+              v-model="choiceDialog.value" 
+              class="field-input" 
+              placeholder="Enter a choice option" 
+              ref="choiceDialogInput"
+              @keyup.enter="confirmAddChoice"
+              @keyup.esc="choiceDialog.show = false"
+            />
           </div>
         </div>
         <div class="dialog-footer">
           <button class="schema-editor-btn-secondary" @click="choiceDialog.show = false">Cancel</button>
-          <button class="schema-editor-btn-primary" @click="confirmAddChoice">Add</button>
+          <button 
+            class="schema-editor-btn-primary" 
+            @click="confirmAddChoice"
+            :disabled="!choiceDialog.value.trim()"
+          >Add</button>
         </div>
       </div>
     </div>
@@ -231,11 +292,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted, nextTick } from 'vue';
 import type { EntitySchema, FieldSchema } from '@/core/data/types';
 import { ValueType } from '@/core/data/types';
 import TypeBadge from './TypeBadge.vue';
 import ConfirmDialog from './ConfirmDialog.vue';
+import TagInput from './TagInput.vue';
 
 const props = defineProps<{
   schema: EntitySchema;
@@ -288,6 +350,19 @@ const choiceDialog = ref({
 const draggedIndex = ref<number | null>(null);
 const dragTargetIndex = ref<number | null>(null);
 
+// Form validation state
+const nameError = ref<string | null>(null);
+const newFieldNameInput = ref<HTMLInputElement | null>(null);
+const choiceDialogInput = ref<HTMLInputElement | null>(null);
+
+// Convert comma-separated strings to arrays for tag inputs
+const newFieldChoicesList = ref<string[]>([]);
+const newFieldReadPermsList = ref<string[]>([]);
+const newFieldWritePermsList = ref<string[]>([]);
+
+// Permission inputs converted to arrays for tag inputs
+const permissionInputsList = ref<Record<string, { read: string[], write: string[] }>>({});
+
 // Sort fields by rank
 const sortedFields = computed(() => {
   const result = Object.entries(workingSchema.value.fields).map(([fieldType, fieldSchema]) => {
@@ -304,10 +379,10 @@ const sortedFields = computed(() => {
 // Initialize permission inputs when fields change
 watch(() => workingSchema.value.fields, (newFields) => {
   Object.entries(newFields).forEach(([fieldType, fieldSchema]) => {
-    if (!permissionInputs.value[fieldType]) {
-      permissionInputs.value[fieldType] = {
-        read: fieldSchema.readPermissions.join(','),
-        write: fieldSchema.writePermissions.join(',')
+    if (!permissionInputsList.value[fieldType]) {
+      permissionInputsList.value[fieldType] = {
+        read: fieldSchema.readPermissions,
+        write: fieldSchema.writePermissions
       };
     }
   });
@@ -387,14 +462,43 @@ onMounted(() => {
   });
 });
 
+// Validate field name
+function validateFieldName() {
+  if (!newFieldName.value) {
+    nameError.value = null;
+    return;
+  }
+  
+  // Check for valid format (no spaces, special characters)
+  const validName = /^[a-zA-Z][a-zA-Z0-9_]*$/.test(newFieldName.value);
+  if (!validName) {
+    nameError.value = "Invalid name format";
+    return;
+  }
+  
+  // Check if field name already exists
+  if (workingSchema.value.fields[newFieldName.value]) {
+    nameError.value = "Field name already exists";
+    return;
+  }
+  
+  nameError.value = null;
+}
+
 function openAddField() {
   showAddField.value = true;
   newFieldName.value = '';
   newFieldType.value = ValueType.String;
   newFieldRank.value = sortedFields.value.length;
-  newFieldChoices.value = '';
-  newFieldReadPerms.value = '';
-  newFieldWritePerms.value = '';
+  newFieldChoicesList.value = [];
+  newFieldReadPermsList.value = [];
+  newFieldWritePermsList.value = [];
+  nameError.value = null;
+  
+  // Focus on the field name input after DOM update
+  nextTick(() => {
+    newFieldNameInput.value?.focus();
+  });
 }
 
 function cancelAddField() {
@@ -403,14 +507,19 @@ function cancelAddField() {
 
 function addNewField() {
   if (!newFieldName.value.trim()) {
-    return; // Require a name
+    nameError.value = "Field name is required";
+    return;
+  }
+  
+  if (nameError.value) {
+    return; // Don't proceed if there are validation errors
   }
   
   // Create field options
   let newFieldSchema = workingSchema.value.fields[newFieldName.value]?.clone() || {
     fieldType: newFieldName.value,
     valueType: newFieldType.value,
-    rank: sortedFields.value.length, // Set rank to the end of the list
+    rank: sortedFields.value.length,
     choices: [],
     readPermissions: [],
     writePermissions: [],
@@ -418,25 +527,20 @@ function addNewField() {
   };
   
   // Set choices if it's a choice type
-  if (newFieldType.value === ValueType.Choice && newFieldChoices.value) {
-    newFieldSchema.choices = newFieldChoices.value.split(',').map(c => c.trim()).filter(c => c);
+  if (newFieldType.value === ValueType.Choice) {
+    newFieldSchema.choices = newFieldChoicesList.value;
   }
   
   // Set permissions
-  if (newFieldReadPerms.value) {
-    newFieldSchema.readPermissions = newFieldReadPerms.value.split(',').map(p => p.trim()).filter(p => p);
-  }
-  
-  if (newFieldWritePerms.value) {
-    newFieldSchema.writePermissions = newFieldWritePerms.value.split(',').map(p => p.trim()).filter(p => p);
-  }
+  newFieldSchema.readPermissions = newFieldReadPermsList.value;
+  newFieldSchema.writePermissions = newFieldWritePermsList.value;
   
   workingSchema.value.fields[newFieldName.value] = newFieldSchema;
   
-  // Add to permission inputs map
-  permissionInputs.value[newFieldName.value] = {
-    read: newFieldSchema.readPermissions.join(','),
-    write: newFieldSchema.writePermissions.join(',')
+  // Add to permission inputs map using the array format
+  permissionInputsList.value[newFieldName.value] = {
+    read: [...newFieldSchema.readPermissions],
+    write: [...newFieldSchema.writePermissions]
   };
   
   // Mark as modified
@@ -472,12 +576,9 @@ function cancelEditField(fieldType: string) {
 }
 
 function confirmEdit(fieldType: string, fieldSchema: FieldSchema) {
-  // Update permissions from inputs
-  fieldSchema.readPermissions = permissionInputs.value[fieldType].read
-    .split(',').map(p => p.trim()).filter(p => p);
-    
-  fieldSchema.writePermissions = permissionInputs.value[fieldType].write
-    .split(',').map(p => p.trim()).filter(p => p);
+  // Update permissions from tag inputs
+  fieldSchema.readPermissions = permissionInputsList.value[fieldType].read;
+  fieldSchema.writePermissions = permissionInputsList.value[fieldType].write;
   
   // Ensure rank is a number
   if (typeof fieldSchema.rank === 'string') {
@@ -526,6 +627,11 @@ function addChoiceToField(fieldType: string, fieldSchema: FieldSchema) {
     fieldSchema,
     value: ''
   };
+  
+  // Focus on the input after dialog is shown
+  nextTick(() => {
+    choiceDialogInput.value?.focus();
+  });
 }
 
 function confirmAddChoice() {
@@ -1110,5 +1216,63 @@ function getValueTypeLabel(type: ValueType): string {
     flex-direction: column;
     gap: 6px;
   }
+}
+
+/* ...existing code... */
+
+.field-input-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.field-input.has-error {
+  border-color: var(--qui-danger-color);
+  box-shadow: 0 0 0 1px var(--qui-danger-color);
+}
+
+.input-error-message {
+  color: var(--qui-danger-color);
+  font-size: 11px;
+  margin-top: 4px;
+  animation: fade-in 0.2s ease;
+}
+
+.input-help-text {
+  color: var(--qui-text-secondary);
+  font-size: 11px;
+  margin-top: 4px;
+  opacity: 0.7;
+}
+
+.field-tag-input {
+  width: 100%;
+  min-height: 36px;
+}
+
+/* Hover and focus effect for inputs */
+.field-input:hover, 
+.field-select:hover {
+  border-color: var(--qui-hover-border-dark, #aaa);
+}
+
+.field-input:focus, 
+.field-select:focus {
+  outline: none;
+  border-color: var(--qui-accent-color);
+  box-shadow: 0 0 0 2px var(--qui-overlay-accent);
+  transform: translateY(-1px);
+  transition: all 0.2s ease;
+}
+
+@keyframes shake {
+  10%, 90% { transform: translateX(-1px); }
+  20%, 80% { transform: translateX(2px); }
+  30%, 50%, 70% { transform: translateX(-3px); }
+  40%, 60% { transform: translateX(3px); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 </style>
