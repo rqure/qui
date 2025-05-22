@@ -15,6 +15,9 @@ const currentSchema = ref<EntitySchema | null>(null);
 const showCreateNewForm = ref(false);
 const newEntityType = ref('');
 
+// Add new state for tracking schema loading
+const loadingSchema = ref(false);
+
 // Initialize data connection
 onMounted(async () => {
   try {
@@ -56,18 +59,31 @@ function waitForConnection(timeout = 5000): Promise<void> {
 async function handleEntityTypeSelect(entityType: EntityType) {
   try {
     showCreateNewForm.value = false;
-    loading.value = true;
+    
+    // Don't set the main loading state, just use a local loading state
+    loadingSchema.value = true;
+    
+    // Clear current schema first to force component re-render
+    currentSchema.value = null;
+    
+    // Update the selected type immediately for UI feedback
     selectedEntityType.value = entityType;
     
     // Load the schema for this entity type
     const schema = await dataStore.getEntitySchema(entityType);
-    currentSchema.value = schema;
     
-    loading.value = false;
+    // Set the schema with a slight delay to ensure clean re-render
+    setTimeout(() => {
+      // Only update the schema once it's fully loaded
+      currentSchema.value = schema;
+      
+      // Loading complete
+      loadingSchema.value = false;
+    }, 50);
   } catch (err) {
     console.error(`Error loading schema for ${entityType}:`, err);
     error.value = `Failed to load schema for ${entityType}`;
-    loading.value = false;
+    loadingSchema.value = false;
   }
 }
 
@@ -140,20 +156,24 @@ async function createNewEntityType() {
 
 async function handleSchemaUpdate(schema: EntitySchema) {
   try {
-    loading.value = true;
+    loadingSchema.value = true;
     error.value = null;
     
     // Update the schema
     await dataStore.setEntitySchema(schema);
     
-    // Refresh the schema
-    currentSchema.value = await dataStore.getEntitySchema(schema.entityType);
+    // Refresh the schema - first null it to force re-render
+    currentSchema.value = null;
     
-    loading.value = false;
+    // Then set the new value
+    setTimeout(async () => {
+      currentSchema.value = await dataStore.getEntitySchema(schema.entityType);
+      loadingSchema.value = false;
+    }, 50);
   } catch (err) {
     console.error(`Error updating schema for ${schema.entityType}:`, err);
     error.value = `Failed to update schema for ${schema.entityType}`;
-    loading.value = false;
+    loadingSchema.value = false;
   }
 }
 </script>
@@ -164,24 +184,44 @@ async function handleSchemaUpdate(schema: EntitySchema) {
       <LoadingIndicator />
     </div>
     
-    <div v-else-if="error" class="error-container">
-      <div class="error-card">
-        <div class="error-icon">
-          <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24">
-            <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
-          </svg>
-        </div>
-        <h2 class="error-title">Connection Error</h2>
-        <p class="error-message">{{ error }}</p>
-        <button class="retry-button" @click="loading = true; dataStore.initialize(); error = null">
-          <span class="retry-icon">
+    <div v-else-if="error" class="app-container">
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <h2 class="sidebar-title">Entity Types</h2>
+          <button class="new-entity-button" disabled>
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
-              <path fill="currentColor" d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+              <path fill="currentColor" d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
             </svg>
-          </span>
-          Try Again
-        </button>
-      </div>
+            <span>New</span>
+          </button>
+        </div>
+        
+        <div class="empty-sidebar-message">
+          <p>Connection error</p>
+        </div>
+      </aside>
+      
+      <main class="main-content">
+        <div class="error-content">
+          <div class="error-card">
+            <div class="error-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24">
+                <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+              </svg>
+            </div>
+            <h2 class="error-title">Connection Error</h2>
+            <p class="error-message">{{ error }}</p>
+            <button class="retry-button" @click="loading = true; dataStore.initialize(); error = null">
+              <span class="retry-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
+                  <path fill="currentColor" d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+                </svg>
+              </span>
+              Try Again
+            </button>
+          </div>
+        </div>
+      </main>
     </div>
     
     <div v-else class="app-container">
@@ -234,11 +274,18 @@ async function handleSchemaUpdate(schema: EntitySchema) {
           </div>
         </div>
         
-        <SchemaEditor 
-          v-else-if="selectedEntityType && currentSchema" 
-          :schema="currentSchema"
-          @update:schema="handleSchemaUpdate"
-        />
+        <div v-else-if="selectedEntityType && currentSchema" class="schema-content-container">
+          <div v-if="loadingSchema" class="schema-loading-overlay">
+            <LoadingIndicator />
+          </div>
+          
+          <!-- Use :key to ensure complete re-render when schema changes -->
+          <SchemaEditor 
+            :key="selectedEntityType" 
+            :schema="currentSchema"
+            @update:schema="handleSchemaUpdate"
+          />
+        </div>
         
         <div v-else class="empty-state">
           <div class="empty-state-content">
@@ -350,7 +397,7 @@ async function handleSchemaUpdate(schema: EntitySchema) {
 }
 
 /* Loading and error states */
-.loading-container, .error-container {
+.loading-container {
   position: absolute;
   top: 0;
   left: 0;
@@ -363,68 +410,27 @@ async function handleSchemaUpdate(schema: EntitySchema) {
   z-index: 10;
 }
 
-.error-card {
-  width: 400px;
-  padding: 32px;
-  background: var(--qui-bg-secondary);
-  border-radius: 12px;
-  box-shadow: var(--qui-shadow-default), 0 10px 25px rgba(0, 0, 0, 0.1);
-  text-align: center;
+.error-content {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  animation: scale-in 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  justify-content: center;
+  flex: 1;
+  background: var(--qui-bg-primary);
+  padding: 20px;
 }
 
-.error-icon {
-  color: var(--qui-danger-color);
-  margin-bottom: 16px;
-  animation: pulse 2s infinite;
-  filter: drop-shadow(0 4px 8px rgba(244, 67, 54, 0.3));
-}
-
-.error-title {
-  margin: 0 0 12px 0;
-  font-size: 22px;
-  font-weight: var(--qui-font-weight-medium);
-  color: var(--qui-danger-color);
-}
-
-.error-message {
-  margin: 0 0 24px 0;
+.empty-sidebar-message {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--qui-text-secondary);
-  line-height: 1.6;
-}
-
-.retry-button {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 20px;
-  border: none;
+  font-style: italic;
+  padding: 20px;
+  background: var(--qui-overlay-primary);
   border-radius: 8px;
-  background: var(--qui-accent-color);
-  color: var(--qui-bg-primary);
-  font-weight: var(--qui-font-weight-medium);
-  cursor: pointer;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-}
-
-.retry-button:hover {
-  background: var(--qui-accent-secondary);
-  transform: translateY(-2px);
-  box-shadow: var(--qui-shadow-accent), 0 5px 15px rgba(0, 0, 0, 0.15);
-}
-
-.retry-button:active {
-  transform: translateY(0);
-  box-shadow: 0 2px 3px rgba(0, 0, 0, 0.1);
-}
-
-.retry-icon {
-  display: flex;
-  animation: spin 2s linear infinite;
+  margin: 20px;
+  text-align: center;
 }
 
 /* Create new form */
@@ -644,6 +650,34 @@ async function handleSchemaUpdate(schema: EntitySchema) {
   height: 44px;
   border-radius: 22px;
   font-size: 15px;
+}
+
+/* Add new styles for schema loading */
+.schema-content-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.schema-loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(var(--qui-bg-primary-rgb, 255, 255, 255), 0.7);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 5;
+  animation: fade-in 0.2s ease;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 @keyframes pulse {
