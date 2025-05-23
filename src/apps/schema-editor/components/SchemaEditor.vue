@@ -199,13 +199,11 @@
                 <!-- Inline editing mode -->
                 <div v-if="field.fieldSchema.valueType === ValueType.Choice" class="schema-editor-form-group">
                   <label>Choices:</label>
-                  <div class="choices-list">
-                    <div v-for="(choice, index) in field.fieldSchema.choices" :key="index" class="schema-editor-tag choice-tag">
-                      {{ choice }}
-                      <button class="delete-choice-btn" @click="removeChoice(field.fieldType, field.fieldSchema, index)" title="Remove option">×</button>
-                    </div>
-                    <button class="schema-editor-choice-add-btn" @click="addChoiceToField(field.fieldType, field.fieldSchema)" title="Add option">+</button>
-                  </div>
+                  <TagInput
+                    v-model="fieldChoicesMap[field.fieldType]"
+                    placeholder="Add an option and press Enter"
+                    class="field-tag-input"
+                  />
                 </div>
                 <div class="schema-editor-form-group">
                   <label>Permissions:</label>
@@ -337,41 +335,6 @@
       @confirm="confirmDeleteField"
       @cancel="cancelDeleteField"
     />
-
-    <!-- Dialog for adding choices -->
-    <div v-if="choiceDialog.show" class="schema-editor-dialog-backdrop">
-      <div class="schema-editor-dialog">
-        <div class="schema-editor-dialog-header">
-          <h3 class="schema-editor-dialog-title">Add Choice Option</h3>
-          <button class="schema-editor-dialog-close" @click="choiceDialog.show = false">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
-              <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-            </svg>
-          </button>
-        </div>
-        <div class="schema-editor-dialog-body">
-          <div class="schema-editor-form-group">
-            <label>Choice Value</label>
-            <input 
-              v-model="choiceDialog.value" 
-              class="schema-editor-form-control" 
-              placeholder="Enter a choice option" 
-              ref="choiceDialogInput"
-              @keyup.enter="confirmAddChoice"
-              @keyup.esc="choiceDialog.show = false"
-            />
-          </div>
-        </div>
-        <div class="schema-editor-dialog-footer">
-          <button class="schema-editor-btn schema-editor-btn-secondary" @click="choiceDialog.show = false">Cancel</button>
-          <button 
-            class="schema-editor-btn schema-editor-btn-primary" 
-            @click="confirmAddChoice"
-            :disabled="!choiceDialog.value.trim()"
-          >Add</button>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -414,10 +377,12 @@ const newFieldChoicesList = ref<string[]>([]);
 const newFieldReadPermsList = ref<string[]>([]);
 const newFieldWritePermsList = ref<string[]>([]);
 
+// Add a map to store field choices during editing
+const fieldChoicesMap = ref<Record<string, string[]>>({});
+
 // Validation and references
 const nameError = ref<string | null>(null);
 const newFieldNameInput = ref<HTMLInputElement | null>(null);
-const choiceDialogInput = ref<HTMLInputElement | null>(null);
 
 // Add state for confirmation dialog
 const confirmDialog = ref({
@@ -426,14 +391,6 @@ const confirmDialog = ref({
   message: '',
   fieldToDelete: '',
   type: 'danger' as 'info' | 'warning' | 'danger'
-});
-
-// Dialog for adding choice options
-const choiceDialog = ref({
-  show: false,
-  fieldType: '',
-  fieldSchema: null as FieldSchema | null,
-  value: ''
 });
 
 // Drag-n-drop state
@@ -653,6 +610,9 @@ function startEditField(fieldType: string) {
   editingField.value = fieldType;
   editFieldPermState.currentField.value = fieldType;
   
+  // Initialize choices for the field being edited
+  fieldChoicesMap.value[fieldType] = [...workingSchema.value.fields[fieldType].choices || []];
+  
   // Reset edit field permission state
   editFieldPermState.searchText.value = { read: '', write: '' };
   editFieldPermState.showDropdown.value = { read: false, write: false };
@@ -704,6 +664,11 @@ function confirmEdit(fieldType: string, fieldSchema: FieldSchema) {
     fieldSchema.writePermissions = [];
   }
   
+  // Update choices from the map
+  if (fieldSchema.valueType === ValueType.Choice && fieldChoicesMap.value[fieldType]) {
+    fieldSchema.choices = [...fieldChoicesMap.value[fieldType]];
+  }
+  
   // Ensure rank is a number
   if (typeof fieldSchema.rank === 'string') {
     fieldSchema.rank = parseInt(fieldSchema.rank as any, 10) || 0;
@@ -741,40 +706,6 @@ function confirmDeleteField() {
 
 function cancelDeleteField() {
   confirmDialog.value.show = false;
-}
-
-// Functions for choice options management
-function addChoiceToField(fieldType: string, fieldSchema: FieldSchema) {
-  choiceDialog.value = {
-    show: true,
-    fieldType,
-    fieldSchema,
-    value: ''
-  };
-  
-  // Focus on the input after dialog is shown
-  nextTick(() => {
-    choiceDialogInput.value?.focus();
-  });
-}
-
-function confirmAddChoice() {
-  if (!choiceDialog.value.value.trim() || !choiceDialog.value.fieldSchema) return;
-  
-  const { fieldType, fieldSchema, value } = choiceDialog.value;
-  fieldSchema.choices.push(value);
-  
-  // Mark field as modified
-  modifiedFields.value.add(fieldType);
-  
-  choiceDialog.value.show = false;
-}
-
-function removeChoice(fieldType: string, fieldSchema: FieldSchema, index: number) {
-  fieldSchema.choices.splice(index, 1);
-  
-  // Mark field as modified
-  modifiedFields.value.add(fieldType);
 }
 
 // Save all changes
