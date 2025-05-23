@@ -94,65 +94,31 @@
                   <div class="permissions-row">
                     <span>Read:</span>
                     <div class="permission-input-container">
-                      <input
-                        v-model="permissionSearchReadInput"
-                        placeholder="Type to search permissions"
-                        class="field-input permission-input"
-                        @keyup.esc="cancelAddField"
-                        @input="searchReadPermissions"
-                        @keydown.enter="selectReadPermission"
-                      />
-                      <div v-if="readPermSuggestions.length > 0" class="permission-suggestions">
-                        <div 
-                          v-for="(suggestion, index) in readPermSuggestions" 
-                          :key="index"
-                          class="suggestion-item"
-                          :class="{ 'active': activeSuggestionIndex === index }"
-                          @click="selectSuggestion(suggestion, 'read')"
-                        >
-                          {{ suggestion }}
-                        </div>
-                      </div>
-                      <div v-if="newFieldReadPermsList.length > 0" class="permission-tag">
-                        {{ newFieldReadPermsList[0] }}
-                        <button 
-                          @click="clearPermission('read')" 
-                          class="permission-tag-remove"
-                          title="Remove permission"
-                        >×</button>
-                      </div>
+                      <select
+                        :value="newFieldReadPermsList.length > 0 ? newFieldReadPermsList[0] : ''"
+                        class="field-select permission-select"
+                        @change="(e) => handleReadPermissionChange(e)"
+                      >
+                        <option value="">Select permission</option>
+                        <option v-for="perm in availablePermissions" :key="perm.entityId" :value="perm.entityId">
+                          {{ perm.field('Name').value.getString() }}
+                        </option>
+                      </select>
                     </div>
                   </div>
                   <div class="permissions-row">
                     <span>Write:</span>
                     <div class="permission-input-container">
-                      <input
-                        v-model="permissionSearchWriteInput"
-                        placeholder="Type to search permissions"
-                        class="field-input permission-input"
-                        @keyup.esc="cancelAddField"
-                        @input="searchWritePermissions"
-                        @keydown.enter="selectWritePermission"
-                      />
-                      <div v-if="writePermSuggestions.length > 0" class="permission-suggestions">
-                        <div 
-                          v-for="(suggestion, index) in writePermSuggestions" 
-                          :key="index"
-                          class="suggestion-item"
-                          :class="{ 'active': activeSuggestionIndex === index }"
-                          @click="selectSuggestion(suggestion, 'write')"
-                        >
-                          {{ suggestion }}
-                        </div>
-                      </div>
-                      <div v-if="newFieldWritePermsList.length > 0" class="permission-tag">
-                        {{ newFieldWritePermsList[0] }}
-                        <button 
-                          @click="clearPermission('write')" 
-                          class="permission-tag-remove"
-                          title="Remove permission"
-                        >×</button>
-                      </div>
+                      <select
+                        :value="newFieldWritePermsList.length > 0 ? newFieldWritePermsList[0] : ''"
+                        class="field-select permission-select"
+                        @change="(e) => handleWritePermissionChange(e)"
+                      >
+                        <option value="">Select permission</option>
+                        <option v-for="perm in availablePermissions" :key="perm.entityId" :value="perm.entityId">
+                          {{ perm.field('Name').value.getString() }}
+                        </option>
+                      </select>
                     </div>
                   </div>
                 </div>
@@ -219,63 +185,31 @@
                   <div class="permissions-row">
                     <span>Read:</span>
                     <div class="permission-input-container">
-                      <input
-                        v-model="editFieldPermissionInputs[field.fieldType].read"
-                        placeholder="Type to search permissions"
-                        class="field-input permission-input"
-                        @input="searchEditReadPermissions(field.fieldType)"
-                        @keydown.enter="selectEditReadPermission(field.fieldType)"
-                      />
-                      <div v-if="editPermSuggestions.read.length > 0" class="permission-suggestions">
-                        <div 
-                          v-for="(suggestion, index) in editPermSuggestions.read" 
-                          :key="index"
-                          class="suggestion-item"
-                          :class="{ 'active': editActiveSuggestionIndex.read === index }"
-                          @click="selectEditSuggestion(suggestion, field.fieldType, 'read')"
-                        >
-                          {{ suggestion.field('Name').value.getString() }}
-                        </div>
-                      </div>
-                      <div v-if="permissionInputsList[field.fieldType]?.read.length > 0" class="permission-tag">
-                        {{ permissionInputsList[field.fieldType].read[0] }}
-                        <button 
-                          @click="clearEditPermission(field.fieldType, 'read')" 
-                          class="permission-tag-remove"
-                          title="Remove permission"
-                        >×</button>
-                      </div>
+                      <select
+                        :value="permissionInputsList[field.fieldType].read.length > 0 ? permissionInputsList[field.fieldType].read[0] : ''"
+                        class="field-select permission-select"
+                        @change="(e) => handleEditPermissionChange(field.fieldType, 'read', e)"
+                      >
+                        <option value="">Select permission</option>
+                        <option v-for="perm in availablePermissions" :key="perm.entityId" :value="perm.entityId">
+                          {{ perm.field('Name').value.getString() }}
+                        </option>
+                      </select>
                     </div>
                   </div>
                   <div class="permissions-row">
                     <span>Write:</span>
                     <div class="permission-input-container">
-                      <input
-                        v-model="editFieldPermissionInputs[field.fieldType].write"
-                        placeholder="Type to search permissions"
-                        class="field-input permission-input"
-                        @input="searchEditWritePermissions(field.fieldType)"
-                        @keydown.enter="selectEditWritePermission(field.fieldType)"
-                      />
-                      <div v-if="editPermSuggestions.write.length > 0" class="permission-suggestions">
-                        <div 
-                          v-for="(suggestion, index) in editPermSuggestions.write" 
-                          :key="index"
-                          class="suggestion-item"
-                          :class="{ 'active': editActiveSuggestionIndex.write === index }"
-                          @click="selectEditSuggestion(suggestion, field.fieldType, 'write')"
-                        >
-                          {{ suggestion.field('Name').value.getString() }}
-                        </div>
-                      </div>
-                      <div v-if="permissionInputsList[field.fieldType]?.write.length > 0" class="permission-tag">
-                        {{ permissionInputsList[field.fieldType].write[0] }}
-                        <button 
-                          @click="clearEditPermission(field.fieldType, 'write')" 
-                          class="permission-tag-remove"
-                          title="Remove permission"
-                        >×</button>
-                      </div>
+                      <select
+                        :value="permissionInputsList[field.fieldType].write.length > 0 ? permissionInputsList[field.fieldType].write[0] : ''"
+                        class="field-select permission-select"
+                        @change="(e) => handleEditPermissionChange(field.fieldType, 'write', e)"
+                      >
+                        <option value="">Select permission</option>
+                        <option v-for="perm in availablePermissions" :key="perm.entityId" :value="perm.entityId">
+                          {{ perm.field('Name').value.getString() }}
+                        </option>
+                      </select>
                     </div>
                   </div>
                 </div>
@@ -495,6 +429,9 @@ const permissionSearchWriteInput = ref('');
 // Add state for edit field permission inputs
 const editFieldPermissionInputs = ref<Record<string, { read: string, write: string }>>({});
 
+// Available permissions for dropdowns
+const availablePermissions = ref<Entity[]>([]);
+
 // Initialize permission inputs when fields change
 watch(() => workingSchema.value.fields, (newFields) => {
   Object.entries(newFields).forEach(([fieldType, fieldSchema]) => {
@@ -515,7 +452,7 @@ watch(() => workingSchema.value.fields, (newFields) => {
 }, { immediate: true, deep: true });
 
 // Initialize on mount
-onMounted(() => {
+onMounted(async () => {
   // Initialize permission inputs for all fields
   Object.entries(workingSchema.value.fields).forEach(([fieldType, fieldSchema]) => {
     permissionInputs.value[fieldType] = {
@@ -528,6 +465,20 @@ onMounted(() => {
       write: ''
     };
   });
+
+  // Load all available permissions
+  try {
+    // Using 3 arguments instead of 4 (fixed)
+    const result = await dataStore.find('Permission', ['Name'], () => true);
+    availablePermissions.value = result.sort((a, b) => {
+      const nameA = a.field('Name').value.getString();
+      const nameB = b.field('Name').value.getString();
+      return nameA.localeCompare(nameB);
+    });
+    console.log(`Loaded ${availablePermissions.value.length} permissions`);
+  } catch (err) {
+    console.error('Failed to load permissions:', err);
+  }
 });
 
 // Check if a field has been modified
@@ -838,170 +789,43 @@ function handleDragEnd(event: DragEvent) {
   });
 }
 
-// Function to search permissions for read field
-async function searchReadPermissions() {
-  if (!permissionSearchReadInput.value || permissionSearchReadInput.value.length < 2) {
-    readPermSuggestions.value = [];
-    activeSuggestionIndex.value = -1;
-    return;
-  }
-
-  try {
-    const results = await dataStore.find('Permission', ['Name'], (entity: Entity) => {
-      const name = entity.field('Name').value.getString().toLowerCase();
-      return name.includes(permissionSearchReadInput.value.toLowerCase());
-    });
-    
-    readPermSuggestions.value = results.slice(0, 5);
-    console.log('Found suggestions:', readPermSuggestions.value);
-  } catch (error) {
-    console.error('Error searching permissions:', error);
-    readPermSuggestions.value = [];
-  }
-}
-
-// Function to search permissions for write field
-async function searchWritePermissions() {
-  if (!permissionSearchWriteInput.value || permissionSearchWriteInput.value.length < 2) {
-    writePermSuggestions.value = [];
-    activeSuggestionIndex.value = -1;
-    return;
-  }
-
-  try {
-    // Search for Permission entities instead of Users
-    const results = await dataStore.find('Permission', ['Name'], (entity: Entity) => {
-      const name = entity.field('Name').value.getString().toLowerCase();
-      return name.includes(permissionSearchWriteInput.value.toLowerCase());
-    });
-    
-    writePermSuggestions.value = results.slice(0, 5);
-  } catch (error) {
-    console.error('Error searching permissions:', error);
-    writePermSuggestions.value = [];
-  }
-}
-
-// Editing mode permission search functions
-async function searchEditReadPermissions(fieldType: string) {
-  if (!editFieldPermissionInputs.value[fieldType]?.read || 
-      editFieldPermissionInputs.value[fieldType].read.length < 2) {
-    editPermSuggestions.value.read = [];
-    editActiveSuggestionIndex.value.read = -1;
-    return;
-  }
-
-  try {
-    const results = await dataStore.find('Permission', ['Name'], (entity: Entity) => {
-      const name = entity.field('Name').value.getString().toLowerCase();
-      return name.includes(editFieldPermissionInputs.value[fieldType].read.toLowerCase());
-    });
-    
-    editPermSuggestions.value.read = results.slice(0, 5);
-  } catch (error) {
-    console.error('Error searching permissions:', error);
-    editPermSuggestions.value.read = [];
-  }
-}
-
-async function searchEditWritePermissions(fieldType: string) {
-  if (!editFieldPermissionInputs.value[fieldType]?.write || 
-      editFieldPermissionInputs.value[fieldType].write.length < 2) {
-    editPermSuggestions.value.write = [];
-    editActiveSuggestionIndex.value.write = -1;
-    return;
-  }
-
-  try {
-    const results = await dataStore.find('Permission', ['Name'], (entity: Entity) => {
-      const name = entity.field('Name').value.getString().toLowerCase();
-      return name.includes(editFieldPermissionInputs.value[fieldType].write.toLowerCase());
-    });
-
-    editPermSuggestions.value.write = results.slice(0, 5);
-  } catch (error) {
-    console.error('Error searching permissions:', error);
-    editPermSuggestions.value.write = [];
-  }
-}
-
-// Functions to handle suggestion selection
-function selectSuggestion(suggestion: Entity, type: 'read' | 'write') {
-  if (type === 'read') {
-    newFieldReadPermsList.value = [suggestion.entityId];
-    permissionSearchReadInput.value = '';
-    readPermSuggestions.value = [];
+// Handle permission changes for new fields
+function handleReadPermissionChange(event: Event): void {
+  const target = event.target as HTMLSelectElement;
+  const value = target?.value || '';
+  
+  if (value) {
+    newFieldReadPermsList.value = [value];
   } else {
-    newFieldWritePermsList.value = [suggestion.entityId];
-    permissionSearchWriteInput.value = '';
-    writePermSuggestions.value = [];
-  }
-}
-
-function selectEditSuggestion(suggestion: Entity, fieldType: string, type: 'read' | 'write') {
-  if (type === 'read') {
-    permissionInputsList.value[fieldType].read = [suggestion.entityId];
-    editFieldPermissionInputs.value[fieldType].read = '';
-    editPermSuggestions.value.read = [];
-  } else {
-    permissionInputsList.value[fieldType].write = [suggestion.entityId];
-    editFieldPermissionInputs.value[fieldType].write = '';
-    editPermSuggestions.value.write = [];
-  }
-}
-
-// Handle selecting with keyboard
-function selectReadPermission() {
-  if (activeSuggestionIndex.value >= 0 && readPermSuggestions.value.length > 0) {
-    selectSuggestion(readPermSuggestions.value[activeSuggestionIndex.value], 'read');
-  } else if (permissionSearchReadInput.value) {
-    newFieldReadPermsList.value = [permissionSearchReadInput.value];
-    permissionSearchReadInput.value = '';
-  }
-}
-
-function selectWritePermission() {
-  if (activeSuggestionIndex.value >= 0 && writePermSuggestions.value.length > 0) {
-    selectSuggestion(writePermSuggestions.value[activeSuggestionIndex.value], 'write');
-  } else if (permissionSearchWriteInput.value) {
-    newFieldWritePermsList.value = [permissionSearchWriteInput.value];
-    permissionSearchWriteInput.value = '';
-  }
-}
-
-function selectEditReadPermission(fieldType: string) {
-  if (editActiveSuggestionIndex.value.read >= 0 && editPermSuggestions.value.read.length > 0) {
-    selectEditSuggestion(editPermSuggestions.value.read[editActiveSuggestionIndex.value.read], fieldType, 'read');
-  } else if (editFieldPermissionInputs.value[fieldType].read) {
-    permissionInputsList.value[fieldType].read = [editFieldPermissionInputs.value[fieldType].read];
-    editFieldPermissionInputs.value[fieldType].read = '';
-  }
-}
-
-function selectEditWritePermission(fieldType: string) {
-  if (editActiveSuggestionIndex.value.write >= 0 && editPermSuggestions.value.write.length > 0) {
-    selectEditSuggestion(editPermSuggestions.value.write[editActiveSuggestionIndex.value.write], fieldType, 'write');
-  } else if (editFieldPermissionInputs.value[fieldType].write) {
-    permissionInputsList.value[fieldType].write = [editFieldPermissionInputs.value[fieldType].write];
-    editFieldPermissionInputs.value[fieldType].write = '';
-  }
-}
-
-// Functions to clear permissions
-function clearPermission(type: 'read' | 'write') {
-  if (type === 'read') {
     newFieldReadPermsList.value = [];
+  }
+}
+
+function handleWritePermissionChange(event: Event): void {
+  const target = event.target as HTMLSelectElement;
+  const value = target?.value || '';
+  
+  if (value) {
+    newFieldWritePermsList.value = [value];
   } else {
     newFieldWritePermsList.value = [];
   }
 }
 
-function clearEditPermission(fieldType: string, type: 'read' | 'write') {
-  if (type === 'read') {
-    permissionInputsList.value[fieldType].read = [];
+// Update the edit permissions handler
+function handleEditPermissionChange(fieldType: string, type: 'read' | 'write', event: Event): void {
+  const target = event.target as HTMLSelectElement;
+  const value = target?.value || '';
+  
+  if (value) {
+    permissionInputsList.value[fieldType][type] = [value];
   } else {
-    permissionInputsList.value[fieldType].write = [];
+    permissionInputsList.value[fieldType][type] = [];
   }
+  
+  // Mark the field as modified when permissions change
+  modifiedFields.value.add(fieldType);
+  console.log(`Updated ${type} permissions for ${fieldType}`);
 }
 </script>
 
@@ -1565,71 +1389,29 @@ function clearEditPermission(fieldType: string, type: 'read' | 'write') {
   font-size: var(--qui-font-size-small);
 }
 
-.permission-suggestions {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  z-index: 1000; /* Ensure a high z-index to display above other elements */
-  background: var(--qui-bg-primary);
+.permission-select {
+  width: 100%;
+  padding: 10px 12px;
   border: 1px solid var(--qui-hover-border);
   border-radius: 4px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  max-height: 200px;
-  overflow-y: auto;
-  margin-top: 4px;
-  animation: fade-in-dropdown 0.2s ease;
-}
-
-.suggestion-item {
-  padding: 8px 12px;
+  background: var(--qui-bg-primary);
+  color: var(--qui-text-primary);
+  font-size: var(--qui-font-size-small);
   cursor: pointer;
-  transition: all 0.2s ease;
-  font-size: var(--qui-font-size-small);
+  appearance: auto; /* Allow native dropdown appearance */
 }
 
-.suggestion-item:hover, .suggestion-item.active {
-  background: var(--qui-overlay-accent);
-  color: var(--qui-accent-color);
+.permission-select:focus {
+  outline: none;
+  border-color: var(--qui-accent-color);
+  box-shadow: 0 0 0 2px var(--qui-overlay-accent);
 }
 
-.permission-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin-top: 8px;
-  padding: 6px 10px;
-  background: var(--qui-overlay-accent);
-  color: var(--qui-accent-color);
-  border-radius: 4px;
-  font-size: var(--qui-font-size-small);
-  font-weight: var(--qui-font-weight-medium);
-  animation: fade-in 0.2s ease;
-}
-
+/* Remove these style rules as they're for the old approach */
+.permission-suggestions,
+.suggestion-item,
+.permission-tag,
 .permission-tag-remove {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  border: none;
-  background: rgba(0, 0, 0, 0.1);
-  color: inherit;
-  font-size: 14px;
-  font-weight: bold;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.permission-tag-remove:hover {
-  background: rgba(0, 0, 0, 0.2);
-  transform: scale(1.1);
-}
-
-@keyframes fade-in-dropdown {
-  from { opacity: 0; transform: translateY(-5px); }
-  to { opacity: 1; transform: translateY(0); }
+  display: none;
 }
 </style>
