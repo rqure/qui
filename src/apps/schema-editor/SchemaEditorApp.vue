@@ -180,7 +180,7 @@ async function handleSchemaUpdate(schema: EntitySchema) {
 
 <template>
   <div class="schema-editor-app">
-    <div v-if="loading" class="loading-container">
+    <div v-if="loading" class="app-container">
       <LoadingIndicator />
     </div>
     

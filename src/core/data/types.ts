@@ -23,15 +23,15 @@ export type FieldType = string;
  * Enum for value types
  */
 export enum ValueType {
-    Int = "Int",
-    Float = "Float",
-    String = "String",
-    Bool = "Bool",
-    BinaryFile = "BinaryFile",
-    EntityReference = "EntityReference",
-    Timestamp = "Timestamp",
-    Choice = "Choice",
-    EntityList = "EntityList"
+    Int = "int",
+    Float = "float",
+    String = "string",
+    Bool = "bool",
+    BinaryFile = "binaryFile",
+    EntityReference = "entityReference",
+    Timestamp = "timestamp",
+    Choice = "choice",
+    EntityList = "entityList"
 }
 
 /**
