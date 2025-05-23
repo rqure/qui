@@ -11,17 +11,6 @@ interface ExtendedMenuItem extends MenuItem {
 }
 
 const menuStore = useMenuStore()
-
-const props = defineProps<{
-  items: ExtendedMenuItem[]
-  position: MenuPosition
-}>()
-
-const emit = defineEmits<{
-  (e: 'close'): void
-  (e: 'select', item: MenuItem): void
-}>()
-
 const menuElement = ref<HTMLElement | null>(null)
 const activeSubmenuIndex = ref<number | null>(null)
 const submenuPosition = ref<MenuPosition>({ x: 0, y: 0 })
@@ -43,7 +32,7 @@ const handleItemClick = (e: Event, item: ExtendedMenuItem) => {
   }
   
   // Close the menu after action
-  emit('close')
+  menuStore.hideMenu()
 }
 
 // Calculate and adjust menu position
@@ -56,8 +45,8 @@ const calculatePosition = () => {
   const viewportHeight = window.innerHeight
   
   // Initial position
-  let x = props.position.x
-  let y = props.position.y
+  let x = menuStore.position.x
+  let y = menuStore.position.y
   
   // Adjust if menu would go off right edge
   if (x + menuRect.width > viewportWidth) {
@@ -122,18 +111,18 @@ const handleMenuLeave = () => {
 }
 
 // Watch for position changes
-watch(() => props.position, calculatePosition, { immediate: true })
+watch(() => menuStore.position, calculatePosition, { immediate: true })
 
 // Close on escape or outside click
 const handleEscape = (e: KeyboardEvent) => {
   if (e.key === 'Escape') {
-    emit('close')
+    menuStore.hideMenu()
   }
 }
 
 const handleOutsideClick = (e: MouseEvent) => {
   if (menuElement.value && !menuElement.value.contains(e.target as Node)) {
-    emit('close')
+    menuStore.hideMenu()
   }
 }
 
@@ -170,7 +159,7 @@ const handleSubmenuClose = () => {
       }"
       @mouseleave="handleMenuLeave"
     >
-      <div v-for="(item, index) in items" :key="item.id">
+      <div v-for="(item, index) in menuStore.items" :key="item.id">
         <!-- Render separator -->
         <div v-if="isSeparator(item)" class="menu-separator"></div>
         
@@ -207,10 +196,8 @@ const handleSubmenuClose = () => {
         <ContextMenuComponent
           v-if="index === activeSubmenuIndex && item.children"
           class="submenu"
-          :items="item.children"
           :position="submenuPosition"
           @close="handleSubmenuClose"
-          @select="(item) => $emit('select', item)"
         />
       </div>
     </div>
