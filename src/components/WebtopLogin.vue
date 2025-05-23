@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import QeiLogo from '@/components/common/QeiLogo.vue'
+import LoadingIndicator from '@/components/common/LoadingIndicator.vue'
 import { useAuthStore } from '@/stores/auth'
 
 const emit = defineEmits<{
@@ -157,10 +158,10 @@ const selectLoginMethod = (method: string) => {
     <div class="login-box">
       <QeiLogo size="large" class="login-logo" />
       
-      <div v-if="isLoading" class="loading-indicator">
-        <span class="loading-spinner"></span>
-        <p>{{ isRecovering ? 'Checking for saved session...' : 'Authenticating...' }}</p>
-      </div>
+      <LoadingIndicator 
+        v-if="isLoading" 
+        :message="isRecovering ? 'Checking for saved session...' : 'Authenticating...'" 
+      />
       
       <form v-else class="login-form" @submit.prevent="handleSubmit">
         <div v-if="error" class="error-message">{{ error }}</div>
@@ -459,27 +460,7 @@ const selectLoginMethod = (method: string) => {
   font-size: var(--qui-font-size-small);
 }
 
-.loading-indicator {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  color: var(--qui-text-secondary);
-}
-
-.loading-spinner {
-  display: inline-block;
-  width: 30px;
-  height: 30px;
-  border: 3px solid rgba(255, 255, 255, 0.3);
-  border-radius: 50%;
-  border-top-color: var(--qui-accent-primary, #0066cc);
-  animation: spin 1s ease-in-out infinite;
-  margin-bottom: 1rem;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
+/* Remove custom loading spinner styles as they are now in the LoadingIndicator component */
 
 @keyframes shine {
   from { left: -100%; }

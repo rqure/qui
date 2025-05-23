@@ -1,5 +1,11 @@
 <script setup lang="ts">
-// No props or data needed for this simple component
+// Define a prop for custom loading message
+defineProps({
+  message: {
+    type: String,
+    default: 'Connecting to database...' // Default to maintain backward compatibility
+  }
+})
 </script>
 
 <template>
@@ -10,7 +16,7 @@
       <div class="spinner-ring"></div>
       <div class="spinner-dot"></div>
     </div>
-    <div class="loading-text">Connecting to database...</div>
+    <div class="loading-text">{{ message }}</div>
   </div>
 </template>
 
