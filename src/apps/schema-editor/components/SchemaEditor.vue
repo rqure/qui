@@ -234,7 +234,7 @@
                           :class="{ 'active': editActiveSuggestionIndex.read === index }"
                           @click="selectEditSuggestion(suggestion, field.fieldType, 'read')"
                         >
-                          {{ suggestion }}
+                          {{ suggestion.field('Name').value.getString() }}
                         </div>
                       </div>
                       <div v-if="permissionInputsList[field.fieldType]?.read.length > 0" class="permission-tag">
@@ -265,7 +265,7 @@
                           :class="{ 'active': editActiveSuggestionIndex.write === index }"
                           @click="selectEditSuggestion(suggestion, field.fieldType, 'write')"
                         >
-                          {{ suggestion }}
+                          {{ suggestion.field('Name').value.getString() }}
                         </div>
                       </div>
                       <div v-if="permissionInputsList[field.fieldType]?.write.length > 0" class="permission-tag">
@@ -386,7 +386,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, nextTick } from 'vue';
-import type { EntitySchema, FieldSchema, Entity } from '@/core/data/types';
+import type { EntitySchema, FieldSchema, Entity, EntityId } from '@/core/data/types';
 import { ValueType } from '@/core/data/types';
 import { useDataStore } from '@/stores/data';
 import TypeBadge from './TypeBadge.vue';
@@ -458,9 +458,9 @@ const newFieldWritePermsList = ref<string[]>([]);
 const permissionInputsList = ref<Record<string, { read: string[], write: string[] }>>({});
 
 // Permission suggestions for autocomplete
-const readPermSuggestions = ref<string[]>([]);
-const writePermSuggestions = ref<string[]>([]);
-const editPermSuggestions = ref<{read: string[], write: string[]}>({
+const readPermSuggestions = ref<Entity[]>([]);
+const writePermSuggestions = ref<Entity[]>([]);
+const editPermSuggestions = ref<{read: Entity[], write: Entity[]}>({
   read: [],
   write: []
 });
@@ -852,7 +852,7 @@ async function searchReadPermissions() {
       return name.includes(permissionSearchReadInput.value.toLowerCase());
     });
     
-    readPermSuggestions.value = results.map((e: Entity) => e.entityId).slice(0, 5);
+    readPermSuggestions.value = results.slice(0, 5);
     console.log('Found suggestions:', readPermSuggestions.value);
   } catch (error) {
     console.error('Error searching permissions:', error);
@@ -875,7 +875,7 @@ async function searchWritePermissions() {
       return name.includes(permissionSearchWriteInput.value.toLowerCase());
     });
     
-    writePermSuggestions.value = results.map((e: Entity) => e.entityId).slice(0, 5);
+    writePermSuggestions.value = results.slice(0, 5);
   } catch (error) {
     console.error('Error searching permissions:', error);
     writePermSuggestions.value = [];
@@ -897,7 +897,7 @@ async function searchEditReadPermissions(fieldType: string) {
       return name.includes(editFieldPermissionInputs.value[fieldType].read.toLowerCase());
     });
     
-    editPermSuggestions.value.read = results.map((e: Entity) => e.entityId).slice(0, 5);
+    editPermSuggestions.value.read = results.slice(0, 5);
   } catch (error) {
     console.error('Error searching permissions:', error);
     editPermSuggestions.value.read = [];
@@ -917,8 +917,8 @@ async function searchEditWritePermissions(fieldType: string) {
       const name = entity.field('Name').value.getString().toLowerCase();
       return name.includes(editFieldPermissionInputs.value[fieldType].write.toLowerCase());
     });
-    
-    editPermSuggestions.value.write = results.map((e: Entity) => e.entityId).slice(0, 5);
+
+    editPermSuggestions.value.write = results.slice(0, 5);
   } catch (error) {
     console.error('Error searching permissions:', error);
     editPermSuggestions.value.write = [];
@@ -926,25 +926,25 @@ async function searchEditWritePermissions(fieldType: string) {
 }
 
 // Functions to handle suggestion selection
-function selectSuggestion(suggestion: string, type: 'read' | 'write') {
+function selectSuggestion(suggestion: Entity, type: 'read' | 'write') {
   if (type === 'read') {
-    newFieldReadPermsList.value = [suggestion];
+    newFieldReadPermsList.value = [suggestion.entityId];
     permissionSearchReadInput.value = '';
     readPermSuggestions.value = [];
   } else {
-    newFieldWritePermsList.value = [suggestion];
+    newFieldWritePermsList.value = [suggestion.entityId];
     permissionSearchWriteInput.value = '';
     writePermSuggestions.value = [];
   }
 }
 
-function selectEditSuggestion(suggestion: string, fieldType: string, type: 'read' | 'write') {
+function selectEditSuggestion(suggestion: Entity, fieldType: string, type: 'read' | 'write') {
   if (type === 'read') {
-    permissionInputsList.value[fieldType].read = [suggestion];
+    permissionInputsList.value[fieldType].read = [suggestion.entityId];
     editFieldPermissionInputs.value[fieldType].read = '';
     editPermSuggestions.value.read = [];
   } else {
-    permissionInputsList.value[fieldType].write = [suggestion];
+    permissionInputsList.value[fieldType].write = [suggestion.entityId];
     editFieldPermissionInputs.value[fieldType].write = '';
     editPermSuggestions.value.write = [];
   }
