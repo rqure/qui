@@ -235,9 +235,9 @@ watch(() => props.selectedType, (newValue, oldValue) => {
 
 .search-input {
   width: 100%;
-  height: 38px;
-  padding: 0 36px 0 38px;
-  border-radius: 20px;
+  height: 32px; /* Consistent height */
+  padding: 0 32px 0 32px; /* Adjusted for icon */
+  border-radius: 16px; /* Keep the pill shape but smaller */
   border: 1px solid var(--qui-hover-border);
   background: var(--qui-bg-primary);
   color: var(--qui-text-primary);
@@ -323,8 +323,8 @@ watch(() => props.selectedType, (newValue, oldValue) => {
   align-items: center;
   gap: 8px;
   margin-top: 8px;
-  padding: 8px 16px;
-  border-radius: 18px;
+  padding: 6px 12px; /* Smaller padding */
+  border-radius: 4px; /* Consistent border radius */
   background: var(--qui-overlay-primary);
   color: var(--qui-text-primary);
   border: 1px solid var(--qui-hover-border);
@@ -332,6 +332,7 @@ watch(() => props.selectedType, (newValue, oldValue) => {
   cursor: pointer;
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  height: 28px; /* Smaller height */
 }
 
 .retry-button:hover, .clear-button:hover {

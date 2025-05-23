@@ -1,12 +1,12 @@
 <template>
-  <div class="schema-editor">
-    <div class="schema-header">
+  <div class="schema-editor schema-editor-panel">
+    <div class="schema-header schema-editor-panel-header">
       <h2 class="schema-title">{{ workingSchema.entityType }}</h2>
       
       <div class="schema-actions">
         <button 
           v-if="hasChanges" 
-          class="schema-editor-btn schema-editor-btn-primary save-changes-btn"
+          class="schema-editor-btn schema-editor-btn-primary"
           @click="saveAllChanges"
           title="Save all changes"
         >
@@ -28,7 +28,7 @@
           Discard
         </button>
         
-        <button class="btn-add-field main-add-btn" @click="openAddField" title="Add new field">
+        <button class="schema-editor-btn schema-editor-btn-primary" @click="openAddField" title="Add new field">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
             <path fill="currentColor" d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
           </svg>
@@ -37,7 +37,7 @@
       </div>
     </div>
     
-    <div class="table-container">
+    <div class="schema-editor-table-container">
       <table class="schema-editor-table">
         <thead>
           <tr>
@@ -53,24 +53,24 @@
           <tr v-if="showAddField" class="new-field-row">
             <td class="col-drag"></td>
             <td>
-              <div class="field-input-wrapper">
+              <div class="schema-editor-form-group">
                 <input 
                   v-model="newFieldName" 
                   placeholder="Enter field name" 
-                  class="field-input" 
-                  :class="{'has-error': nameError}" 
+                  class="schema-editor-form-control" 
+                  :class="{'schema-editor-input-invalid': nameError}" 
                   @keyup.enter="addNewField"
                   @keyup.esc="cancelAddField"
                   ref="newFieldNameInput"
                   @input="validateFieldName"
                 />
-                <div v-if="nameError" class="input-error-message">{{ nameError }}</div>
+                <div v-if="nameError" class="schema-editor-form-error">{{ nameError }}</div>
               </div>
             </td>
             <td>
               <select 
                 v-model="newFieldType" 
-                class="field-select"
+                class="schema-editor-form-control"
                 @keyup.enter="addNewField"
               >
                 <option v-for="type in Object.values(ValueType)" :key="type" :value="type">
@@ -79,7 +79,7 @@
               </select>
             </td>
             <td class="properties-cell">
-              <div v-if="newFieldType === ValueType.Choice" class="property-group">
+              <div v-if="newFieldType === ValueType.Choice" class="schema-editor-form-group">
                 <label>Choices:</label>
                 <TagInput
                   v-model="newFieldChoicesList"
@@ -88,65 +88,63 @@
                   @keyup.esc="cancelAddField"
                 />
               </div>
-              <div class="property-group">
-                <div class="permissions-section">
-                  <label>Permissions</label>
-                  <div class="permissions-row">
-                    <span>Read:</span>
-                    <div class="permission-input-container">
-                      <div class="searchable-select">
-                        <input
-                          type="text"
-                          :value="permissionSearchText.read"
-                          @input="e => filterPermissions('read', (e.target as HTMLInputElement).value)"
-                          class="permission-search-input"
-                          placeholder="Type to search permissions..."
-                          @focus="showDropdown.read = true"
-                          @blur="handleSearchBlur('read')"
-                          @keydown="handleSearchKeydown($event, 'read')"
-                        />
-                        <div v-if="showDropdown.read" class="permission-dropdown">
-                          <div v-if="filteredPermissions.read.length === 0" class="no-results">No permissions found</div>
-                          <div
-                            v-for="(perm, idx) in filteredPermissions.read"
-                            :key="perm.entityId"
-                            class="permission-option"
-                            :class="{ 'active': activeSuggestionIndex.read === idx }"
-                            @mousedown.prevent="selectPermission('read', perm.entityId)"
-                            @mouseover="activeSuggestionIndex.read = idx"
-                          >
-                            {{ perm.field('Name').value.getString() }}
-                          </div>
+              <div class="schema-editor-form-group">
+                <label>Permissions</label>
+                <div class="permissions-row">
+                  <span>Read:</span>
+                  <div class="permission-input-container">
+                    <div class="schema-editor-select">
+                      <input
+                        type="text"
+                        :value="permissionSearchText.read"
+                        @input="e => filterPermissions('read', (e.target as HTMLInputElement).value)"
+                        class="schema-editor-form-control"
+                        placeholder="Type to search permissions..."
+                        @focus="showDropdown.read = true"
+                        @blur="handleSearchBlur('read')"
+                        @keydown="handleSearchKeydown($event, 'read')"
+                      />
+                      <div v-if="showDropdown.read" class="schema-editor-dropdown">
+                        <div v-if="filteredPermissions.read.length === 0" class="no-results">No permissions found</div>
+                        <div
+                          v-for="(perm, idx) in filteredPermissions.read"
+                          :key="perm.entityId"
+                          class="schema-editor-dropdown-item"
+                          :class="{ 'active': activeSuggestionIndex.read === idx }"
+                          @mousedown.prevent="selectPermission('read', perm.entityId)"
+                          @mouseover="activeSuggestionIndex.read = idx"
+                        >
+                          {{ perm.field('Name').value.getString() }}
                         </div>
                       </div>
                     </div>
                   </div>
-                  <div class="permissions-row">
-                    <span>Write:</span>
-                    <div class="permission-input-container">
-                      <div class="searchable-select">
-                        <input
-                          type="text"
-                          :value="permissionSearchText.write"
-                          @input="e => filterPermissions('write', (e.target as HTMLInputElement).value)"
-                          class="permission-search-input"
-                          placeholder="Type to search permissions..."
-                          @focus="showDropdown.write = true"
-                          @blur="handleSearchBlur('write')"
-                          @keydown="handleSearchKeydown($event, 'write')"
-                        />
-                        <div v-if="showDropdown.write" class="permission-dropdown">
-                          <div v-if="filteredPermissions.write.length === 0" class="no-results">No permissions found</div>
-                          <div
-                            v-for="(perm, idx) in filteredPermissions.write"
-                            :key="perm.entityId"
-                            class="permission-option"
-                            :class="{ 'active': activeSuggestionIndex.write === idx }"
-                            @mousedown.prevent="selectPermission('write', perm.entityId)"
-                            @mouseover="activeSuggestionIndex.write = idx"
-                          >
-                            {{ perm.field('Name').value.getString() }}
-                          </div>
+                </div>
+                <div class="permissions-row">
+                  <span>Write:</span>
+                  <div class="permission-input-container">
+                    <div class="schema-editor-select">
+                      <input
+                        type="text"
+                        :value="permissionSearchText.write"
+                        @input="e => filterPermissions('write', (e.target as HTMLInputElement).value)"
+                        class="schema-editor-form-control"
+                        placeholder="Type to search permissions..."
+                        @focus="showDropdown.write = true"
+                        @blur="handleSearchBlur('write')"
+                        @keydown="handleSearchKeydown($event, 'write')"
+                      />
+                      <div v-if="showDropdown.write" class="schema-editor-dropdown">
+                        <div v-if="filteredPermissions.write.length === 0" class="no-results">No permissions found</div>
+                        <div
+                          v-for="(perm, idx) in filteredPermissions.write"
+                          :key="perm.entityId"
+                          class="schema-editor-dropdown-item"
+                          :class="{ 'active': activeSuggestionIndex.write === idx }"
+                          @mousedown.prevent="selectPermission('write', perm.entityId)"
+                          @mouseover="activeSuggestionIndex.write = idx"
+                        >
+                          {{ perm.field('Name').value.getString() }}
                         </div>
                       </div>
                     </div>
@@ -156,9 +154,9 @@
             </td>
             <td>
               <div class="action-buttons">
-                <button class="schema-editor-btn-secondary" @click="cancelAddField">Cancel</button>
+                <button class="schema-editor-btn schema-editor-btn-secondary" @click="cancelAddField">Cancel</button>
                 <button 
-                  class="schema-editor-btn-primary" 
+                  class="schema-editor-btn schema-editor-btn-primary" 
                   @click="addNewField"
                   :disabled="!!nameError || !newFieldName"
                 >
@@ -168,7 +166,6 @@
             </td>
           </tr>
 
-          <!-- Use a simpler approach without vuedraggable - We'll implement simple drag functionality with direct DOM manipulation -->
           <tr 
             v-for="(field, index) in sortedFields" 
             :key="field.fieldType" 
@@ -192,7 +189,7 @@
             </td>
             <td class="col-name">
               {{ field.fieldType }}
-              <span v-if="isFieldModified(field.fieldType)" class="modified-badge" title="Field has unsaved changes">*</span>
+              <span v-if="isFieldModified(field.fieldType)" class="schema-editor-badge modified-badge" title="Field has unsaved changes">*</span>
             </td>
             <td class="col-type">
               <TypeBadge :type="field.fieldSchema.valueType" />
@@ -200,38 +197,38 @@
             <td class="col-info">
               <template v-if="editingField === field.fieldType">
                 <!-- Inline editing mode -->
-                <div v-if="field.fieldSchema.valueType === ValueType.Choice" class="property-group">
+                <div v-if="field.fieldSchema.valueType === ValueType.Choice" class="schema-editor-form-group">
                   <label>Choices:</label>
                   <div class="choices-list">
-                    <div v-for="(choice, index) in field.fieldSchema.choices" :key="index" class="choice-tag">
+                    <div v-for="(choice, index) in field.fieldSchema.choices" :key="index" class="schema-editor-tag choice-tag">
                       {{ choice }}
                       <button class="delete-choice-btn" @click="removeChoice(field.fieldType, field.fieldSchema, index)" title="Remove option">×</button>
                     </div>
-                    <button class="add-choice-btn" @click="addChoiceToField(field.fieldType, field.fieldSchema)" title="Add option">+</button>
+                    <button class="schema-editor-btn schema-editor-btn-icon" @click="addChoiceToField(field.fieldType, field.fieldSchema)" title="Add option">+</button>
                   </div>
                 </div>
-                <div class="property-group">
+                <div class="schema-editor-form-group">
                   <label>Permissions:</label>
                   <div class="permissions-row">
                     <span>Read:</span>
                     <div class="permission-input-container">
-                      <div class="searchable-select">
+                      <div class="schema-editor-select">
                         <input
                           type="text"
                           :value="permissionSearchText.read"
                           @input="e => filterPermissions('read', (e.target as HTMLInputElement).value)"
-                          class="permission-search-input"
+                          class="schema-editor-form-control"
                           placeholder="Type to search permissions..."
                           @focus="showDropdown.read = true"
                           @blur="handleSearchBlur('read')"
                           @keydown="handleSearchKeydown($event, 'read')"
                         />
-                        <div v-if="showDropdown.read" class="permission-dropdown">
+                        <div v-if="showDropdown.read" class="schema-editor-dropdown">
                           <div v-if="filteredPermissions.read.length === 0" class="no-results">No permissions found</div>
                           <div
                             v-for="(perm, idx) in filteredPermissions.read"
                             :key="perm.entityId"
-                            class="permission-option"
+                            class="schema-editor-dropdown-item"
                             :class="{ 'active': activeSuggestionIndex.read === idx }"
                             @mousedown.prevent="selectPermission('read', perm.entityId)"
                             @mouseover="activeSuggestionIndex.read = idx"
@@ -245,23 +242,23 @@
                   <div class="permissions-row">
                     <span>Write:</span>
                     <div class="permission-input-container">
-                      <div class="searchable-select">
+                      <div class="schema-editor-select">
                         <input
                           type="text"
                           :value="permissionSearchText.write"
                           @input="e => filterPermissions('write', (e.target as HTMLInputElement).value)"
-                          class="permission-search-input"
+                          class="schema-editor-form-control"
                           placeholder="Type to search permissions..."
                           @focus="showDropdown.write = true"
                           @blur="handleSearchBlur('write')"
                           @keydown="handleSearchKeydown($event, 'write')"
                         />
-                        <div v-if="showDropdown.write" class="permission-dropdown">
+                        <div v-if="showDropdown.write" class="schema-editor-dropdown">
                           <div v-if="filteredPermissions.write.length === 0" class="no-results">No permissions found</div>
                           <div
                             v-for="(perm, idx) in filteredPermissions.write"
                             :key="perm.entityId"
-                            class="permission-option"
+                            class="schema-editor-dropdown-item"
                             :class="{ 'active': activeSuggestionIndex.write === idx }"
                             @mousedown.prevent="selectPermission('write', perm.entityId)"
                             @mouseover="activeSuggestionIndex.write = idx"
@@ -277,24 +274,24 @@
               <template v-else>
                 <!-- Display mode -->
                 <div class="field-properties">
-                  <span v-if="field.fieldSchema.valueType === ValueType.Choice" class="field-property">
+                  <span v-if="field.fieldSchema.valueType === ValueType.Choice" class="schema-editor-badge">
                     <span class="property-label">Options:</span>
                     <span class="property-value">{{ field.fieldSchema.choices.length }}</span>
                   </span>
                   
-                  <span v-if="field.fieldSchema.readPermissions.length > 0" class="field-property">
+                  <span v-if="field.fieldSchema.readPermissions.length > 0" class="schema-editor-badge">
                     <span class="property-label">Read Perms:</span>
                     <span class="property-value permission-chip">{{ field.fieldSchema.readPermissions.length }}</span>
                   </span>
                   
-                  <span v-if="field.fieldSchema.writePermissions.length > 0" class="field-property">
+                  <span v-if="field.fieldSchema.writePermissions.length > 0" class="schema-editor-badge">
                     <span class="property-label">Write Perms:</span>
                     <span class="property-value permission-chip">{{ field.fieldSchema.writePermissions.length }}</span>
                   </span>
                   
-                  <span v-if="field.fieldSchema.valueType === ValueType.Choice && field.fieldSchema.choices.length > 0" class="field-property choices-preview">
+                  <span v-if="field.fieldSchema.valueType === ValueType.Choice && field.fieldSchema.choices.length > 0" class="choices-preview">
                     <span class="options-list">
-                      <span v-for="(choice, index) in field.fieldSchema.choices.slice(0, 3)" :key="index" class="option-chip">
+                      <span v-for="(choice, index) in field.fieldSchema.choices.slice(0, 3)" :key="index" class="schema-editor-tag option-chip">
                         {{ choice }}
                       </span>
                       <span v-if="field.fieldSchema.choices.length > 3" class="option-more">
@@ -308,17 +305,17 @@
             <td class="col-actions">
               <div class="action-buttons">
                 <template v-if="editingField === field.fieldType">
-                  <button class="schema-editor-btn-secondary" @click="cancelEditField(field.fieldType)">Cancel</button>
-                  <button class="schema-editor-btn-primary" @click="confirmEdit(field.fieldType, field.fieldSchema)">Apply</button>
+                  <button class="schema-editor-btn schema-editor-btn-secondary" @click="cancelEditField(field.fieldType)">Cancel</button>
+                  <button class="schema-editor-btn schema-editor-btn-primary" @click="confirmEdit(field.fieldType, field.fieldSchema)">Apply</button>
                 </template>
                 <template v-else>
-                  <button class="schema-editor-btn-icon" @click="startEditField(field.fieldType)" title="Edit field">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24">
+                  <button class="schema-editor-btn schema-editor-btn-icon" @click="startEditField(field.fieldType)" title="Edit field">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
                       <path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
                     </svg>
                   </button>
-                  <button class="schema-editor-btn-icon schema-editor-btn-danger" @click="deleteField(field.fieldType)" title="Delete field">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24">
+                  <button class="schema-editor-btn schema-editor-btn-icon schema-editor-btn-danger" @click="deleteField(field.fieldType)" title="Delete field">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
                       <path fill="currentColor" d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
                     </svg>
                   </button>
@@ -343,21 +340,21 @@
 
     <!-- Dialog for adding choices -->
     <div v-if="choiceDialog.show" class="schema-editor-dialog-backdrop">
-      <div class="schema-editor-panel schema-editor-anim-scale">
-        <div class="dialog-header">
-          <h3 class="dialog-title">Add Choice Option</h3>
-          <button class="close-btn" @click="choiceDialog.show = false">
+      <div class="schema-editor-dialog">
+        <div class="schema-editor-dialog-header">
+          <h3 class="schema-editor-dialog-title">Add Choice Option</h3>
+          <button class="schema-editor-dialog-close" @click="choiceDialog.show = false">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
               <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
             </svg>
           </button>
         </div>
-        <div class="dialog-body">
-          <div class="form-group">
+        <div class="schema-editor-dialog-body">
+          <div class="schema-editor-form-group">
             <label>Choice Value</label>
             <input 
               v-model="choiceDialog.value" 
-              class="field-input" 
+              class="schema-editor-form-control" 
               placeholder="Enter a choice option" 
               ref="choiceDialogInput"
               @keyup.enter="confirmAddChoice"
@@ -365,10 +362,10 @@
             />
           </div>
         </div>
-        <div class="dialog-footer">
-          <button class="schema-editor-btn-secondary" @click="choiceDialog.show = false">Cancel</button>
+        <div class="schema-editor-dialog-footer">
+          <button class="schema-editor-btn schema-editor-btn-secondary" @click="choiceDialog.show = false">Cancel</button>
           <button 
-            class="schema-editor-btn-primary" 
+            class="schema-editor-btn schema-editor-btn-primary" 
             @click="confirmAddChoice"
             :disabled="!choiceDialog.value.trim()"
           >Add</button>
@@ -405,14 +402,22 @@ const modifiedFields = ref<Set<string>>(new Set());
 // Track if the schema has any changes
 const hasChanges = computed(() => modifiedFields.value.size > 0);
 
+// Editing state
 const editingField = ref<string | null>(null);
 const showAddField = ref(false);
+
+// New field state
 const newFieldName = ref('');
 const newFieldType = ref<ValueType>(ValueType.String);
 const newFieldRank = ref(0);
-const newFieldChoices = ref('');
-const newFieldReadPerms = ref('');
-const newFieldWritePerms = ref('');
+const newFieldChoicesList = ref<string[]>([]);
+const newFieldReadPermsList = ref<string[]>([]);
+const newFieldWritePermsList = ref<string[]>([]);
+
+// Validation and references
+const nameError = ref<string | null>(null);
+const newFieldNameInput = ref<HTMLInputElement | null>(null);
+const choiceDialogInput = ref<HTMLInputElement | null>(null);
 
 // Add state for confirmation dialog
 const confirmDialog = ref({
@@ -422,9 +427,6 @@ const confirmDialog = ref({
   fieldToDelete: '',
   type: 'danger' as 'info' | 'warning' | 'danger'
 });
-
-// Permission inputs for each field
-const permissionInputs = ref<Record<string, { read: string, write: string }>>({});
 
 // Dialog for adding choice options
 const choiceDialog = ref({
@@ -436,26 +438,8 @@ const choiceDialog = ref({
 
 // Drag-n-drop state
 const draggedIndex = ref<number | null>(null);
-const dragTargetIndex = ref<number | null>(null);
 
-// Form validation state
-const nameError = ref<string | null>(null);
-const newFieldNameInput = ref<HTMLInputElement | null>(null);
-const choiceDialogInput = ref<HTMLInputElement | null>(null);
-
-// Convert comma-separated strings to arrays for tag inputs
-const newFieldChoicesList = ref<string[]>([]);
-const newFieldReadPermsList = ref<string[]>([]);
-const newFieldWritePermsList = ref<string[]>([]);
-
-// Permission inputs converted to arrays for tag inputs
-const permissionInputsList = ref<Record<string, { read: string[], write: string[] }>>({});
-
-// Permission suggestions for autocomplete
-const readPermSuggestions = ref<Entity[]>([]);
-const writePermSuggestions = ref<Entity[]>([]);
-
-// Properly define type for these objects with index signatures
+// Interface definitions for type safety
 interface SuggestionState {
   read: Entity[];
   write: Entity[];
@@ -480,49 +464,16 @@ interface StringState {
   [key: string]: string;
 }
 
-// Create a type for field-specific state management
-interface FieldStateManager {
-  permissionSearchText: Record<string, StringState>;
-  filteredPermissions: Record<string, SuggestionState>;
-  showDropdown: Record<string, BooleanState>;
-  activeSuggestionIndex: Record<string, IndexState>;
-}
+// Permission-related state
+const permissionInputsList = ref<Record<string, { read: string[], write: string[] }>>({});
+const activeSuggestionIndex = ref<IndexState>({ read: -1, write: -1 });
+const permissionSearchText = ref<StringState>({ read: '', write: '' });
+const showDropdown = ref<BooleanState>({ read: false, write: false });
+const filteredPermissions = ref<SuggestionState>({ read: [], write: [] });
+const availablePermissions = ref<Entity[]>([]);
 
-// Create the field state manager
-const fieldStateManager: FieldStateManager = {
-  permissionSearchText: {},
-  filteredPermissions: {},
-  showDropdown: {},
-  activeSuggestionIndex: {}
-};
-
-// Fix the ref types with proper interfaces
-const editPermSuggestions = ref<SuggestionState>({
-  read: [],
-  write: []
-});
-
-// Fix activeSuggestionIndex type
-const activeSuggestionIndex = ref<IndexState>({
-  read: -1,
-  write: -1
-});
-
-// Add state for searchable dropdowns with proper types
-const permissionSearchText = ref<StringState>({
-  read: '',
-  write: ''
-});
-
-const showDropdown = ref<BooleanState>({
-  read: false,
-  write: false
-});
-
-const filteredPermissions = ref<SuggestionState>({
-  read: [],
-  write: []
-});
+// Get datastore for permission search
+const dataStore = useDataStore();
 
 // Sort fields by rank
 const sortedFields = computed(() => {
@@ -537,19 +488,6 @@ const sortedFields = computed(() => {
   });
 });
 
-// Get datastore for permission search
-const dataStore = useDataStore();
-
-// Add state for permission search input
-const permissionSearchReadInput = ref('');
-const permissionSearchWriteInput = ref('');
-
-// Add state for edit field permission inputs
-const editFieldPermissionInputs = ref<Record<string, { read: string, write: string }>>({});
-
-// Available permissions for dropdowns
-const availablePermissions = ref<Entity[]>([]);
-
 // Initialize permission inputs when fields change
 watch(() => workingSchema.value.fields, (newFields) => {
   Object.entries(newFields).forEach(([fieldType, fieldSchema]) => {
@@ -559,45 +497,29 @@ watch(() => workingSchema.value.fields, (newFields) => {
         write: fieldSchema.writePermissions.length > 0 ? [fieldSchema.writePermissions[0]] : []
       };
     }
-    
-    if (!editFieldPermissionInputs.value[fieldType]) {
-      editFieldPermissionInputs.value[fieldType] = {
-        read: '',
-        write: ''
-      };
-    }
   });
 }, { immediate: true, deep: true });
 
 // Initialize on mount
 onMounted(async () => {
-  // Initialize permission inputs for all fields
-  Object.entries(workingSchema.value.fields).forEach(([fieldType, fieldSchema]) => {
-    permissionInputs.value[fieldType] = {
-      read: fieldSchema.readPermissions.join(','),
-      write: fieldSchema.writePermissions.join(',')
-    };
-    
-    editFieldPermissionInputs.value[fieldType] = {
-      read: '',
-      write: ''
-    };
-  });
-
   // Load all available permissions
   try {
-    // Using 3 arguments instead of 4 (fixed)
     const result = await dataStore.find('Permission', ['Name'], () => true);
     availablePermissions.value = result.sort((a, b) => {
       const nameA = a.field('Name').value.getString();
       const nameB = b.field('Name').value.getString();
       return nameA.localeCompare(nameB);
     });
-    console.log(`Loaded ${availablePermissions.value.length} permissions`);
   } catch (err) {
     console.error('Failed to load permissions:', err);
   }
 });
+
+// Set initial filtered permissions to all available permissions
+watch(() => availablePermissions.value, (perms) => {
+  filteredPermissions.value.read = [...perms];
+  filteredPermissions.value.write = [...perms];
+}, { immediate: true });
 
 // Check if a field has been modified
 function isFieldModified(fieldType: string): boolean {
@@ -635,9 +557,11 @@ function openAddField() {
   newFieldChoicesList.value = [];
   newFieldReadPermsList.value = [];
   newFieldWritePermsList.value = [];
-  permissionSearchReadInput.value = '';
-  permissionSearchWriteInput.value = '';
   nameError.value = null;
+  
+  // Clear search text and dropdown state
+  permissionSearchText.value = { read: '', write: '' };
+  showDropdown.value = { read: false, write: false };
   
   // Focus on the field name input after DOM update
   nextTick(() => {
@@ -708,12 +632,6 @@ function cancelEditField(fieldType: string) {
   if (modifiedFields.value.has(fieldType) && originalSchema.value.fields[fieldType]) {
     workingSchema.value.fields[fieldType] = originalSchema.value.fields[fieldType].clone();
     modifiedFields.value.delete(fieldType);
-    
-    // Reset permission inputs
-    permissionInputs.value[fieldType] = {
-      read: originalSchema.value.fields[fieldType].readPermissions.join(','),
-      write: originalSchema.value.fields[fieldType].writePermissions.join(',')
-    };
   }
   
   editingField.value = null;
@@ -760,7 +678,7 @@ function deleteField(fieldType: string) {
 function confirmDeleteField() {
   const fieldType = confirmDialog.value.fieldToDelete;
   delete workingSchema.value.fields[fieldType];
-  delete permissionInputs.value[fieldType];
+  delete permissionInputsList.value[fieldType];
   
   // Mark as modified even if deleted
   modifiedFields.value.add(fieldType);
@@ -822,35 +740,11 @@ function discardChanges() {
   // Reset working schema to original
   workingSchema.value = originalSchema.value.clone();
   
-  // Reset permission inputs
-  Object.entries(originalSchema.value.fields).forEach(([fieldType, fieldSchema]) => {
-    permissionInputs.value[fieldType] = {
-      read: fieldSchema.readPermissions.join(','),
-      write: fieldSchema.writePermissions.join(',')
-    };
-  });
-  
   // Clear modified fields
   modifiedFields.value.clear();
   
   // Exit edit mode if active
   editingField.value = null;
-}
-
-// Improve the value type label function for better display
-function getValueTypeLabel(type: ValueType): string {
-  switch (type) {
-    case ValueType.Int: return 'Integer';
-    case ValueType.Float: return 'Decimal Number';
-    case ValueType.String: return 'Text';
-    case ValueType.Bool: return 'Boolean (Yes/No)';
-    case ValueType.BinaryFile: return 'File';
-    case ValueType.EntityReference: return 'Reference';
-    case ValueType.Timestamp: return 'Date & Time';
-    case ValueType.Choice: return 'Dropdown';
-    case ValueType.EntityList: return 'List of References';
-    default: return type;
-  }
 }
 
 // Native HTML5 Drag and Drop handlers
@@ -900,50 +794,11 @@ function handleDrop(event: DragEvent, index: number) {
   draggedIndex.value = null;
 }
 
-function handleDragEnd(event: DragEvent) {
+function handleDragEnd() {
   const rows = document.querySelectorAll('.field-row');
   rows.forEach(row => {
     row.classList.remove('drag-over');
   });
-}
-
-// Handle permission changes for new fields
-function handleReadPermissionChange(event: Event): void {
-  const target = event.target as HTMLSelectElement;
-  const value = target?.value || '';
-  
-  if (value) {
-    newFieldReadPermsList.value = [value];
-  } else {
-    newFieldReadPermsList.value = [];
-  }
-}
-
-function handleWritePermissionChange(event: Event): void {
-  const target = event.target as HTMLSelectElement;
-  const value = target?.value || '';
-  
-  if (value) {
-    newFieldWritePermsList.value = [value];
-  } else {
-    newFieldWritePermsList.value = [];
-  }
-}
-
-// Update the edit permissions handler
-function handleEditPermissionChange(fieldType: string, type: 'read' | 'write', event: Event): void {
-  const target = event.target as HTMLSelectElement;
-  const value = target?.value || '';
-  
-  if (value) {
-    permissionInputsList.value[fieldType][type] = [value];
-  } else {
-    permissionInputsList.value[fieldType][type] = [];
-  }
-  
-  // Mark the field as modified when permissions change
-  modifiedFields.value.add(fieldType);
-  console.log(`Updated ${type} permissions for ${fieldType}`);
 }
 
 // Methods for searchable dropdowns
@@ -1003,408 +858,48 @@ function handleSearchKeydown(event: KeyboardEvent, type: 'read' | 'write') {
     showDropdown.value[type] = false;
   }
 }
-
-// Initialize complex nested reactive objects
-onMounted(() => {
-  // Initialize search state for each field
-  Object.keys(workingSchema.value.fields).forEach(fieldType => {
-    // Create objects for field-specific state management
-    fieldStateManager.permissionSearchText[fieldType] = { read: '', write: '' };
-    
-    fieldStateManager.filteredPermissions[fieldType] = { 
-      read: [...availablePermissions.value], 
-      write: [...availablePermissions.value] 
-    };
-    
-    fieldStateManager.showDropdown[fieldType] = { read: false, write: false };
-    
-    fieldStateManager.activeSuggestionIndex[fieldType] = { read: -1, write: -1 };
-  });
-});
-
-// Set initial filtered permissions to all available permissions
-watch(() => availablePermissions.value, (perms) => {
-  filteredPermissions.value.read = [...perms];
-  filteredPermissions.value.write = [...perms];
-}, { immediate: true });
 </script>
 
 <style scoped>
+/* Component-specific styles - global shared styles are in global.css */
 .schema-editor {
-  font-family: var(--qui-font-family);
-  background-color: var(--qui-bg-primary);
-  padding: 20px;
-  border-radius: 8px;
-  box-shadow: var(--qui-shadow-default);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .schema-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
+  padding: 20px;
+  margin-bottom: 0;
 }
 
 .schema-title {
   font-size: 24px;
-  font-weight: var(--qui-font-weight-medium);
   margin: 0;
-  color: var(--qui-text-primary);
 }
 
 .schema-actions {
   display: flex;
-  gap: 10px;
-}
-
-/* Button styles unified for consistency */
-.schema-editor-btn,
-.btn-add-field,
-.schema-editor-btn-primary,
-.schema-editor-btn-secondary,
-.schema-editor-btn-danger,
-.schema-editor-btn-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   gap: 8px;
-  border-radius: 6px;
-  font-size: var(--qui-font-size-base);
-  font-weight: var(--qui-font-weight-medium);
-  font-family: var(--qui-font-family);
-  cursor: pointer;
-  transition: all var(--qui-transition-speed) var(--qui-animation-bounce);
-  border: none;
-  position: relative;
-  overflow: hidden;
-  text-align: center;
-  white-space: nowrap;
-  outline: none;
-  box-sizing: border-box;
-}
-
-/* Primary button - for confirmations, saves, etc. */
-.schema-editor-btn-primary {
-  background-color: var(--qui-accent-color);
-  color: var(--qui-bg-primary);
-  padding: 8px 16px;
-  box-shadow: var(--qui-shadow-default);
-  border: 1px solid transparent;
-}
-
-.schema-editor-btn-primary:hover {
-  background-color: var(--qui-accent-secondary);
-  transform: translateY(-2px);
-  box-shadow: var(--qui-shadow-accent);
-}
-
-.schema-editor-btn-primary:active {
-  transform: translateY(0);
-  box-shadow: var(--qui-shadow-default);
-}
-
-.schema-editor-btn-primary:disabled {
-  background-color: var(--qui-overlay-secondary);
-  color: var(--qui-text-secondary);
-  cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
-  opacity: 0.7;
-}
-
-/* Secondary button - for cancellations, less important actions */
-.schema-editor-btn-secondary {
-  background-color: var(--qui-overlay-primary);
-  color: var(--qui-text-primary);
-  padding: 8px 16px;
-  border: 1px solid var(--qui-hover-border);
-  box-shadow: var(--qui-inset-shadow);
-}
-
-.schema-editor-btn-secondary:hover {
-  background-color: var(--qui-overlay-secondary);
-  transform: translateY(-2px);
-  box-shadow: var(--qui-shadow-default);
-}
-
-.schema-editor-btn-secondary:active {
-  transform: translateY(0);
-  box-shadow: var(--qui-inset-shadow);
-}
-
-/* Danger button - for deletions, destructive actions */
-.schema-editor-btn-danger {
-  background-color: var(--qui-danger-bg);
-  color: var(--qui-danger-color);
-  padding: 8px 16px;
-  border: 1px solid var(--qui-danger-border);
-}
-
-.schema-editor-btn-danger:hover {
-  background-color: var(--qui-danger-color);
-  color: var(--qui-bg-primary);
-  transform: translateY(-2px);
-  box-shadow: 0 0 0 2px var(--qui-danger-glow);
-}
-
-.schema-editor-btn-danger:active {
-  transform: translateY(0);
-  box-shadow: var(--qui-inset-shadow);
-}
-
-/* Icon buttons - compact buttons with just icons */
-.schema-editor-btn-icon {
-  width: 36px;
-  height: 36px;
-  padding: 0;
-  border-radius: 6px;
-  background-color: transparent;
-  color: var(--qui-text-secondary);
-  border: 1px solid transparent;
-}
-
-.schema-editor-btn-icon:hover {
-  background-color: var(--qui-overlay-primary);
-  color: var(--qui-text-primary);
-  transform: translateY(-2px);
-  box-shadow: var(--qui-shadow-default);
-}
-
-.schema-editor-btn-icon:active {
-  transform: translateY(0);
-  background-color: var(--qui-overlay-secondary);
-  box-shadow: none;
-}
-
-.schema-editor-btn-icon.schema-editor-btn-danger {
-  color: var(--qui-danger-color);
-}
-
-.schema-editor-btn-icon.schema-editor-btn-danger:hover {
-  background-color: var(--qui-danger-bg);
-  border-color: var(--qui-danger-border);
-}
-
-/* Add field button - special styling for the add button */
-.btn-add-field {
-  background-color: var(--qui-bg-primary);
-  color: var(--qui-accent-color);
-  padding: 8px 14px;
-  border: 1.5px solid var(--qui-accent-color);
-  box-shadow: 0 2px 0 var(--qui-overlay-accent);
-}
-
-.btn-add-field:hover {
-  background-color: var(--qui-accent-color);
-  color: var(--qui-bg-primary);
-  transform: translateY(-2px);
-  box-shadow: var(--qui-shadow-accent);
-}
-
-.btn-add-field:active {
-  transform: translateY(0);
-  box-shadow: var(--qui-inset-shadow);
-}
-
-/* Action buttons container */
-.action-buttons {
-  display: flex;
-  gap: 8px;
-  justify-content: flex-end;
-}
-
-/* Table and column styles */
-.table-container {
-  max-width: 100%;
-  overflow-x: auto;
-  background-color: var(--qui-bg-primary);
-  border-radius: 4px;
-  box-shadow: var(--qui-shadow-default);
-}
-
-.schema-editor-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.schema-editor-table th,
-.schema-editor-table td {
-  padding: 12px 15px;
-  text-align: left;
-  border-bottom: 1px solid var(--qui-hover-border);
-  color: var(--qui-text-primary);
-}
-
-.schema-editor-table th {
-  background-color: var(--qui-bg-secondary);
-  font-weight: var(--qui-font-weight-medium);
-  color: var(--qui-text-secondary);
-}
-
-.schema-editor-table tr:hover {
-  background-color: var(--qui-overlay-primary);
-}
-
-.field-row {
-  transition: background-color var(--qui-transition-speed);
-}
-
-.field-row.drag-over {
-  background-color: var(--qui-overlay-accent);
-}
-
-.field-row.modified {
-  background-color: var(--qui-overlay-light);
 }
 
 .col-drag {
   width: 40px;
-  cursor: move;
 }
 
 .col-name {
-  width: 200px;
+  width: 180px;
 }
 
 .col-type {
-  width: 120px;
-}
-
-.col-info {
-  width: 250px;
-}
-
-.col-actions {
   width: 100px;
 }
 
-/* Dialog styling updates */
-.dialog-footer {
-  padding: 15px;
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  border-top: 1px solid var(--qui-hover-border);
-  background-color: var(--qui-bg-secondary);
-}
-
-/* Close button styling for dialogs */
-.close-btn {
-  background: none;
-  border: none;
-  color: var(--qui-text-secondary);
-  cursor: pointer;
-  padding: 0;
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all var(--qui-transition-speed) ease;
-}
-
-.close-btn:hover {
-  background-color: var(--qui-overlay-primary);
-  color: var(--qui-text-primary);
-  transform: rotate(90deg);
-}
-
-.close-btn:active {
-  transform: rotate(90deg) scale(0.95);
-}
-
-/* Uniform height for form inputs and buttons */
-.field-input, 
-.field-select, 
-.schema-editor-btn-primary,
-.schema-editor-btn-secondary,
-.btn-add-field {
-  height: 38px;
-}
-
-.schema-editor-dialog-backdrop {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(var(--qui-backdrop-blur));
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-}
-
-.schema-editor-panel {
-  background-color: var(--qui-bg-primary);
-  border-radius: 8px;
-  overflow: hidden;
-  width: 90%;
-  max-width: 500px;
-  box-shadow: var(--qui-shadow-window);
-  border: 1px solid var(--qui-hover-border);
-}
-
-.dialog-header {
-  background-color: var(--qui-gradient-primary);
-  color: var(--qui-accent-color);
-  padding: 15px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-bottom: 1px solid var(--qui-hover-border);
-}
-
-.dialog-title {
-  font-size: 18px;
-  font-weight: var(--qui-font-weight-medium);
-  margin: 0;
-}
-
-.field-input {
-  width: 100%;
-  padding: 10px;
-  font-size: var(--qui-font-size-base);
-  border: 1px solid var(--qui-hover-border);
-  border-radius: 4px;
-  transition: all var(--qui-transition-speed);
-  background-color: var(--qui-bg-primary);
-  color: var(--qui-text-primary);
-}
-
-.field-input:focus {
-  border-color: var(--qui-accent-color);
-  outline: none;
-  box-shadow: 0 0 0 2px var(--qui-overlay-accent);
-}
-
-.field-input.has-error {
-  border-color: var(--qui-danger-color);
-}
-
-.input-error-message {
-  color: var(--qui-danger-color);
-  font-size: var(--qui-font-size-small);
-  margin-top: 5px;
-}
-
-.field-select {
-  width: 100%;
-  padding: 10px;
-  font-size: var(--qui-font-size-base);
-  border: 1px solid var(--qui-hover-border);
-  border-radius: 4px;
-  transition: all var(--qui-transition-speed);
-  background-color: var(--qui-bg-primary);
-  color: var(--qui-text-primary);
-}
-
-.field-select:focus {
-  border-color: var(--qui-accent-color);
-  outline: none;
-  box-shadow: 0 0 0 2px var(--qui-overlay-accent);
+.col-actions {
+  width: 90px;
 }
 
 .drag-handle {
@@ -1417,80 +912,54 @@ watch(() => availablePermissions.value, (perms) => {
   color: var(--qui-text-secondary);
 }
 
-.permission-input-container {
-  position: relative;
+.field-row.drag-over {
+  background-color: var(--qui-overlay-accent);
 }
 
-.searchable-select {
-  position: relative;
+.field-row.modified {
+  background-color: var(--qui-overlay-light);
 }
 
-.permission-search-input {
-  width: 100%;
-  padding: 10px;
-  font-size: var(--qui-font-size-base);
-  border: 1px solid var(--qui-hover-border);
-  border-radius: 4px;
-  transition: border-color var(--qui-transition-speed);
-  background-color: var(--qui-bg-primary);
-  color: var(--qui-text-primary);
-}
-
-.permission-search-input:focus {
-  border-color: var(--qui-accent-color);
-  outline: none;
-  box-shadow: 0 0 0 2px var(--qui-overlay-accent);
-}
-
-.permission-dropdown {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
+.field-row.editing {
   background-color: var(--qui-bg-secondary);
-  border: 1px solid var(--qui-hover-border);
-  border-radius: 4px;
-  z-index: 100;
-  max-height: 200px;
-  overflow-y: auto;
-  box-shadow: var(--qui-shadow-default);
 }
 
-.permission-option {
-  padding: 10px;
-  font-size: var(--qui-font-size-base);
-  cursor: pointer;
-  color: var(--qui-text-primary);
+.permissions-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
 }
 
-.permission-option:hover, .permission-option.active {
-  background-color: var(--qui-overlay-primary);
-  color: var(--qui-accent-color);
+.permissions-row span {
+  width: 50px;
+  color: var(--qui-text-secondary);
+  font-size: var(--qui-font-size-small);
+}
+
+.permission-input-container {
+  flex: 1;
+  position: relative;
 }
 
 .no-results {
   padding: 10px;
-  color: var(--qui-text-secondary);
-  font-size: var(--qui-font-size-small);
   text-align: center;
+  color: var(--qui-text-secondary);
+  font-style: italic;
 }
 
 .choices-list {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  margin-top: 8px;
 }
 
 .choice-tag {
-  background-color: var(--qui-overlay-accent);
-  color: var(--qui-accent-color);
-  padding: 6px 12px;
-  border-radius: 16px;
-  font-size: var(--qui-font-size-small);
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 4px;
-  border: 1px solid var(--qui-accent-color);
 }
 
 .delete-choice-btn {
@@ -1498,42 +967,11 @@ watch(() => availablePermissions.value, (perms) => {
   border: none;
   color: inherit;
   cursor: pointer;
-  font-size: 16px;
-  line-height: 1;
-}
-
-.delete-choice-btn:hover {
-  color: var(--qui-danger-color);
-}
-
-.add-choice-btn {
-  background-color: var(--qui-overlay-accent);
-  color: var(--qui-accent-color);
-  padding: 6px 12px;
-  border-radius: 4px;
-  font-size: var(--qui-font-size-small);
-  cursor: pointer;
-  transition: all var(--qui-transition-speed);
-  border: 1px solid var(--qui-accent-color);
-}
-
-.add-choice-btn:hover {
-  background-color: var(--qui-accent-color);
-  color: var(--qui-bg-primary);
-  box-shadow: var(--qui-shadow-accent);
-}
-
-.modified-badge {
-  background-color: var(--qui-overlay-secondary);
-  color: var(--qui-accent-secondary);
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: var(--qui-font-size-small);
-  margin-left: 8px;
-}
-
-.schema-editor-anim-scale {
-  animation: scaleIn var(--qui-transition-speed) var(--qui-animation-bounce);
+  font-size: 14px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .field-properties {
@@ -1542,19 +980,10 @@ watch(() => availablePermissions.value, (perms) => {
   gap: 8px;
 }
 
-.field-property {
-  background-color: var(--qui-overlay-primary);
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: var(--qui-font-size-small);
-  color: var(--qui-text-primary);
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-
 .property-label {
   color: var(--qui-text-secondary);
+  font-size: var(--qui-font-size-small);
+  margin-right: 4px;
 }
 
 .property-value {
@@ -1566,20 +995,14 @@ watch(() => availablePermissions.value, (perms) => {
   color: var(--qui-accent-color);
   padding: 1px 5px;
   border-radius: 3px;
+  font-size: 10px;
 }
 
 .options-list {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-}
-
-.option-chip {
-  background-color: var(--qui-overlay-accent);
-  color: var(--qui-accent-color);
-  padding: 2px 6px;
-  border-radius: 3px;
-  font-size: 10px;
+  align-items: center;
 }
 
 .option-more {
@@ -1587,14 +1010,14 @@ watch(() => availablePermissions.value, (perms) => {
   font-size: 10px;
 }
 
-@keyframes scaleIn {
-  from {
-    transform: scale(0.9);
-    opacity: 0;
-  }
-  to {
-    transform: scale(1);
-    opacity: 1;
-  }
+.action-buttons {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+}
+
+.modified-badge {
+  background-color: var(--qui-overlay-secondary);
+  color: var(--qui-accent-secondary);
 }
 </style>

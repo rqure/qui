@@ -362,9 +362,9 @@ async function handleSchemaUpdate(schema: EntitySchema) {
   display: flex;
   align-items: center;
   gap: 6px;
-  height: 34px;
-  padding: 0 12px;
-  border-radius: 6px;
+  height: 30px; /* Smaller height */
+  padding: 0 10px; /* Less padding */
+  border-radius: 4px; /* More consistent border-radius */
   background: var(--qui-accent-color);
   color: var(--qui-bg-primary);
   border: none;
@@ -488,15 +488,16 @@ async function handleSchemaUpdate(schema: EntitySchema) {
 .form-control {
   display: block;
   width: 100%;
-  padding: 14px;
+  padding: 8px 12px; /* Smaller padding */
   font-size: var(--qui-font-size-base);
   border: 1px solid var(--qui-hover-border);
-  border-radius: 8px;
+  border-radius: 4px; /* Consistent border-radius */
   background: var(--qui-bg-primary);
   color: var(--qui-text-primary);
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
   box-sizing: border-box;
+  height: 32px; /* Consistent height */
 }
 
 .form-control:focus {
@@ -539,10 +540,10 @@ async function handleSchemaUpdate(schema: EntitySchema) {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  padding: 0 24px;
-  height: 44px;
+  padding: 0 16px; /* Smaller padding */
+  height: 32px; /* Smaller consistent height */
   border: none;
-  border-radius: 8px;
+  border-radius: 4px; /* Consistent border radius */
   background: var(--qui-accent-color);
   color: var(--qui-bg-primary);
   font-size: var(--qui-font-size-base);
@@ -568,10 +569,10 @@ async function handleSchemaUpdate(schema: EntitySchema) {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  padding: 0 24px;
-  height: 44px;
+  padding: 0 16px; /* Smaller padding */
+  height: 32px; /* Smaller consistent height */
   border: 1px solid var(--qui-hover-border);
-  border-radius: 8px;
+  border-radius: 4px; /* Consistent border radius */
   background: var(--qui-overlay-primary);
   color: var(--qui-text-primary);
   font-size: var(--qui-font-size-base);
@@ -588,6 +589,22 @@ async function handleSchemaUpdate(schema: EntitySchema) {
 .btn-secondary:active {
   transform: translateY(0);
   box-shadow: none;
+}
+
+.retry-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 6px 14px;
+  border-radius: 4px; /* Consistent border radius */
+  background: var(--qui-overlay-primary);
+  color: var(--qui-text-primary);
+  border: 1px solid var(--qui-hover-border);
+  font-size: var(--qui-font-size-small);
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 /* Empty state */

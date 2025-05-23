@@ -1,16 +1,16 @@
 <template>
-  <div class="tag-input-container" ref="containerEl" @click="focusInput">
+  <div class="schema-editor-tag-input-container" ref="containerEl" @click="focusInput">
     <div class="tag-input-inner">
       <span 
         v-for="(tag, index) in tags" 
         :key="`tag-${index}`" 
-        class="tag-item"
+        class="schema-editor-tag-item"
       >
         {{ tag }}
         <button
           @click.stop="removeTag(index)"
           type="button"
-          class="tag-remove"
+          class="schema-editor-tag-remove"
           tabindex="-1"
           title="Remove tag"
         >
@@ -25,7 +25,7 @@
         v-model="inputValue"
         @keydown="onKeydown"
         :placeholder="tags.length === 0 ? placeholder : ''"
-        class="tag-text-input"
+        class="schema-editor-tag-text-input"
         :disabled="reachedLimit"
         @blur="onBlur"
         @focus="onFocus"
@@ -36,7 +36,7 @@
       v-if="inputValue.trim()" 
       @click.stop="addTag"
       type="button"
-      class="tag-add-button"
+      class="schema-editor-tag-add-button"
       title="Add tag"
     >
       <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24">
@@ -45,11 +45,11 @@
     </button>
 
     <!-- Autocomplete suggestions dropdown -->
-    <div v-if="showSuggestions && suggestions?.length" class="suggestions-dropdown">
+    <div v-if="showSuggestions && suggestions?.length" class="schema-editor-suggestions-dropdown">
       <div 
         v-for="(suggestion, index) in suggestions" 
         :key="index"
-        class="suggestion-item"
+        class="schema-editor-suggestion-item"
         :class="{ 'active': activeSuggestionIndex === index }"
         @click.stop="selectSuggestion(suggestion)"
       >
@@ -231,24 +231,24 @@ watch(inputValue, (newValue) => {
 </script>
 
 <style scoped>
-.tag-input-container {
+.schema-editor-tag-input-container {
   position: relative;
   width: 100%;
-  min-height: 36px;
+  min-height: 32px;
   border: 1px solid var(--qui-hover-border);
   border-radius: 4px;
   background: var(--qui-bg-primary);
-  padding: 4px 36px 4px 8px;
+  padding: 4px 32px 4px 8px;
   box-sizing: border-box;
   cursor: text;
   transition: all 0.25s ease;
 }
 
-.tag-input-container:hover {
+.schema-editor-tag-input-container:hover {
   border-color: var(--qui-hover-border-dark, #aaa);
 }
 
-.tag-input-container:focus-within {
+.schema-editor-tag-input-container:focus-within {
   border-color: var(--qui-accent-color);
   box-shadow: 0 0 0 2px var(--qui-overlay-accent);
 }
@@ -261,15 +261,15 @@ watch(inputValue, (newValue) => {
   width: 100%;
 }
 
-.tag-item {
+.schema-editor-tag-item {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 2px 6px 2px 8px;
+  padding: 1px 5px 1px 6px;
   background: var(--qui-overlay-accent);
   color: var(--qui-accent-color);
   border-radius: 3px;
-  font-size: 12px;
+  font-size: 11px;
   max-width: 180px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -277,15 +277,15 @@ watch(inputValue, (newValue) => {
   user-select: none;
   transition: all 0.2s ease;
   border: 1px solid transparent;
-  animation: tag-appear 0.2s ease;
+  animation: schema-editor-tag-appear 0.2s ease;
 }
 
-.tag-item:hover {
+.schema-editor-tag-item:hover {
   background: var(--qui-accent-color);
   color: white;
 }
 
-.tag-remove {
+.schema-editor-tag-remove {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -300,11 +300,11 @@ watch(inputValue, (newValue) => {
   padding: 0;
 }
 
-.tag-item:hover .tag-remove {
+.schema-editor-tag-item:hover .schema-editor-tag-remove {
   background: rgba(255, 255, 255, 0.2);
 }
 
-.tag-text-input {
+.schema-editor-tag-text-input {
   flex: 1;
   min-width: 60px;
   border: none;
@@ -312,16 +312,17 @@ watch(inputValue, (newValue) => {
   background: transparent;
   color: var(--qui-text-primary);
   font-size: var(--qui-font-size-base);
-  padding: 4px 0;
+  padding: 2px 0;
   margin: 0;
+  height: 24px;
 }
 
-.tag-text-input::placeholder {
+.schema-editor-tag-text-input::placeholder {
   color: var(--qui-text-secondary);
   opacity: 0.7;
 }
 
-.tag-add-button {
+.schema-editor-tag-add-button {
   position: absolute;
   right: 6px;
   top: 50%;
@@ -329,24 +330,24 @@ watch(inputValue, (newValue) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   border-radius: 3px;
   border: none;
   background: var(--qui-overlay-accent);
   color: var(--qui-accent-color);
   cursor: pointer;
   transition: all 0.2s ease;
-  animation: fade-in 0.2s ease;
+  animation: schema-editor-fade-in 0.2s ease;
 }
 
-.tag-add-button:hover {
+.schema-editor-tag-add-button:hover {
   background: var(--qui-accent-color);
   color: white;
 }
 
 /* Autocomplete dropdown styles */
-.suggestions-dropdown {
+.schema-editor-suggestions-dropdown {
   position: absolute;
   top: 100%;
   left: 0;
@@ -359,44 +360,35 @@ watch(inputValue, (newValue) => {
   max-height: 200px;
   overflow-y: auto;
   margin-top: 4px;
-  animation: fade-in-dropdown 0.2s ease;
+  animation: schema-editor-fade-in-dropdown 0.2s ease;
 }
 
-.suggestion-item {
+.schema-editor-suggestion-item {
   padding: 8px 12px;
   cursor: pointer;
   transition: all 0.2s ease;
   font-size: var(--qui-font-size-small);
 }
 
-.suggestion-item:hover, .suggestion-item.active {
+.schema-editor-suggestion-item:hover, 
+.schema-editor-suggestion-item.active {
   background: var(--qui-overlay-accent);
   color: var(--qui-accent-color);
 }
 
-@keyframes tag-appear {
+.shake-animation {
+  animation: schema-editor-shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+}
+
+@keyframes schema-editor-tag-appear {
   from { opacity: 0; transform: scale(0.8); }
   to { opacity: 1; transform: scale(1); }
 }
 
-@keyframes fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes fade-in-dropdown {
+@keyframes schema-editor-fade-in-dropdown {
   from { opacity: 0; transform: translateY(-5px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
-.shake-animation {
-  animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
-}
-
-@keyframes shake {
-  10%, 90% { transform: translateX(-1px); }
-  20%, 80% { transform: translateX(2px); }
-  30%, 50%, 70% { transform: translateX(-3px); }
-  40%, 60% { transform: translateX(3px); }
-}
+/* Other animation keyframes are now defined in global.css with schema-editor- prefixes */
 </style>

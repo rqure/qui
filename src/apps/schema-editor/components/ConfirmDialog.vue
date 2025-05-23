@@ -191,9 +191,9 @@ function cancel() {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  padding: 0 20px;
-  height: 44px;
-  border-radius: 8px;
+  padding: 0 16px; /* Smaller padding */
+  height: 32px; /* Smaller consistent height */
+  border-radius: 4px; /* Consistent with app design */
   font-size: var(--qui-font-size-base);
   font-weight: var(--qui-font-weight-medium);
   cursor: pointer;
@@ -255,10 +255,10 @@ function cancel() {
 }
 
 .schema-editor-anim-scale {
-  animation: scale-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  animation: schema-editor-scale-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 
-@keyframes scale-in {
+@keyframes schema-editor-scale-in {
   from {
     opacity: 0;
     transform: scale(0.9);
