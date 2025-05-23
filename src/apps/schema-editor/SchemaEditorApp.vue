@@ -181,7 +181,9 @@ async function handleSchemaUpdate(schema: EntitySchema) {
 <template>
   <div class="schema-editor-app">
     <div v-if="loading" class="app-container">
-      <LoadingIndicator />
+      <div class="loading-container">
+        <LoadingIndicator />
+      </div>
     </div>
     
     <div v-else-if="error" class="app-container">
@@ -398,16 +400,12 @@ async function handleSchemaUpdate(schema: EntitySchema) {
 
 /* Loading and error states */
 .loading-container {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--qui-bg-primary);
-  z-index: 10;
+  width: 100%;
+  height: 100%;
+  background: var(--qui-bg-secondary);
 }
 
 .error-content {
