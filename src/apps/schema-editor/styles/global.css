@@ -82,16 +82,78 @@
   color: var(--qui-bg-primary);
 }
 
+/* Enhance button icon styling */
 .schema-editor-btn-icon {
   width: 32px;
+  height: 32px;
   padding: 0;
   border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  background-color: var(--qui-overlay-primary);
+  border: 1px solid var(--qui-hover-border);
 }
 
-.schema-editor-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  pointer-events: none;
+.schema-editor-btn-icon:hover {
+  background-color: var(--qui-overlay-secondary);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.schema-editor-btn-icon:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+.schema-editor-btn-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Danger button icon specific styling */
+.schema-editor-btn-icon.schema-editor-btn-danger {
+  background-color: var(--qui-danger-bg);
+  color: var(--qui-danger-color);
+  border: 1px solid var(--qui-danger-border);
+}
+
+.schema-editor-btn-icon.schema-editor-btn-danger:hover {
+  background-color: var(--qui-danger-color);
+  color: var(--qui-bg-primary);
+  box-shadow: 0 0 0 2px var(--qui-danger-glow), 0 3px 8px rgba(244, 67, 54, 0.2);
+}
+
+/* Choice add button styling */
+.schema-editor-choice-add-btn {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  padding: 0;
+  border-radius: 4px;
+  background: var(--qui-overlay-accent);
+  color: var(--qui-accent-color);
+  border: 1px solid var(--qui-hover-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.schema-editor-choice-add-btn:hover {
+  background: var(--qui-accent-color);
+  color: var(--qui-bg-primary);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.schema-editor-choice-add-btn:active {
+  transform: translateY(0);
+  box-shadow: none;
 }
 
 /* Consistent form groups */

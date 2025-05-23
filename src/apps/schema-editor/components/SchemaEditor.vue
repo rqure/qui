@@ -204,7 +204,7 @@
                       {{ choice }}
                       <button class="delete-choice-btn" @click="removeChoice(field.fieldType, field.fieldSchema, index)" title="Remove option">×</button>
                     </div>
-                    <button class="schema-editor-btn schema-editor-btn-icon" @click="addChoiceToField(field.fieldType, field.fieldSchema)" title="Add option">+</button>
+                    <button class="schema-editor-choice-add-btn" @click="addChoiceToField(field.fieldType, field.fieldSchema)" title="Add option">+</button>
                   </div>
                 </div>
                 <div class="schema-editor-form-group">
@@ -954,12 +954,16 @@ function handleSearchKeydown(event: KeyboardEvent, type: 'read' | 'write') {
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 8px;
+  align-items: center;
 }
 
 .choice-tag {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  background: var(--qui-overlay-accent);
+  color: var(--qui-accent-color);
+  border: 1px solid var(--qui-hover-border);
 }
 
 .delete-choice-btn {
@@ -969,50 +973,27 @@ function handleSearchKeydown(event: KeyboardEvent, type: 'read' | 'write') {
   cursor: pointer;
   font-size: 14px;
   padding: 0;
+  width: 16px;
+  height: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
+  border-radius: 50%;
+  transition: all 0.2s ease;
 }
 
-.field-properties {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+.choice-tag:hover .delete-choice-btn {
+  background: rgba(255, 255, 255, 0.2);
 }
 
-.property-label {
-  color: var(--qui-text-secondary);
-  font-size: var(--qui-font-size-small);
-  margin-right: 4px;
-}
-
-.property-value {
-  font-weight: var(--qui-font-weight-medium);
-}
-
-.permission-chip {
-  background-color: var(--qui-overlay-accent);
-  color: var(--qui-accent-color);
-  padding: 1px 5px;
-  border-radius: 3px;
-  font-size: 10px;
-}
-
-.options-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  align-items: center;
-}
-
-.option-more {
-  color: var(--qui-text-secondary);
-  font-size: 10px;
+.delete-choice-btn:hover {
+  background: rgba(0, 0, 0, 0.1);
+  transform: scale(1.1);
 }
 
 .action-buttons {
   display: flex;
-  gap: 4px;
+  gap: 8px;
   justify-content: flex-end;
 }
 
