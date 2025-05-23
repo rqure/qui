@@ -90,8 +90,7 @@ const handleVolumeClick = (e: MouseEvent) => {
         id: 'mute', 
         label: isMuted.value ? 'Unmute' : 'Mute', 
         action: toggleMute
-      },
-      { id: 'volume-mixer', label: 'Open Volume Mixer', action: () => {} },
+      }
     ],
     { type: 'volume-control' },
   )
@@ -106,7 +105,6 @@ const handleVolumeClick = (e: MouseEvent) => {
     :title="isMuted ? 'Muted' : `Volume: ${volumeLevel}%`"
   >
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" v-html="volumeIcon"></svg>
-    <div v-if="!isMuted" class="level-indicator" :style="{ width: `${volumeLevel * 0.03}px` }"></div>
   </div>
 </template>
 
@@ -145,16 +143,6 @@ const handleVolumeClick = (e: MouseEvent) => {
 .volume-control.muted {
   color: var(--qui-text-secondary);
   opacity: 0.7;
-}
-
-.level-indicator {
-  position: absolute;
-  left: 7px;
-  bottom: 4px;
-  height: 2px;
-  background-color: var(--qui-accent-color);
-  border-radius: 1px;
-  transition: width 0.2s ease;
 }
 
 /* Style for the volume slider in context menu */
