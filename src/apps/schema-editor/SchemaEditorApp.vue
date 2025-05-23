@@ -5,7 +5,7 @@ import type { EntityType, EntitySchema } from '@/core/data/types';
 import { ValueType, EntityFactories, FieldSchemaOptions } from '@/core/data/types';
 import EntityTypeList from './components/EntityTypeList.vue';
 import SchemaEditor from './components/SchemaEditor.vue'; // Fixed import - without default
-import LoadingIndicator from './components/LoadingIndicator.vue';
+import LoadingIndicator from '../../components/common/LoadingIndicator.vue';
 
 const dataStore = useDataStore();
 const loading = ref(true);

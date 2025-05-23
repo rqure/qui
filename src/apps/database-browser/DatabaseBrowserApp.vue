@@ -3,7 +3,7 @@ import { ref, onMounted, onUnmounted, markRaw } from 'vue';
 import { useDataStore } from '@/stores/data';
 import ColumnBrowser from './components/ColumnBrowser.vue';
 import EntityDetailsPanel from './components/EntityDetailsPanel.vue';
-import LoadingIndicator from './components/LoadingIndicator.vue';
+import LoadingIndicator from '../../components/common/LoadingIndicator.vue';
 import type { Entity, EntityId } from '@/core/data/types';
 import { useEntityDropZone } from '@/core/utils/composables';
 import { useWindowStore } from '@/stores/windows'; // Add windows store import
