@@ -270,6 +270,12 @@ function handleEntityClick(entityId: string) {
       </div>
     </span>
     
+    <!-- Special rendering for String values to preserve line breaks -->
+    <span v-else-if="value.type === ValueType.String" class="string-container">
+      <pre v-if="displayValue.includes('\n')" class="string-multiline">{{ displayValue }}</pre>
+      <span v-else>{{ displayValue }}</span>
+    </span>
+    
     <span v-else>{{ displayValue }}</span>
   </div>
 </template>
@@ -487,5 +493,45 @@ function handleEntityClick(entityId: string) {
   opacity: 0.7;
   padding: 4px;
   text-align: center;
+}
+
+/* Add styles for string values */
+.string-container {
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  max-width: 100%;
+}
+
+.string-multiline {
+  background: var(--qui-overlay-primary);
+  border-radius: 4px;
+  padding: 8px;
+  margin: 0;
+  overflow: auto;
+  max-height: 200px;
+  font-family: var(--qui-font-family);
+  font-size: var(--qui-font-size-base);
+  line-height: 1.4;
+  border: 1px solid var(--qui-hover-border);
+  width: 100%;
+}
+
+/* Add scrollbar styling for multiline strings */
+.string-multiline::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.string-multiline::-webkit-scrollbar-track {
+  background: var(--qui-scrollbar-track);
+}
+
+.string-multiline::-webkit-scrollbar-thumb {
+  background: var(--qui-scrollbar-thumb);
+  border-radius: 3px;
+}
+
+.string-multiline::-webkit-scrollbar-thumb:hover {
+  background: var(--qui-scrollbar-thumb-hover);
 }
 </style>

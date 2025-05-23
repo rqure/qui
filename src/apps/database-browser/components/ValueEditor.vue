@@ -263,8 +263,8 @@ watch(
       />
     </div>
     
-    <!-- Text area for longer text content -->
-    <div v-else-if="value.type === ValueType.String && value.toString().length > 50" class="text-container">
+    <!-- Always use Text area for String type -->
+    <div v-else-if="value.type === ValueType.String" class="text-container">
       <div class="input-icon">
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
           <path fill="currentColor" d="M14 17H4v2h10v-2zm6-8H4v2h16V9zM4 15h16v-2H4v2zM4 5v2h16V5H4z"/>
@@ -273,7 +273,7 @@ watch(
       <textarea 
         v-model="editValue" 
         class="text-area"
-        rows="4"
+        :rows="Math.min(10, Math.max(3, (editValue.split('\n').length + 1)))"
       ></textarea>
     </div>
     
@@ -387,8 +387,11 @@ watch(
 
 .text-area {
   resize: vertical;
-  min-height: 100px;
+  min-height: 80px;
   padding-top: 32px; /* Make room for the icon */
+  width: 100%;
+  line-height: 1.4;
+  font-family: var(--qui-font-family);
 }
 
 .checkbox-container {
