@@ -1092,4 +1092,86 @@ function handleEditFieldSearchKeydown(event: KeyboardEvent, type: 'read' | 'writ
   background-color: var(--qui-overlay-secondary);
   color: var(--qui-accent-secondary);
 }
+
+/* Form control consistency improvements */
+.schema-editor-form-control {
+  height: 32px !important; /* Enforce consistent height */
+  line-height: 32px;
+  padding: 0 10px;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+/* Better dropdown styling */
+.schema-editor-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  margin-top: 4px;
+  background-color: var(--qui-bg-primary);
+  border: 1px solid var(--qui-hover-border);
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  max-height: 200px;
+  overflow-y: auto;
+  animation: schema-editor-fade-in-dropdown 0.2s ease;
+}
+
+.schema-editor-dropdown-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: var(--qui-font-size-small);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.schema-editor-dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.schema-editor-dropdown-item:hover, 
+.schema-editor-dropdown-item.active {
+  background: var(--qui-overlay-primary);
+  color: var(--qui-accent-color);
+}
+
+/* Style select dropdown to match our custom dropdowns */
+select.schema-editor-form-control {
+  appearance: none;
+  padding-right: 28px; /* Space for the dropdown icon */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.5)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 6px center;
+  background-size: 16px;
+  cursor: pointer;
+}
+
+/* Improve new field row styling */
+.new-field-row td {
+  padding: 12px;
+  vertical-align: top;
+}
+
+.new-field-row .schema-editor-form-group {
+  margin-bottom: 0;
+}
+
+/* Consistent table cell alignment */
+.schema-editor-table td {
+  vertical-align: middle;
+}
+
+/* Animation for dropdown */
+@keyframes schema-editor-fade-in-dropdown {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Ensure dropdown container maintains position context */
+.schema-editor-select {
+  position: relative;
+  width: 100%;
+}
 </style>
