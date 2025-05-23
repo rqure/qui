@@ -266,8 +266,8 @@ watch(inputValue, (newValue) => {
   align-items: center;
   gap: 4px;
   padding: 1px 5px 1px 6px;
-  background: var(--qui-overlay-accent);
-  color: var(--qui-accent-color);
+  background: var(--qui-overlay-primary);
+  color: var(--qui-text-primary);
   border-radius: 3px;
   font-size: 11px;
   max-width: 180px;
@@ -276,13 +276,14 @@ watch(inputValue, (newValue) => {
   white-space: nowrap;
   user-select: none;
   transition: all 0.2s ease;
-  border: 1px solid transparent;
+  border: 1px solid var(--qui-hover-border);
+  font-weight: var(--qui-font-weight-medium);
   animation: schema-editor-tag-appear 0.2s ease;
 }
 
 .schema-editor-tag-item:hover {
-  background: var(--qui-accent-color);
-  color: white;
+  background: var(--qui-overlay-secondary);
+  color: var(--qui-bg-primary);
 }
 
 .schema-editor-tag-remove {
@@ -301,7 +302,7 @@ watch(inputValue, (newValue) => {
 }
 
 .schema-editor-tag-item:hover .schema-editor-tag-remove {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.25);
 }
 
 .schema-editor-tag-text-input {
