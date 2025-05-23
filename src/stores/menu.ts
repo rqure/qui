@@ -1,32 +1,54 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
 import type { MenuItem, MenuPosition, MenuContext } from '@/core/menu/types'
+import { markRaw } from 'vue'
 
-export const useMenuStore = defineStore('menu', () => {
-  const isVisible = ref(false)
-  const position = ref<MenuPosition>({ x: 0, y: 0 })
-  const items = ref<MenuItem[]>([])
-  const context = ref<MenuContext | null>(null)
+// Extend MenuItem to support custom components
+interface ExtendedMenuItem extends MenuItem {
+  component?: any;
+  props?: Record<string, any>;
+}
 
-  function showMenu(pos: MenuPosition, menuItems: MenuItem[], ctx?: MenuContext) {
-    position.value = pos
-    items.value = menuItems
-    context.value = ctx || null
-    isVisible.value = true
-  }
+export const useMenuStore = defineStore('menu', {
+  state: () => ({
+    isVisible: false,
+    position: { x: 0, y: 0 } as MenuPosition,
+    items: [] as ExtendedMenuItem[],
+    context: null as MenuContext | null,
+  }),
 
-  function hideMenu() {
-    isVisible.value = false
-    items.value = []
-    context.value = null
-  }
+  actions: {
+    showMenu(position: MenuPosition, items: ExtendedMenuItem[], context?: MenuContext) {
+      // Process components if they exist
+      const processedItems = items.map(item => {
+        if (item.component) {
+          return {
+            ...item,
+            component: markRaw(item.component) // Ensure component is marked as raw
+          };
+        }
+        return item;
+      });
 
-  return {
-    isVisible,
-    position,
-    items,
-    context,
-    showMenu,
-    hideMenu,
-  }
+      this.isVisible = true
+      this.position = position
+      this.items = processedItems
+      this.context = context || null
+    },
+
+    hideMenu() {
+      this.isVisible = false
+    },
+
+    setItems(items: ExtendedMenuItem[]) {
+      this.items = items
+    },
+
+    setPosition(position: MenuPosition) {
+      this.position = position
+    },
+
+    setContext(context: MenuContext) {
+      this.context = context
+    },
+  },
 })

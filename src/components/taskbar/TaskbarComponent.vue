@@ -4,6 +4,7 @@ import { useWindowStore } from '@/stores/windows'
 import StartMenuComponent from './StartMenuComponent.vue'
 import { useMenuStore } from '@/stores/menu'
 import QeiLogo from '@/components/common/QeiLogo.vue'
+import SystemTray from './tray/SystemTray.vue'
 
 const TestWindow = markRaw(
   defineComponent({
@@ -62,14 +63,6 @@ const handleWindowItemContext = (e: MouseEvent, windowId: string) => {
     ],
     { type: 'taskbar-window', data: { windowId } },
   )
-}
-
-const handleWindowClick = (windowId: string) => {
-  const window = windowStore.windows.find((w) => w.id === windowId)
-  if (window?.isMinimized) {
-    windowStore.restoreWindow(windowId)
-  }
-  windowStore.activateWindow(windowId)
 }
 
 const handleClickOutside = (e: MouseEvent) => {
@@ -132,6 +125,9 @@ onUnmounted(() => {
         <div class="active-indicator" />
       </button>
     </div>
+    
+    <!-- Use the refactored System Tray component -->
+    <SystemTray />
   </div>
 </template>
 
@@ -236,6 +232,7 @@ onUnmounted(() => {
 .window-list {
   display: flex;
   gap: 4px;
+  flex: 1; /* Allow window list to expand */
 }
 
 .window-button {
@@ -386,5 +383,98 @@ onUnmounted(() => {
 
 .window-button[data-animating] {
   pointer-events: none;
+}
+
+/* System Tray Styles */
+.system-tray {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-left: auto;
+  padding-left: 12px;
+  height: 100%;
+  position: relative;
+}
+
+/* Add subtle separator before system tray */
+.system-tray::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 25%;
+  bottom: 25%;
+  width: 1px;
+  background: var(--qui-overlay-primary);
+  opacity: 0.3;
+}
+
+.tray-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--qui-text-secondary);
+  transition: all 0.2s var(--qui-animation-bounce);
+}
+
+.tray-icon:hover {
+  background-color: var(--qui-overlay-primary);
+  color: var(--qui-text-primary);
+}
+
+.tray-icon:active {
+  transform: scale(0.95);
+}
+
+/* Network icon specifics */
+.network-icon.disconnected {
+  color: var(--qui-danger-color);
+  opacity: 0.8;
+}
+
+.network-icon.disconnected:hover {
+  opacity: 1;
+}
+
+/* Volume icon specifics */
+.volume-icon.muted {
+  color: var(--qui-text-secondary);
+  opacity: 0.7;
+}
+
+/* Time and date display */
+.time-date-container {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  min-width: 90px;
+  padding: 0 6px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s var(--qui-animation-bounce);
+}
+
+.time-date-container:hover {
+  background-color: var(--qui-overlay-primary);
+}
+
+.time-date-container:active {
+  transform: scale(0.98);
+}
+
+.time {
+  font-size: var(--qui-font-size-base);
+  font-weight: var(--qui-font-weight-medium);
+  color: var(--qui-text-primary);
+}
+
+.date {
+  font-size: var(--qui-font-size-small);
+  color: var(--qui-text-secondary);
 }
 </style>

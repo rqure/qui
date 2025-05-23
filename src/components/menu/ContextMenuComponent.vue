@@ -1,83 +1,217 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue'
+import { ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
+import type { MenuItem, MenuPosition } from '@/core/menu/types'
+import { isSeparator } from '@/core/menu/utils'
 import { useMenuStore } from '@/stores/menu'
-import type { MenuItem } from '@/core/menu/types'
+
+// Extend MenuItem interface to support custom components
+interface ExtendedMenuItem extends MenuItem {
+  component?: any;
+  props?: Record<string, any>;
+}
 
 const menuStore = useMenuStore()
 
-const handleClick = (item: MenuItem) => {
-  if (!item.disabled && item.action) {
-    item.action()
-    menuStore.hideMenu()
+const props = defineProps<{
+  items: ExtendedMenuItem[]
+  position: MenuPosition
+}>()
+
+const emit = defineEmits<{
+  (e: 'close'): void
+  (e: 'select', item: MenuItem): void
+}>()
+
+const menuElement = ref<HTMLElement | null>(null)
+const activeSubmenuIndex = ref<number | null>(null)
+const submenuPosition = ref<MenuPosition>({ x: 0, y: 0 })
+const adjustedPosition = ref<MenuPosition>({ x: 0, y: 0 })
+
+// Handle menu item click
+const handleItemClick = (e: Event, item: ExtendedMenuItem) => {
+  // Don't close for items that are disabled or separators
+  if (item.disabled || isSeparator(item)) return
+
+  // For items with children, show submenu instead of closing
+  if (item.children && item.children.length > 0) return
+
+  // Don't trigger actions for custom component items
+  if (!item.component) {
+    if (item.action) {
+      item.action()
+    }
+  }
+  
+  // Close the menu after action
+  emit('close')
+}
+
+// Calculate and adjust menu position
+const calculatePosition = () => {
+  if (!menuElement.value) return
+  
+  const menu = menuElement.value
+  const menuRect = menu.getBoundingClientRect()
+  const viewportWidth = window.innerWidth
+  const viewportHeight = window.innerHeight
+  
+  // Initial position
+  let x = props.position.x
+  let y = props.position.y
+  
+  // Adjust if menu would go off right edge
+  if (x + menuRect.width > viewportWidth) {
+    x = Math.max(0, viewportWidth - menuRect.width)
+  }
+  
+  // Adjust if menu would go off bottom edge
+  if (y + menuRect.height > viewportHeight) {
+    y = Math.max(0, y - menuRect.height)
+  }
+  
+  adjustedPosition.value = { x, y }
+}
+
+// Handle mouse enter for submenu items
+const handleMouseEnter = (index: number, item: MenuItem) => {
+  if (item.children && item.children.length > 0 && !item.disabled) {
+    activeSubmenuIndex.value = index
+    
+    // Delay slightly to prevent accidental opening
+    setTimeout(() => {
+      if (menuElement.value) {
+        const itemElement = menuElement.value.querySelectorAll('.menu-item')[index] as HTMLElement
+        const itemRect = itemElement.getBoundingClientRect()
+        
+        submenuPosition.value = {
+          x: itemRect.right,
+          y: itemRect.top,
+        }
+      }
+    }, 50)
+  } else {
+    activeSubmenuIndex.value = null
+  }
+}
+
+// Handle mouse leave for menu
+const handleMenuLeave = () => {
+  // Use timeout to prevent immediate closing when moving to submenu
+  setTimeout(() => {
+    if (!activeSubmenuIndex.value) return
+    
+    // Check if mouse is over submenu
+    const submenuElement = document.querySelector('.submenu')
+    if (submenuElement) {
+      const submenuRect = submenuElement.getBoundingClientRect()
+      const mouseX = window.event ? (window.event as MouseEvent).clientX : 0
+      const mouseY = window.event ? (window.event as MouseEvent).clientY : 0
+      
+      if (
+        mouseX >= submenuRect.left &&
+        mouseX <= submenuRect.right &&
+        mouseY >= submenuRect.top &&
+        mouseY <= submenuRect.bottom
+      ) {
+        return
+      }
+    }
+    
+    activeSubmenuIndex.value = null
+  }, 100)
+}
+
+// Watch for position changes
+watch(() => props.position, calculatePosition, { immediate: true })
+
+// Close on escape or outside click
+const handleEscape = (e: KeyboardEvent) => {
+  if (e.key === 'Escape') {
+    emit('close')
   }
 }
 
 const handleOutsideClick = (e: MouseEvent) => {
-  const menu = document.getElementById('context-menu')
-  if (menu && !menu.contains(e.target as Node)) {
-    menuStore.hideMenu()
+  if (menuElement.value && !menuElement.value.contains(e.target as Node)) {
+    emit('close')
   }
-}
-
-const activeSubmenu = ref<string | null>(null)
-
-const handleMouseEnter = (item: MenuItem) => {
-  if (item.children) {
-    activeSubmenu.value = item.id
-  } else {
-    activeSubmenu.value = null
-  }
-}
-
-const handleMouseLeave = () => {
-  activeSubmenu.value = null
 }
 
 onMounted(() => {
-  document.addEventListener('click', handleOutsideClick)
+  document.addEventListener('keydown', handleEscape)
+  document.addEventListener('mousedown', handleOutsideClick)
+  
+  // Calculate position after component is mounted
+  nextTick(() => {
+    calculatePosition()
+  })
 })
 
-onUnmounted(() => {
-  document.removeEventListener('click', handleOutsideClick)
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', handleEscape)
+  document.removeEventListener('mousedown', handleOutsideClick)
 })
+
+// Handle submenu close
+const handleSubmenuClose = () => {
+  activeSubmenuIndex.value = null
+}
 </script>
 
 <template>
   <Teleport to="body">
     <div
       v-if="menuStore.isVisible"
-      id="context-menu"
+      ref="menuElement"
       class="context-menu"
       :style="{
-        left: `${menuStore.position.x}px`,
-        top: `${menuStore.position.y}px`,
+        left: `${adjustedPosition.x}px`,
+        top: `${adjustedPosition.y}px`,
       }"
+      @mouseleave="handleMenuLeave"
     >
-      <div
-        v-for="item in menuStore.items"
-        :key="item.id"
-        :class="['menu-item', { disabled: item.disabled, separator: item.separator }]"
-        @click="handleClick(item)"
-        @mouseenter="handleMouseEnter(item)"
-        @mouseleave="handleMouseLeave"
-      >
-        <img v-if="item.icon" :src="item.icon" class="item-icon" />
-        <span class="item-label">{{ item.label }}</span>
-        <span v-if="item.shortcut" class="item-shortcut">{{ item.shortcut }}</span>
-        <span v-if="item.children" class="submenu-arrow">›</span>
-
-        <!-- Submenu -->
-        <div v-if="item.children && activeSubmenu === item.id" class="submenu">
-          <div
-            v-for="subItem in item.children"
-            :key="subItem.id"
-            :class="['menu-item', { disabled: subItem.disabled }]"
-            @click.stop="handleClick(subItem)"
-          >
-            <img v-if="subItem.icon" :src="subItem.icon" class="item-icon" />
-            <span class="item-label">{{ subItem.label }}</span>
-          </div>
+      <div v-for="(item, index) in items" :key="item.id">
+        <!-- Render separator -->
+        <div v-if="isSeparator(item)" class="menu-separator"></div>
+        
+        <!-- Render custom component if provided -->
+        <div v-else-if="item.component" class="menu-custom-component">
+          <component :is="item.component" v-bind="item.props || {}"></component>
         </div>
+        
+        <!-- Regular menu item -->
+        <div
+          v-else
+          class="menu-item"
+          :class="{
+            disabled: item.disabled,
+            'with-submenu': item.children && item.children.length > 0,
+            active: index === activeSubmenuIndex
+          }"
+          @click="(e) => handleItemClick(e, item)"
+          @mouseenter="() => handleMouseEnter(index, item)"
+        >
+          <div class="item-content">
+            <span v-if="item.icon" class="item-icon">{{ item.icon }}</span>
+            <span class="item-label">{{ item.label }}</span>
+          </div>
+          <span v-if="item.shortcut" class="item-shortcut">{{ item.shortcut }}</span>
+          <span v-if="item.children && item.children.length > 0" class="submenu-indicator">
+            <svg viewBox="0 0 24 24" width="12" height="12">
+              <path fill="currentColor" d="M8,5.14V19.14L19,12.14L8,5.14Z" />
+            </svg>
+          </span>
+        </div>
+        
+        <!-- Render submenu if active -->
+        <ContextMenuComponent
+          v-if="index === activeSubmenuIndex && item.children"
+          class="submenu"
+          :items="item.children"
+          :position="submenuPosition"
+          @close="handleSubmenuClose"
+          @select="(item) => $emit('select', item)"
+        />
       </div>
     </div>
   </Teleport>
@@ -86,72 +220,92 @@ onUnmounted(() => {
 <style scoped>
 .context-menu {
   position: fixed;
-  min-width: 200px;
+  min-width: 180px;
+  max-width: 280px;
   background: var(--qui-menu-bg);
   border: var(--qui-menu-border);
   border-radius: var(--qui-menu-radius);
-  padding: 4px;
   box-shadow: var(--qui-menu-shadow);
+  padding: 6px;
   z-index: 9999;
+  backdrop-filter: blur(var(--qui-backdrop-blur));
 }
 
 .menu-item {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   height: var(--qui-menu-item-height);
   padding: 0 12px;
+  border-radius: 4px;
   cursor: pointer;
-  font-size: var(--qui-font-size-base);
-  font-weight: var(--qui-font-weight-normal);
-  color: var(--qui-text-primary);
+  transition: background 0.2s var(--qui-animation-bounce);
 }
 
-.menu-item:hover:not(.disabled) {
+.menu-item:not(.disabled):hover,
+.menu-item.active {
   background: var(--qui-menu-item-hover);
-  color: white;
 }
 
 .menu-item.disabled {
   opacity: var(--qui-menu-disabled-opacity);
   cursor: default;
-  color: var(--qui-text-secondary);
 }
 
-.menu-item.separator {
-  height: 1px;
-  background: var(--qui-menu-separator);
-  margin: 4px 0;
-  padding: 0;
+.item-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .item-icon {
   width: 16px;
   height: 16px;
-  margin-right: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}
+
+.item-label {
+  font-size: var(--qui-font-size-base);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .item-shortcut {
-  margin-left: auto;
-  padding-left: 16px;
-  opacity: 0.7;
-  color: var(--qui-text-secondary);
   font-size: var(--qui-font-size-small);
+  color: var(--qui-text-secondary);
+  opacity: 0.7;
 }
 
-.submenu-arrow {
-  margin-left: auto;
-  padding-left: 8px;
+.submenu-indicator {
+  color: var(--qui-text-secondary);
+  opacity: 0.7;
+}
+
+.menu-separator {
+  height: 1px;
+  background: var(--qui-menu-separator);
+  margin: 4px 0;
 }
 
 .submenu {
   position: absolute;
-  left: 100%;
-  top: 0;
-  min-width: 200px;
-  background: var(--qui-bg-secondary);
-  border: var(--qui-window-border);
-  border-radius: var(--qui-menu-radius);
-  padding: 4px;
-  box-shadow: var(--qui-shadow);
+  z-index: 10000;
+}
+
+.menu-custom-component {
+  padding: 0;
+}
+
+.with-submenu:hover .submenu-indicator {
+  opacity: 1;
+  transform: translateX(2px);
+}
+
+.submenu-indicator {
+  transition: all 0.2s var(--qui-animation-bounce);
 }
 </style>
