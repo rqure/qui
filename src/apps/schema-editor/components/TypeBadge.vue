@@ -7,9 +7,8 @@ const props = defineProps<{
   size?: 'sm' | 'md' | 'lg';
 }>();
 
-const displayName = computed(() => {
-  return props.type;
-});
+// Use the actual value type name directly
+const displayName = computed(() => props.type);
 
 const badgeClass = computed(() => {
   return {

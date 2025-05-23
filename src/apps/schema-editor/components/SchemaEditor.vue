@@ -65,7 +65,6 @@
                   @input="validateFieldName"
                 />
                 <div v-if="nameError" class="input-error-message">{{ nameError }}</div>
-                <div v-else class="input-help-text">Field name must start with a letter and contain only letters, numbers, and underscores</div>
               </div>
             </td>
             <td>
@@ -75,7 +74,7 @@
                 @keyup.enter="addNewField"
               >
                 <option v-for="type in Object.values(ValueType)" :key="type" :value="type">
-                  {{ getValueTypeLabel(type) }}
+                  {{ type }}
                 </option>
               </select>
             </td>
@@ -90,24 +89,72 @@
                 />
               </div>
               <div class="property-group">
-                <label>Permissions:</label>
-                <div class="permissions-row">
-                  <span>Read:</span>
-                  <TagInput
-                    v-model="newFieldReadPermsList"
-                    placeholder="Add a permission and press Enter"
-                    class="field-tag-input"
-                    @keyup.esc="cancelAddField"
-                  />
-                </div>
-                <div class="permissions-row">
-                  <span>Write:</span>
-                  <TagInput
-                    v-model="newFieldWritePermsList"
-                    placeholder="Add a permission and press Enter"
-                    class="field-tag-input"
-                    @keyup.esc="cancelAddField"
-                  />
+                <div class="permissions-section">
+                  <label>Permissions</label>
+                  <div class="permissions-row">
+                    <span>Read:</span>
+                    <div class="permission-input-container">
+                      <input
+                        v-model="permissionSearchReadInput"
+                        placeholder="Type to search permissions"
+                        class="field-input permission-input"
+                        @keyup.esc="cancelAddField"
+                        @input="searchReadPermissions"
+                        @keydown.enter="selectReadPermission"
+                      />
+                      <div v-if="readPermSuggestions.length > 0" class="permission-suggestions">
+                        <div 
+                          v-for="(suggestion, index) in readPermSuggestions" 
+                          :key="index"
+                          class="suggestion-item"
+                          :class="{ 'active': activeSuggestionIndex === index }"
+                          @click="selectSuggestion(suggestion, 'read')"
+                        >
+                          {{ suggestion }}
+                        </div>
+                      </div>
+                      <div v-if="newFieldReadPermsList.length > 0" class="permission-tag">
+                        {{ newFieldReadPermsList[0] }}
+                        <button 
+                          @click="clearPermission('read')" 
+                          class="permission-tag-remove"
+                          title="Remove permission"
+                        >×</button>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="permissions-row">
+                    <span>Write:</span>
+                    <div class="permission-input-container">
+                      <input
+                        v-model="permissionSearchWriteInput"
+                        placeholder="Type to search permissions"
+                        class="field-input permission-input"
+                        @keyup.esc="cancelAddField"
+                        @input="searchWritePermissions"
+                        @keydown.enter="selectWritePermission"
+                      />
+                      <div v-if="writePermSuggestions.length > 0" class="permission-suggestions">
+                        <div 
+                          v-for="(suggestion, index) in writePermSuggestions" 
+                          :key="index"
+                          class="suggestion-item"
+                          :class="{ 'active': activeSuggestionIndex === index }"
+                          @click="selectSuggestion(suggestion, 'write')"
+                        >
+                          {{ suggestion }}
+                        </div>
+                      </div>
+                      <div v-if="newFieldWritePermsList.length > 0" class="permission-tag">
+                        {{ newFieldWritePermsList[0] }}
+                        <button 
+                          @click="clearPermission('write')" 
+                          class="permission-tag-remove"
+                          title="Remove permission"
+                        >×</button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </td>
@@ -171,19 +218,65 @@
                   <label>Permissions:</label>
                   <div class="permissions-row">
                     <span>Read:</span>
-                    <TagInput
-                      v-model="permissionInputsList[field.fieldType].read"
-                      placeholder="Add a permission and press Enter"
-                      class="field-tag-input"
-                    />
+                    <div class="permission-input-container">
+                      <input
+                        v-model="editFieldPermissionInputs[field.fieldType].read"
+                        placeholder="Type to search permissions"
+                        class="field-input permission-input"
+                        @input="searchEditReadPermissions(field.fieldType)"
+                        @keydown.enter="selectEditReadPermission(field.fieldType)"
+                      />
+                      <div v-if="editPermSuggestions.read.length > 0" class="permission-suggestions">
+                        <div 
+                          v-for="(suggestion, index) in editPermSuggestions.read" 
+                          :key="index"
+                          class="suggestion-item"
+                          :class="{ 'active': editActiveSuggestionIndex.read === index }"
+                          @click="selectEditSuggestion(suggestion, field.fieldType, 'read')"
+                        >
+                          {{ suggestion }}
+                        </div>
+                      </div>
+                      <div v-if="permissionInputsList[field.fieldType]?.read.length > 0" class="permission-tag">
+                        {{ permissionInputsList[field.fieldType].read[0] }}
+                        <button 
+                          @click="clearEditPermission(field.fieldType, 'read')" 
+                          class="permission-tag-remove"
+                          title="Remove permission"
+                        >×</button>
+                      </div>
+                    </div>
                   </div>
                   <div class="permissions-row">
                     <span>Write:</span>
-                    <TagInput
-                      v-model="permissionInputsList[field.fieldType].write"
-                      placeholder="Add a permission and press Enter"
-                      class="field-tag-input"
-                    />
+                    <div class="permission-input-container">
+                      <input
+                        v-model="editFieldPermissionInputs[field.fieldType].write"
+                        placeholder="Type to search permissions"
+                        class="field-input permission-input"
+                        @input="searchEditWritePermissions(field.fieldType)"
+                        @keydown.enter="selectEditWritePermission(field.fieldType)"
+                      />
+                      <div v-if="editPermSuggestions.write.length > 0" class="permission-suggestions">
+                        <div 
+                          v-for="(suggestion, index) in editPermSuggestions.write" 
+                          :key="index"
+                          class="suggestion-item"
+                          :class="{ 'active': editActiveSuggestionIndex.write === index }"
+                          @click="selectEditSuggestion(suggestion, field.fieldType, 'write')"
+                        >
+                          {{ suggestion }}
+                        </div>
+                      </div>
+                      <div v-if="permissionInputsList[field.fieldType]?.write.length > 0" class="permission-tag">
+                        {{ permissionInputsList[field.fieldType].write[0] }}
+                        <button 
+                          @click="clearEditPermission(field.fieldType, 'write')" 
+                          class="permission-tag-remove"
+                          title="Remove permission"
+                        >×</button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </template>
@@ -293,8 +386,9 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, nextTick } from 'vue';
-import type { EntitySchema, FieldSchema } from '@/core/data/types';
+import type { EntitySchema, FieldSchema, Entity } from '@/core/data/types';
 import { ValueType } from '@/core/data/types';
+import { useDataStore } from '@/stores/data';
 import TypeBadge from './TypeBadge.vue';
 import ConfirmDialog from './ConfirmDialog.vue';
 import TagInput from './TagInput.vue';
@@ -363,6 +457,21 @@ const newFieldWritePermsList = ref<string[]>([]);
 // Permission inputs converted to arrays for tag inputs
 const permissionInputsList = ref<Record<string, { read: string[], write: string[] }>>({});
 
+// Permission suggestions for autocomplete
+const readPermSuggestions = ref<string[]>([]);
+const writePermSuggestions = ref<string[]>([]);
+const editPermSuggestions = ref<{read: string[], write: string[]}>({
+  read: [],
+  write: []
+});
+
+// Active suggestion index for keyboard navigation
+const activeSuggestionIndex = ref<number>(-1);
+const editActiveSuggestionIndex = ref<{read: number, write: number}>({
+  read: -1,
+  write: -1
+});
+
 // Sort fields by rank
 const sortedFields = computed(() => {
   const result = Object.entries(workingSchema.value.fields).map(([fieldType, fieldSchema]) => {
@@ -376,80 +485,34 @@ const sortedFields = computed(() => {
   });
 });
 
+// Get datastore for permission search
+const dataStore = useDataStore();
+
+// Add state for permission search input
+const permissionSearchReadInput = ref('');
+const permissionSearchWriteInput = ref('');
+
+// Add state for edit field permission inputs
+const editFieldPermissionInputs = ref<Record<string, { read: string, write: string }>>({});
+
 // Initialize permission inputs when fields change
 watch(() => workingSchema.value.fields, (newFields) => {
   Object.entries(newFields).forEach(([fieldType, fieldSchema]) => {
     if (!permissionInputsList.value[fieldType]) {
       permissionInputsList.value[fieldType] = {
-        read: fieldSchema.readPermissions,
-        write: fieldSchema.writePermissions
+        read: fieldSchema.readPermissions.length > 0 ? [fieldSchema.readPermissions[0]] : [],
+        write: fieldSchema.writePermissions.length > 0 ? [fieldSchema.writePermissions[0]] : []
+      };
+    }
+    
+    if (!editFieldPermissionInputs.value[fieldType]) {
+      editFieldPermissionInputs.value[fieldType] = {
+        read: '',
+        write: ''
       };
     }
   });
 }, { immediate: true, deep: true });
-
-// Native HTML5 Drag and Drop handlers
-function handleDragStart(event: DragEvent, index: number) {
-  if (!event.dataTransfer) return;
-  
-  draggedIndex.value = index;
-  event.dataTransfer.effectAllowed = 'move';
-  
-  // Add visual indicator to the dragged element
-  if (event.target instanceof HTMLElement) {
-    setTimeout(() => {
-      if (event.target instanceof HTMLElement) {
-        event.target.classList.add('dragging');
-      }
-    }, 0);
-  }
-}
-
-function handleDragEnter(event: DragEvent, index: number) {
-  dragTargetIndex.value = index;
-}
-
-function handleDrop(event: DragEvent, index: number) {
-  if (draggedIndex.value === null || draggedIndex.value === index) return;
-  
-  // Get the dragged and target items
-  const draggedItem = sortedFields.value[draggedIndex.value];
-  
-  // Create a new array with the reordered items
-  const newSortedFields = [...sortedFields.value];
-  
-  // Remove the dragged item from its original position
-  newSortedFields.splice(draggedIndex.value, 1);
-  
-  // Insert the dragged item at the new position
-  newSortedFields.splice(index, 0, draggedItem);
-  
-  // Update the rank values
-  newSortedFields.forEach((item, idx) => {
-    if (item.fieldSchema.rank !== idx) {
-      item.fieldSchema.rank = idx;
-      modifiedFields.value.add(item.fieldType);
-    }
-  });
-  
-  // Reset drag state
-  draggedIndex.value = null;
-  dragTargetIndex.value = null;
-}
-
-function handleDragEnd(event: DragEvent) {
-  if (event.target instanceof HTMLElement) {
-    event.target.classList.remove('dragging');
-  }
-  
-  draggedIndex.value = null;
-  dragTargetIndex.value = null;
-}
-
-// Check if a field has been modified
-function isFieldModified(fieldType: string): boolean {
-  return modifiedFields.value.has(fieldType);
-}
 
 // Initialize on mount
 onMounted(() => {
@@ -459,8 +522,18 @@ onMounted(() => {
       read: fieldSchema.readPermissions.join(','),
       write: fieldSchema.writePermissions.join(',')
     };
+    
+    editFieldPermissionInputs.value[fieldType] = {
+      read: '',
+      write: ''
+    };
   });
 });
+
+// Check if a field has been modified
+function isFieldModified(fieldType: string): boolean {
+  return modifiedFields.value.has(fieldType);
+}
 
 // Validate field name
 function validateFieldName() {
@@ -493,6 +566,8 @@ function openAddField() {
   newFieldChoicesList.value = [];
   newFieldReadPermsList.value = [];
   newFieldWritePermsList.value = [];
+  permissionSearchReadInput.value = '';
+  permissionSearchWriteInput.value = '';
   nameError.value = null;
   
   // Focus on the field name input after DOM update
@@ -576,9 +651,18 @@ function cancelEditField(fieldType: string) {
 }
 
 function confirmEdit(fieldType: string, fieldSchema: FieldSchema) {
-  // Update permissions from tag inputs
-  fieldSchema.readPermissions = permissionInputsList.value[fieldType].read;
-  fieldSchema.writePermissions = permissionInputsList.value[fieldType].write;
+  // Update permissions - limit to first permission only
+  if (permissionInputsList.value[fieldType].read.length > 0) {
+    fieldSchema.readPermissions = [permissionInputsList.value[fieldType].read[0]];
+  } else {
+    fieldSchema.readPermissions = [];
+  }
+  
+  if (permissionInputsList.value[fieldType].write.length > 0) {
+    fieldSchema.writePermissions = [permissionInputsList.value[fieldType].write[0]];
+  } else {
+    fieldSchema.writePermissions = [];
+  }
   
   // Ensure rank is a number
   if (typeof fieldSchema.rank === 'string') {
@@ -699,6 +783,226 @@ function getValueTypeLabel(type: ValueType): string {
     default: return type;
   }
 }
+
+// Native HTML5 Drag and Drop handlers
+function handleDragStart(event: DragEvent, index: number) {
+  draggedIndex.value = index;
+  event.dataTransfer?.setData('text/plain', String(index));
+}
+
+function handleDragEnter(event: DragEvent, index: number) {
+  if (draggedIndex.value === null) return;
+  
+  // Highlight the target row
+  const rows = document.querySelectorAll('.field-row');
+  rows.forEach((row, i) => {
+    if (i === index) {
+      row.classList.add('drag-over');
+    } else {
+      row.classList.remove('drag-over');
+    }
+  });
+}
+
+function handleDrop(event: DragEvent, index: number) {
+  event.preventDefault();
+  
+  const fromIndex = draggedIndex.value;
+  const toIndex = index;
+  
+  if (fromIndex === null || fromIndex === toIndex) return;
+  
+  // Reorder fields array
+  const fieldsArray = sortedFields.value.map(field => field.fieldType);
+  const [movedField] = fieldsArray.splice(fromIndex, 1);
+  fieldsArray.splice(toIndex, 0, movedField);
+  
+  // Update ranks based on new order
+  fieldsArray.forEach((fieldType, index) => {
+    const field = workingSchema.value.fields[fieldType];
+    if (field) {
+      field.rank = index;
+    }
+  });
+  
+  // Mark as modified
+  modifiedFields.value.add(fieldsArray[toIndex]);
+  
+  draggedIndex.value = null;
+}
+
+function handleDragEnd(event: DragEvent) {
+  const rows = document.querySelectorAll('.field-row');
+  rows.forEach(row => {
+    row.classList.remove('drag-over');
+  });
+}
+
+// Function to search permissions for read field
+async function searchReadPermissions() {
+  if (!permissionSearchReadInput.value || permissionSearchReadInput.value.length < 2) {
+    readPermSuggestions.value = [];
+    activeSuggestionIndex.value = -1;
+    return;
+  }
+
+  try {
+    // Search for Users as a simple example - could be expanded to search across different types
+    const results = await dataStore.find('User', ['Name'], (entity: Entity) => {
+      const name = entity.field('Name').value.getString().toLowerCase();
+      return name.includes(permissionSearchReadInput.value.toLowerCase());
+    });
+    
+    readPermSuggestions.value = results.map((e: Entity) => e.entityId).slice(0, 5);
+  } catch (error) {
+    console.error('Error searching permissions:', error);
+    readPermSuggestions.value = [];
+  }
+}
+
+// Function to search permissions for write field
+async function searchWritePermissions() {
+  if (!permissionSearchWriteInput.value || permissionSearchWriteInput.value.length < 2) {
+    writePermSuggestions.value = [];
+    activeSuggestionIndex.value = -1;
+    return;
+  }
+
+  try {
+    // Search for Users as a simple example
+    const results = await dataStore.find('User', ['Name'], (entity: Entity) => {
+      const name = entity.field('Name').value.getString().toLowerCase();
+      return name.includes(permissionSearchWriteInput.value.toLowerCase());
+    });
+    
+    writePermSuggestions.value = results.map((e: Entity) => e.entityId).slice(0, 5);
+  } catch (error) {
+    console.error('Error searching permissions:', error);
+    writePermSuggestions.value = [];
+  }
+}
+
+// Editing mode permission search functions
+async function searchEditReadPermissions(fieldType: string) {
+  if (!editFieldPermissionInputs.value[fieldType]?.read || 
+      editFieldPermissionInputs.value[fieldType].read.length < 2) {
+    editPermSuggestions.value.read = [];
+    editActiveSuggestionIndex.value.read = -1;
+    return;
+  }
+
+  try {
+    const results = await dataStore.find('User', ['Name'], (entity: Entity) => {
+      const name = entity.field('Name').value.getString().toLowerCase();
+      return name.includes(editFieldPermissionInputs.value[fieldType].read.toLowerCase());
+    });
+    
+    editPermSuggestions.value.read = results.map((e: Entity) => e.entityId).slice(0, 5);
+  } catch (error) {
+    console.error('Error searching permissions:', error);
+    editPermSuggestions.value.read = [];
+  }
+}
+
+async function searchEditWritePermissions(fieldType: string) {
+  if (!editFieldPermissionInputs.value[fieldType]?.write || 
+      editFieldPermissionInputs.value[fieldType].write.length < 2) {
+    editPermSuggestions.value.write = [];
+    editActiveSuggestionIndex.value.write = -1;
+    return;
+  }
+
+  try {
+    const results = await dataStore.find('User', ['Name'], (entity: Entity) => {
+      const name = entity.field('Name').value.getString().toLowerCase();
+      return name.includes(editFieldPermissionInputs.value[fieldType].write.toLowerCase());
+    });
+    
+    editPermSuggestions.value.write = results.map((e: Entity) => e.entityId).slice(0, 5);
+  } catch (error) {
+    console.error('Error searching permissions:', error);
+    editPermSuggestions.value.write = [];
+  }
+}
+
+// Functions to handle suggestion selection
+function selectSuggestion(suggestion: string, type: 'read' | 'write') {
+  if (type === 'read') {
+    newFieldReadPermsList.value = [suggestion];
+    permissionSearchReadInput.value = '';
+    readPermSuggestions.value = [];
+  } else {
+    newFieldWritePermsList.value = [suggestion];
+    permissionSearchWriteInput.value = '';
+    writePermSuggestions.value = [];
+  }
+}
+
+function selectEditSuggestion(suggestion: string, fieldType: string, type: 'read' | 'write') {
+  if (type === 'read') {
+    permissionInputsList.value[fieldType].read = [suggestion];
+    editFieldPermissionInputs.value[fieldType].read = '';
+    editPermSuggestions.value.read = [];
+  } else {
+    permissionInputsList.value[fieldType].write = [suggestion];
+    editFieldPermissionInputs.value[fieldType].write = '';
+    editPermSuggestions.value.write = [];
+  }
+}
+
+// Handle selecting with keyboard
+function selectReadPermission() {
+  if (activeSuggestionIndex.value >= 0 && readPermSuggestions.value.length > 0) {
+    selectSuggestion(readPermSuggestions.value[activeSuggestionIndex.value], 'read');
+  } else if (permissionSearchReadInput.value) {
+    newFieldReadPermsList.value = [permissionSearchReadInput.value];
+    permissionSearchReadInput.value = '';
+  }
+}
+
+function selectWritePermission() {
+  if (activeSuggestionIndex.value >= 0 && writePermSuggestions.value.length > 0) {
+    selectSuggestion(writePermSuggestions.value[activeSuggestionIndex.value], 'write');
+  } else if (permissionSearchWriteInput.value) {
+    newFieldWritePermsList.value = [permissionSearchWriteInput.value];
+    permissionSearchWriteInput.value = '';
+  }
+}
+
+function selectEditReadPermission(fieldType: string) {
+  if (editActiveSuggestionIndex.value.read >= 0 && editPermSuggestions.value.read.length > 0) {
+    selectEditSuggestion(editPermSuggestions.value.read[editActiveSuggestionIndex.value.read], fieldType, 'read');
+  } else if (editFieldPermissionInputs.value[fieldType].read) {
+    permissionInputsList.value[fieldType].read = [editFieldPermissionInputs.value[fieldType].read];
+    editFieldPermissionInputs.value[fieldType].read = '';
+  }
+}
+
+function selectEditWritePermission(fieldType: string) {
+  if (editActiveSuggestionIndex.value.write >= 0 && editPermSuggestions.value.write.length > 0) {
+    selectEditSuggestion(editPermSuggestions.value.write[editActiveSuggestionIndex.value.write], fieldType, 'write');
+  } else if (editFieldPermissionInputs.value[fieldType].write) {
+    permissionInputsList.value[fieldType].write = [editFieldPermissionInputs.value[fieldType].write];
+    editFieldPermissionInputs.value[fieldType].write = '';
+  }
+}
+
+// Functions to clear permissions
+function clearPermission(type: 'read' | 'write') {
+  if (type === 'read') {
+    newFieldReadPermsList.value = [];
+  } else {
+    newFieldWritePermsList.value = [];
+  }
+}
+
+function clearEditPermission(fieldType: string, type: 'read' | 'write') {
+  if (type === 'read') {
+    permissionInputsList.value[fieldType].read = [];
+  } else {
+    permissionInputsList.value[fieldType].write = [];
+  }
+}
 </script>
 
 <style scoped>
@@ -774,12 +1078,12 @@ function getValueTypeLabel(type: ValueType): string {
 }
 
 .col-name {
-  width: 15%;
+  width: 20%;
   position: relative;
 }
 
 .col-type {
-  width: 12%;
+  width: 15%;
 }
 
 .col-info {
@@ -833,7 +1137,7 @@ function getValueTypeLabel(type: ValueType): string {
 }
 
 .new-field-row td {
-  padding: 12px 16px;
+  padding: 16px;
 }
 
 .field-row {
@@ -864,7 +1168,7 @@ function getValueTypeLabel(type: ValueType): string {
 .field-input,
 .field-select {
   width: 100%;
-  padding: 8px 12px;
+  padding: 10px 12px;
   border: 1px solid var(--qui-hover-border);
   border-radius: 4px;
   background: var(--qui-bg-primary);
@@ -986,7 +1290,9 @@ function getValueTypeLabel(type: ValueType): string {
 }
 
 .property-group label {
-  display: block;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   font-size: var(--qui-font-size-small);
   font-weight: var(--qui-font-weight-medium);
   color: var(--qui-text-secondary);
@@ -997,7 +1303,7 @@ function getValueTypeLabel(type: ValueType): string {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 
 .permissions-row:last-child {
@@ -1008,6 +1314,10 @@ function getValueTypeLabel(type: ValueType): string {
   min-width: 45px;
   font-size: var(--qui-font-size-small);
   color: var(--qui-text-secondary);
+}
+
+.permissions-section {
+  padding: 8px 0;
 }
 
 .field-properties {
@@ -1150,76 +1460,6 @@ function getValueTypeLabel(type: ValueType): string {
   background: var(--qui-bg-secondary);
 }
 
-.schema-editor-btn-primary,
-.schema-editor-btn-secondary {
-  padding: 8px 16px;
-  border-radius: 6px;
-  font-size: var(--qui-font-size-small);
-  font-weight: var(--qui-font-weight-medium);
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.schema-editor-btn-primary {
-  background: var(--qui-accent-color);
-  color: var(--qui-bg-primary);
-  border: none;
-}
-
-.schema-editor-btn-primary:hover {
-  background: var(--qui-accent-secondary);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-}
-
-.schema-editor-btn-secondary {
-  background: var(--qui-overlay-primary);
-  color: var(--qui-text-primary);
-  border: 1px solid var(--qui-hover-border);
-}
-
-.schema-editor-btn-secondary:hover {
-  background: var(--qui-overlay-secondary);
-}
-
-@keyframes pulse {
-  0% { box-shadow: 0 0 0 0 rgba(var(--qui-accent-color-rgb), 0.4); }
-  70% { box-shadow: 0 0 0 6px rgba(var(--qui-accent-color-rgb), 0); }
-  100% { box-shadow: 0 0 0 0 rgba(var(--qui-accent-color-rgb), 0); }
-}
-
-@media (max-width: 1024px) {
-  .schema-editor {
-    padding: 0;
-  }
-  
-  .schema-header {
-    padding: 12px 16px;
-  }
-  
-  .schema-title {
-    font-size: 18px;
-  }
-}
-
-@media (max-width: 768px) {
-  .schema-actions {
-    flex-wrap: wrap;
-  }
-  
-  .schema-editor-table th, 
-  .schema-editor-table td {
-    padding: 12px 8px;
-  }
-  
-  .field-properties {
-    flex-direction: column;
-    gap: 6px;
-  }
-}
-
-/* ...existing code... */
-
 .field-input-wrapper {
   position: relative;
   width: 100%;
@@ -1235,13 +1475,6 @@ function getValueTypeLabel(type: ValueType): string {
   font-size: 11px;
   margin-top: 4px;
   animation: fade-in 0.2s ease;
-}
-
-.input-help-text {
-  color: var(--qui-text-secondary);
-  font-size: 11px;
-  margin-top: 4px;
-  opacity: 0.7;
 }
 
 .field-tag-input {
@@ -1264,6 +1497,51 @@ function getValueTypeLabel(type: ValueType): string {
   transition: all 0.2s ease;
 }
 
+/* New styles for toggle button */
+.toggle-perms-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--qui-overlay-primary);
+  border: 1px solid var(--qui-hover-border);
+  border-radius: 4px;
+  color: var(--qui-text-secondary);
+  font-size: var(--qui-font-size-small);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.toggle-perms-btn:hover {
+  background: var(--qui-overlay-secondary);
+  color: var(--qui-text-primary);
+}
+
+.toggle-perms-btn svg {
+  opacity: 0.7;
+}
+
+.toggle-btn {
+  background: var(--qui-overlay-primary);
+  border: none;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 11px;
+  color: var(--qui-text-secondary);
+  cursor: pointer;
+}
+
+.toggle-btn:hover {
+  background: var(--qui-overlay-secondary);
+  color: var(--qui-text-primary);
+}
+
+.permission-group {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--qui-hover-border);
+}
+
 @keyframes shake {
   10%, 90% { transform: translateX(-1px); }
   20%, 80% { transform: translateX(2px); }
@@ -1274,5 +1552,84 @@ function getValueTypeLabel(type: ValueType): string {
 @keyframes fade-in {
   from { opacity: 0; }
   to { opacity: 1; }
+}
+
+.permission-input-container {
+  position: relative;
+  width: 100%;
+}
+
+.permission-input {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: var(--qui-font-size-small);
+}
+
+.permission-suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  background: var(--qui-bg-primary);
+  border: 1px solid var(--qui-hover-border);
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  max-height: 200px;
+  overflow-y: auto;
+  margin-top: 4px;
+  animation: fade-in-dropdown 0.2s ease;
+}
+
+.suggestion-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: var(--qui-font-size-small);
+}
+
+.suggestion-item:hover, .suggestion-item.active {
+  background: var(--qui-overlay-accent);
+  color: var(--qui-accent-color);
+}
+
+.permission-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  padding: 6px 10px;
+  background: var(--qui-overlay-accent);
+  color: var(--qui-accent-color);
+  border-radius: 4px;
+  font-size: var(--qui-font-size-small);
+  font-weight: var(--qui-font-weight-medium);
+  animation: fade-in 0.2s ease;
+}
+
+.permission-tag-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.1);
+  color: inherit;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.permission-tag-remove:hover {
+  background: rgba(0, 0, 0, 0.2);
+  transform: scale(1.1);
+}
+
+@keyframes fade-in-dropdown {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 </style>

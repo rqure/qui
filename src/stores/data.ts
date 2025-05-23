@@ -294,7 +294,7 @@ export const useDataStore = defineStore('data', {
                 });
         },
 
-        async find(entityType: EntityType, fieldTypes: FieldType[] | null = null, conditionFn: (entity: Entity) => boolean = () => true) {
+        async find(entityType: EntityType, fieldTypes: FieldType[] | null = null, conditionFn: (entity: Entity) => boolean = () => true): Promise<Entity[]> {
             const me = this;
             const pageSize = 100;
             let cursor = 0;
