@@ -278,13 +278,17 @@
                   </span>
                   
                   <span v-if="field.fieldSchema.readPermissions.length > 0" class="schema-editor-badge">
-                    <span class="property-label">Read Perms:</span>
-                    <span class="property-value permission-chip">{{ field.fieldSchema.readPermissions.length }}</span>
+                    <span class="property-label">Read:</span>
+                    <span class="property-value permission-chip">
+                      {{ getPermissionName(field.fieldSchema.readPermissions[0]) }}
+                    </span>
                   </span>
                   
                   <span v-if="field.fieldSchema.writePermissions.length > 0" class="schema-editor-badge">
-                    <span class="property-label">Write Perms:</span>
-                    <span class="property-value permission-chip">{{ field.fieldSchema.writePermissions.length }}</span>
+                    <span class="property-label">Write:</span>
+                    <span class="property-value permission-chip">
+                      {{ getPermissionName(field.fieldSchema.writePermissions[0]) }}
+                    </span>
                   </span>
                   
                   <span v-if="field.fieldSchema.valueType === ValueType.Choice && field.fieldSchema.choices.length > 0" class="choices-preview">
@@ -901,6 +905,12 @@ function handleEditFieldSearchKeydown(event: KeyboardEvent, type: 'read' | 'writ
     editFieldPermState.showDropdown.value[type] = false;
   }
 }
+
+// Helper function to get permission name from ID
+function getPermissionName(permId: string): string {
+  const perm = availablePermissions.value.find(p => p.entityId === permId);
+  return perm ? perm.field('Name').value.getString() : permId;
+}
 </script>
 
 <style scoped>
@@ -1044,6 +1054,7 @@ function handleEditFieldSearchKeydown(event: KeyboardEvent, type: 'read' | 'writ
   color: var(--qui-text-secondary);
   font-size: var(--qui-font-size-small);
   margin-right: 4px;
+  font-weight: var(--qui-font-weight-normal);
 }
 
 .property-value {
@@ -1051,11 +1062,12 @@ function handleEditFieldSearchKeydown(event: KeyboardEvent, type: 'read' | 'writ
 }
 
 .permission-chip {
-  background-color: var(--qui-overlay-accent);
-  color: var(--qui-accent-color);
-  padding: 1px 5px;
+  background-color: var(--qui-bg-secondary);
+  color: var(--qui-text-primary);
+  padding: 2px 6px;
   border-radius: 3px;
-  font-size: 10px;
+  font-size: 11px;
+  border: 1px solid var(--qui-hover-border);
 }
 
 .options-list {
