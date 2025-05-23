@@ -37,7 +37,11 @@ const handleItemClick = (e: Event, item: ExtendedMenuItem) => {
 
 // Calculate and adjust menu position
 const calculatePosition = () => {
-  if (!menuElement.value) return
+  if (!menuElement.value) {
+    // If menu element isn't available yet, use store position directly
+    adjustedPosition.value = { ...menuStore.position }
+    return
+  }
   
   const menu = menuElement.value
   const menuRect = menu.getBoundingClientRect()
@@ -111,7 +115,21 @@ const handleMenuLeave = () => {
 }
 
 // Watch for position changes
-watch(() => menuStore.position, calculatePosition, { immediate: true })
+watch(() => menuStore.position, (newPosition) => {
+  // Set initial position immediately
+  adjustedPosition.value = { ...newPosition }
+  
+  // Then calculate adjusted position after DOM update
+  nextTick(calculatePosition)
+}, { immediate: true })
+
+// Watch for visibility changes
+watch(() => menuStore.isVisible, (isVisible) => {
+  if (isVisible) {
+    // When menu becomes visible, calculate position after DOM update
+    nextTick(calculatePosition)
+  }
+})
 
 // Close on escape or outside click
 const handleEscape = (e: KeyboardEvent) => {
@@ -130,10 +148,10 @@ onMounted(() => {
   document.addEventListener('keydown', handleEscape)
   document.addEventListener('mousedown', handleOutsideClick)
   
-  // Calculate position after component is mounted
-  nextTick(() => {
-    calculatePosition()
-  })
+  // Initial position calculation
+  if (menuStore.isVisible) {
+    nextTick(calculatePosition)
+  }
 })
 
 onBeforeUnmount(() => {
