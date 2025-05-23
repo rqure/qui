@@ -203,6 +203,10 @@ defineProps<{
   display: flex;
   flex-direction: column;
   line-height: 1.2;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
 }
 
 .company-name {
