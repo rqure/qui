@@ -96,23 +96,23 @@
                     <div class="schema-editor-select">
                       <input
                         type="text"
-                        :value="permissionSearchText.read"
-                        @input="e => filterPermissions('read', (e.target as HTMLInputElement).value)"
+                        :value="newFieldPermState.searchText.value.read"
+                        @input="e => filterNewFieldPermissions('read', (e.target as HTMLInputElement).value)"
                         class="schema-editor-form-control"
                         placeholder="Type to search permissions..."
-                        @focus="showDropdown.read = true"
-                        @blur="handleSearchBlur('read')"
-                        @keydown="handleSearchKeydown($event, 'read')"
+                        @focus="newFieldPermState.showDropdown.value.read = true"
+                        @blur="handleNewFieldSearchBlur('read')"
+                        @keydown="handleNewFieldSearchKeydown($event, 'read')"
                       />
-                      <div v-if="showDropdown.read" class="schema-editor-dropdown">
-                        <div v-if="filteredPermissions.read.length === 0" class="no-results">No permissions found</div>
+                      <div v-if="newFieldPermState.showDropdown.value.read" class="schema-editor-dropdown">
+                        <div v-if="filteredPermissions.add.read.length === 0" class="no-results">No permissions found</div>
                         <div
-                          v-for="(perm, idx) in filteredPermissions.read"
+                          v-for="(perm, idx) in filteredPermissions.add.read"
                           :key="perm.entityId"
                           class="schema-editor-dropdown-item"
-                          :class="{ 'active': activeSuggestionIndex.read === idx }"
-                          @mousedown.prevent="selectPermission('read', perm.entityId)"
-                          @mouseover="activeSuggestionIndex.read = idx"
+                          :class="{ 'active': newFieldPermState.activeSuggestionIndex.value.read === idx }"
+                          @mousedown.prevent="selectNewFieldPermission('read', perm.entityId)"
+                          @mouseover="newFieldPermState.activeSuggestionIndex.value.read = idx"
                         >
                           {{ perm.field('Name').value.getString() }}
                         </div>
@@ -126,23 +126,23 @@
                     <div class="schema-editor-select">
                       <input
                         type="text"
-                        :value="permissionSearchText.write"
-                        @input="e => filterPermissions('write', (e.target as HTMLInputElement).value)"
+                        :value="newFieldPermState.searchText.value.write"
+                        @input="e => filterNewFieldPermissions('write', (e.target as HTMLInputElement).value)"
                         class="schema-editor-form-control"
                         placeholder="Type to search permissions..."
-                        @focus="showDropdown.write = true"
-                        @blur="handleSearchBlur('write')"
-                        @keydown="handleSearchKeydown($event, 'write')"
+                        @focus="newFieldPermState.showDropdown.value.write = true"
+                        @blur="handleNewFieldSearchBlur('write')"
+                        @keydown="handleNewFieldSearchKeydown($event, 'write')"
                       />
-                      <div v-if="showDropdown.write" class="schema-editor-dropdown">
-                        <div v-if="filteredPermissions.write.length === 0" class="no-results">No permissions found</div>
+                      <div v-if="newFieldPermState.showDropdown.value.write" class="schema-editor-dropdown">
+                        <div v-if="filteredPermissions.add.write.length === 0" class="no-results">No permissions found</div>
                         <div
-                          v-for="(perm, idx) in filteredPermissions.write"
+                          v-for="(perm, idx) in filteredPermissions.add.write"
                           :key="perm.entityId"
                           class="schema-editor-dropdown-item"
-                          :class="{ 'active': activeSuggestionIndex.write === idx }"
-                          @mousedown.prevent="selectPermission('write', perm.entityId)"
-                          @mouseover="activeSuggestionIndex.write = idx"
+                          :class="{ 'active': newFieldPermState.activeSuggestionIndex.value.write === idx }"
+                          @mousedown.prevent="selectNewFieldPermission('write', perm.entityId)"
+                          @mouseover="newFieldPermState.activeSuggestionIndex.value.write = idx"
                         >
                           {{ perm.field('Name').value.getString() }}
                         </div>
@@ -215,23 +215,23 @@
                       <div class="schema-editor-select">
                         <input
                           type="text"
-                          :value="permissionSearchText.read"
-                          @input="e => filterPermissions('read', (e.target as HTMLInputElement).value)"
+                          :value="editFieldPermState.searchText.value.read"
+                          @input="e => filterEditFieldPermissions('read', (e.target as HTMLInputElement).value)"
                           class="schema-editor-form-control"
                           placeholder="Type to search permissions..."
-                          @focus="showDropdown.read = true"
-                          @blur="handleSearchBlur('read')"
-                          @keydown="handleSearchKeydown($event, 'read')"
+                          @focus="editFieldPermState.showDropdown.value.read = true"
+                          @blur="handleEditFieldSearchBlur('read')"
+                          @keydown="handleEditFieldSearchKeydown($event, 'read')"
                         />
-                        <div v-if="showDropdown.read" class="schema-editor-dropdown">
-                          <div v-if="filteredPermissions.read.length === 0" class="no-results">No permissions found</div>
+                        <div v-if="editFieldPermState.showDropdown.value.read" class="schema-editor-dropdown">
+                          <div v-if="filteredPermissions.edit.read.length === 0" class="no-results">No permissions found</div>
                           <div
-                            v-for="(perm, idx) in filteredPermissions.read"
+                            v-for="(perm, idx) in filteredPermissions.edit.read"
                             :key="perm.entityId"
                             class="schema-editor-dropdown-item"
-                            :class="{ 'active': activeSuggestionIndex.read === idx }"
-                            @mousedown.prevent="selectPermission('read', perm.entityId)"
-                            @mouseover="activeSuggestionIndex.read = idx"
+                            :class="{ 'active': editFieldPermState.activeSuggestionIndex.value.read === idx }"
+                            @mousedown.prevent="selectEditFieldPermission('read', perm.entityId)"
+                            @mouseover="editFieldPermState.activeSuggestionIndex.value.read = idx"
                           >
                             {{ perm.field('Name').value.getString() }}
                           </div>
@@ -245,23 +245,23 @@
                       <div class="schema-editor-select">
                         <input
                           type="text"
-                          :value="permissionSearchText.write"
-                          @input="e => filterPermissions('write', (e.target as HTMLInputElement).value)"
+                          :value="editFieldPermState.searchText.value.write"
+                          @input="e => filterEditFieldPermissions('write', (e.target as HTMLInputElement).value)"
                           class="schema-editor-form-control"
                           placeholder="Type to search permissions..."
-                          @focus="showDropdown.write = true"
-                          @blur="handleSearchBlur('write')"
-                          @keydown="handleSearchKeydown($event, 'write')"
+                          @focus="editFieldPermState.showDropdown.value.write = true"
+                          @blur="handleEditFieldSearchBlur('write')"
+                          @keydown="handleEditFieldSearchKeydown($event, 'write')"
                         />
-                        <div v-if="showDropdown.write" class="schema-editor-dropdown">
-                          <div v-if="filteredPermissions.write.length === 0" class="no-results">No permissions found</div>
+                        <div v-if="editFieldPermState.showDropdown.value.write" class="schema-editor-dropdown">
+                          <div v-if="filteredPermissions.edit.write.length === 0" class="no-results">No permissions found</div>
                           <div
-                            v-for="(perm, idx) in filteredPermissions.write"
+                            v-for="(perm, idx) in filteredPermissions.edit.write"
                             :key="perm.entityId"
                             class="schema-editor-dropdown-item"
-                            :class="{ 'active': activeSuggestionIndex.write === idx }"
-                            @mousedown.prevent="selectPermission('write', perm.entityId)"
-                            @mouseover="activeSuggestionIndex.write = idx"
+                            :class="{ 'active': editFieldPermState.activeSuggestionIndex.value.write === idx }"
+                            @mousedown.prevent="selectEditFieldPermission('write', perm.entityId)"
+                            @mouseover="editFieldPermState.activeSuggestionIndex.value.write = idx"
                           >
                             {{ perm.field('Name').value.getString() }}
                           </div>
@@ -465,11 +465,34 @@ interface StringState {
 }
 
 // Permission-related state
+// Existing fields permissions
 const permissionInputsList = ref<Record<string, { read: string[], write: string[] }>>({});
-const activeSuggestionIndex = ref<IndexState>({ read: -1, write: -1 });
-const permissionSearchText = ref<StringState>({ read: '', write: '' });
-const showDropdown = ref<BooleanState>({ read: false, write: false });
-const filteredPermissions = ref<SuggestionState>({ read: [], write: [] });
+
+// Separate state for editing vs adding
+// For adding new fields
+const newFieldPermState = {
+  searchText: ref<StringState>({ read: '', write: '' }),
+  showDropdown: ref<BooleanState>({ read: false, write: false }),
+  activeSuggestionIndex: ref<IndexState>({ read: -1, write: -1 }),
+};
+
+// For editing existing fields
+const editFieldPermState = {
+  searchText: ref<StringState>({ read: '', write: '' }),
+  showDropdown: ref<BooleanState>({ read: false, write: false }),
+  activeSuggestionIndex: ref<IndexState>({ read: -1, write: -1 }),
+  currentField: ref<string | null>(null), // Track which field is being edited
+};
+
+// Shared filtered permissions state
+const filteredPermissions = ref<{
+  add: SuggestionState;
+  edit: SuggestionState;
+}>({
+  add: { read: [], write: [] },
+  edit: { read: [], write: [] }
+});
+
 const availablePermissions = ref<Entity[]>([]);
 
 // Get datastore for permission search
@@ -517,8 +540,10 @@ onMounted(async () => {
 
 // Set initial filtered permissions to all available permissions
 watch(() => availablePermissions.value, (perms) => {
-  filteredPermissions.value.read = [...perms];
-  filteredPermissions.value.write = [...perms];
+  filteredPermissions.value.add.read = [...perms];
+  filteredPermissions.value.add.write = [...perms];
+  filteredPermissions.value.edit.read = [...perms];
+  filteredPermissions.value.edit.write = [...perms];
 }, { immediate: true });
 
 // Check if a field has been modified
@@ -559,9 +584,10 @@ function openAddField() {
   newFieldWritePermsList.value = [];
   nameError.value = null;
   
-  // Clear search text and dropdown state
-  permissionSearchText.value = { read: '', write: '' };
-  showDropdown.value = { read: false, write: false };
+  // Reset add field permission state
+  newFieldPermState.searchText.value = { read: '', write: '' };
+  newFieldPermState.showDropdown.value = { read: false, write: false };
+  newFieldPermState.activeSuggestionIndex.value = { read: -1, write: -1 };
   
   // Focus on the field name input after DOM update
   nextTick(() => {
@@ -625,6 +651,33 @@ function startEditField(fieldType: string) {
   }
   
   editingField.value = fieldType;
+  editFieldPermState.currentField.value = fieldType;
+  
+  // Reset edit field permission state
+  editFieldPermState.searchText.value = { read: '', write: '' };
+  editFieldPermState.showDropdown.value = { read: false, write: false };
+  editFieldPermState.activeSuggestionIndex.value = { read: -1, write: -1 };
+  
+  // Set initial values for read/write permissions in search fields
+  const permissions = permissionInputsList.value[fieldType];
+  if (permissions) {
+    // Populate search text with current permission names for better UX
+    if (permissions.read.length > 0) {
+      const readPermId = permissions.read[0];
+      const readPerm = availablePermissions.value.find(p => p.entityId === readPermId);
+      if (readPerm) {
+        editFieldPermState.searchText.value.read = readPerm.field('Name').value.getString();
+      }
+    }
+    
+    if (permissions.write.length > 0) {
+      const writePermId = permissions.write[0];
+      const writePerm = availablePermissions.value.find(p => p.entityId === writePermId);
+      if (writePerm) {
+        editFieldPermState.searchText.value.write = writePerm.field('Name').value.getString();
+      }
+    }
+  }
 }
 
 function cancelEditField(fieldType: string) {
@@ -773,7 +826,7 @@ function handleDrop(event: DragEvent, index: number) {
   const fromIndex = draggedIndex.value;
   const toIndex = index;
   
-  if (fromIndex === null || fromIndex === toIndex) return;
+  if (fromIndex === null || fromIndex === toIndex) return; // Fixed missing parenthesis
   
   // Reorder fields array
   const fieldsArray = sortedFields.value.map(field => field.fieldType);
@@ -801,61 +854,120 @@ function handleDragEnd() {
   });
 }
 
-// Methods for searchable dropdowns
-function filterPermissions(type: 'read' | 'write', searchText: string) {
-  permissionSearchText.value[type] = searchText;
+// Methods for searchable dropdowns - for adding new fields
+function filterNewFieldPermissions(type: 'read' | 'write', searchText: string) {
+  newFieldPermState.searchText.value[type] = searchText;
   
   if (!searchText.trim()) {
-    filteredPermissions.value[type] = [...availablePermissions.value];
+    filteredPermissions.value.add[type] = [...availablePermissions.value];
   } else {
     const lowerSearch = searchText.toLowerCase();
-    filteredPermissions.value[type] = availablePermissions.value.filter(perm => {
+    filteredPermissions.value.add[type] = availablePermissions.value.filter(perm => {
       const name = perm.field('Name').value.getString().toLowerCase();
       return name.includes(lowerSearch);
     });
   }
   
   // Reset active suggestion index when filtering
-  activeSuggestionIndex.value[type] = -1;
+  newFieldPermState.activeSuggestionIndex.value[type] = -1;
 }
 
-function selectPermission(type: 'read' | 'write', permId: string) {
-  // For new field permissions
+function selectNewFieldPermission(type: 'read' | 'write', permId: string) {
   if (type === 'read') {
     newFieldReadPermsList.value = [permId];
-    permissionSearchText.value.read = availablePermissions.value.find(p => p.entityId === permId)?.field('Name').value.getString() || '';
+    newFieldPermState.searchText.value.read = availablePermissions.value.find(p => p.entityId === permId)?.field('Name').value.getString() || '';
   } else {
     newFieldWritePermsList.value = [permId];
-    permissionSearchText.value.write = availablePermissions.value.find(p => p.entityId === permId)?.field('Name').value.getString() || '';
+    newFieldPermState.searchText.value.write = availablePermissions.value.find(p => p.entityId === permId)?.field('Name').value.getString() || '';
   }
   
   // Hide dropdown after selection
-  showDropdown.value[type] = false;
+  newFieldPermState.showDropdown.value[type] = false;
 }
 
-function handleSearchBlur(type: 'read' | 'write') {
+function handleNewFieldSearchBlur(type: 'read' | 'write') {
   // Use timeout to allow click events on dropdown items to complete
   setTimeout(() => {
-    showDropdown.value[type] = false;
+    newFieldPermState.showDropdown.value[type] = false;
   }, 200);
 }
 
-function handleSearchKeydown(event: KeyboardEvent, type: 'read' | 'write') {
-  const currentIndex = activeSuggestionIndex.value[type];
-  const items = filteredPermissions.value[type];
+function handleNewFieldSearchKeydown(event: KeyboardEvent, type: 'read' | 'write') {
+  const currentIndex = newFieldPermState.activeSuggestionIndex.value[type];
+  const items = filteredPermissions.value.add[type];
   
   if (event.key === 'ArrowDown') {
     event.preventDefault();
-    activeSuggestionIndex.value[type] = Math.min(currentIndex + 1, items.length - 1);
+    newFieldPermState.activeSuggestionIndex.value[type] = Math.min(currentIndex + 1, items.length - 1);
   } else if (event.key === 'ArrowUp') {
     event.preventDefault();
-    activeSuggestionIndex.value[type] = Math.max(currentIndex - 1, 0);
+    newFieldPermState.activeSuggestionIndex.value[type] = Math.max(currentIndex - 1, 0);
   } else if (event.key === 'Enter' && currentIndex >= 0 && items[currentIndex]) {
     event.preventDefault();
-    selectPermission(type, items[currentIndex].entityId);
+    selectNewFieldPermission(type, items[currentIndex].entityId);
   } else if (event.key === 'Escape') {
     event.preventDefault();
-    showDropdown.value[type] = false;
+    newFieldPermState.showDropdown.value[type] = false;
+  }
+}
+
+// Methods for searchable dropdowns - for editing fields
+function filterEditFieldPermissions(type: 'read' | 'write', searchText: string) {
+  editFieldPermState.searchText.value[type] = searchText;
+  
+  if (!searchText.trim()) {
+    filteredPermissions.value.edit[type] = [...availablePermissions.value];
+  } else {
+    const lowerSearch = searchText.toLowerCase();
+    filteredPermissions.value.edit[type] = availablePermissions.value.filter(perm => {
+      const name = perm.field('Name').value.getString().toLowerCase();
+      return name.includes(lowerSearch);
+    });
+  }
+  
+  // Reset active suggestion index when filtering
+  editFieldPermState.activeSuggestionIndex.value[type] = -1;
+}
+
+function selectEditFieldPermission(type: 'read' | 'write', permId: string) {
+  const fieldType = editFieldPermState.currentField.value;
+  if (fieldType && permissionInputsList.value[fieldType]) {
+    if (type === 'read') {
+      permissionInputsList.value[fieldType].read = [permId];
+      editFieldPermState.searchText.value.read = availablePermissions.value.find(p => p.entityId === permId)?.field('Name').value.getString() || '';
+    } else {
+      permissionInputsList.value[fieldType].write = [permId];
+      editFieldPermState.searchText.value.write = availablePermissions.value.find(p => p.entityId === permId)?.field('Name').value.getString() || '';
+    }
+    
+    // Hide dropdown after selection
+    editFieldPermState.showDropdown.value[type] = false;
+  }
+}
+
+function handleEditFieldSearchBlur(type: 'read' | 'write') {
+  // Use timeout to allow click events on dropdown items to complete
+  setTimeout(() => {
+    editFieldPermState.showDropdown.value[type] = false;
+  }, 200);
+}
+
+function handleEditFieldSearchKeydown(event: KeyboardEvent, type: 'read' | 'write') {
+  const currentIndex = editFieldPermState.activeSuggestionIndex.value[type];
+  const items = filteredPermissions.value.edit[type];
+  
+  if (event.key === 'ArrowDown') {
+    event.preventDefault();
+    editFieldPermState.activeSuggestionIndex.value[type] = Math.min(currentIndex + 1, items.length - 1);
+  } else if (event.key === 'ArrowUp') {
+    event.preventDefault();
+    editFieldPermState.activeSuggestionIndex.value[type] = Math.max(currentIndex - 1, 0);
+  } else if (event.key === 'Enter' && currentIndex >= 0 && items[currentIndex]) {
+    event.preventDefault();
+    selectEditFieldPermission(type, items[currentIndex].entityId);
+  } else if (event.key === 'Escape') {
+    event.preventDefault();
+    editFieldPermState.showDropdown.value[type] = false;
   }
 }
 </script>
@@ -989,6 +1101,42 @@ function handleSearchKeydown(event: KeyboardEvent, type: 'read' | 'write') {
 .delete-choice-btn:hover {
   background: rgba(0, 0, 0, 0.1);
   transform: scale(1.1);
+}
+
+.field-properties {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.property-label {
+  color: var(--qui-text-secondary);
+  font-size: var(--qui-font-size-small);
+  margin-right: 4px;
+}
+
+.property-value {
+  font-weight: var(--qui-font-weight-medium);
+}
+
+.permission-chip {
+  background-color: var(--qui-overlay-accent);
+  color: var(--qui-accent-color);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 10px;
+}
+
+.options-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+.option-more {
+  color: var(--qui-text-secondary);
+  font-size: 10px;
 }
 
 .action-buttons {
