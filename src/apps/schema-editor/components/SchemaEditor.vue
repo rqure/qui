@@ -94,31 +94,61 @@
                   <div class="permissions-row">
                     <span>Read:</span>
                     <div class="permission-input-container">
-                      <select
-                        :value="newFieldReadPermsList.length > 0 ? newFieldReadPermsList[0] : ''"
-                        class="field-select permission-select"
-                        @change="(e) => handleReadPermissionChange(e)"
-                      >
-                        <option value="">Select permission</option>
-                        <option v-for="perm in availablePermissions" :key="perm.entityId" :value="perm.entityId">
-                          {{ perm.field('Name').value.getString() }}
-                        </option>
-                      </select>
+                      <div class="searchable-select">
+                        <input
+                          type="text"
+                          :value="permissionSearchText.read"
+                          @input="e => filterPermissions('read', (e.target as HTMLInputElement).value)"
+                          class="permission-search-input"
+                          placeholder="Type to search permissions..."
+                          @focus="showDropdown.read = true"
+                          @blur="handleSearchBlur('read')"
+                          @keydown="handleSearchKeydown($event, 'read')"
+                        />
+                        <div v-if="showDropdown.read" class="permission-dropdown">
+                          <div v-if="filteredPermissions.read.length === 0" class="no-results">No permissions found</div>
+                          <div
+                            v-for="(perm, idx) in filteredPermissions.read"
+                            :key="perm.entityId"
+                            class="permission-option"
+                            :class="{ 'active': activeSuggestionIndex.read === idx }"
+                            @mousedown.prevent="selectPermission('read', perm.entityId)"
+                            @mouseover="activeSuggestionIndex.read = idx"
+                          >
+                            {{ perm.field('Name').value.getString() }}
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                   <div class="permissions-row">
                     <span>Write:</span>
                     <div class="permission-input-container">
-                      <select
-                        :value="newFieldWritePermsList.length > 0 ? newFieldWritePermsList[0] : ''"
-                        class="field-select permission-select"
-                        @change="(e) => handleWritePermissionChange(e)"
-                      >
-                        <option value="">Select permission</option>
-                        <option v-for="perm in availablePermissions" :key="perm.entityId" :value="perm.entityId">
-                          {{ perm.field('Name').value.getString() }}
-                        </option>
-                      </select>
+                      <div class="searchable-select">
+                        <input
+                          type="text"
+                          :value="permissionSearchText.write"
+                          @input="e => filterPermissions('write', (e.target as HTMLInputElement).value)"
+                          class="permission-search-input"
+                          placeholder="Type to search permissions..."
+                          @focus="showDropdown.write = true"
+                          @blur="handleSearchBlur('write')"
+                          @keydown="handleSearchKeydown($event, 'write')"
+                        />
+                        <div v-if="showDropdown.write" class="permission-dropdown">
+                          <div v-if="filteredPermissions.write.length === 0" class="no-results">No permissions found</div>
+                          <div
+                            v-for="(perm, idx) in filteredPermissions.write"
+                            :key="perm.entityId"
+                            class="permission-option"
+                            :class="{ 'active': activeSuggestionIndex.write === idx }"
+                            @mousedown.prevent="selectPermission('write', perm.entityId)"
+                            @mouseover="activeSuggestionIndex.write = idx"
+                          >
+                            {{ perm.field('Name').value.getString() }}
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -185,31 +215,61 @@
                   <div class="permissions-row">
                     <span>Read:</span>
                     <div class="permission-input-container">
-                      <select
-                        :value="permissionInputsList[field.fieldType].read.length > 0 ? permissionInputsList[field.fieldType].read[0] : ''"
-                        class="field-select permission-select"
-                        @change="(e) => handleEditPermissionChange(field.fieldType, 'read', e)"
-                      >
-                        <option value="">Select permission</option>
-                        <option v-for="perm in availablePermissions" :key="perm.entityId" :value="perm.entityId">
-                          {{ perm.field('Name').value.getString() }}
-                        </option>
-                      </select>
+                      <div class="searchable-select">
+                        <input
+                          type="text"
+                          :value="permissionSearchText.read"
+                          @input="e => filterPermissions('read', (e.target as HTMLInputElement).value)"
+                          class="permission-search-input"
+                          placeholder="Type to search permissions..."
+                          @focus="showDropdown.read = true"
+                          @blur="handleSearchBlur('read')"
+                          @keydown="handleSearchKeydown($event, 'read')"
+                        />
+                        <div v-if="showDropdown.read" class="permission-dropdown">
+                          <div v-if="filteredPermissions.read.length === 0" class="no-results">No permissions found</div>
+                          <div
+                            v-for="(perm, idx) in filteredPermissions.read"
+                            :key="perm.entityId"
+                            class="permission-option"
+                            :class="{ 'active': activeSuggestionIndex.read === idx }"
+                            @mousedown.prevent="selectPermission('read', perm.entityId)"
+                            @mouseover="activeSuggestionIndex.read = idx"
+                          >
+                            {{ perm.field('Name').value.getString() }}
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                   <div class="permissions-row">
                     <span>Write:</span>
                     <div class="permission-input-container">
-                      <select
-                        :value="permissionInputsList[field.fieldType].write.length > 0 ? permissionInputsList[field.fieldType].write[0] : ''"
-                        class="field-select permission-select"
-                        @change="(e) => handleEditPermissionChange(field.fieldType, 'write', e)"
-                      >
-                        <option value="">Select permission</option>
-                        <option v-for="perm in availablePermissions" :key="perm.entityId" :value="perm.entityId">
-                          {{ perm.field('Name').value.getString() }}
-                        </option>
-                      </select>
+                      <div class="searchable-select">
+                        <input
+                          type="text"
+                          :value="permissionSearchText.write"
+                          @input="e => filterPermissions('write', (e.target as HTMLInputElement).value)"
+                          class="permission-search-input"
+                          placeholder="Type to search permissions..."
+                          @focus="showDropdown.write = true"
+                          @blur="handleSearchBlur('write')"
+                          @keydown="handleSearchKeydown($event, 'write')"
+                        />
+                        <div v-if="showDropdown.write" class="permission-dropdown">
+                          <div v-if="filteredPermissions.write.length === 0" class="no-results">No permissions found</div>
+                          <div
+                            v-for="(perm, idx) in filteredPermissions.write"
+                            :key="perm.entityId"
+                            class="permission-option"
+                            :class="{ 'active': activeSuggestionIndex.write === idx }"
+                            @mousedown.prevent="selectPermission('write', perm.entityId)"
+                            @mouseover="activeSuggestionIndex.write = idx"
+                          >
+                            {{ perm.field('Name').value.getString() }}
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -394,16 +454,74 @@ const permissionInputsList = ref<Record<string, { read: string[], write: string[
 // Permission suggestions for autocomplete
 const readPermSuggestions = ref<Entity[]>([]);
 const writePermSuggestions = ref<Entity[]>([]);
-const editPermSuggestions = ref<{read: Entity[], write: Entity[]}>({
+
+// Properly define type for these objects with index signatures
+interface SuggestionState {
+  read: Entity[];
+  write: Entity[];
+  [key: string]: Entity[];
+}
+
+interface IndexState {
+  read: number;
+  write: number;
+  [key: string]: number;
+}
+
+interface BooleanState {
+  read: boolean;
+  write: boolean;
+  [key: string]: boolean;
+}
+
+interface StringState {
+  read: string;
+  write: string;
+  [key: string]: string;
+}
+
+// Create a type for field-specific state management
+interface FieldStateManager {
+  permissionSearchText: Record<string, StringState>;
+  filteredPermissions: Record<string, SuggestionState>;
+  showDropdown: Record<string, BooleanState>;
+  activeSuggestionIndex: Record<string, IndexState>;
+}
+
+// Create the field state manager
+const fieldStateManager: FieldStateManager = {
+  permissionSearchText: {},
+  filteredPermissions: {},
+  showDropdown: {},
+  activeSuggestionIndex: {}
+};
+
+// Fix the ref types with proper interfaces
+const editPermSuggestions = ref<SuggestionState>({
   read: [],
   write: []
 });
 
-// Active suggestion index for keyboard navigation
-const activeSuggestionIndex = ref<number>(-1);
-const editActiveSuggestionIndex = ref<{read: number, write: number}>({
+// Fix activeSuggestionIndex type
+const activeSuggestionIndex = ref<IndexState>({
   read: -1,
   write: -1
+});
+
+// Add state for searchable dropdowns with proper types
+const permissionSearchText = ref<StringState>({
+  read: '',
+  write: ''
+});
+
+const showDropdown = ref<BooleanState>({
+  read: false,
+  write: false
+});
+
+const filteredPermissions = ref<SuggestionState>({
+  read: [],
+  write: []
 });
 
 // Sort fields by rank
@@ -827,95 +945,466 @@ function handleEditPermissionChange(fieldType: string, type: 'read' | 'write', e
   modifiedFields.value.add(fieldType);
   console.log(`Updated ${type} permissions for ${fieldType}`);
 }
+
+// Methods for searchable dropdowns
+function filterPermissions(type: 'read' | 'write', searchText: string) {
+  permissionSearchText.value[type] = searchText;
+  
+  if (!searchText.trim()) {
+    filteredPermissions.value[type] = [...availablePermissions.value];
+  } else {
+    const lowerSearch = searchText.toLowerCase();
+    filteredPermissions.value[type] = availablePermissions.value.filter(perm => {
+      const name = perm.field('Name').value.getString().toLowerCase();
+      return name.includes(lowerSearch);
+    });
+  }
+  
+  // Reset active suggestion index when filtering
+  activeSuggestionIndex.value[type] = -1;
+}
+
+function selectPermission(type: 'read' | 'write', permId: string) {
+  // For new field permissions
+  if (type === 'read') {
+    newFieldReadPermsList.value = [permId];
+    permissionSearchText.value.read = availablePermissions.value.find(p => p.entityId === permId)?.field('Name').value.getString() || '';
+  } else {
+    newFieldWritePermsList.value = [permId];
+    permissionSearchText.value.write = availablePermissions.value.find(p => p.entityId === permId)?.field('Name').value.getString() || '';
+  }
+  
+  // Hide dropdown after selection
+  showDropdown.value[type] = false;
+}
+
+function handleSearchBlur(type: 'read' | 'write') {
+  // Use timeout to allow click events on dropdown items to complete
+  setTimeout(() => {
+    showDropdown.value[type] = false;
+  }, 200);
+}
+
+function handleSearchKeydown(event: KeyboardEvent, type: 'read' | 'write') {
+  const currentIndex = activeSuggestionIndex.value[type];
+  const items = filteredPermissions.value[type];
+  
+  if (event.key === 'ArrowDown') {
+    event.preventDefault();
+    activeSuggestionIndex.value[type] = Math.min(currentIndex + 1, items.length - 1);
+  } else if (event.key === 'ArrowUp') {
+    event.preventDefault();
+    activeSuggestionIndex.value[type] = Math.max(currentIndex - 1, 0);
+  } else if (event.key === 'Enter' && currentIndex >= 0 && items[currentIndex]) {
+    event.preventDefault();
+    selectPermission(type, items[currentIndex].entityId);
+  } else if (event.key === 'Escape') {
+    event.preventDefault();
+    showDropdown.value[type] = false;
+  }
+}
+
+// Initialize complex nested reactive objects
+onMounted(() => {
+  // Initialize search state for each field
+  Object.keys(workingSchema.value.fields).forEach(fieldType => {
+    // Create objects for field-specific state management
+    fieldStateManager.permissionSearchText[fieldType] = { read: '', write: '' };
+    
+    fieldStateManager.filteredPermissions[fieldType] = { 
+      read: [...availablePermissions.value], 
+      write: [...availablePermissions.value] 
+    };
+    
+    fieldStateManager.showDropdown[fieldType] = { read: false, write: false };
+    
+    fieldStateManager.activeSuggestionIndex[fieldType] = { read: -1, write: -1 };
+  });
+});
+
+// Set initial filtered permissions to all available permissions
+watch(() => availablePermissions.value, (perms) => {
+  filteredPermissions.value.read = [...perms];
+  filteredPermissions.value.write = [...perms];
+}, { immediate: true });
 </script>
 
 <style scoped>
 .schema-editor {
-  height: 100%;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  overflow: auto;
+  font-family: var(--qui-font-family);
+  background-color: var(--qui-bg-primary);
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: var(--qui-shadow-default);
 }
 
 .schema-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px 20px;
-  background: var(--qui-bg-secondary);
-  border-bottom: 1px solid var(--qui-hover-border);
-  flex-shrink: 0;
+  margin-bottom: 20px;
 }
 
 .schema-title {
-  margin: 0;
-  font-size: 20px;
+  font-size: 24px;
   font-weight: var(--qui-font-weight-medium);
+  margin: 0;
   color: var(--qui-text-primary);
 }
 
 .schema-actions {
   display: flex;
   gap: 10px;
-  align-items: center;
 }
 
-.save-changes-btn {
-  background: var(--qui-accent-deep);
-  color: white;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 6px;
-  display: flex;
+/* Button styles unified for consistency */
+.schema-editor-btn,
+.btn-add-field,
+.schema-editor-btn-primary,
+.schema-editor-btn-secondary,
+.schema-editor-btn-danger,
+.schema-editor-btn-icon {
+  display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
+  border-radius: 6px;
+  font-size: var(--qui-font-size-base);
   font-weight: var(--qui-font-weight-medium);
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
-  transition: all 0.2s ease;
+  font-family: var(--qui-font-family);
+  cursor: pointer;
+  transition: all var(--qui-transition-speed) var(--qui-animation-bounce);
+  border: none;
+  position: relative;
+  overflow: hidden;
+  text-align: center;
+  white-space: nowrap;
+  outline: none;
+  box-sizing: border-box;
 }
 
-.save-changes-btn:hover {
+/* Primary button - for confirmations, saves, etc. */
+.schema-editor-btn-primary {
+  background-color: var(--qui-accent-color);
+  color: var(--qui-bg-primary);
+  padding: 8px 16px;
+  box-shadow: var(--qui-shadow-default);
+  border: 1px solid transparent;
+}
+
+.schema-editor-btn-primary:hover {
+  background-color: var(--qui-accent-secondary);
   transform: translateY(-2px);
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-  background: var(--qui-accent-color);
+  box-shadow: var(--qui-shadow-accent);
 }
 
-.save-changes-btn svg {
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));
+.schema-editor-btn-primary:active {
+  transform: translateY(0);
+  box-shadow: var(--qui-shadow-default);
 }
 
+.schema-editor-btn-primary:disabled {
+  background-color: var(--qui-overlay-secondary);
+  color: var(--qui-text-secondary);
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+  opacity: 0.7;
+}
+
+/* Secondary button - for cancellations, less important actions */
+.schema-editor-btn-secondary {
+  background-color: var(--qui-overlay-primary);
+  color: var(--qui-text-primary);
+  padding: 8px 16px;
+  border: 1px solid var(--qui-hover-border);
+  box-shadow: var(--qui-inset-shadow);
+}
+
+.schema-editor-btn-secondary:hover {
+  background-color: var(--qui-overlay-secondary);
+  transform: translateY(-2px);
+  box-shadow: var(--qui-shadow-default);
+}
+
+.schema-editor-btn-secondary:active {
+  transform: translateY(0);
+  box-shadow: var(--qui-inset-shadow);
+}
+
+/* Danger button - for deletions, destructive actions */
+.schema-editor-btn-danger {
+  background-color: var(--qui-danger-bg);
+  color: var(--qui-danger-color);
+  padding: 8px 16px;
+  border: 1px solid var(--qui-danger-border);
+}
+
+.schema-editor-btn-danger:hover {
+  background-color: var(--qui-danger-color);
+  color: var(--qui-bg-primary);
+  transform: translateY(-2px);
+  box-shadow: 0 0 0 2px var(--qui-danger-glow);
+}
+
+.schema-editor-btn-danger:active {
+  transform: translateY(0);
+  box-shadow: var(--qui-inset-shadow);
+}
+
+/* Icon buttons - compact buttons with just icons */
+.schema-editor-btn-icon {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 6px;
+  background-color: transparent;
+  color: var(--qui-text-secondary);
+  border: 1px solid transparent;
+}
+
+.schema-editor-btn-icon:hover {
+  background-color: var(--qui-overlay-primary);
+  color: var(--qui-text-primary);
+  transform: translateY(-2px);
+  box-shadow: var(--qui-shadow-default);
+}
+
+.schema-editor-btn-icon:active {
+  transform: translateY(0);
+  background-color: var(--qui-overlay-secondary);
+  box-shadow: none;
+}
+
+.schema-editor-btn-icon.schema-editor-btn-danger {
+  color: var(--qui-danger-color);
+}
+
+.schema-editor-btn-icon.schema-editor-btn-danger:hover {
+  background-color: var(--qui-danger-bg);
+  border-color: var(--qui-danger-border);
+}
+
+/* Add field button - special styling for the add button */
+.btn-add-field {
+  background-color: var(--qui-bg-primary);
+  color: var(--qui-accent-color);
+  padding: 8px 14px;
+  border: 1.5px solid var(--qui-accent-color);
+  box-shadow: 0 2px 0 var(--qui-overlay-accent);
+}
+
+.btn-add-field:hover {
+  background-color: var(--qui-accent-color);
+  color: var(--qui-bg-primary);
+  transform: translateY(-2px);
+  box-shadow: var(--qui-shadow-accent);
+}
+
+.btn-add-field:active {
+  transform: translateY(0);
+  box-shadow: var(--qui-inset-shadow);
+}
+
+/* Action buttons container */
+.action-buttons {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+/* Table and column styles */
 .table-container {
-  flex: 1;
-  overflow: auto;
+  max-width: 100%;
+  overflow-x: auto;
+  background-color: var(--qui-bg-primary);
+  border-radius: 4px;
+  box-shadow: var(--qui-shadow-default);
 }
 
 .schema-editor-table {
   width: 100%;
   border-collapse: collapse;
-  table-layout: fixed;
+}
+
+.schema-editor-table th,
+.schema-editor-table td {
+  padding: 12px 15px;
+  text-align: left;
+  border-bottom: 1px solid var(--qui-hover-border);
+  color: var(--qui-text-primary);
+}
+
+.schema-editor-table th {
+  background-color: var(--qui-bg-secondary);
+  font-weight: var(--qui-font-weight-medium);
+  color: var(--qui-text-secondary);
+}
+
+.schema-editor-table tr:hover {
+  background-color: var(--qui-overlay-primary);
+}
+
+.field-row {
+  transition: background-color var(--qui-transition-speed);
+}
+
+.field-row.drag-over {
+  background-color: var(--qui-overlay-accent);
+}
+
+.field-row.modified {
+  background-color: var(--qui-overlay-light);
 }
 
 .col-drag {
   width: 40px;
-  position: relative;
+  cursor: move;
 }
 
 .col-name {
-  width: 20%;
-  position: relative;
+  width: 200px;
 }
 
 .col-type {
-  width: 15%;
+  width: 120px;
 }
 
 .col-info {
-  width: auto;
+  width: 250px;
 }
 
 .col-actions {
-  width: 120px;
+  width: 100px;
+}
+
+/* Dialog styling updates */
+.dialog-footer {
+  padding: 15px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  border-top: 1px solid var(--qui-hover-border);
+  background-color: var(--qui-bg-secondary);
+}
+
+/* Close button styling for dialogs */
+.close-btn {
+  background: none;
+  border: none;
+  color: var(--qui-text-secondary);
+  cursor: pointer;
+  padding: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--qui-transition-speed) ease;
+}
+
+.close-btn:hover {
+  background-color: var(--qui-overlay-primary);
+  color: var(--qui-text-primary);
+  transform: rotate(90deg);
+}
+
+.close-btn:active {
+  transform: rotate(90deg) scale(0.95);
+}
+
+/* Uniform height for form inputs and buttons */
+.field-input, 
+.field-select, 
+.schema-editor-btn-primary,
+.schema-editor-btn-secondary,
+.btn-add-field {
+  height: 38px;
+}
+
+.schema-editor-dialog-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(var(--qui-backdrop-blur));
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.schema-editor-panel {
+  background-color: var(--qui-bg-primary);
+  border-radius: 8px;
+  overflow: hidden;
+  width: 90%;
+  max-width: 500px;
+  box-shadow: var(--qui-shadow-window);
+  border: 1px solid var(--qui-hover-border);
+}
+
+.dialog-header {
+  background-color: var(--qui-gradient-primary);
+  color: var(--qui-accent-color);
+  padding: 15px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--qui-hover-border);
+}
+
+.dialog-title {
+  font-size: 18px;
+  font-weight: var(--qui-font-weight-medium);
+  margin: 0;
+}
+
+.field-input {
+  width: 100%;
+  padding: 10px;
+  font-size: var(--qui-font-size-base);
+  border: 1px solid var(--qui-hover-border);
+  border-radius: 4px;
+  transition: all var(--qui-transition-speed);
+  background-color: var(--qui-bg-primary);
+  color: var(--qui-text-primary);
+}
+
+.field-input:focus {
+  border-color: var(--qui-accent-color);
+  outline: none;
+  box-shadow: 0 0 0 2px var(--qui-overlay-accent);
+}
+
+.field-input.has-error {
+  border-color: var(--qui-danger-color);
+}
+
+.input-error-message {
+  color: var(--qui-danger-color);
+  font-size: var(--qui-font-size-small);
+  margin-top: 5px;
+}
+
+.field-select {
+  width: 100%;
+  padding: 10px;
+  font-size: var(--qui-font-size-base);
+  border: 1px solid var(--qui-hover-border);
+  border-radius: 4px;
+  transition: all var(--qui-transition-speed);
+  background-color: var(--qui-bg-primary);
+  color: var(--qui-text-primary);
+}
+
+.field-select:focus {
+  border-color: var(--qui-accent-color);
+  outline: none;
+  box-shadow: 0 0 0 2px var(--qui-overlay-accent);
 }
 
 .drag-handle {
@@ -924,307 +1413,159 @@ function handleEditPermissionChange(fieldType: string, type: 'read' | 'write', e
   justify-content: center;
   width: 24px;
   height: 24px;
-  border-radius: 4px;
+  cursor: move;
   color: var(--qui-text-secondary);
-  opacity: 0.6;
-  cursor: grab;
-  transition: all 0.2s ease;
 }
 
-.drag-handle:hover {
-  background: var(--qui-overlay-primary);
-  color: var(--qui-text-primary);
-  opacity: 1;
-}
-
-.drag-handle:active {
-  cursor: grabbing;
-  background: var(--qui-overlay-accent);
-  color: var(--qui-accent-color);
-}
-
-.field-row.dragging {
-  opacity: 0.5;
-  background: var(--qui-overlay-accent) !important;
-}
-
-.field-row.dragging td {
-  border-color: transparent;
-}
-
-.field-row.drag-over {
-  border-top: 2px solid var(--qui-accent-color);
-}
-
-.new-field-row {
-  background: var(--qui-overlay-primary);
-}
-
-.new-field-row td {
-  padding: 16px;
-}
-
-.field-row {
-  transition: background-color 0.2s ease, transform 0.2s ease;
-}
-
-.field-row:hover {
-  background-color: var(--qui-overlay-primary);
-}
-
-.field-row.editing {
-  background-color: var(--qui-bg-secondary);
-  border-left: 3px solid var(--qui-accent-color);
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
-}
-
-.field-row.modified {
+.permission-input-container {
   position: relative;
 }
 
-.modified-badge {
-  display: inline-block;
-  color: var(--qui-accent-color);
-  font-weight: bold;
-  margin-left: 5px;
+.searchable-select {
+  position: relative;
 }
 
-.field-input,
-.field-select {
+.permission-search-input {
   width: 100%;
-  padding: 10px 12px;
+  padding: 10px;
+  font-size: var(--qui-font-size-base);
   border: 1px solid var(--qui-hover-border);
   border-radius: 4px;
-  background: var(--qui-bg-primary);
+  transition: border-color var(--qui-transition-speed);
+  background-color: var(--qui-bg-primary);
   color: var(--qui-text-primary);
-  font-size: var(--qui-font-size-small);
 }
 
-.field-input:focus,
-.field-select:focus {
-  outline: none;
+.permission-search-input:focus {
   border-color: var(--qui-accent-color);
+  outline: none;
   box-shadow: 0 0 0 2px var(--qui-overlay-accent);
 }
 
-.btn-add-field {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: none;
-  border: none;
-  padding: 8px 12px;
-  color: var(--qui-bg-primary);
-  cursor: pointer;
-  border-radius: 4px;
-  font-size: var(--qui-font-size-small);
-  font-weight: var(--qui-font-weight-medium);
-}
-
-.main-add-btn {
-  background: var(--qui-accent-color);
-  color: var(--qui-bg-primary);
-  border-radius: 6px;
-  border: none;
-  transition: all 0.2s ease;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
-}
-
-.main-add-btn:hover {
-  background: var(--qui-accent-secondary);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-}
-
-.schema-editor-btn-primary {
-  background: var(--qui-accent-color);
-  color: var(--qui-bg-primary);
-  border: none;
-  padding: 8px 16px;
-  border-radius: 6px;
-  font-weight: var(--qui-font-weight-medium);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
-  transition: all 0.2s ease;
-}
-
-.schema-editor-btn-primary:hover {
-  background: var(--qui-accent-secondary);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-}
-
-.schema-editor-btn-secondary {
-  padding: 8px 16px;
-  border-radius: 6px;
-  font-size: var(--qui-font-size-small);
-  font-weight: var(--qui-font-weight-medium);
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.schema-editor-btn-secondary {
-  background: var(--qui-overlay-primary);
-  color: var(--qui-text-primary);
+.permission-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background-color: var(--qui-bg-secondary);
   border: 1px solid var(--qui-hover-border);
+  border-radius: 4px;
+  z-index: 100;
+  max-height: 200px;
+  overflow-y: auto;
+  box-shadow: var(--qui-shadow-default);
 }
 
-.schema-editor-btn-secondary:hover {
-  background: var(--qui-overlay-secondary);
-}
-
-.action-buttons {
-  display: flex;
-  gap: 8px;
-  justify-content: flex-end;
-}
-
-.schema-editor-btn-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 6px;
-  background: var(--qui-overlay-primary);
-  color: var(--qui-text-secondary);
-  border: none;
+.permission-option {
+  padding: 10px;
+  font-size: var(--qui-font-size-base);
   cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.schema-editor-btn-icon:hover {
-  background: var(--qui-overlay-secondary);
-  color: var(--qui-text-primary);
-  transform: translateY(-2px);
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-}
-
-.schema-editor-btn-icon.schema-editor-btn-danger:hover {
-  background: var(--qui-danger-bg);
-  color: var(--qui-danger-color);
-  box-shadow: 0 0 0 2px var(--qui-danger-glow);
-}
-
-.property-group {
-  margin-bottom: 12px;
-}
-
-.property-group:last-child {
-  margin-bottom: 0;
-}
-
-.property-group label {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: var(--qui-font-size-small);
-  font-weight: var(--qui-font-weight-medium);
-  color: var(--qui-text-secondary);
-  margin-bottom: 6px;
-}
-
-.permissions-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-
-.permissions-row:last-child {
-  margin-bottom: 0;
-}
-
-.permissions-row span {
-  min-width: 45px;
-  font-size: var(--qui-font-size-small);
-  color: var(--qui-text-secondary);
-}
-
-.permissions-section {
-  padding: 8px 0;
-}
-
-.field-properties {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.field-property {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: var(--qui-font-size-small);
-  color: var(--qui-text-secondary);
-}
-
-.property-label {
-  font-weight: var(--qui-font-weight-medium);
-}
-
-.property-value {
   color: var(--qui-text-primary);
 }
 
-.permission-chip {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 20px;
-  height: 20px;
-  border-radius: 10px;
-  background: var(--qui-overlay-accent);
+.permission-option:hover, .permission-option.active {
+  background-color: var(--qui-overlay-primary);
   color: var(--qui-accent-color);
-  padding: 0 6px;
-  font-size: 11px;
-  font-weight: var(--qui-font-weight-medium);
+}
+
+.no-results {
+  padding: 10px;
+  color: var(--qui-text-secondary);
+  font-size: var(--qui-font-size-small);
+  text-align: center;
 }
 
 .choices-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 8px;
 }
 
 .choice-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
-  background: var(--qui-overlay-primary);
-  border: 1px solid var(--qui-hover-border);
-  border-radius: 4px;
+  background-color: var(--qui-overlay-accent);
+  color: var(--qui-accent-color);
+  padding: 6px 12px;
+  border-radius: 16px;
   font-size: var(--qui-font-size-small);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--qui-accent-color);
 }
 
 .delete-choice-btn {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
+  background: none;
   border: none;
-  background: var(--qui-overlay-secondary);
-  color: var(--qui-danger-color);
-  font-size: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
+  color: inherit;
   cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.delete-choice-btn:hover {
+  color: var(--qui-danger-color);
 }
 
 .add-choice-btn {
-  width: 24px;
-  height: 24px;
-  border-radius: 4px;
-  border: 1px dashed var(--qui-hover-border);
-  background: transparent;
+  background-color: var(--qui-overlay-accent);
   color: var(--qui-accent-color);
-  font-size: 16px;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: var(--qui-font-size-small);
+  cursor: pointer;
+  transition: all var(--qui-transition-speed);
+  border: 1px solid var(--qui-accent-color);
+}
+
+.add-choice-btn:hover {
+  background-color: var(--qui-accent-color);
+  color: var(--qui-bg-primary);
+  box-shadow: var(--qui-shadow-accent);
+}
+
+.modified-badge {
+  background-color: var(--qui-overlay-secondary);
+  color: var(--qui-accent-secondary);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: var(--qui-font-size-small);
+  margin-left: 8px;
+}
+
+.schema-editor-anim-scale {
+  animation: scaleIn var(--qui-transition-speed) var(--qui-animation-bounce);
+}
+
+.field-properties {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.field-property {
+  background-color: var(--qui-overlay-primary);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: var(--qui-font-size-small);
+  color: var(--qui-text-primary);
   display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 0;
-  cursor: pointer;
+  gap: 5px;
+}
+
+.property-label {
+  color: var(--qui-text-secondary);
+}
+
+.property-value {
+  font-weight: var(--qui-font-weight-medium);
+}
+
+.permission-chip {
+  background-color: var(--qui-overlay-accent);
+  color: var(--qui-accent-color);
+  padding: 1px 5px;
+  border-radius: 3px;
 }
 
 .options-list {
@@ -1234,184 +1575,26 @@ function handleEditPermissionChange(fieldType: string, type: 'read' | 'write', e
 }
 
 .option-chip {
-  display: inline-block;
+  background-color: var(--qui-overlay-accent);
+  color: var(--qui-accent-color);
   padding: 2px 6px;
-  background: var(--qui-overlay-primary);
   border-radius: 3px;
-  font-size: 11px;
-  color: var(--qui-text-primary);
+  font-size: 10px;
 }
 
 .option-more {
-  display: inline-block;
-  font-size: 11px;
   color: var(--qui-text-secondary);
-  padding: 2px 0;
+  font-size: 10px;
 }
 
-/* Dialog styles */
-.dialog-header {
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--qui-hover-border);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.dialog-title {
-  margin: 0;
-  font-size: 18px;
-  font-weight: var(--qui-font-weight-medium);
-}
-
-.close-btn {
-  background: transparent;
-  border: none;
-  color: var(--qui-text-secondary);
-  cursor: pointer;
-}
-
-.dialog-body {
-  padding: 20px;
-}
-
-.dialog-footer {
-  padding: 16px 20px;
-  border-top: 1px solid var(--qui-hover-border);
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  background: var(--qui-bg-secondary);
-}
-
-.field-input-wrapper {
-  position: relative;
-  width: 100%;
-}
-
-.field-input.has-error {
-  border-color: var(--qui-danger-color);
-  box-shadow: 0 0 0 1px var(--qui-danger-color);
-}
-
-.input-error-message {
-  color: var(--qui-danger-color);
-  font-size: 11px;
-  margin-top: 4px;
-  animation: fade-in 0.2s ease;
-}
-
-.field-tag-input {
-  width: 100%;
-  min-height: 36px;
-}
-
-/* Hover and focus effect for inputs */
-.field-input:hover, 
-.field-select:hover {
-  border-color: var(--qui-hover-border-dark, #aaa);
-}
-
-.field-input:focus, 
-.field-select:focus {
-  outline: none;
-  border-color: var(--qui-accent-color);
-  box-shadow: 0 0 0 2px var(--qui-overlay-accent);
-  transform: translateY(-1px);
-  transition: all 0.2s ease;
-}
-
-/* New styles for toggle button */
-.toggle-perms-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  background: var(--qui-overlay-primary);
-  border: 1px solid var(--qui-hover-border);
-  border-radius: 4px;
-  color: var(--qui-text-secondary);
-  font-size: var(--qui-font-size-small);
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.toggle-perms-btn:hover {
-  background: var(--qui-overlay-secondary);
-  color: var(--qui-text-primary);
-}
-
-.toggle-perms-btn svg {
-  opacity: 0.7;
-}
-
-.toggle-btn {
-  background: var(--qui-overlay-primary);
-  border: none;
-  border-radius: 4px;
-  padding: 2px 6px;
-  font-size: 11px;
-  color: var(--qui-text-secondary);
-  cursor: pointer;
-}
-
-.toggle-btn:hover {
-  background: var(--qui-overlay-secondary);
-  color: var(--qui-text-primary);
-}
-
-.permission-group {
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px dashed var(--qui-hover-border);
-}
-
-@keyframes shake {
-  10%, 90% { transform: translateX(-1px); }
-  20%, 80% { transform: translateX(2px); }
-  30%, 50%, 70% { transform: translateX(-3px); }
-  40%, 60% { transform: translateX(3px); }
-}
-
-@keyframes fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-.permission-input-container {
-  position: relative;
-  width: 100%;
-}
-
-.permission-input {
-  width: 100%;
-  padding: 10px 12px;
-  font-size: var(--qui-font-size-small);
-}
-
-.permission-select {
-  width: 100%;
-  padding: 10px 12px;
-  border: 1px solid var(--qui-hover-border);
-  border-radius: 4px;
-  background: var(--qui-bg-primary);
-  color: var(--qui-text-primary);
-  font-size: var(--qui-font-size-small);
-  cursor: pointer;
-  appearance: auto; /* Allow native dropdown appearance */
-}
-
-.permission-select:focus {
-  outline: none;
-  border-color: var(--qui-accent-color);
-  box-shadow: 0 0 0 2px var(--qui-overlay-accent);
-}
-
-/* Remove these style rules as they're for the old approach */
-.permission-suggestions,
-.suggestion-item,
-.permission-tag,
-.permission-tag-remove {
-  display: none;
+@keyframes scaleIn {
+  from {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 </style>

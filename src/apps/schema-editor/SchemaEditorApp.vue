@@ -4,7 +4,7 @@ import { useDataStore } from '@/stores/data';
 import type { EntityType, EntitySchema } from '@/core/data/types';
 import { ValueType, EntityFactories, FieldSchemaOptions } from '@/core/data/types';
 import EntityTypeList from './components/EntityTypeList.vue';
-import SchemaEditor from './components/SchemaEditor.vue';
+import SchemaEditor from './components/SchemaEditor.vue'; // Fixed import - without default
 import LoadingIndicator from './components/LoadingIndicator.vue';
 
 const dataStore = useDataStore();
