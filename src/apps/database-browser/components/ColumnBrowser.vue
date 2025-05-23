@@ -252,8 +252,8 @@ async function buildNavigationPath(entityId: EntityId): Promise<EntityId[]> {
       const parentField = entity.field("Parent");
       await dataStore.read([parentField]);
       
-      // Get the parent ID
-      const parentId = parentField.value.getEntityReference();
+      // Get the parent ID and ensure it's a string or undefined, not null
+      const parentId = parentField.value.getEntityReference?.() || undefined;
       
       // If parent is empty or the same as current (circular reference), stop
       if (!parentId || parentId === currentId) {
@@ -285,7 +285,8 @@ async function applyNavigationPath(path: EntityId[]) {
   // Build the path through the entities
   // Start with the first entity in the path
   if (path.length > 0) {
-    let previousEntity = null;
+    // Use undefined instead of null for previousEntity
+    let previousEntity: EntityId | undefined = undefined;
     
     for (let i = 0; i < path.length; i++) {
       const entityId = path[i];

@@ -27,7 +27,7 @@ onUnmounted(() => {
   window.removeEventListener('entity:navigate', handleEntityNavigation);
   window.removeEventListener('mousemove', handleMainSplitMove);
   window.removeEventListener('mouseup', endMainSplitResize);
-  window.removeEventListener('show-context-menu', handleShowContextMenu);
+  window.removeEventListener('show-context-menu', handleShowContextMenu as EventListener);
 });
 
 // Handle entity selection from the column browser
@@ -35,8 +35,8 @@ const handleEntitySelect = (entityId: EntityId) => {
   selectedEntityId.value = entityId;
 };
 
-// Setup context menu handler
-function handleShowContextMenu(event: CustomEvent) {
+// Setup context menu handler with proper type
+function handleShowContextMenu(event: CustomEvent<{x: number, y: number, items: any[]}>) {
   if (event.detail) {
     const { x, y, items } = event.detail;
     
@@ -118,7 +118,7 @@ onMounted(async () => {
   try {
     // First register event listeners that need to be cleaned up
     window.addEventListener('entity:navigate', handleEntityNavigation);
-    window.addEventListener('show-context-menu', handleShowContextMenu);
+    window.addEventListener('show-context-menu', handleShowContextMenu as EventListener);
     
     // Then perform async operations
     if (!dataStore.isConnected) {

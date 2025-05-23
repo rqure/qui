@@ -179,3 +179,15 @@ export function initCrossWindowEntityHandling(callback: (entityId: EntityId) => 
     window.removeEventListener(ENTITY_NAVIGATE_EVENT, listener);
   };
 }
+
+// Add type declarations for Window and CustomEvent
+declare global {
+  interface WindowEventMap {
+    'show-context-menu': CustomEvent<{x: number, y: number, items: any[]}>;
+    'entity:navigate': CustomEvent<{entityId: string}>;
+  }
+
+  interface Window {
+    createContextMenu(x: number, y: number, items: any[]): void;
+  }
+}

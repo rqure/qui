@@ -10,6 +10,17 @@ import type { DatabaseNotification } from '@/generated/protobufs_pb';
 import { useEntityDropZone } from '@/core/utils/composables';
 import { ValueType, ValueFactories } from '@/core/data/types';
 
+// Add drag handlers interface to extend Field
+// This is needed because we're dynamically adding _dragHandlers to fields
+interface FieldWithDragHandlers extends Field {
+  _dragHandlers?: {
+    isEntityDrag: (event: DragEvent) => boolean;
+    handleDragOver: (event: DragEvent) => void;
+    handleDragLeave: () => void;
+    handleDrop: (event: DragEvent) => void;
+  };
+}
+
 const props = defineProps<{
   entityId: EntityId;
   standalone?: boolean; // Add new prop for standalone mode in window
@@ -18,7 +29,7 @@ const props = defineProps<{
 const dataStore = useDataStore();
 const loading = ref(true);
 const error = ref<string | null>(null);
-const fields = ref<Field[]>([]);
+const fields = ref<FieldWithDragHandlers[]>([]);
 const entityName = ref('');
 const entityType = ref<EntityType>('');
 const editingField = ref<string | null>(null);

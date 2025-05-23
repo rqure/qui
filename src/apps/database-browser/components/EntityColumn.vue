@@ -4,6 +4,14 @@ import { useDataStore } from '@/stores/data';
 import { EntityFactories, type Entity, type EntityId, type EntityType } from '@/core/data/types';
 import { useEntityDrag } from '@/core/utils/composables';
 
+// Define EntityItem interface
+interface EntityItem {
+  id: string;
+  name: string;
+  type: string;
+  children: string[];
+}
+
 const props = defineProps<{
   columnId: string;
   parentId?: EntityId;

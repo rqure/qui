@@ -9,7 +9,11 @@ interface Value {
   type: string;
   toString: () => string;
   asString: () => string; // Add this to support proper value display
+  raw?: any;
   getChoice?: () => number; // Add optional getChoice method for Choice type values
+  // Add missing method declarations
+  getEntityReference?: () => string;
+  getEntityList?: () => string[];
 }
 
 const props = defineProps<{
@@ -21,7 +25,8 @@ const props = defineProps<{
 const dataStore = useDataStore();
 const choiceOptions = ref<string[]>([]);
 const choiceLabel = ref<string>('');
-let cleanupFunction = null;
+// Fix the type declaration for cleanupFunction
+let cleanupFunction: (() => void) | null = null;
 
 // Register onUnmounted at the top level before any async operations
 onUnmounted(() => {
@@ -212,8 +217,8 @@ function handleEntityClick(entityId: string) {
       v-else-if="value.type === ValueType.EntityReference" 
       class="reference-container"
       draggable="true"
-      @dragstart="handleDragStart($event, value.getEntityReference())"
-      @click="handleEntityClick(value.getEntityReference())"
+      @dragstart="handleDragStart($event, value.getEntityReference?.() || '')"
+      @click="handleEntityClick(value.getEntityReference?.() || '')"
     >
       <span class="reference-indicator">
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24">
@@ -241,11 +246,11 @@ function handleEntityClick(entityId: string) {
       {{ displayValue }}
     </span>
     
-    <!-- Add EntityList rendering with draggable items -->
+    <!-- Add EntityList rendering with draggable items with null check -->
     <span v-else-if="value.type === ValueType.EntityList" class="entity-list-container">
       <div class="entity-list-value">
         <div 
-          v-for="(entityId, index) in value.getEntityList()" 
+          v-for="(entityId, index) in value.getEntityList?.() || []" 
           :key="`${entityId}-${index}`"
           class="entity-list-item"
           draggable="true"
@@ -259,7 +264,7 @@ function handleEntityClick(entityId: string) {
           </span>
           {{ entityId }}
         </div>
-        <div v-if="value.getEntityList().length === 0" class="entity-list-empty">
+        <div v-if="(value.getEntityList?.() || []).length === 0" class="entity-list-empty">
           No items
         </div>
       </div>
