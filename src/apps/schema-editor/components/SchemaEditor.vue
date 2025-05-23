@@ -1065,6 +1065,18 @@ function handleEditFieldSearchKeydown(event: KeyboardEvent, type: 'read' | 'writ
   align-items: center;
 }
 
+.option-chip {
+  background: var(--qui-overlay-primary);
+  color: var(--qui-text-primary);
+  border: 1px solid var(--qui-hover-border);
+  font-weight: var(--qui-font-weight-medium);
+}
+
+.option-chip:hover {
+  background: var(--qui-overlay-secondary);
+  color: var(--qui-bg-primary);
+}
+
 .option-more {
   color: var(--qui-text-secondary);
   font-size: 10px;
