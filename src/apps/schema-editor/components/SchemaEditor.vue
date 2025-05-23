@@ -847,13 +847,13 @@ async function searchReadPermissions() {
   }
 
   try {
-    // Search for Users as a simple example - could be expanded to search across different types
-    const results = await dataStore.find('User', ['Name'], (entity: Entity) => {
+    const results = await dataStore.find('Permission', ['Name'], (entity: Entity) => {
       const name = entity.field('Name').value.getString().toLowerCase();
       return name.includes(permissionSearchReadInput.value.toLowerCase());
     });
     
     readPermSuggestions.value = results.map((e: Entity) => e.entityId).slice(0, 5);
+    console.log('Found suggestions:', readPermSuggestions.value);
   } catch (error) {
     console.error('Error searching permissions:', error);
     readPermSuggestions.value = [];
@@ -869,8 +869,8 @@ async function searchWritePermissions() {
   }
 
   try {
-    // Search for Users as a simple example
-    const results = await dataStore.find('User', ['Name'], (entity: Entity) => {
+    // Search for Permission entities instead of Users
+    const results = await dataStore.find('Permission', ['Name'], (entity: Entity) => {
       const name = entity.field('Name').value.getString().toLowerCase();
       return name.includes(permissionSearchWriteInput.value.toLowerCase());
     });
@@ -892,7 +892,7 @@ async function searchEditReadPermissions(fieldType: string) {
   }
 
   try {
-    const results = await dataStore.find('User', ['Name'], (entity: Entity) => {
+    const results = await dataStore.find('Permission', ['Name'], (entity: Entity) => {
       const name = entity.field('Name').value.getString().toLowerCase();
       return name.includes(editFieldPermissionInputs.value[fieldType].read.toLowerCase());
     });
@@ -913,7 +913,7 @@ async function searchEditWritePermissions(fieldType: string) {
   }
 
   try {
-    const results = await dataStore.find('User', ['Name'], (entity: Entity) => {
+    const results = await dataStore.find('Permission', ['Name'], (entity: Entity) => {
       const name = entity.field('Name').value.getString().toLowerCase();
       return name.includes(editFieldPermissionInputs.value[fieldType].write.toLowerCase());
     });
@@ -1570,7 +1570,7 @@ function clearEditPermission(fieldType: string, type: 'read' | 'write') {
   top: 100%;
   left: 0;
   right: 0;
-  z-index: 10;
+  z-index: 1000; /* Ensure a high z-index to display above other elements */
   background: var(--qui-bg-primary);
   border: 1px solid var(--qui-hover-border);
   border-radius: 4px;
