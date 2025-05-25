@@ -5,14 +5,9 @@ import type { EntityId } from '@/core/data/types';
 import { ValueType, ValueFactories, EntityFactories } from '@/core/data/types';
 import { loadModelFromEntity } from '../utils/modelStorage';
 import type { ModelConfig, BindingConfig, ShapeConfig } from '../utils/modelTypes';
-import { Stage } from 'konva/lib/Stage';
-import { Label } from 'konva/lib/shapes/Label';
-import { Rect } from 'konva/lib/shapes/Rect';
-import { Circle } from 'konva/lib/shapes/Circle';
-import { Line } from 'konva/lib/shapes/Line';
-import { Arrow } from 'konva/lib/shapes/Arrow';
-import { Text as KonvaText } from 'konva/lib/shapes/Text';
-import { Layer } from 'konva/lib/Layer';
+
+// Import Vue-Konva instead of direct Konva imports
+import VueKonva from 'vue-konva';
 
 const props = defineProps<{
   modelId?: EntityId | null;
@@ -206,20 +201,24 @@ const containerClass = computed(() => {
   return classes.join(' ');
 });
 
-// Handle window resize
+// Improved resize handler
 const handleResize = () => {
   const container = document.querySelector('.preview-container');
   if (!container) return;
   
+  // Ensure we never set zero dimensions to prevent Konva errors
+  const width = Math.max(container.clientWidth, 1);
+  const height = Math.max(container.clientHeight, 1);
+  
   stageSize.value = {
-    width: container.clientWidth,
-    height: container.clientHeight
+    width,
+    height
   };
   
   // Calculate scale to fit model in viewport
   if (model.value && model.value.width && model.value.height) {
-    const scaleX = stageSize.value.width / model.value.width;
-    const scaleY = stageSize.value.height / model.value.height;
+    const scaleX = width / model.value.width;
+    const scaleY = height / model.value.height;
     scale.value = Math.min(scaleX, scaleY, 1); // Don't scale up beyond 100%
   }
 };
@@ -230,8 +229,9 @@ onMounted(async () => {
   
   // Set up resize handling
   window.addEventListener('resize', handleResize);
-  // Initial resize
-  setTimeout(handleResize, 0);
+  
+  // Initial resize with a small delay to ensure DOM is ready
+  setTimeout(handleResize, 100);
 });
 
 onBeforeUnmount(async () => {
@@ -271,141 +271,147 @@ watch(() => props.modelId, async () => {
     </div>
     
     <div v-else class="preview-stage" :style="{ background: model.background || 'transparent' }">
-      <Stage
-        :config="{
-          width: stageSize.width,
-          height: stageSize.height,
-          scaleX: scale,
-          scaleY: scale,
-          x: (stageSize.width - model.width * scale) / 2,
-          y: (stageSize.height - model.height * scale) / 2
-        }"
-      >
-        <Layer>
-          <!-- Render all shapes from the model -->
-          <template v-for="shape in model?.shapes || []" :key="shape.id">
-            <!-- Rectangle -->
-            <Rect
-              v-if="shape.type === 'rect'"
-              :config="{
-                x: shape.x,
-                y: shape.y,
-                width: shape.width,
-                height: shape.height,
-                fill: getShapeStyle(shape).fill,
-                stroke: getShapeStyle(shape).stroke,
-                strokeWidth: getShapeStyle(shape).strokeWidth,
-                id: shape.id
-              }"
-            />
-            
-            <!-- Circle -->
-            <Circle
-              v-else-if="shape.type === 'circle'"
-              :config="{
-                x: shape.x,
-                y: shape.y,
-                radius: shape.width ? shape.width / 2 : 25,
-                fill: getShapeStyle(shape).fill,
-                stroke: getShapeStyle(shape).stroke,
-                strokeWidth: getShapeStyle(shape).strokeWidth,
-                id: shape.id
-              }"
-            />
-            
-            <!-- Line -->
-            <Line
-              v-else-if="shape.type === 'line'"
-              :config="{
-                points: shape.points,
-                stroke: getShapeStyle(shape).stroke,
-                strokeWidth: getShapeStyle(shape).strokeWidth,
-                lineCap: 'round',
-                lineJoin: 'round',
-                id: shape.id
-              }"
-            />
-            
-            <!-- Arrow -->
-            <Arrow
-              v-else-if="shape.type === 'arrow'"
-              :config="{
-                points: shape.points,
-                pointerLength: 10,
-                pointerWidth: 10,
-                fill: getShapeStyle(shape).stroke,
-                stroke: getShapeStyle(shape).stroke,
-                strokeWidth: getShapeStyle(shape).strokeWidth,
-                id: shape.id
-              }"
-            />
-            
-            <!-- Text -->
-            <KonvaText
-              v-else-if="shape.type === 'text'"
-              :config="{
-                x: shape.x,
-                y: shape.y,
-                text: getShapeStyle(shape).text || 'Text',
-                fontSize: getShapeStyle(shape).fontSize || 18,
-                fontFamily: getShapeStyle(shape).fontFamily || 'Arial',
-                fill: getShapeStyle(shape).fill || '#ffffff',
-                padding: 5,
-                id: shape.id
-              }"
-            />
-            
-            <!-- Nested Model -->
-            <template v-if="shape.type === 'nestedModel' && (shape as any).nestedModel">
-              <!-- Render nested model shapes with parent transformation -->
-              <template v-for="nestedShape in (shape as any).nestedModel.shapes" :key="`${shape.id}_${nestedShape.id}`">
-                <!-- Rectangle in nested model -->
-                <Rect
-                  v-if="nestedShape.type === 'rect'"
-                  :config="{
-                    x: nestedShape.x * ((shape.width || 100) / ((shape as any).nestedModel.width || 100)) + shape.x,
-                    y: nestedShape.y * ((shape.height || 100) / ((shape as any).nestedModel.height || 100)) + shape.y,
-                    width: (nestedShape.width || 10) * ((shape.width || 100) / ((shape as any).nestedModel.width || 100)),
-                    height: (nestedShape.height || 10) * ((shape.height || 100) / ((shape as any).nestedModel.height || 100)),
-                    fill: getShapeStyle(nestedShape).fill,
-                    stroke: getShapeStyle(nestedShape).stroke,
-                    strokeWidth: getShapeStyle(nestedShape).strokeWidth,
-                    id: `${shape.id}_${nestedShape.id}`
-                  }"
-                />
-                
-                <!-- Circle in nested model -->
-                <Circle
-                  v-else-if="nestedShape.type === 'circle'"
-                  :config="{
-                    x: nestedShape.x * ((shape.width || 100) / ((shape as any).nestedModel.width || 100)) + shape.x,
-                    y: nestedShape.y * ((shape.height || 100) / ((shape as any).nestedModel.height || 100)) + shape.y,
-                    radius: (nestedShape.width || 10) * ((shape.width || 100) / ((shape as any).nestedModel.width || 100)) / 2,
-                    fill: getShapeStyle(nestedShape).fill,
-                    stroke: getShapeStyle(nestedShape).stroke,
-                    strokeWidth: getShapeStyle(nestedShape).strokeWidth,
-                    id: `${shape.id}_${nestedShape.id}`
-                  }"
-                />
-                
-                <!-- Text in nested model -->
-                <KonvaText
-                  v-else-if="nestedShape.type === 'text'"
-                  :config="{
-                    x: nestedShape.x * ((shape.width || 100) / ((shape as any).nestedModel.width || 100)) + shape.x,
-                    y: nestedShape.y * ((shape.height || 100) / ((shape as any).nestedModel.height || 100)) + shape.y,
-                    text: getShapeStyle(nestedShape).text || 'Text',
-                    fontSize: ((nestedShape.fontSize || 18) * ((shape.width || 100) / ((shape as any).nestedModel.width || 100))) || 12,
-                    fontFamily: nestedShape.fontFamily || 'Arial',
-                    fill: getShapeStyle(nestedShape).fill || '#ffffff',
-                    id: `${shape.id}_${nestedShape.id}`
-                  }"
-                />
+      <!-- Add v-if to prevent rendering with zero dimensions -->
+      <template v-if="stageSize.width > 0 && stageSize.height > 0">
+        <Stage
+          :config="{
+            width: stageSize.width || 1, 
+            height: stageSize.height || 1,
+            scaleX: scale,
+            scaleY: scale,
+            x: (stageSize.width - model.width * scale) / 2,
+            y: (stageSize.height - model.height * scale) / 2
+          }"
+        >
+          <Layer>
+            <!-- Render all shapes from the model -->
+            <template v-for="shape in model?.shapes || []" :key="shape.id">
+              <!-- Rectangle -->
+              <Rect
+                v-if="shape.type === 'rect'"
+                :config="{
+                  x: shape.x,
+                  y: shape.y,
+                  width: shape.width,
+                  height: shape.height,
+                  fill: getShapeStyle(shape).fill,
+                  stroke: getShapeStyle(shape).stroke,
+                  strokeWidth: getShapeStyle(shape).strokeWidth,
+                  id: shape.id
+                }"
+              />
+              
+              <!-- Circle -->
+              <Circle
+                v-else-if="shape.type === 'circle'"
+                :config="{
+                  x: shape.x,
+                  y: shape.y,
+                  radius: shape.width ? shape.width / 2 : 25,
+                  fill: getShapeStyle(shape).fill,
+                  stroke: getShapeStyle(shape).stroke,
+                  strokeWidth: getShapeStyle(shape).strokeWidth,
+                  id: shape.id
+                }"
+              />
+              
+              <!-- Line -->
+              <Line
+                v-else-if="shape.type === 'line'"
+                :config="{
+                  points: shape.points,
+                  stroke: getShapeStyle(shape).stroke,
+                  strokeWidth: getShapeStyle(shape).strokeWidth,
+                  lineCap: 'round',
+                  lineJoin: 'round',
+                  id: shape.id
+                }"
+              />
+              
+              <!-- Arrow -->
+              <Arrow
+                v-else-if="shape.type === 'arrow'"
+                :config="{
+                  points: shape.points,
+                  pointerLength: 10,
+                  pointerWidth: 10,
+                  fill: getShapeStyle(shape).stroke,
+                  stroke: getShapeStyle(shape).stroke,
+                  strokeWidth: getShapeStyle(shape).strokeWidth,
+                  id: shape.id
+                }"
+              />
+              
+              <!-- Text -->
+              <KonvaText
+                v-else-if="shape.type === 'text'"
+                :config="{
+                  x: shape.x,
+                  y: shape.y,
+                  text: getShapeStyle(shape).text || 'Text',
+                  fontSize: getShapeStyle(shape).fontSize || 18,
+                  fontFamily: getShapeStyle(shape).fontFamily || 'Arial',
+                  fill: getShapeStyle(shape).fill || '#ffffff',
+                  padding: 5,
+                  id: shape.id
+                }"
+              />
+              
+              <!-- Nested Model -->
+              <template v-if="shape.type === 'nestedModel' && (shape as any).nestedModel">
+                <!-- Render nested model shapes with parent transformation -->
+                <template v-for="nestedShape in (shape as any).nestedModel.shapes" :key="`${shape.id}_${nestedShape.id}`">
+                  <!-- Rectangle in nested model -->
+                  <Rect
+                    v-if="nestedShape.type === 'rect'"
+                    :config="{
+                      x: nestedShape.x * ((shape.width || 100) / ((shape as any).nestedModel.width || 100)) + shape.x,
+                      y: nestedShape.y * ((shape.height || 100) / ((shape as any).nestedModel.height || 100)) + shape.y,
+                      width: (nestedShape.width || 10) * ((shape.width || 100) / ((shape as any).nestedModel.width || 100)),
+                      height: (nestedShape.height || 10) * ((shape.height || 100) / ((shape as any).nestedModel.height || 100)),
+                      fill: getShapeStyle(nestedShape).fill,
+                      stroke: getShapeStyle(nestedShape).stroke,
+                      strokeWidth: getShapeStyle(nestedShape).strokeWidth,
+                      id: `${shape.id}_${nestedShape.id}`
+                    }"
+                  />
+                  
+                  <!-- Circle in nested model -->
+                  <Circle
+                    v-else-if="nestedShape.type === 'circle'"
+                    :config="{
+                      x: nestedShape.x * ((shape.width || 100) / ((shape as any).nestedModel.width || 100)) + shape.x,
+                      y: nestedShape.y * ((shape.height || 100) / ((shape as any).nestedModel.height || 100)) + shape.y,
+                      radius: (nestedShape.width || 10) * ((shape.width || 100) / ((shape as any).nestedModel.width || 100)) / 2,
+                      fill: getShapeStyle(nestedShape).fill,
+                      stroke: getShapeStyle(nestedShape).stroke,
+                      strokeWidth: getShapeStyle(nestedShape).strokeWidth,
+                      id: `${shape.id}_${nestedShape.id}`
+                    }"
+                  />
+                  
+                  <!-- Text in nested model -->
+                  <KonvaText
+                    v-else-if="nestedShape.type === 'text'"
+                    :config="{
+                      x: nestedShape.x * ((shape.width || 100) / ((shape as any).nestedModel.width || 100)) + shape.x,
+                      y: nestedShape.y * ((shape.height || 100) / ((shape as any).nestedModel.height || 100)) + shape.y,
+                      text: getShapeStyle(nestedShape).text || 'Text',
+                      fontSize: ((nestedShape.fontSize || 18) * ((shape.width || 100) / ((shape as any).nestedModel.width || 100))) || 12,
+                      fontFamily: nestedShape.fontFamily || 'Arial',
+                      fill: getShapeStyle(nestedShape).fill || '#ffffff',
+                      id: `${shape.id}_${nestedShape.id}`
+                    }"
+                  />
+                </template>
               </template>
             </template>
-          </template>
-        </Layer>
-      </Stage>
+          </Layer>
+        </Stage>
+      </template>
+      <div v-else class="initializing-stage">
+        <span>Initializing preview...</span>
+      </div>
     </div>
   </div>
 </template>
@@ -476,6 +482,14 @@ watch(() => props.modelId, async () => {
 
 .preview-empty svg {
   margin-bottom: 12px;
+}
+
+.initializing-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--qui-text-secondary);
 }
 
 @keyframes pulse {

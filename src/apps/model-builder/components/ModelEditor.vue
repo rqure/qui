@@ -3,15 +3,8 @@ import { ref, onMounted, watch, computed, nextTick, onUnmounted } from 'vue';
 import { useDataStore } from '@/stores/data';
 import type { EntityId } from '@/core/data/types';
 
-// Import Konva components
-import { Stage } from 'konva/lib/Stage';
-import { Label } from 'konva/lib/shapes/Label';
-import { Rect } from 'konva/lib/shapes/Rect';
-import { Circle } from 'konva/lib/shapes/Circle';
-import { Line } from 'konva/lib/shapes/Line';
-import { Arrow } from 'konva/lib/shapes/Arrow';
-import { Text as KonvaText } from 'konva/lib/shapes/Text';
-import { Layer } from 'konva/lib/Layer';
+// Import Vue-Konva instead of direct Konva imports
+import VueKonva from 'vue-konva';
 
 // Import editor tools and utility components
 import ModelEditorToolbar from './ModelEditorToolbar.vue';
@@ -465,32 +458,48 @@ watch(
   { deep: true }
 );
 
-// Handle window resize
+// Improve resize handler to ensure stage has valid dimensions
 const handleResize = () => {
   const container = document.querySelector('.canvas-container');
   if (!container) return;
   
+  // Ensure we never set zero dimensions to prevent Konva errors
+  const width = Math.max(container.clientWidth, 1);
+  const height = Math.max(container.clientHeight, 1);
+  
   stageSize.value = {
-    width: container.clientWidth,
-    height: container.clientHeight
+    width,
+    height
   };
+  
+  // Calculate scale to fit model in viewport if model is loaded
+  if (model.value && model.value.width && model.value.height) {
+    const scaleX = width / model.value.width;
+    const scaleY = height / model.value.height;
+    scale.value = Math.min(scaleX, scaleY, 1); // Don't scale up beyond 100%
+  }
 };
 
-// Initialize the editor
+// Initialize the editor with improved timing for size calculation
 onMounted(async () => {
   await loadModel();
   
   // Set up resize handler
   window.addEventListener('resize', handleResize);
   
-  // Initial size calculation
+  // Initial size calculation with a small delay to ensure DOM is ready
   nextTick(() => {
     handleResize();
+    // Add extra call after a short delay to handle any layout adjustments
+    setTimeout(handleResize, 100);
   });
+  
+  document.addEventListener('keydown', handleKeyDown);
 });
 
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize);
+  document.removeEventListener('keydown', handleKeyDown);
 });
 
 // Handle key events for shortcuts
@@ -615,192 +624,198 @@ defineExpose({
           opacity: snapToGrid ? 0.5 : 0
         }"></div>
         
-        <Stage
-          ref="stageRef"
-          :config="{
-            width: stageSize.width,
-            height: stageSize.height,
-            scaleX: scale,
-            scaleY: scale,
-            x: position.x,
-            y: position.y,
-            draggable: selectedTool === 'pan'
-          }"
-          @mousedown="handleStageMouseDown"
-          @mousemove="handleStageMouseMove"
-          @mouseup="handleStageMouseUp"
-        >
-          <Layer ref="layerRef">
-            <!-- Render all shapes from the model -->
-            <template v-for="shape in model.shapes" :key="shape.id">
-              <!-- Rectangle -->
+        <!-- Add v-if to prevent rendering with zero dimensions -->
+        <template v-if="stageSize.width > 0 && stageSize.height > 0">
+          <Stage
+            ref="stageRef"
+            :config="{
+              width: stageSize.width || 1,
+              height: stageSize.height || 1,
+              scaleX: scale,
+              scaleY: scale,
+              x: position.x,
+              y: position.y,
+              draggable: selectedTool === 'pan'
+            }"
+            @mousedown="handleStageMouseDown"
+            @mousemove="handleStageMouseMove"
+            @mouseup="handleStageMouseUp"
+          >
+            <Layer ref="layerRef">
+              <!-- Render all shapes from the model -->
+              <template v-for="shape in model.shapes" :key="shape.id">
+                <!-- Rectangle -->
+                <Rect
+                  v-if="shape.type === 'rect'"
+                  :config="{
+                    x: shape.x,
+                    y: shape.y,
+                    width: shape.width,
+                    height: shape.height,
+                    fill: shape.fill,
+                    stroke: shape.stroke,
+                    strokeWidth: shape.strokeWidth,
+                    draggable: selectedTool === 'select',
+                    id: shape.id,
+                    name: shape.id
+                  }"
+                  @click="handleShapeClick(shape.id)"
+                  @tap="handleShapeClick(shape.id)"
+                />
+                
+                <!-- Circle -->
+                <Circle
+                  v-else-if="shape.type === 'circle'"
+                  :config="{
+                    x: shape.x,
+                    y: shape.y,
+                    radius: shape.width ? shape.width / 2 : 25,
+                    fill: shape.fill,
+                    stroke: shape.stroke,
+                    strokeWidth: shape.strokeWidth,
+                    draggable: selectedTool === 'select',
+                    id: shape.id,
+                    name: shape.id
+                  }"
+                  @click="handleShapeClick(shape.id)"
+                  @tap="handleShapeClick(shape.id)"
+                />
+                
+                <!-- Line -->
+                <Line
+                  v-else-if="shape.type === 'line'"
+                  :config="{
+                    points: shape.points,
+                    stroke: shape.stroke,
+                    strokeWidth: shape.strokeWidth,
+                    lineCap: 'round',
+                    lineJoin: 'round',
+                    draggable: selectedTool === 'select',
+                    id: shape.id,
+                    name: shape.id
+                  }"
+                  @click="handleShapeClick(shape.id)"
+                  @tap="handleShapeClick(shape.id)"
+                />
+                
+                <!-- Arrow -->
+                <Arrow
+                  v-else-if="shape.type === 'arrow'"
+                  :config="{
+                    points: shape.points,
+                    pointerLength: 10,
+                    pointerWidth: 10,
+                    fill: shape.stroke,
+                    stroke: shape.stroke,
+                    strokeWidth: shape.strokeWidth,
+                    draggable: selectedTool === 'select',
+                    id: shape.id,
+                    name: shape.id
+                  }"
+                  @click="handleShapeClick(shape.id)"
+                  @tap="handleShapeClick(shape.id)"
+                />
+                
+                <!-- Text -->
+                <KonvaText
+                  v-else-if="shape.type === 'text'"
+                  :config="{
+                    x: shape.x,
+                    y: shape.y,
+                    text: shape.text || 'Text',
+                    fontSize: shape.fontSize || 18,
+                    fontFamily: shape.fontFamily || 'Arial',
+                    fill: shape.fill || '#ffffff',
+                    padding: 5,
+                    draggable: selectedTool === 'select',
+                    id: shape.id,
+                    name: shape.id
+                  }"
+                  @click="handleShapeClick(shape.id)"
+                  @tap="handleShapeClick(shape.id)"
+                />
+              </template>
+              
+              <!-- Drawing preview -->
+              <template v-if="isDrawing">
+                <!-- Line or Arrow preview -->
+                <Line
+                  v-if="selectedTool === 'line' || selectedTool === 'arrow'"
+                  :config="{
+                    points: drawingPoints,
+                    stroke: model.defaultStroke || '#000000',
+                    strokeWidth: 1,
+                    lineCap: 'round',
+                    lineJoin: 'round'
+                  }"
+                />
+                
+                <!-- Rectangle preview -->
+                <Rect
+                  v-else-if="selectedTool === 'rect'"
+                  :config="{
+                    x: drawingPoints[0],
+                    y: drawingPoints[1],
+                    width: drawingPoints[2],
+                    height: drawingPoints[3],
+                    fill: model.defaultFill || '#ffffff',
+                    stroke: model.defaultStroke || '#000000',
+                    strokeWidth: 1
+                  }"
+                />
+                
+                <!-- Circle preview -->
+                <Circle
+                  v-else-if="selectedTool === 'circle'"
+                  :config="{
+                    x: drawingPoints[0] + drawingPoints[2] / 2,
+                    y: drawingPoints[1] + drawingPoints[3] / 2,
+                    radius: Math.max(Math.abs(drawingPoints[2]), Math.abs(drawingPoints[3])) / 2,
+                    fill: model.defaultFill || '#ffffff',
+                    stroke: model.defaultStroke || '#000000',
+                    strokeWidth: 1
+                  }"
+                />
+              </template>
+              
+              <!-- Selection indicators -->
               <Rect
-                v-if="shape.type === 'rect'"
+                v-if="selectedShape && getSelectedShapeIndex >= 0 && 
+                      model.shapes && model.shapes[getSelectedShapeIndex] && 
+                      model.shapes[getSelectedShapeIndex].type === 'rect'"
                 :config="{
-                  x: shape.x,
-                  y: shape.y,
-                  width: shape.width,
-                  height: shape.height,
-                  fill: shape.fill,
-                  stroke: shape.stroke,
-                  strokeWidth: shape.strokeWidth,
-                  draggable: selectedTool === 'select',
-                  id: shape.id,
-                  name: shape.id
+                  x: model.shapes[getSelectedShapeIndex].x - 5,
+                  y: model.shapes[getSelectedShapeIndex].y - 5,
+                  width: model.shapes[getSelectedShapeIndex].width + 10,
+                  height: model.shapes[getSelectedShapeIndex].height + 10,
+                  stroke: '#00aaff',
+                  strokeWidth: 2,
+                  dash: [5, 5]
                 }"
-                @click="handleShapeClick(shape.id)"
-                @tap="handleShapeClick(shape.id)"
               />
               
-              <!-- Circle -->
+              <!-- Fix Circle selection indicator by ensuring width property exists -->
               <Circle
-                v-else-if="shape.type === 'circle'"
+                v-if="selectedShape && getSelectedShapeIndex >= 0 && 
+                      model.shapes && 
+                      model.shapes[getSelectedShapeIndex] && 
+                      model.shapes[getSelectedShapeIndex].type === 'circle' && 
+                      model.shapes[getSelectedShapeIndex].width !== undefined"
                 :config="{
-                  x: shape.x,
-                  y: shape.y,
-                  radius: shape.width ? shape.width / 2 : 25,
-                  fill: shape.fill,
-                  stroke: shape.stroke,
-                  strokeWidth: shape.strokeWidth,
-                  draggable: selectedTool === 'select',
-                  id: shape.id,
-                  name: shape.id
-                }"
-                @click="handleShapeClick(shape.id)"
-                @tap="handleShapeClick(shape.id)"
-              />
-              
-              <!-- Line -->
-              <Line
-                v-else-if="shape.type === 'line'"
-                :config="{
-                  points: shape.points,
-                  stroke: shape.stroke,
-                  strokeWidth: shape.strokeWidth,
-                  lineCap: 'round',
-                  lineJoin: 'round',
-                  draggable: selectedTool === 'select',
-                  id: shape.id,
-                  name: shape.id
-                }"
-                @click="handleShapeClick(shape.id)"
-                @tap="handleShapeClick(shape.id)"
-              />
-              
-              <!-- Arrow -->
-              <Arrow
-                v-else-if="shape.type === 'arrow'"
-                :config="{
-                  points: shape.points,
-                  pointerLength: 10,
-                  pointerWidth: 10,
-                  fill: shape.stroke,
-                  stroke: shape.stroke,
-                  strokeWidth: shape.strokeWidth,
-                  draggable: selectedTool === 'select',
-                  id: shape.id,
-                  name: shape.id
-                }"
-                @click="handleShapeClick(shape.id)"
-                @tap="handleShapeClick(shape.id)"
-              />
-              
-              <!-- Text -->
-              <KonvaText
-                v-else-if="shape.type === 'text'"
-                :config="{
-                  x: shape.x,
-                  y: shape.y,
-                  text: shape.text || 'Text',
-                  fontSize: shape.fontSize || 18,
-                  fontFamily: shape.fontFamily || 'Arial',
-                  fill: shape.fill || '#ffffff',
-                  padding: 5,
-                  draggable: selectedTool === 'select',
-                  id: shape.id,
-                  name: shape.id
-                }"
-                @click="handleShapeClick(shape.id)"
-                @tap="handleShapeClick(shape.id)"
-              />
-            </template>
-            
-            <!-- Drawing preview -->
-            <template v-if="isDrawing">
-              <!-- Line or Arrow preview -->
-              <Line
-                v-if="selectedTool === 'line' || selectedTool === 'arrow'"
-                :config="{
-                  points: drawingPoints,
-                  stroke: model.defaultStroke || '#000000',
-                  strokeWidth: 1,
-                  lineCap: 'round',
-                  lineJoin: 'round'
+                  x: model.shapes[getSelectedShapeIndex].x,
+                  y: model.shapes[getSelectedShapeIndex].y,
+                  radius: (model.shapes[getSelectedShapeIndex].width / 2) + 5,
+                  stroke: '#00aaff',
+                  strokeWidth: 2,
+                  dash: [5, 5]
                 }"
               />
-              
-              <!-- Rectangle preview -->
-              <Rect
-                v-else-if="selectedTool === 'rect'"
-                :config="{
-                  x: drawingPoints[0],
-                  y: drawingPoints[1],
-                  width: drawingPoints[2],
-                  height: drawingPoints[3],
-                  fill: model.defaultFill || '#ffffff',
-                  stroke: model.defaultStroke || '#000000',
-                  strokeWidth: 1
-                }"
-              />
-              
-              <!-- Circle preview -->
-              <Circle
-                v-else-if="selectedTool === 'circle'"
-                :config="{
-                  x: drawingPoints[0] + drawingPoints[2] / 2,
-                  y: drawingPoints[1] + drawingPoints[3] / 2,
-                  radius: Math.max(Math.abs(drawingPoints[2]), Math.abs(drawingPoints[3])) / 2,
-                  fill: model.defaultFill || '#ffffff',
-                  stroke: model.defaultStroke || '#000000',
-                  strokeWidth: 1
-                }"
-              />
-            </template>
-            
-            <!-- Selection indicators -->
-            <Rect
-              v-if="selectedShape && getSelectedShapeIndex >= 0 && 
-                    model.shapes && model.shapes[getSelectedShapeIndex] && 
-                    model.shapes[getSelectedShapeIndex].type === 'rect'"
-              :config="{
-                x: model.shapes[getSelectedShapeIndex].x - 5,
-                y: model.shapes[getSelectedShapeIndex].y - 5,
-                width: model.shapes[getSelectedShapeIndex].width + 10,
-                height: model.shapes[getSelectedShapeIndex].height + 10,
-                stroke: '#00aaff',
-                strokeWidth: 2,
-                dash: [5, 5]
-              }"
-            />
-            
-            <!-- Fix Circle selection indicator by ensuring width property exists -->
-            <Circle
-              v-if="selectedShape && getSelectedShapeIndex >= 0 && 
-                    model.shapes && 
-                    model.shapes[getSelectedShapeIndex] && 
-                    model.shapes[getSelectedShapeIndex].type === 'circle' && 
-                    model.shapes[getSelectedShapeIndex].width !== undefined"
-              :config="{
-                x: model.shapes[getSelectedShapeIndex].x,
-                y: model.shapes[getSelectedShapeIndex].y,
-                radius: (model.shapes[getSelectedShapeIndex].width / 2) + 5,
-                stroke: '#00aaff',
-                strokeWidth: 2,
-                dash: [5, 5]
-              }"
-            />
-          </Layer>
-        </Stage>
+            </Layer>
+          </Stage>
+        </template>
+        <div v-else class="stage-loading">
+          <span>Initializing canvas...</span>
+        </div>
       </div>
       
       <!-- Zoom control display -->
@@ -961,5 +976,13 @@ defineExpose({
   position: absolute;
   bottom: 16px;
   left: 16px;
+}
+
+.stage-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--qui-text-secondary);
 }
 </style>
