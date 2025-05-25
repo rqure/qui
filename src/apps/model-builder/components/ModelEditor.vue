@@ -12,6 +12,33 @@ import { createEmptyModel } from '../utils/modelTypes';
 import { saveModelToEntity, loadModelFromEntity } from '../utils/modelStorage';
 import { getSnappedPoint, createShapeConfig, processDrawingPoints, finalizeShape } from '../services/drawingService';
 
+// Define interfaces for Konva events to fix type errors
+interface KonvaTarget {
+  getStage(): any;
+  name(): string;
+  getPointerPosition(): { x: number; y: number };
+  attrs: {
+    id?: string;
+    [key: string]: any;
+  };
+  x(): number;
+  y(): number;
+  position(pos: { x: number; y: number }): void;
+}
+
+interface KonvaEvent {
+  target: KonvaTarget;
+  currentTarget: any;
+  evt: Event;
+  type: string;
+  cancelBubble: boolean;
+}
+
+// Use generic types instead of specific ones
+type KonvaEventWithTarget = KonvaEvent & {
+  target: KonvaTarget;
+};
+
 const props = defineProps<{
   modelId?: EntityId | null;
   isNewModel: boolean;
@@ -144,7 +171,7 @@ async function saveModel() {
 }
 
 // Stage event handlers
-const handleStageMouseDown = (e: any) => {
+const handleStageMouseDown = (e: KonvaEventWithTarget) => {
   // Prevent the event from bubbling up
   e.evt.preventDefault();
   e.evt.stopPropagation();
@@ -206,7 +233,7 @@ const handleStageMouseDown = (e: any) => {
   }
 };
 
-const handleStageMouseMove = (e: any) => {
+const handleStageMouseMove = (e: KonvaEventWithTarget) => {
   if (!isDrawing.value) return;
   
   e.evt.preventDefault();
@@ -242,7 +269,7 @@ const handleStageMouseMove = (e: any) => {
   }
 };
 
-const handleStageMouseUp = (e: any) => {
+const handleStageMouseUp = (e: KonvaEventWithTarget) => {
   if (!isDrawing.value) return;
   
   e.evt.preventDefault();
@@ -495,7 +522,7 @@ watch(
   { deep: true }
 );
 
-// Improve resize handler to ensure stage has valid dimensions
+// Modify the handleResize function to ensure stage has valid dimensions
 const handleResize = () => {
   const container = document.querySelector('.canvas-container');
   if (!container) return;
@@ -517,6 +544,19 @@ const handleResize = () => {
   }
 };
 
+// Fix stage reference issue by properly accessing the stage
+const getStageNode = () => {
+  if (!stageRef.value) return null;
+  
+  // Safely handle different ways the node might be accessed
+  const stage = stageRef.value.getStage?.() || 
+                stageRef.value?.getNode?.() || 
+                stageRef.value?.$el?.getNode?.() ||
+                null;
+  
+  return stage;
+};
+
 // Initialize the editor with improved timing for size calculation
 onMounted(async () => {
   await loadModel();
@@ -530,21 +570,6 @@ onMounted(async () => {
     // Add extra call after a short delay to handle any layout adjustments
     setTimeout(() => {
       handleResize();
-      // Make sure stage is properly mounted and drawn
-      if (stageRef.value) {
-        console.log('Stage mounted successfully');
-        try {
-          // Access the Konva stage object correctly through getNode()
-          const konvaStage = stageRef.value.getNode();
-          if (konvaStage && typeof konvaStage.batchDraw === 'function') {
-            konvaStage.batchDraw();
-          }
-        } catch (e) {
-          console.error('Error accessing Konva stage:', e);
-        }
-      } else {
-        console.warn('Stage not properly initialized on mount');
-      }
     }, 200);
   });
   
@@ -588,18 +613,6 @@ const setSelectedTool = (tool: string) => {
   if (!['rect', 'circle', 'line', 'arrow'].includes(tool)) {
     isDrawing.value = false;
     drawingPoints.value = [];
-  }
-  
-  // Re-render the stage after tool change if stage is available
-  if (stageRef.value) {
-    try {
-      const konvaStage = stageRef.value.getNode();
-      if (konvaStage && typeof konvaStage.batchDraw === 'function') {
-        konvaStage.batchDraw();
-      }
-    } catch (e) {
-      console.error('Error using Konva stage batchDraw:', e);
-    }
   }
 };
 
@@ -736,9 +749,9 @@ defineExpose({
                     id: shape.id,
                     name: shape.id
                   }"
-                  @click="e => handleShapeClick(e)"
-                  @tap="e => handleShapeClick(e)"
-                  @dragend="(e) => { 
+                  @click="handleShapeClick"
+                  @tap="handleShapeClick"
+                  @dragend="(e: KonvaEventWithTarget) => { 
                     updateShapeProperty('x', e.target.x()); 
                     updateShapeProperty('y', e.target.y());
                     emit('model-change');
@@ -759,9 +772,9 @@ defineExpose({
                     id: shape.id,
                     name: shape.id
                   }"
-                  @click="e => handleShapeClick(e)"
-                  @tap="e => handleShapeClick(e)"
-                  @dragend="(e) => { 
+                  @click="handleShapeClick"
+                  @tap="handleShapeClick"
+                  @dragend="(e: KonvaEventWithTarget) => { 
                     updateShapeProperty('x', e.target.x()); 
                     updateShapeProperty('y', e.target.y());
                     emit('model-change');
@@ -781,9 +794,9 @@ defineExpose({
                     id: shape.id,
                     name: shape.id
                   }"
-                  @click="e => handleShapeClick(e)"
-                  @tap="e => handleShapeClick(e)"
-                  @dragend="(e) => { 
+                  @click="handleShapeClick"
+                  @tap="handleShapeClick"
+                  @dragend="(e: KonvaEventWithTarget) => { 
                     const oldPoints = shape.points;
                     if (oldPoints) {
                       const dx = e.target.x();
@@ -813,9 +826,9 @@ defineExpose({
                     id: shape.id,
                     name: shape.id
                   }"
-                  @click="e => handleShapeClick(e)"
-                  @tap="e => handleShapeClick(e)"
-                  @dragend="(e) => { 
+                  @click="handleShapeClick"
+                  @tap="handleShapeClick"
+                  @dragend="(e: KonvaEventWithTarget) => { 
                     const oldPoints = shape.points;
                     if (oldPoints) {
                       const dx = e.target.x();
@@ -846,16 +859,16 @@ defineExpose({
                     id: shape.id,
                     name: shape.id
                   }"
-                  @click="e => handleShapeClick(e)"
-                  @tap="e => handleShapeClick(e)"
-                  @dragend="(e) => { 
+                  @click="handleShapeClick"
+                  @tap="handleShapeClick"
+                  @dragend="(e: KonvaEventWithTarget) => { 
                     updateShapeProperty('x', e.target.x()); 
                     updateShapeProperty('y', e.target.y());
                     emit('model-change');
                   }"
                 />
                 
-                <!-- ...existing nested model code... -->
+                <!-- ... existing nested model code... -->
               </template>
               
               <!-- Drawing preview - show only when actively drawing -->

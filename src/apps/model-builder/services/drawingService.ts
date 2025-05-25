@@ -1,15 +1,20 @@
-import { v4 as uuidv4 } from 'uuid';
 import type { ShapeConfig } from '../utils/modelTypes';
 
 /**
- * Gets a point snapped to the grid
+ * Apply grid snapping to coordinates
+ * 
  * @param x X coordinate
  * @param y Y coordinate
- * @param gridSize Grid size
- * @param snapToGrid Whether to snap to grid
- * @returns Snapped point
+ * @param gridSize Size of the grid
+ * @param snapToGrid Whether snapping is enabled
+ * @returns Object with snapped x and y coordinates
  */
-export function getSnappedPoint(x: number, y: number, gridSize: number, snapToGrid: boolean): { x: number, y: number } {
+export function getSnappedPoint(
+  x: number, 
+  y: number, 
+  gridSize: number, 
+  snapToGrid: boolean
+): { x: number, y: number } {
   if (!snapToGrid) {
     return { x, y };
   }
@@ -21,17 +26,18 @@ export function getSnappedPoint(x: number, y: number, gridSize: number, snapToGr
 }
 
 /**
- * Creates a new shape configuration
- * @param type Shape type
+ * Create a shape config object with specified properties
+ * 
+ * @param type Type of shape to create
  * @param x X coordinate
  * @param y Y coordinate
- * @param width Width
- * @param height Height
+ * @param width Width of shape
+ * @param height Height of shape
  * @param fill Fill color
  * @param stroke Stroke color
- * @param points Points for lines and arrows
- * @param text Text content
- * @returns Shape configuration
+ * @param points Points for line/arrow shapes
+ * @param text Text content for text shapes
+ * @returns A ShapeConfig object
  */
 export function createShapeConfig(
   type: string,
@@ -39,155 +45,167 @@ export function createShapeConfig(
   y: number,
   width: number,
   height: number,
-  fill: string = '#ffffff',
-  stroke: string = '#000000',
-  points?: number[] | null,
-  text?: string,
+  fill: string,
+  stroke: string,
+  points: number[] | null = null,
+  text: string | null = null
 ): ShapeConfig {
-  const id = `shape_${uuidv4().substring(0, 8)}`;
+  const shapeId = 'shape_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
   
   const baseConfig: ShapeConfig = {
-    id,
+    id: shapeId,
     type,
     x,
     y,
     fill,
     stroke,
-    strokeWidth: 2,
-    properties: {}
+    strokeWidth: 2
   };
   
-  // Add type-specific properties
-  switch (type) {
-    case 'rect':
-      baseConfig.width = width;
-      baseConfig.height = height;
-      break;
-      
-    case 'circle':
-      // For circle, use width as diameter
-      baseConfig.width = Math.max(width, height);
-      break;
-      
-    case 'line':
-    case 'arrow':
-      // For lines and arrows, use points
-      if (points && points.length >= 4) {
-        baseConfig.points = points;
-      } else {
-        baseConfig.points = [0, 0, 100, 100]; // Default points
-      }
-      break;
-      
-    case 'text':
-      baseConfig.width = width;
-      baseConfig.height = height;
-      baseConfig.text = text || 'Text';
-      baseConfig.fontSize = 18;
-      baseConfig.fontFamily = 'Arial';
-      break;
+  if (width > 0) {
+    baseConfig.width = width;
+  }
+  
+  if (height > 0) {
+    baseConfig.height = height;
+  }
+  
+  if (points) {
+    baseConfig.points = points;
+  }
+  
+  if (text) {
+    baseConfig.text = text;
+    baseConfig.fontSize = 18;
+    baseConfig.fontFamily = 'Arial';
   }
   
   return baseConfig;
 }
 
 /**
- * Handles mouse movements during drawing to calculate shape dimensions
- * @param tool Drawing tool
- * @param startX Starting X coordinate
- * @param startY Starting Y coordinate
- * @param currentX Current X coordinate
- * @param currentY Current Y coordinate
- * @param gridSize Grid size
- * @param snapToGrid Whether to snap to grid
- * @returns Processed drawing points
+ * Process drawing points to handle negative dimensions
+ * 
+ * @param type Shape type
+ * @param points Drawing points array [x, y, width, height] or [x1, y1, x2, y2]
+ * @returns Processed points appropriate for the shape type
  */
 export function processDrawingPoints(
-  tool: string,
-  startX: number,
-  startY: number,
-  currentX: number,
-  currentY: number,
-  gridSize: number,
-  snapToGrid: boolean
-): number[] {
-  let x = startX;
-  let y = startY;
-  let endX = currentX;
-  let endY = currentY;
-  
-  if (snapToGrid) {
-    const snappedStart = getSnappedPoint(startX, startY, gridSize, true);
-    const snappedEnd = getSnappedPoint(currentX, currentY, gridSize, true);
-    
-    x = snappedStart.x;
-    y = snappedStart.y;
-    endX = snappedEnd.x;
-    endY = snappedEnd.y;
+  type: string,
+  points: number[]
+): { x: number; y: number; width?: number; height?: number; points?: number[] } {
+  if (type === 'line' || type === 'arrow') {
+    // Fix: Return x and y coordinates of the start point along with the points array
+    return {
+      x: points[0],
+      y: points[1],
+      points: points
+    };
   }
   
-  if (tool === 'line' || tool === 'arrow') {
-    return [x, y, endX, endY];
-  } else if (tool === 'rect' || tool === 'circle') {
-    const width = endX - x;
-    const height = endY - y;
-    return [x, y, width, height];
-  }
+  // Extract the points
+  const [startX, startY, width, height] = points;
   
-  return [x, y, 0, 0];
+  // Handle negative dimensions for rect and circle
+  const x = width < 0 ? startX + width : startX;
+  const y = height < 0 ? startY + height : startY;
+  const absWidth = Math.abs(width);
+  const absHeight = Math.abs(height);
+  
+  return {
+    x,
+    y,
+    width: absWidth,
+    height: absHeight
+  };
 }
 
 /**
- * Finalizes shape properties after drawing is complete
- * @param tool Drawing tool
- * @param points Drawing points
+ * Create a final shape from drawing points
+ * 
+ * @param tool Current drawing tool
+ * @param points Drawing points array
  * @param defaultFill Default fill color
  * @param defaultStroke Default stroke color
- * @returns Shape configuration
+ * @returns Final ShapeConfig object or null if invalid
  */
 export function finalizeShape(
   tool: string,
   points: number[],
-  defaultFill: string = '#ffffff',
-  defaultStroke: string = '#000000'
+  defaultFill: string,
+  defaultStroke: string
 ): ShapeConfig | null {
-  // Ensure we have valid points
   if (points.length < 4) return null;
   
-  let [x, y, width, height] = points;
+  // Minimum size threshold to avoid creating tiny shapes by accident
+  const MIN_SIZE = 5;
   
-  // For line and arrow, we need to handle the points differently
-  if (tool === 'line' || tool === 'arrow') {
-    // Check if line is long enough to be meaningful
+  if (tool === 'rect') {
+    const { x, y, width, height } = processDrawingPoints(tool, points);
+    
+    // Check if width and height are defined
+    if (width === undefined || height === undefined) return null;
+    
+    // Ensure the shape has minimum dimensions
+    if (width < MIN_SIZE || height < MIN_SIZE) return null;
+    
+    return createShapeConfig(
+      'rect',
+      x,
+      y,
+      width,
+      height,
+      defaultFill,
+      defaultStroke
+    );
+  }
+  
+  else if (tool === 'circle') {
+    const { x, y, width, height } = processDrawingPoints(tool, points);
+    
+    // Check if width and height are defined
+    if (width === undefined || height === undefined) return null;
+    
+    const diameter = Math.max(width, height);
+    
+    // Ensure the shape has minimum dimensions
+    if (diameter < MIN_SIZE) return null;
+    
+    // Center the circle at the midpoint of the drag area
+    const circleX = x + diameter / 2;
+    const circleY = y + diameter / 2;
+    
+    return createShapeConfig(
+      'circle',
+      circleX,
+      circleY,
+      diameter,
+      diameter,
+      defaultFill,
+      defaultStroke
+    );
+  }
+  
+  else if (tool === 'line' || tool === 'arrow') {
     const [x1, y1, x2, y2] = points;
+    
+    // Ensure it's not just a click (minimum length)
     const dx = x2 - x1;
     const dy = y2 - y1;
-    const distance = Math.sqrt(dx * dx + dy * dy);
+    const length = Math.sqrt(dx * dx + dy * dy);
     
-    if (distance < 5) return null; // Line too short to be meaningful
+    if (length < MIN_SIZE) return null;
     
-    return createShapeConfig(tool, 0, 0, 0, 0, defaultFill, defaultStroke, points);
-  } 
-  // For rectangle and circle, handle width and height
-  else if (tool === 'rect' || tool === 'circle') {
-    // Handle negative dimensions
-    if (width < 0) {
-      x += width;
-      width = Math.abs(width);
-    }
-    
-    if (height < 0) {
-      y += height;
-      height = Math.abs(height);
-    }
-    
-    // Check if shape is large enough to be meaningful
-    if (width < 5 || height < 5) return null;
-    
-    return createShapeConfig(tool, x, y, width, height, defaultFill, defaultStroke);
-  }
-  else if (tool === 'text') {
-    return createShapeConfig(tool, x, y, 150, 30, defaultFill, defaultStroke, null, 'Text');
+    return createShapeConfig(
+      tool,
+      0,
+      0,
+      0,
+      0,
+      'transparent',
+      defaultStroke,
+      points
+    );
   }
   
   return null;
