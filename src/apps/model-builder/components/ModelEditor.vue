@@ -2,11 +2,6 @@
 import { ref, onMounted, watch, computed, nextTick, onUnmounted } from 'vue';
 import { useDataStore } from '@/stores/data';
 import type { EntityId } from '@/core/data/types';
-import { ValueFactories, ValueType } from '@/core/data/types';
-
-// Import Konva components directly
-import VueKonva from 'vue-konva';
-import Konva from 'konva';
 
 // Import editor tools and utility components
 import ModelEditorToolbar from './ModelEditorToolbar.vue';
@@ -14,16 +9,7 @@ import BindingEditor from './BindingEditor.vue';
 import ModelNestedModelSelector from './ModelNestedModelSelector.vue';
 import type { ModelConfig, ShapeConfig, BindingConfig } from '../utils/modelTypes';
 import { createEmptyModel } from '../utils/modelTypes';
-import { exportModelToJSON, importModelFromJSON, saveModelToEntity, loadModelFromEntity } from '../utils/modelStorage';
-
-// Import components correctly - directly from VueKonva
-const Stage = VueKonva.Stage;
-const Layer = VueKonva.Layer;
-const Rect = VueKonva.Rect;
-const Circle = VueKonva.Circle;
-const Line = VueKonva.Line;
-const Arrow = VueKonva.Arrow;
-const KonvaText = VueKonva.Text;
+import { saveModelToEntity, loadModelFromEntity } from '../utils/modelStorage';
 
 const props = defineProps<{
   modelId?: EntityId | null;
@@ -537,6 +523,40 @@ const setSelectedTool = (tool: string) => {
   }
 };
 
+// Fix undefined object error for circle selection indicator
+const getCircleSelectionConfig = computed(() => {
+  if (!selectedShape.value || getSelectedShapeIndex.value < 0 || !model.value.shapes) {
+    return null;
+  }
+  
+  const selectedShapeObj = model.value.shapes[getSelectedShapeIndex.value];
+  if (!selectedShapeObj || selectedShapeObj.type !== 'circle' || selectedShapeObj.width === undefined) {
+    return null;
+  }
+  
+  return {
+    x: selectedShapeObj.x,
+    y: selectedShapeObj.y,
+    radius: (selectedShapeObj.width / 2) + 5,
+    stroke: '#00aaff',
+    strokeWidth: 2,
+    dash: [5, 5]
+  };
+});
+
+// Replace unnecessary datastore connection with simple model loading
+onMounted(async () => {
+  await loadModel();
+  
+  // Set up resize handler
+  window.addEventListener('resize', handleResize);
+  
+  // Initial size calculation
+  nextTick(() => {
+    handleResize();
+  });
+});
+
 defineExpose({
   saveModel
 });
@@ -737,7 +757,9 @@ defineExpose({
             
             <!-- Selection indicators -->
             <Rect
-              v-if="selectedShape && getSelectedShapeIndex >= 0 && model.shapes[getSelectedShapeIndex].type === 'rect'"
+              v-if="selectedShape && getSelectedShapeIndex >= 0 && 
+                    model.shapes && model.shapes[getSelectedShapeIndex] && 
+                    model.shapes[getSelectedShapeIndex].type === 'rect'"
               :config="{
                 x: model.shapes[getSelectedShapeIndex].x - 5,
                 y: model.shapes[getSelectedShapeIndex].y - 5,
@@ -752,7 +774,8 @@ defineExpose({
             <!-- Fix Circle selection indicator by ensuring width property exists -->
             <Circle
               v-if="selectedShape && getSelectedShapeIndex >= 0 && 
-                    model.shapes && model.shapes[getSelectedShapeIndex] && 
+                    model.shapes && 
+                    model.shapes[getSelectedShapeIndex] && 
                     model.shapes[getSelectedShapeIndex].type === 'circle' && 
                     model.shapes[getSelectedShapeIndex].width !== undefined"
               :config="{

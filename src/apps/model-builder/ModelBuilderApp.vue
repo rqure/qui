@@ -3,6 +3,7 @@ import { ref, onMounted, watch, markRaw } from 'vue';
 import { useDataStore } from '@/stores/data';
 import { useWindowStore } from '@/stores/windows';
 import type { EntityId } from '@/core/data/types';
+import type { ShapeConfig, ModelConfig } from './utils/modelTypes';
 import LoadingIndicator from '@/components/common/LoadingIndicator.vue';
 import ModelEditor from './components/ModelEditor.vue';
 import ModelLibrary from './components/ModelLibrary.vue';
@@ -126,8 +127,8 @@ const endPropertiesResize = () => {
 };
 
 // Add reactive refs for selected shape and model
-const selectedShapeConfig = ref(null);
-const modelSettings = ref({});
+const selectedShapeConfig = ref<ShapeConfig | null>(null);
+const modelSettings = ref<ModelConfig | Record<string, any>>({});
 
 // Open model in preview window
 const openModelPreview = () => {
@@ -144,7 +145,7 @@ const openModelPreview = () => {
     title: 'Model Preview',
     icon: iconDataUrl,
     component: markRaw(ModelPreview), // Use markRaw with the actual component
-    componentProps: {
+    props: {  // Fix: changed from componentProps to props
       modelId: currentModelId.value,
       standalone: true
     },
@@ -158,42 +159,24 @@ const openModelPreview = () => {
 // Initialize data and connect to server
 onMounted(async () => {
   try {
-    // Initialize data store connection
-    if (!dataStore.isConnected) {
-      await dataStore.connect();
-    }
-    
     loading.value = false;
-  } catch (err: any) { // Add explicit any type to err parameter
+  } catch (err: any) {
     error.value = 'Failed to connect to the data server: ' + (err as Error).message;
     loading.value = false;
   }
 });
 
-// Fix Promise handling in retryLoading function
 const retryLoading = () => {
   loading.value = true;
   error.value = null;
   
-  const connectPromise = dataStore.connect();
-  if (connectPromise && typeof connectPromise.then === 'function') {
-    connectPromise
-      .then(() => {
-        loading.value = false;
-      })
-      .catch((err: any) => {
-        error.value = 'Failed to connect to the data server: ' + (err as Error).message;
-        loading.value = false;
-      });
-  } else {
+  try {
+    // Remove unnecessary connection attempt - it happens elsewhere
+    loading.value = false;
+  } catch (err: any) {
+    error.value = 'Failed to connect to the data server: ' + (err as Error).message;
     loading.value = false;
   }
-};
-
-// Watch for model changes from editor
-const handleModelEditorUpdates = (shape: any, modelData: any) => {
-  selectedShapeConfig.value = shape;
-  modelSettings.value = modelData;
 };
 
 // Watch for changes to model data
@@ -280,8 +263,8 @@ const handleModelChange = () => {
             :model-id="currentModelId"
             :is-new-model="isNewModel"
             @model-change="handleModelChange"
-            @update-shape="(shape) => selectedShapeConfig = shape"
-            @update-model="(model) => modelSettings = model"
+            @update-shape="(shape: ShapeConfig | null) => selectedShapeConfig = shape"
+            @update-model="(model: ModelConfig) => modelSettings = model"
           />
         </div>
       </div>
@@ -544,4 +527,5 @@ const handleModelChange = () => {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
+
 </style>

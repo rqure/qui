@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-import { ShapeConfig } from '../utils/modelTypes';
+import type { ShapeConfig } from '../utils/modelTypes';
 
 const props = defineProps<{
   selectedShape: ShapeConfig | null;

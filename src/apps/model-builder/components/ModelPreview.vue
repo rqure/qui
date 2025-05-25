@@ -7,15 +7,6 @@ import VueKonva from 'vue-konva';
 import { loadModelFromEntity } from '../utils/modelStorage';
 import type { ModelConfig, BindingConfig, ShapeConfig } from '../utils/modelTypes';
 
-// Import Konva components directly instead of trying to use component method
-const Stage = VueKonva.Stage;
-const Layer = VueKonva.Layer; 
-const Rect = VueKonva.Rect;
-const Circle = VueKonva.Circle;
-const Line = VueKonva.Line;
-const Arrow = VueKonva.Arrow;
-const KonvaText = VueKonva.Text;
-
 const props = defineProps<{
   modelId?: EntityId | null;
   standalone?: boolean;
