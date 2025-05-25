@@ -3,9 +3,6 @@ import { ref, onMounted, watch, computed, nextTick, onUnmounted } from 'vue';
 import { useDataStore } from '@/stores/data';
 import type { EntityId } from '@/core/data/types';
 
-// Import Vue-Konva instead of direct Konva imports
-import VueKonva from 'vue-konva';
-
 // Import editor tools and utility components
 import ModelEditorToolbar from './ModelEditorToolbar.vue';
 import BindingEditor from './BindingEditor.vue';
@@ -626,7 +623,7 @@ defineExpose({
         
         <!-- Add v-if to prevent rendering with zero dimensions -->
         <template v-if="stageSize.width > 0 && stageSize.height > 0">
-          <Stage
+          <v-stage
             ref="stageRef"
             :config="{
               width: stageSize.width || 1,
@@ -641,11 +638,11 @@ defineExpose({
             @mousemove="handleStageMouseMove"
             @mouseup="handleStageMouseUp"
           >
-            <Layer ref="layerRef">
+            <v-layer ref="layerRef">
               <!-- Render all shapes from the model -->
               <template v-for="shape in model.shapes" :key="shape.id">
                 <!-- Rectangle -->
-                <Rect
+                <v-rect
                   v-if="shape.type === 'rect'"
                   :config="{
                     x: shape.x,
@@ -664,7 +661,7 @@ defineExpose({
                 />
                 
                 <!-- Circle -->
-                <Circle
+                <v-circle
                   v-else-if="shape.type === 'circle'"
                   :config="{
                     x: shape.x,
@@ -682,7 +679,7 @@ defineExpose({
                 />
                 
                 <!-- Line -->
-                <Line
+                <v-line
                   v-else-if="shape.type === 'line'"
                   :config="{
                     points: shape.points,
@@ -699,7 +696,7 @@ defineExpose({
                 />
                 
                 <!-- Arrow -->
-                <Arrow
+                <v-arrow
                   v-else-if="shape.type === 'arrow'"
                   :config="{
                     points: shape.points,
@@ -717,7 +714,7 @@ defineExpose({
                 />
                 
                 <!-- Text -->
-                <KonvaText
+                <v-text
                   v-else-if="shape.type === 'text'"
                   :config="{
                     x: shape.x,
@@ -739,7 +736,7 @@ defineExpose({
               <!-- Drawing preview -->
               <template v-if="isDrawing">
                 <!-- Line or Arrow preview -->
-                <Line
+                <v-line
                   v-if="selectedTool === 'line' || selectedTool === 'arrow'"
                   :config="{
                     points: drawingPoints,
@@ -751,7 +748,7 @@ defineExpose({
                 />
                 
                 <!-- Rectangle preview -->
-                <Rect
+                <v-rect
                   v-else-if="selectedTool === 'rect'"
                   :config="{
                     x: drawingPoints[0],
@@ -765,7 +762,7 @@ defineExpose({
                 />
                 
                 <!-- Circle preview -->
-                <Circle
+                <v-circle
                   v-else-if="selectedTool === 'circle'"
                   :config="{
                     x: drawingPoints[0] + drawingPoints[2] / 2,
@@ -779,7 +776,7 @@ defineExpose({
               </template>
               
               <!-- Selection indicators -->
-              <Rect
+              <v-rect
                 v-if="selectedShape && getSelectedShapeIndex >= 0 && 
                       model.shapes && model.shapes[getSelectedShapeIndex] && 
                       model.shapes[getSelectedShapeIndex].type === 'rect'"
@@ -795,7 +792,7 @@ defineExpose({
               />
               
               <!-- Fix Circle selection indicator by ensuring width property exists -->
-              <Circle
+              <v-circle
                 v-if="selectedShape && getSelectedShapeIndex >= 0 && 
                       model.shapes && 
                       model.shapes[getSelectedShapeIndex] && 
@@ -810,8 +807,8 @@ defineExpose({
                   dash: [5, 5]
                 }"
               />
-            </Layer>
-          </Stage>
+            </v-layer>
+          </v-stage>
         </template>
         <div v-else class="stage-loading">
           <span>Initializing canvas...</span>

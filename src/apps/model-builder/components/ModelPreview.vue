@@ -6,9 +6,6 @@ import { ValueType, ValueFactories, EntityFactories } from '@/core/data/types';
 import { loadModelFromEntity } from '../utils/modelStorage';
 import type { ModelConfig, BindingConfig, ShapeConfig } from '../utils/modelTypes';
 
-// Import Vue-Konva instead of direct Konva imports
-import VueKonva from 'vue-konva';
-
 const props = defineProps<{
   modelId?: EntityId | null;
   standalone?: boolean;
@@ -273,7 +270,7 @@ watch(() => props.modelId, async () => {
     <div v-else class="preview-stage" :style="{ background: model.background || 'transparent' }">
       <!-- Add v-if to prevent rendering with zero dimensions -->
       <template v-if="stageSize.width > 0 && stageSize.height > 0">
-        <Stage
+        <v-stage
           :config="{
             width: stageSize.width || 1, 
             height: stageSize.height || 1,
@@ -283,11 +280,11 @@ watch(() => props.modelId, async () => {
             y: (stageSize.height - model.height * scale) / 2
           }"
         >
-          <Layer>
+          <v-layer>
             <!-- Render all shapes from the model -->
             <template v-for="shape in model?.shapes || []" :key="shape.id">
               <!-- Rectangle -->
-              <Rect
+              <v-rect
                 v-if="shape.type === 'rect'"
                 :config="{
                   x: shape.x,
@@ -302,7 +299,7 @@ watch(() => props.modelId, async () => {
               />
               
               <!-- Circle -->
-              <Circle
+              <v-circle
                 v-else-if="shape.type === 'circle'"
                 :config="{
                   x: shape.x,
@@ -316,7 +313,7 @@ watch(() => props.modelId, async () => {
               />
               
               <!-- Line -->
-              <Line
+              <v-line
                 v-else-if="shape.type === 'line'"
                 :config="{
                   points: shape.points,
@@ -329,7 +326,7 @@ watch(() => props.modelId, async () => {
               />
               
               <!-- Arrow -->
-              <Arrow
+              <v-arrow
                 v-else-if="shape.type === 'arrow'"
                 :config="{
                   points: shape.points,
@@ -343,7 +340,7 @@ watch(() => props.modelId, async () => {
               />
               
               <!-- Text -->
-              <KonvaText
+              <v-text
                 v-else-if="shape.type === 'text'"
                 :config="{
                   x: shape.x,
@@ -362,7 +359,7 @@ watch(() => props.modelId, async () => {
                 <!-- Render nested model shapes with parent transformation -->
                 <template v-for="nestedShape in (shape as any).nestedModel.shapes" :key="`${shape.id}_${nestedShape.id}`">
                   <!-- Rectangle in nested model -->
-                  <Rect
+                  <v-rect
                     v-if="nestedShape.type === 'rect'"
                     :config="{
                       x: nestedShape.x * ((shape.width || 100) / ((shape as any).nestedModel.width || 100)) + shape.x,
@@ -377,7 +374,7 @@ watch(() => props.modelId, async () => {
                   />
                   
                   <!-- Circle in nested model -->
-                  <Circle
+                  <v-circle
                     v-else-if="nestedShape.type === 'circle'"
                     :config="{
                       x: nestedShape.x * ((shape.width || 100) / ((shape as any).nestedModel.width || 100)) + shape.x,
@@ -391,7 +388,7 @@ watch(() => props.modelId, async () => {
                   />
                   
                   <!-- Text in nested model -->
-                  <KonvaText
+                  <v-text
                     v-else-if="nestedShape.type === 'text'"
                     :config="{
                       x: nestedShape.x * ((shape.width || 100) / ((shape as any).nestedModel.width || 100)) + shape.x,
@@ -406,8 +403,8 @@ watch(() => props.modelId, async () => {
                 </template>
               </template>
             </template>
-          </Layer>
-        </Stage>
+          </v-layer>
+        </v-stage>
       </template>
       <div v-else class="initializing-stage">
         <span>Initializing preview...</span>
