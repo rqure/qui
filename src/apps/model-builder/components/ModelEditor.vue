@@ -80,6 +80,8 @@ async function loadModel() {
         loading.value = false;
         isModelLoaded.value = true;
         originalModelHash.value = JSON.stringify(model.value);
+      } else {
+        loading.value = false;
       }
       return;
     }
