@@ -3,6 +3,16 @@ import { ref, onMounted, watch, computed, nextTick, onUnmounted } from 'vue';
 import { useDataStore } from '@/stores/data';
 import type { EntityId } from '@/core/data/types';
 
+// Import Konva components
+import { Stage } from 'konva/lib/Stage';
+import { Label } from 'konva/lib/shapes/Label';
+import { Rect } from 'konva/lib/shapes/Rect';
+import { Circle } from 'konva/lib/shapes/Circle';
+import { Line } from 'konva/lib/shapes/Line';
+import { Arrow } from 'konva/lib/shapes/Arrow';
+import { Text as KonvaText } from 'konva/lib/shapes/Text';
+import { Layer } from 'konva/lib/Layer';
+
 // Import editor tools and utility components
 import ModelEditorToolbar from './ModelEditorToolbar.vue';
 import BindingEditor from './BindingEditor.vue';

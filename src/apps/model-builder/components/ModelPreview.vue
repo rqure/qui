@@ -3,9 +3,16 @@ import { ref, onMounted, watch, computed, onBeforeUnmount } from 'vue';
 import { useDataStore } from '@/stores/data';
 import type { EntityId } from '@/core/data/types';
 import { ValueType, ValueFactories, EntityFactories } from '@/core/data/types';
-import VueKonva from 'vue-konva';
 import { loadModelFromEntity } from '../utils/modelStorage';
 import type { ModelConfig, BindingConfig, ShapeConfig } from '../utils/modelTypes';
+import { Stage } from 'konva/lib/Stage';
+import { Label } from 'konva/lib/shapes/Label';
+import { Rect } from 'konva/lib/shapes/Rect';
+import { Circle } from 'konva/lib/shapes/Circle';
+import { Line } from 'konva/lib/shapes/Line';
+import { Arrow } from 'konva/lib/shapes/Arrow';
+import { Text as KonvaText } from 'konva/lib/shapes/Text';
+import { Layer } from 'konva/lib/Layer';
 
 const props = defineProps<{
   modelId?: EntityId | null;
