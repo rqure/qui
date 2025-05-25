@@ -10,6 +10,9 @@ import ModelLibrary from './components/ModelLibrary.vue';
 import ModelPreview from './components/ModelPreview.vue';
 import ModelProperties from './components/ModelProperties.vue';
 
+// Additional imports to ensure Vue Konva is available
+import VueKonva from 'vue-konva';
+
 const dataStore = useDataStore();
 const windowStore = useWindowStore();
 
@@ -183,6 +186,21 @@ const retryLoading = () => {
 const handleModelChange = () => {
   isModelChanged.value = true;
 };
+
+// Update method signatures to accept proper shape config
+const handleShapeUpdate = (shape: ShapeConfig | null) => {
+  selectedShapeConfig.value = shape;
+};
+
+const handleModelUpdate = (model: ModelConfig) => {
+  modelSettings.value = model;
+};
+
+// Add a global error handler for Konva-related errors
+const handleKonvaError = (error: Error) => {
+  console.warn('Konva operation error:', error);
+  // Implement graceful error handling
+};
 </script>
 
 <template>
@@ -263,8 +281,8 @@ const handleModelChange = () => {
             :model-id="currentModelId"
             :is-new-model="isNewModel"
             @model-change="handleModelChange"
-            @update-shape="(shape: ShapeConfig | null) => selectedShapeConfig = shape"
-            @update-model="(model: ModelConfig) => modelSettings = model"
+            @update-shape="handleShapeUpdate"
+            @update-model="handleModelUpdate"
           />
         </div>
       </div>

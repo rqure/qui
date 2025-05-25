@@ -44,7 +44,7 @@ const tools = [
   {
     id: 'line',
     name: 'Line',
-    icon: 'M22,9L12,2L2,9H22M12,4.4L17,8H7L12,4.4M19,13H5V10H19V13M19,16H5V14H19V16M19,19H5V17H19V19Z'
+    icon: 'M7,12L12,7V10H16V14H12V17L7,12Z'
   },
   {
     id: 'arrow',
@@ -159,7 +159,3 @@ const selectTool = (toolId: string) => {
     </div>
   </div>
 </template>
-
-<style scoped>
-/* All styling is in global.css */
-</style>
