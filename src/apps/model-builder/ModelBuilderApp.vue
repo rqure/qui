@@ -51,6 +51,11 @@ const componentCategories = ref([
   { id: 'containers', label: 'Containers' }
 ]);
 
+// Computed for toolbar title
+const modelTitle = computed(() => {
+  return activeModel.value?.name || 'Untitled Model';
+});
+
 // Initialize the application
 onMounted(async () => {
   try {
@@ -258,7 +263,7 @@ function showContextMenu(event: MouseEvent) {
 </script>
 
 <template>
-  <div class="model-builder">
+  <div class="model-builder" @contextmenu="showContextMenu">
     <!-- Loading State -->
     <div v-if="loading" class="loading-container">
       <LoadingIndicator message="Loading model builder..." />
@@ -279,34 +284,70 @@ function showContextMenu(event: MouseEvent) {
 
     <!-- Main Content -->
     <div v-else class="app-container">
-      <!-- Toolbox -->
-      <div class="left-panel" :style="{ width: `${panelWidth}px` }">
-        <div class="resize-handle resize-handle-right" @mousedown="startResizeRight"></div>
-        <ModelToolbox 
-          :categories="componentCategories"
-          @add-component="handleAddComponent"
-        />
+      <!-- Add Toolbar -->
+      <div class="toolbar">
+        <div class="toolbar-left">
+          <button class="mb-button" @click="createNewModel">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
+              <path fill="currentColor" d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+            </svg>
+            New Model
+          </button>
+        </div>
+
+        <div class="toolbar-title">
+          <h1>{{ modelTitle }}</h1>
+          <div class="model-status" v-if="activeModel">
+            <span class="model-id">ID: {{ activeModel.id }}</span>
+          </div>
+        </div>
+
+        <div class="toolbar-right">
+          <button 
+            class="mb-button mb-button-primary" 
+            @click="saveModel"
+            :disabled="!activeModel"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
+              <path fill="currentColor" d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4zm2 16H5V5h11.17L19 7.83V19z"/>
+              <path fill="currentColor" d="M12 12c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+            </svg>
+            Save Model
+          </button>
+        </div>
       </div>
 
-      <!-- Canvas -->
-      <div class="middle-panel">
-        <ModelCanvas 
-          :components="modelComponents"
-          :selected-component="selectedComponent"
-          :zoom-level="zoomLevel"
-          @select-component="handleComponentSelect"
-          @add-component="handleAddComponent"
-        />
-      </div>
+      <!-- Panels Container -->
+      <div class="panels-container">
+        <!-- Toolbox -->
+        <div class="left-panel" :style="{ width: `${panelWidth}px` }">
+          <div class="resize-handle resize-handle-right" @mousedown="startResizeRight"></div>
+          <ModelToolbox 
+            :categories="componentCategories"
+            @add-component="handleAddComponent"
+          />
+        </div>
 
-      <!-- Properties Panel -->
-      <div class="right-panel" :style="{ width: `${panelWidth}px` }">
-        <div class="resize-handle resize-handle-left" @mousedown="startResizeLeft"></div>
-        <ModelPropertyPanel 
-          :component="selectedComponent"
-          :active-model="activeModel"
-          @property-change="handlePropertyChange"
-        />
+        <!-- Canvas -->
+        <div class="middle-panel">
+          <ModelCanvas 
+            :components="modelComponents"
+            :selected-component="selectedComponent"
+            :zoom-level="zoomLevel"
+            @select-component="handleComponentSelect"
+            @add-component="handleAddComponent"
+          />
+        </div>
+
+        <!-- Properties Panel -->
+        <div class="right-panel" :style="{ width: `${panelWidth}px` }">
+          <div class="resize-handle resize-handle-left" @mousedown="startResizeLeft"></div>
+          <ModelPropertyPanel 
+            :component="selectedComponent"
+            :active-model="activeModel"
+            @property-change="handlePropertyChange"
+          />
+        </div>
       </div>
     </div>
   </div>
@@ -366,6 +407,53 @@ function showContextMenu(event: MouseEvent) {
   display: flex;
   flex: 1;
   height: 100%;
+  overflow: hidden;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  padding: 8px 16px;
+  background: var(--qui-bg-primary);
+  border-bottom: 1px solid var(--qui-hover-border);
+  gap: 16px;
+}
+
+.toolbar-left, .toolbar-right {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 8px;
+}
+
+.toolbar-title {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.toolbar-title h1 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--qui-text-primary);
+}
+
+.model-status {
+  font-size: 12px;
+  color: var(--qui-text-secondary);
+  margin-top: 2px;
+}
+
+.model-id {
+  font-family: var(--qui-font-family-mono);
+}
+
+.panels-container {
+  display: flex;
+  flex: 1;
+  height: calc(100% - 72px); /* Adjust for toolbar height */
   overflow: hidden;
 }
 
