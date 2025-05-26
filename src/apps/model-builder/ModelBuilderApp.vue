@@ -297,6 +297,14 @@ function saveModelName() {
   }
   isEditingName.value = false
 }
+
+// Handle model selection with proper event typing
+function handleModelSelect(event: Event) {
+  const target = event.target as HTMLSelectElement;
+  if (target && target.value) {
+    selectModel(target.value);
+  }
+}
 </script>
 
 <template>
@@ -327,12 +335,15 @@ function saveModelName() {
       <div class="mb-header-center">
         <!-- Model Selector -->
         <select 
-          class="mb-model-select" 
+          class="mb-select" 
           :value="activeModel?.id"
-          @change="selectModel($event.target.value)"
+          @change="handleModelSelect"
         >
           <option value="" disabled>Select a model...</option>
-          <option v-for="model in availableModels" :key="model.id" :value="model.id">
+          <option v-for="model in availableModels" 
+                  :key="model.id" 
+                  :value="model.id"
+          >
             {{ model.name }}
           </option>
         </select>
@@ -497,14 +508,21 @@ function saveModelName() {
   width: 200px;
 }
 
-.mb-model-select {
-  min-width: 250px;
-  padding: 8px 12px;
-  background: var(--qui-bg-secondary);
-  border: 1px solid var(--qui-hover-border);
+.mb-select {
+  min-width: 200px;
+  padding: 6px 12px;
   border-radius: 4px;
+  border: 1px solid var(--qui-hover-border);
+  background: var(--qui-bg-secondary);
   color: var(--qui-text-primary);
+  font-size: var(--qui-font-size-base);
   cursor: pointer;
+}
+
+.mb-select:focus {
+  border-color: var(--qui-accent-color);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(0, 176, 255, 0.2);
 }
 
 .mb-main {
