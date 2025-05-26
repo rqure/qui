@@ -280,85 +280,108 @@ function showContextMenu(event: MouseEvent) {
       { id: 'close', label: 'Close', action: () => window.close() }
   ]);
 }
+
+// Add model name editor state
+const isEditingName = ref(false)
+const editedName = ref('')
+
+function startEditingName() {
+  editedName.value = activeModel.value?.name || ''
+  isEditingName.value = true
+}
+
+function saveModelName() {
+  if (activeModel.value && editedName.value) {
+    activeModel.value.name = editedName.value
+    saveModel()
+  }
+  isEditingName.value = false
+}
 </script>
 
 <template>
   <div class="model-builder">
-    <!-- Loading State -->
-    <div v-if="loading" class="loading-container">
-      <LoadingIndicator message="Loading model builder..." />
-    </div>
+    <!-- App Header -->
+    <header class="mb-header">
+      <div class="mb-header-left">
+        <div v-if="activeModel" class="mb-model-info">
+          <div v-if="!isEditingName" class="mb-model-name" @click="startEditingName">
+            {{ activeModel.name }}
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24">
+              <path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+            </svg>
+          </div>
+          <div v-else class="mb-model-name-editor">
+            <input 
+              v-model="editedName" 
+              @keyup.enter="saveModelName"
+              @blur="saveModelName"
+              ref="nameInput"
+              class="mb-name-input"
+            />
+          </div>
+          <div class="mb-model-id" v-if="activeModel.id">ID: {{ activeModel.id }}</div>
+        </div>
+      </div>
 
-    <!-- Error State -->
-    <div v-else-if="error" class="error-container">
-      <div class="error-message">
-        {{ error }}
-        <button class="retry-button" @click="createNewModel">
+      <div class="mb-header-center">
+        <!-- Model Selector -->
+        <select 
+          class="mb-model-select" 
+          :value="activeModel?.id"
+          @change="selectModel($event.target.value)"
+        >
+          <option value="" disabled>Select a model...</option>
+          <option v-for="model in availableModels" :key="model.id" :value="model.id">
+            {{ model.name }}
+          </option>
+        </select>
+      </div>
+
+      <div class="mb-header-right">
+        <button class="mb-button" @click="createNewModel">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
-            <path fill="currentColor" d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+            <path fill="currentColor" d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
           </svg>
-          Try Again
+          New Model
+        </button>
+        <button class="mb-button mb-button-primary" @click="saveModel" :disabled="!activeModel">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
+            <path fill="currentColor" d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4z"/>
+          </svg>
+          Save
         </button>
       </div>
-    </div>
+    </header>
 
     <!-- Main Content -->
-    <div v-else class="app-container">
-      <!-- Toolbar -->
-      <div class="toolbar">
-        <div class="toolbar-left">
-          <button class="mb-button" @click="createNewModel">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
-              <path fill="currentColor" d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
-            </svg>
-            New Model
-          </button>
-          
-          <!-- Model Selector -->
-          <select 
-            class="mb-select" 
-            :value="activeModel?.id"
-            @change="selectModel($event.target.value)"
-          >
-            <option value="" disabled>Select a model...</option>
-            <option v-for="model in availableModels" 
-                    :key="model.id" 
-                    :value="model.id"
-            >
-              {{ model.name }}
-            </option>
-          </select>
-        </div>
+    <div class="mb-main">
+      <!-- Loading State -->
+      <div v-if="loading" class="mb-loading">
+        <LoadingIndicator message="Loading model builder..." />
+      </div>
 
-        <div class="toolbar-right">
-          <!-- Save button -->
-          <button 
-            class="mb-button mb-button-primary" 
-            @click="saveModel"
-            :disabled="!activeModel"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
-              <path fill="currentColor" d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4zm2 16H5V5h11.17L19 7.83V19z"/>
-              <path fill="currentColor" d="M12 12c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
-            </svg>
-            Save Model
-          </button>
+      <!-- Error State -->
+      <div v-else-if="error" class="mb-error">
+        <div class="error-message">
+          {{ error }}
+          <button class="retry-button" @click="createNewModel">Try Again</button>
         </div>
       </div>
 
-      <!-- Content Area -->
-      <div class="content-container">
-        <!-- Toolbox -->
-        <div class="left-panel" :style="{ width: `${panelWidth}px` }">
-          <div class="resize-handle resize-handle-right" @mousedown="startResizeRight"></div>
+      <!-- Editor Layout -->
+      <div v-else class="mb-editor">
+        <!-- Toolbox Panel -->
+        <div class="mb-panel mb-panel-left" :style="{ width: `${panelWidth}px` }">
           <ModelToolbox 
             :categories="componentCategories"
             @add-component="handleAddComponent"
           />
+          <div class="resize-handle resize-handle-right" @mousedown="startResizeRight"></div>
         </div>
 
-        <!-- Canvas -->
-        <div class="middle-panel">
+        <!-- Canvas Area -->
+        <div class="mb-panel mb-panel-center">
           <ModelCanvas 
             :components="modelComponents"
             :selected-component="selectedComponent"
@@ -366,10 +389,21 @@ function showContextMenu(event: MouseEvent) {
             @select-component="handleComponentSelect"
             @add-component="handleAddComponent"
           />
+          <!-- Zoom Controls -->
+          <div class="mb-zoom-controls">
+            <button class="mb-zoom-button" @click="zoomOut">-</button>
+            <div class="mb-zoom-value">{{ zoomLevel }}%</div>
+            <button class="mb-zoom-button" @click="zoomIn">+</button>
+            <button class="mb-zoom-button" @click="resetZoom">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
+                <path fill="currentColor" d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/>
+              </svg>
+            </button>
+          </div>
         </div>
 
         <!-- Properties Panel -->
-        <div class="right-panel" :style="{ width: `${panelWidth}px` }">
+        <div class="mb-panel mb-panel-right" :style="{ width: `${panelWidth}px` }">
           <div class="resize-handle resize-handle-left" @mousedown="startResizeLeft"></div>
           <ModelPropertyPanel 
             :component="selectedComponent"
@@ -388,142 +422,230 @@ function showContextMenu(event: MouseEvent) {
   flex-direction: column;
   height: 100%;
   background: var(--qui-bg-secondary);
-  color: var(--qui-text-primary);
-  overflow: hidden;
 }
 
-.loading-container, .error-container {
+.mb-header {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  gap: 20px;
-}
-
-.error-message {
-  display: flex;
-  flex-direction: column;
   align-items: center;
   gap: 16px;
-  color: var(--qui-danger-color);
-  text-align: center;
-  max-width: 300px;
-}
-
-.retry-button {
-  padding: 10px 18px;
-  background: var(--qui-overlay-primary);
-  border: 1px solid var(--qui-hover-border);
-  border-radius: 20px;
-  color: var(--qui-text-primary);
-  cursor: pointer;
-  transition: all 0.2s var(--qui-animation-bounce);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: var(--qui-font-weight-medium);
-}
-
-.retry-button:hover {
-  background: #00b0ff;
-  color: var(--qui-bg-primary);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 176, 255, 0.2);
-}
-
-.app-container {
-  display: flex;
-  flex: 1;
-  height: 100%;
-  overflow: hidden;
-}
-
-.toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 16px;
+  padding: 12px 16px;
   background: var(--qui-bg-primary);
   border-bottom: 1px solid var(--qui-hover-border);
+  height: 64px;
+  flex-shrink: 0;
 }
 
-.toolbar-left, .toolbar-right {
+.mb-header-left, .mb-header-center, .mb-header-right {
   display: flex;
   align-items: center;
+  gap: 12px;
+}
+
+.mb-header-left {
+  width: 300px;
+}
+
+.mb-header-center {
+  flex: 1;
+  justify-content: center;
+}
+
+.mb-header-right {
+  width: 300px;
+  justify-content: flex-end;
+}
+
+.mb-model-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mb-model-name {
+  font-size: 18px;
+  font-weight: 500;
+  color: #00b0ff;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.mb-model-name svg {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.mb-model-name:hover svg {
+  opacity: 0.6;
+}
+
+.mb-model-id {
+  font-size: 12px;
+  color: var(--qui-text-secondary);
+  font-family: var(--qui-font-family-mono);
+}
+
+.mb-name-input {
+  font-size: 18px;
+  font-weight: 500;
+  color: #00b0ff;
+  background: var(--qui-bg-secondary);
+  border: 1px solid var(--qui-hover-border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  width: 200px;
+}
+
+.mb-model-select {
+  min-width: 250px;
+  padding: 8px 12px;
+  background: var(--qui-bg-secondary);
+  border: 1px solid var(--qui-hover-border);
+  border-radius: 4px;
+  color: var(--qui-text-primary);
+  cursor: pointer;
+}
+
+.mb-main {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  position: relative;
+}
+
+.mb-editor {
+  display: flex;
+  width: 100%;
+  height: 100%;
+}
+
+.mb-panel {
+  position: relative;
+  height: 100%;
+}
+
+.mb-panel-left, .mb-panel-right {
+  background: var(--qui-bg-primary);
+  width: 300px;
+  flex-shrink: 0;
+}
+
+.mb-panel-center {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background: var(--qui-bg-secondary);
+}
+
+/* Toolbox styles */
+.mb-toolbox {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mb-toolbox-category {
+  display: flex;
+  flex-direction: column;
   gap: 8px;
 }
 
-.toolbar-title {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-}
-
-.toolbar-title h1 {
-  margin: 0;
-  font-size: 18px;
+.mb-toolbox-category-label {
+  font-size: 14px;
   font-weight: 500;
   color: var(--qui-text-primary);
 }
 
-.model-status {
-  font-size: 12px;
-  color: var(--qui-text-secondary);
-  margin-top: 2px;
+.mb-toolbox-item {
+  padding: 10px;
+  border: 1px solid var(--qui-hover-border);
+  border-radius: 4px;
+  background: var(--qui-bg-secondary);
+  color: var(--qui-text-primary);
+  cursor: pointer;
+  transition: background 0.2s ease;
 }
 
-.model-id {
-  font-family: var(--qui-font-family-mono);
+.mb-toolbox-item:hover {
+  background: var(--qui-primary-color);
+  color: var(--qui-bg-primary);
 }
 
-.content-container {
-  display: flex;
-  flex: 1;
-  overflow: hidden;
-}
-
-.panels-container {
-  display: flex;
-  flex: 1;
-  height: calc(100% - 72px); /* Adjust for toolbar height */
-  overflow: hidden;
-}
-
-.left-panel, .right-panel {
-  height: 100%;
-  background: var(--qui-bg-primary);
+/* Canvas styles */
+.mb-canvas {
   position: relative;
+  width: 100%;
+  height: 100%;
+  background: var(--qui-bg-secondary);
   overflow: hidden;
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
-  z-index: 2;
-  flex-shrink: 0;
+  border: 1px solid var(--qui-hover-border);
+  border-radius: 4px;
 }
 
-.middle-panel {
-  flex: 1;
+.mb-canvas-zoom-controls {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 10;
+}
+
+.mb-zoom-button {
+  background: var(--qui-bg-primary);
+  border: 1px solid var(--qui-divider-color);
+  border-radius: 4px;
+  padding: 8px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.mb-zoom-button:hover {
+  background: var(--qui-bg-secondary);
+}
+
+.mb-zoom-value {
+  font-weight: var(--qui-font-weight-medium);
+  color: var(--qui-text-primary);
+}
+
+/* Property panel styles */
+.mb-property-panel {
+  padding: 16px;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  gap: 12px;
 }
 
-.canvas-container {
-  flex: 1;
-  position: relative;
-  overflow: hidden;
+.mb-property-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.bottom-panel {
-  position: relative;
-  background: var(--qui-bg-primary);
-  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.2);
-  z-index: 1;
-  overflow: hidden;
-  flex-shrink: 0;
+.mb-property-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--qui-text-primary);
 }
 
+.mb-property-value {
+  font-size: 14px;
+  color: var(--qui-text-primary);
+}
+
+.mb-property-input {
+  padding: 8px;
+  border: 1px solid var(--qui-hover-border);
+  border-radius: 4px;
+  background: var(--qui-bg-secondary);
+  color: var(--qui-text-primary);
+}
+
+/* Resize handle styles */
 .resize-handle {
   position: absolute;
   background: transparent;
