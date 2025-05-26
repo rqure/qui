@@ -1,16 +1,17 @@
 import { v4 as uuidv4 } from 'uuid';
 import type { UIModelEntity, ModelComponent, ModelConfig, FieldBinding, FormulaBinding } from '../types';
 import type { EntityId, FieldType, Entity } from '@/core/data/types';
-import { ValueFactories } from '@/core/data/types';
+import { EntityFactories, ValueFactories } from '@/core/data/types';
+import { useDataStore } from '@/stores/data';
 
 export class ModelManager {
-  private dataStore: any;
+  private dataStore: ReturnType<typeof useDataStore>;
   private models: UIModelEntity[] = [];
   private activeEntityBindings: Map<string, { subscription: any, fields: FieldBinding[] }> = new Map();
   private activeFormulaBindings: Map<string, { subscription: any, formula: FormulaBinding }> = new Map();
 
-  constructor(dataStore: any) {
-    this.dataStore = dataStore;
+  constructor() {
+    this.dataStore = useDataStore();
   }
 
   /**
@@ -34,14 +35,14 @@ export class ModelManager {
   /**
    * Load a specific model by ID
    */
-  async loadModel(modelId: string): Promise<UIModelEntity> {
+  async loadModel(modelId: EntityId): Promise<UIModelEntity> {
     try {
       // Check if the model already exists in our cache
       let cachedModel = this.models.find(m => m.id === modelId);
       
       if (!cachedModel) {
         // Fetch the entity from the database
-        const entity = await this.dataStore.getEntity(modelId);
+        const entity = EntityFactories.newEntity(modelId);
         
         if (!entity) {
           throw new Error(`Model with ID ${modelId} not found`);
@@ -94,7 +95,7 @@ export class ModelManager {
       const configJson = JSON.stringify(config);
       
       // Fetch the entity from the database
-      const entity = await this.dataStore.getEntity(model.id);
+      const entity = EntityFactories.newEntity(model.id);
       
       if (!entity) {
         throw new Error(`Model with ID ${model.id} not found`);
@@ -102,8 +103,8 @@ export class ModelManager {
       
       // Update entity fields
       entity.field('Name').value = ValueFactories.newString(model.name);
-      entity.field('ConfigurationFile').value = ValueFactories.newBinaryFile(configJson);
-      
+      entity.field('ConfigurationFile').value = ValueFactories.newString(configJson);
+
       // Add description if available
       if (model.description !== undefined) {
         entity.field('Description').value = ValueFactories.newString(model.description);
@@ -122,11 +123,33 @@ export class ModelManager {
   /**
    * Create a new model in the database
    */
-  async createModel(name: string, parentId?: EntityId): Promise<UIModelEntity> {
+  async createModel(name: string): Promise<UIModelEntity> {
     try {
+      const folders = await this.dataStore.find(
+        'Folder',
+        ["Name"],
+        (entity: Entity) => entity.field('Name').value.getString() === 'UIModels');
+
+      let folder: Entity | undefined;
+      
+      if (folders.length === 0) {
+        const root = await this.dataStore.find("Root", []);
+        if (root.length === 0) {
+          throw new Error('Root not found');
+        }
+
+        folder = await this.dataStore.createEntity(
+          root[0].entityId,
+          'Folder',
+          'UIModels'
+        );
+      } else {
+        folder = folders[0];
+      }
+
       // Create a new entity in the database
       const entity = await this.dataStore.createEntity(
-        parentId || 'root',
+        folder.entityId,
         'UIModel',
         name
       );
@@ -143,8 +166,8 @@ export class ModelManager {
       const configJson = JSON.stringify(config);
       
       // Set the configuration file field
-      entity.field('ConfigurationFile').value = ValueFactories.newBinaryFile(configJson);
-      
+      entity.field('ConfigurationFile').value = ValueFactories.newString(configJson);
+
       // Write the configuration to the database
       await this.dataStore.write([entity.field('ConfigurationFile')]);
       
@@ -152,8 +175,6 @@ export class ModelManager {
       const model: UIModelEntity = {
         id: entity.entityId,
         name,
-        entityType: 'UIModel',
-        parentId: parentId || 'root',
         components: [],
         width: 1920,
         height: 1080,
@@ -294,15 +315,12 @@ export class ModelManager {
     const nameField = entity.field('Name');
     const configField = entity.field('ConfigurationFile');
     const descField = entity.field('Description');
-    const parentField = entity.field('Parent');
     
     return {
       id: entity.entityId,
       name: nameField.value.getString(),
-      entityType: entity.entityType,
-      parentId: parentField.value.getEntityReference(),
       description: descField?.value?.getString(),
-      configurationFile: configField.value.getBinaryFile(),
+      configurationFile: configField.value.getString(),
       components: [],
       width: 1920,
       height: 1080,

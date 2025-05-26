@@ -74,7 +74,7 @@ export interface ModelComponent {
  * Configuration of a complete model
  */
 export interface ModelConfig {
-  id: string;
+  id: EntityId;
   name: string;
   components: ModelComponent[];
   width: number;
@@ -111,8 +111,6 @@ export interface FormulaBinding {
 export interface UIModelEntity {
   id: EntityId;
   name: string;
-  entityType: EntityType;
-  parentId?: EntityId;
   description?: string;
   configurationFile?: string;
   components: ModelComponent[];

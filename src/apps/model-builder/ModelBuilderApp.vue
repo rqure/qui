@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, computed } from 'vue';
-import { useDataStore } from '@/stores/data';
 import { useMenuStore } from '@/stores/menu';
 import { useWindowStore } from '@/stores/windows';
 import ModelToolbox from './components/ModelToolbox.vue';
@@ -14,7 +13,6 @@ import { type ModelComponent, type ModelConfig, type UIModelEntity } from './typ
 import { ModelManager } from './services/ModelManager';
 
 // Store instances
-const dataStore = useDataStore();
 const menuStore = useMenuStore();
 const windowStore = useWindowStore();
 
@@ -56,21 +54,22 @@ const componentCategories = ref([
 // Initialize the application
 onMounted(async () => {
   try {
-    // Initialize data connection
-    if (!dataStore.isConnected) {
-      await dataStore.initialize();
+    loading.value = true;
+    error.value = null;
+
+    // Initialize model manager
+    modelManager.value = new ModelManager();
+    
+    // Create default model if none exists
+    if (!activeModel.value) {
+      const model = await modelManager.value.createModel('New Model');
+      activeModel.value = model;
+      modelComponents.value = [];
     }
     
-    // Create model manager
-    modelManager.value = new ModelManager(dataStore);
-    
-    // Load available models
-    await modelManager.value.loadModels();
-    
-    // Done loading
     loading.value = false;
   } catch (err) {
-    console.error('Failed to initialize Model Builder:', err);
+    console.error('Failed to initialize:', err);
     error.value = 'Failed to initialize the application. Please try again.';
     loading.value = false;
   }
@@ -162,7 +161,7 @@ async function createNewModel() {
     
     const model = await modelManager.value.createModel('New Model');
     activeModel.value = model;
-    modelComponents.value = model.components;
+    modelComponents.value = [];
     selectedComponent.value = null;
     
     loading.value = false;
@@ -259,110 +258,51 @@ function showContextMenu(event: MouseEvent) {
 </script>
 
 <template>
-  <div class="model-builder" @contextmenu="showContextMenu">
+  <div class="model-builder">
+    <!-- Loading State -->
     <div v-if="loading" class="loading-container">
-      <LoadingIndicator />
-      <span>Loading Model Builder...</span>
+      <LoadingIndicator message="Loading model builder..." />
     </div>
-    
+
+    <!-- Error State -->
     <div v-else-if="error" class="error-container">
       <div class="error-message">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
-          <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
-        </svg>
-        <span>{{ error }}</span>
-      </div>
-      <button class="retry-button" @click="loading = true; error = null; dataStore.initialize()">
-        Retry
-      </button>
-    </div>
-    
-    <div v-else class="app-container">
-      <!-- Toolbar: New Model Button -->
-      <div class="toolbar">
-        <button class="new-model-button" @click="createNewModel">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
-            <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+        {{ error }}
+        <button class="retry-button" @click="createNewModel">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
+            <path fill="currentColor" d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
           </svg>
-          New Model
+          Try Again
         </button>
       </div>
-      
-      <!-- Left Panel: Toolbox -->
+    </div>
+
+    <!-- Main Content -->
+    <div v-else class="app-container">
+      <!-- Toolbox -->
       <div class="left-panel" :style="{ width: `${panelWidth}px` }">
+        <div class="resize-handle resize-handle-right" @mousedown="startResizeRight"></div>
         <ModelToolbox 
-          :categories="componentCategories" 
-          @add-component="handleAddComponent" 
+          :categories="componentCategories"
+          @add-component="handleAddComponent"
         />
-        
-        <!-- Resize Handle -->
-        <div 
-          class="resize-handle resize-handle-right" 
-          @mousedown="startResizeLeft"
-          :class="{ 'active': isResizingLeft }"
-        ></div>
       </div>
-      
-      <!-- Middle Panel: Canvas -->
+
+      <!-- Canvas -->
       <div class="middle-panel">
-        <div class="canvas-container">
-          <ModelCanvas 
-            :components="modelComponents"
-            :selected-component="selectedComponent"
-            :zoom-level="zoomLevel"
-            @select-component="handleComponentSelect"
-            @add-component="handleAddComponent"
-          />
-          
-          <!-- Zoom Controls -->
-          <div class="mb-zoom-controls">
-            <button class="mb-zoom-button" @click="zoomOut" title="Zoom Out">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
-                <path fill="currentColor" d="M19 13h-14v-2h14v2z"/>
-              </svg>
-            </button>
-            <div class="mb-zoom-value">{{ zoomLevel }}%</div>
-            <button class="mb-zoom-button" @click="zoomIn" title="Zoom In">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
-                <path fill="currentColor" d="M19 13h-6v6h-2v-6h-6v-2h6v-6h2v6h6v2z"/>
-              </svg>
-            </button>
-            <button class="mb-zoom-button" @click="resetZoom" title="Reset Zoom">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
-                <path fill="currentColor" d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
-              </svg>
-            </button>
-          </div>
-        </div>
-        
-        <!-- Bottom Panel: Explorer -->
-        <div 
-          class="bottom-panel"
-          :style="{ height: `${explorerHeight}px` }"
-        >
-          <div 
-            class="resize-handle resize-handle-top" 
-            @mousedown="startResizeBottom"
-            :class="{ 'active': isResizingBottom }"
-          ></div>
-          
-          <ModelExplorer 
-            :components="modelComponents"
-            :selected-component="selectedComponent"
-            @select-component="handleComponentSelect"
-          />
-        </div>
+        <ModelCanvas 
+          :components="modelComponents"
+          :selected-component="selectedComponent"
+          :zoom-level="zoomLevel"
+          @select-component="handleComponentSelect"
+          @add-component="handleAddComponent"
+        />
       </div>
-      
-      <!-- Right Panel: Properties -->
+
+      <!-- Properties Panel -->
       <div class="right-panel" :style="{ width: `${panelWidth}px` }">
-        <div 
-          class="resize-handle resize-handle-left" 
-          @mousedown="startResizeRight"
-          :class="{ 'active': isResizingRight }"
-        ></div>
-        
-        <ModelPropertyPanel
+        <div class="resize-handle resize-handle-left" @mousedown="startResizeLeft"></div>
+        <ModelPropertyPanel 
           :component="selectedComponent"
           :active-model="activeModel"
           @property-change="handlePropertyChange"
