@@ -19,7 +19,7 @@ export class ModelManager {
   async loadModels(): Promise<UIModelEntity[]> {
     try {
       // Search for all UIModel entities in the database
-      const entities = await this.dataStore.find('UIModel');
+      const entities: Entity[] = await this.dataStore.find('UIModel');
       
       // Convert entities to UIModelEntity objects
       this.models = entities.map(entity => this.entityToModel(entity));

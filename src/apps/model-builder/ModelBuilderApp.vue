@@ -98,7 +98,15 @@ function handleAddComponent(componentType: string, x?: number, y?: number) {
   const opts = typeof x === 'number' && typeof y === 'number'
     ? { x, y }
     : undefined;
-  const newComponent = modelManager.value.createComponent(componentType, opts);
+  
+  const newComponent = modelManager.value.createComponent(componentType);
+  if (!newComponent) {
+    console.error(`Failed to create component of type: ${componentType}`);
+    return;
+  }
+
+  newComponent.x = opts?.x || newComponent.x || 0;
+  newComponent.y = opts?.y || newComponent.y || 0;
   modelComponents.value.push(newComponent);
   selectedComponent.value = newComponent;
 }
@@ -237,38 +245,16 @@ function resetZoom() {
 function showContextMenu(event: MouseEvent) {
   event.preventDefault();
   
-  menuStore.showMenu(
-    { x: event.clientX, y: event.clientY },
-    [
-      {
-        id: 'new-model',
-        label: 'New Model',
-        action: createNewModel
-      },
-      {
-        id: 'save-model',
-        label: 'Save',
-        disabled: !activeModel.value,
-        action: saveModel
-      },
-      { type: 'separator' },
-      {
-        id: 'zoom-in',
-        label: 'Zoom In',
-        action: zoomIn
-      },
-      {
-        id: 'zoom-out',
-        label: 'Zoom Out',
-        action: zoomOut
-      },
-      {
-        id: 'reset-zoom',
-        label: 'Reset Zoom',
-        action: resetZoom
-      }
-    ]
-  );
+  menuStore.showMenu({
+    x: event.clientX,
+    y: event.clientY,
+  }, [
+      { id: 'new-model', label: 'New Model', action: createNewModel },
+      { id: 'open-model', label: 'Open Model...', action: () => { /* prompt and call openModel(...) */ } },
+      { id: 'save-model', label: 'Save Model', action: saveModel },
+      { id: 'sep1', separator: true, label: '' },
+      { id: 'close', label: 'Close', action: () => window.close() }
+  ]);
 }
 </script>
 

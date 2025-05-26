@@ -110,4 +110,3 @@ export function evaluateFormula(formula: string, fieldValues: Record<string, num
     return 0; // Default value on error
   }
 }
-```
