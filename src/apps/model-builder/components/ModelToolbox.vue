@@ -15,26 +15,17 @@ const activeCategory = ref(props.categories[0]?.id || 'basic');
 
 // Filter components based on search query and active category
 const filteredComponents = computed(() => {
-  const query = searchQuery.value.toLowerCase();
-  
+  const q = searchQuery.value.toLowerCase();
   return componentLibrary
-    .filter(component => {
-      if (activeCategory.value && component.category !== activeCategory.value) {
-        return false;
-      }
-      
-      if (query && !component.name.toLowerCase().includes(query) && 
-          !component.description.toLowerCase().includes(query)) {
-        return false;
-      }
-      
-      return true;
-    })
+    .filter(c =>
+      c.category === activeCategory.value &&
+      c.name.toLowerCase().includes(q)
+    )
     .sort((a, b) => a.name.localeCompare(b.name));
 });
 
 // Handle component drag start
-function handleDragStart(event: DragEvent, componentType: string) {
+function onDragStart(event: DragEvent, componentType: string) {
   // Set data for drag operation
   if (event.dataTransfer) {
     event.dataTransfer.setData('application/x-model-component-type', componentType);
@@ -99,16 +90,16 @@ function setCategory(categoryId: string) {
     
     <!-- Component list -->
     <div class="component-list" v-if="filteredComponents.length > 0">
-      <div 
-        v-for="component in filteredComponents" 
-        :key="component.type"
-        class="mb-component-preview"
+      <div
+        v-for="c in filteredComponents"
+        :key="c.type"
+        class="toolbox-item"
         draggable="true"
-        @dragstart="handleDragStart($event, component.type)"
-        @dblclick="handleComponentDoubleClick(component.type)"
+        @dragstart="onDragStart($event, c.type)"
+        @click="emit('add-component', c.type)"
       >
-        <div class="mb-component-preview-icon" v-html="component.icon"></div>
-        <span class="mb-component-preview-label">{{ component.name }}</span>
+        <div class="mb-component-preview-icon" v-html="c.icon"></div>
+        <span class="mb-component-preview-label">{{ c.name }}</span>
       </div>
     </div>
     

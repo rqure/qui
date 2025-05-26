@@ -92,10 +92,13 @@ function handleComponentSelect(component: ModelComponent | null) {
 }
 
 // Handle adding new component to the model
-function handleAddComponent(componentType: string) {
+function handleAddComponent(componentType: string, x?: number, y?: number) {
   if (!modelManager.value) return;
   
-  const newComponent = modelManager.value.createComponent(componentType);
+  const opts = typeof x === 'number' && typeof y === 'number'
+    ? { x, y }
+    : undefined;
+  const newComponent = modelManager.value.createComponent(componentType, opts);
   modelComponents.value.push(newComponent);
   selectedComponent.value = newComponent;
 }
@@ -151,7 +154,8 @@ async function createNewModel() {
     
     const model = await modelManager.value.createModel('New Model');
     activeModel.value = model;
-    modelComponents.value = [];
+    modelComponents.value = model.components;
+    selectedComponent.value = null;
     
     loading.value = false;
   } catch (err) {
@@ -288,6 +292,16 @@ function showContextMenu(event: MouseEvent) {
     </div>
     
     <div v-else class="app-container">
+      <!-- Toolbar: New Model Button -->
+      <div class="toolbar">
+        <button class="new-model-button" @click="createNewModel">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+            <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+          </svg>
+          New Model
+        </button>
+      </div>
+      
       <!-- Left Panel: Toolbox -->
       <div class="left-panel" :style="{ width: `${panelWidth}px` }">
         <ModelToolbox 
@@ -311,6 +325,7 @@ function showContextMenu(event: MouseEvent) {
             :selected-component="selectedComponent"
             :zoom-level="zoomLevel"
             @select-component="handleComponentSelect"
+            @add-component="handleAddComponent"
           />
           
           <!-- Zoom Controls -->
@@ -504,5 +519,59 @@ function showContextMenu(event: MouseEvent) {
 :global(body.resizing-vertical) {
   cursor: row-resize !important;
   user-select: none;
+}
+
+.toolbar {
+  padding: 10px 20px;
+  background: var(--qui-bg-primary);
+  border-bottom: 1px solid var(--qui-divider-color);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.new-model-button {
+  padding: 8px 16px;
+  background: var(--qui-primary-color);
+  border: none;
+  border-radius: 4px;
+  color: var(--qui-bg-primary);
+  cursor: pointer;
+  transition: background 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.new-model-button:hover {
+  background: var(--qui-primary-color-hover);
+}
+
+.mb-zoom-controls {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  z-index: 10;
+}
+
+.mb-zoom-button {
+  background: var(--qui-bg-primary);
+  border: 1px solid var(--qui-divider-color);
+  border-radius: 4px;
+  padding: 8px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.mb-zoom-button:hover {
+  background: var(--qui-bg-secondary);
+}
+
+.mb-zoom-value {
+  font-weight: var(--qui-font-weight-medium);
+  color: var(--qui-text-primary);
 }
 </style>

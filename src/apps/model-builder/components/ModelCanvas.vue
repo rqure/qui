@@ -11,6 +11,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'select-component', component: ModelComponent | null): void;
+  (e: 'add-component', componentType: string, x: number, y: number): void;
 }>();
 
 const canvasRef = ref<HTMLElement | null>(null);
@@ -230,14 +231,17 @@ function handleMouseUp() {
 // Handle drop of new component onto canvas
 function handleDrop(event: DragEvent) {
   if (!event.dataTransfer) return;
-  
-  const componentType = event.dataTransfer.getData('application/x-model-component-type');
-  
-  if (componentType) {
-    // TODO: Create a new component of this type at the drop position
-    console.log(`Drop component of type ${componentType}`);
+  const type = event.dataTransfer.getData(
+    'application/x-model-component-type'
+  );
+  if (type && canvasRef.value) {
+    const rect = canvasRef.value.getBoundingClientRect();
+    // convert drop into canvas coords
+    const scale = props.zoomLevel / 100;
+    const x = Math.round((event.clientX - rect.left) / scale);
+    const y = Math.round((event.clientY - rect.top) / scale);
+    emit('add-component', type, x, y);
   }
-  
   event.preventDefault();
 }
 
@@ -287,11 +291,10 @@ function handleCanvasMouseDown(event: MouseEvent) {
 </script>
 
 <template>
-  <div 
+  <div
     ref="canvasRef"
-    class="model-canvas mb-canvas" 
-    @click="handleCanvasClick"
-    @dragover="handleDragOver"
+    class="model-canvas"
+    @dragover.prevent
     @drop="handleDrop"
     @mousedown="handleCanvasMouseDown"
   >
