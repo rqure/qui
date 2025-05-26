@@ -305,85 +305,98 @@ function handleModelSelect(event: Event) {
     selectModel(target.value);
   }
 }
+
+// Computed for whether editing is enabled
+const editingEnabled = computed(() => activeModel.value !== null);
 </script>
 
 <template>
   <div class="model-builder">
-    <!-- App Header -->
-    <header class="mb-header">
-      <div class="mb-header-left">
-        <div v-if="activeModel" class="mb-model-info">
-          <div v-if="!isEditingName" class="mb-model-name" @click="startEditingName">
-            {{ activeModel.name }}
-            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24">
-              <path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
-            </svg>
-          </div>
-          <div v-else class="mb-model-name-editor">
-            <input 
-              v-model="editedName" 
-              @keyup.enter="saveModelName"
-              @blur="saveModelName"
-              ref="nameInput"
-              class="mb-name-input"
-            />
-          </div>
-          <div class="mb-model-id" v-if="activeModel.id">ID: {{ activeModel.id }}</div>
-        </div>
-      </div>
+    <!-- Loading State -->
+    <div v-if="loading" class="loading-container">
+      <LoadingIndicator message="Loading model builder..." />
+    </div>
 
-      <div class="mb-header-center">
-        <!-- Model Selector -->
-        <select 
-          class="mb-select" 
-          :value="activeModel?.id"
-          @change="handleModelSelect"
-        >
-          <option value="" disabled>Select a model...</option>
-          <option v-for="model in availableModels" 
-                  :key="model.id" 
-                  :value="model.id"
-          >
-            {{ model.name }}
-          </option>
-        </select>
+    <!-- Error State -->
+    <div v-else-if="error" class="error-container">
+      <div class="error-message">
+        {{ error }}
+        <button class="retry-button" @click="createNewModel">Try Again</button>
       </div>
-
-      <div class="mb-header-right">
-        <button class="mb-button" @click="createNewModel">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
-            <path fill="currentColor" d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
-          </svg>
-          New Model
-        </button>
-        <button class="mb-button mb-button-primary" @click="saveModel" :disabled="!activeModel">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
-            <path fill="currentColor" d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4z"/>
-          </svg>
-          Save
-        </button>
-      </div>
-    </header>
+    </div>
 
     <!-- Main Content -->
-    <div class="mb-main">
-      <!-- Loading State -->
-      <div v-if="loading" class="mb-loading">
-        <LoadingIndicator message="Loading model builder..." />
-      </div>
-
-      <!-- Error State -->
-      <div v-else-if="error" class="mb-error">
-        <div class="error-message">
-          {{ error }}
-          <button class="retry-button" @click="createNewModel">Try Again</button>
+    <div v-else class="app-container">
+      <!-- Header -->
+      <header class="mb-header">
+        <div class="mb-header-left">
+          <div v-if="activeModel" class="mb-model-info">
+            <div v-if="!isEditingName" class="mb-model-name" @click="startEditingName">
+              {{ activeModel.name }}
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24">
+                <path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+              </svg>
+            </div>
+            <div v-else class="mb-model-name-editor">
+              <input 
+                v-model="editedName" 
+                @keyup.enter="saveModelName"
+                @blur="saveModelName"
+                ref="nameInput"
+                class="mb-name-input"
+              />
+            </div>
+            <div class="mb-model-id" v-if="activeModel.id">ID: {{ activeModel.id }}</div>
+          </div>
         </div>
+
+        <div class="mb-header-center">
+          <!-- Model Selector -->
+          <select 
+            class="mb-model-select" 
+            :value="activeModel?.id"
+            @change="handleModelSelect"
+          >
+            <option value="" disabled selected>Select a model to edit...</option>
+            <option v-for="model in availableModels" :key="model.id" :value="model.id">
+              {{ model.name }}
+            </option>
+          </select>
+        </div>
+
+        <div class="mb-header-right">
+          <button class="mb-button" @click="createNewModel">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
+              <path fill="currentColor" d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+            </svg>
+            New Model
+          </button>
+          <button 
+            class="mb-button mb-button-primary" 
+            @click="saveModel"
+            :disabled="!editingEnabled"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
+              <path fill="currentColor" d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4z"/>
+            </svg>
+            Save
+          </button>
+        </div>
+      </header>
+
+      <!-- Select Model Message -->
+      <div v-if="!editingEnabled" class="select-model-message">
+        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24">
+          <path fill="currentColor" d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm-2 16c-2.05 0-3.81-1.24-4.58-3h1.71c.63.9 1.68 1.5 2.87 1.5 1.93 0 3.5-1.57 3.5-3.5S13.93 9.5 12 9.5c-1.35 0-2.52.78-3.1 1.9l1.6 1.6h-4V9l1.3 1.3C8.69 8.92 10.23 8 12 8c2.76 0 5 2.24 5 5s-2.24 5-5 5z"/>
+        </svg>
+        <h2>Select a Model to Start Editing</h2>
+        <p>Choose an existing model from the dropdown above or create a new one.</p>
       </div>
 
-      <!-- Editor Layout -->
-      <div v-else class="mb-editor">
-        <!-- Toolbox Panel -->
-        <div class="mb-panel mb-panel-left" :style="{ width: `${panelWidth}px` }">
+      <!-- Editor Content -->
+      <div v-else class="content-container">
+        <!-- Existing panels (toolbox, canvas, properties) -->
+        <div class="left-panel" :style="{ width: `${panelWidth}px` }">
           <ModelToolbox 
             :categories="componentCategories"
             @add-component="handleAddComponent"
@@ -391,8 +404,7 @@ function handleModelSelect(event: Event) {
           <div class="resize-handle resize-handle-right" @mousedown="startResizeRight"></div>
         </div>
 
-        <!-- Canvas Area -->
-        <div class="mb-panel mb-panel-center">
+        <div class="middle-panel">
           <ModelCanvas 
             :components="modelComponents"
             :selected-component="selectedComponent"
@@ -400,21 +412,9 @@ function handleModelSelect(event: Event) {
             @select-component="handleComponentSelect"
             @add-component="handleAddComponent"
           />
-          <!-- Zoom Controls -->
-          <div class="mb-zoom-controls">
-            <button class="mb-zoom-button" @click="zoomOut">-</button>
-            <div class="mb-zoom-value">{{ zoomLevel }}%</div>
-            <button class="mb-zoom-button" @click="zoomIn">+</button>
-            <button class="mb-zoom-button" @click="resetZoom">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
-                <path fill="currentColor" d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/>
-              </svg>
-            </button>
-          </div>
         </div>
 
-        <!-- Properties Panel -->
-        <div class="mb-panel mb-panel-right" :style="{ width: `${panelWidth}px` }">
+        <div class="right-panel" :style="{ width: `${panelWidth}px` }">
           <div class="resize-handle resize-handle-left" @mousedown="startResizeLeft"></div>
           <ModelPropertyPanel 
             :component="selectedComponent"
@@ -508,7 +508,7 @@ function handleModelSelect(event: Event) {
   width: 200px;
 }
 
-.mb-select {
+.mb-model-select {
   min-width: 200px;
   padding: 6px 12px;
   border-radius: 4px;
@@ -519,7 +519,7 @@ function handleModelSelect(event: Event) {
   cursor: pointer;
 }
 
-.mb-select:focus {
+.mb-model-select:focus {
   border-color: var(--qui-accent-color);
   outline: none;
   box-shadow: 0 0 0 2px rgba(0, 176, 255, 0.2);
@@ -779,5 +779,37 @@ function handleModelSelect(event: Event) {
   border-color: var(--qui-accent-color);
   outline: none;
   box-shadow: 0 0 0 2px rgba(0, 176, 255, 0.2);
+}
+
+.select-model-message {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 32px;
+  color: var(--qui-text-secondary);
+  text-align: center;
+}
+
+.select-model-message svg {
+  opacity: 0.6;
+}
+
+.select-model-message h2 {
+  font-size: 24px;
+  font-weight: 500;
+  margin: 0;
+  background: linear-gradient(to right, #00b0ff, #4fc3f7);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.select-model-message p {
+  font-size: 16px;
+  max-width: 400px;
+  line-height: 1.5;
 }
 </style>
