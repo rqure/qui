@@ -10,7 +10,7 @@ import ModelNestedModelSelector from './ModelNestedModelSelector.vue';
 import type { ModelConfig, ShapeConfig, BindingConfig } from '../utils/modelTypes';
 import { createEmptyModel } from '../utils/modelTypes';
 import { saveModelToEntity, loadModelFromEntity } from '../utils/modelStorage';
-import { getSnappedPoint, createShapeConfig, processDrawingPoints, finalizeShape } from '../services/drawingService';
+import { createShapeConfig, getSnappedPoint, finalizeShape } from '../services/drawingService';
 
 // Define interfaces for Konva events to fix type errors
 interface KonvaTarget {
@@ -52,7 +52,7 @@ const emit = defineEmits<{
 const dataStore = useDataStore();
 const loading = ref(true);
 const error = ref<string | null>(null);
-const stageRef = ref<any>(null);
+const stageRef = ref();
 const layerRef = ref<any>(null);
 
 // Editor state
@@ -61,9 +61,6 @@ const selectedShape = ref<string | null>(null);
 const selectedTool = ref<string>('select');
 const isDrawing = ref(false);
 const drawingPoints = ref<number[]>([]);
-const scale = ref(1);
-const position = ref({ x: 0, y: 0 });
-const stageSize = ref({ width: 0, height: 0 });
 const bindings = ref<Record<string, BindingConfig>>({});
 const showBindingEditor = ref(false);
 const bindingEditorProps = ref({ shapeId: '', propertyName: '', existingBinding: undefined as BindingConfig | undefined });
@@ -77,14 +74,57 @@ const snapToGrid = ref(true);
 const originalModelHash = ref<string>('');
 const isModelLoaded = ref(false);
 
-// Computed properties
-const canvasStyle = computed(() => {
-  return {
-    width: '100%',
-    height: '100%',
-    background: model.value.background || 'transparent'
-  };
-});
+const canvasContainer = ref<HTMLElement>();
+const stageSize = ref({ width: 800, height: 600 }); // Set default size
+const scale = ref(1);
+const position = ref({ x: 0, y: 0 });
+
+const updateStageSize = () => {
+  if (canvasContainer.value) {
+    const rect = canvasContainer.value.getBoundingClientRect();
+    const width = Math.max(rect.width, 400);
+    const height = Math.max(rect.height, 300);
+    
+    console.log('Updating stage size:', { width, height, rect });
+    
+    stageSize.value = { width, height };
+    
+    // Force update the Konva stage canvas size
+    nextTick(() => {
+      if (stageRef.value) {
+        const stage = stageRef.value.getStage();
+        if (stage) {
+          stage.width(width);
+          stage.height(height);
+          stage.batchDraw();
+          
+          // Also update the canvas element directly
+          const canvas = stage.getCanvas()._canvas;
+          if (canvas) {
+            canvas.style.width = width + 'px';
+            canvas.style.height = height + 'px';
+            console.log('Canvas updated:', canvas.style.width, canvas.style.height);
+          }
+        }
+      }
+    });
+  }
+};
+
+// Watch for stage size changes and force canvas update
+watch(stageSize, (newSize) => {
+  console.log('Stage size changed:', newSize);
+  nextTick(() => {
+    if (stageRef.value) {
+      const stage = stageRef.value.getStage();
+      if (stage) {
+        stage.width(newSize.width);
+        stage.height(newSize.height);
+        stage.batchDraw();
+      }
+    }
+  });
+}, { deep: true });
 
 // Load model from server
 async function loadModel() {
@@ -170,151 +210,135 @@ async function saveModel() {
   }
 }
 
-// Stage event handlers
-const handleStageMouseDown = (e: KonvaEventWithTarget) => {
-  // Prevent the event from bubbling up
-  e.evt.preventDefault();
-  e.evt.stopPropagation();
+// Complete the mouse down handler with proper event handling
+const handleStageMouseDown = (e: any) => {
+  console.log('Mouse down event:', e);
   
-  // Get pointer position from the stage
+  // Handle different event structures
+  const nativeEvent = e.evt || e;
+  if (nativeEvent && nativeEvent.preventDefault) {
+    nativeEvent.preventDefault();
+    nativeEvent.stopPropagation();
+  }
+  
   const stage = e.target.getStage();
-  if (!stage) return;
+  if (!stage) {
+    console.log('No stage found');
+    return;
+  }
   
   const pointerPos = stage.getPointerPosition();
-  if (!pointerPos) return;
+  if (!pointerPos) {
+    console.log('No pointer position');
+    return;
+  }
   
-  // Get the raw x,y coordinates
   const { x, y } = pointerPos;
+  const snappedPoint = getSnappedPoint(x, y, model.value.gridSize || 20, model.value.snapToGrid || false);
   
-  // Apply snapping if enabled
-  const snappedPoint = getSnappedPoint(x, y, gridSize.value, snapToGrid.value);
+  console.log('Pointer position:', { x, y, snapped: snappedPoint });
   
-  // Check if we clicked on the stage background or a shape
   const clickedOnEmpty = e.target === stage || e.target.name() === 'background';
   const isDrawingTool = ['rect', 'circle', 'line', 'arrow', 'text'].includes(selectedTool.value);
   
-  // Clear selection when clicking on empty area with select tool
+  console.log('Click analysis:', { clickedOnEmpty, isDrawingTool, tool: selectedTool.value });
+  
   if (clickedOnEmpty && selectedTool.value === 'select') {
     selectedShape.value = null;
     return;
   }
   
-  // Start drawing if using a drawing tool and clicked on empty area
   if (isDrawingTool && clickedOnEmpty) {
     if (selectedTool.value === 'text') {
-      // Create text directly
+      // Create text immediately
       const textShape = createShapeConfig(
-        'text', 
-        snappedPoint.x, 
-        snappedPoint.y, 
-        150, 
-        30,
-        model.value.defaultFill || '#ffffff', 
-        model.value.defaultStroke || '#000000', 
-        null, 
-        'Text'
+        'text',
+        snappedPoint.x,
+        snappedPoint.y,
+        0,
+        0,
+        '#ffffff',
+        model.value.defaultStroke || '#ffffff',
+        null,
+        'New Text'
       );
-      
       model.value.shapes.push(textShape);
       selectedShape.value = textShape.id;
-      selectedTool.value = 'select';
-      emit('model-change');
+      console.log('Created text shape:', textShape);
+      return;
     } else {
       // Start drawing
       isDrawing.value = true;
-      
-      // Store starting point for drawing
-      if (selectedTool.value === 'line' || selectedTool.value === 'arrow') {
-        drawingPoints.value = [snappedPoint.x, snappedPoint.y, snappedPoint.x, snappedPoint.y];
-      } else if (selectedTool.value === 'rect' || selectedTool.value === 'circle') {
-        drawingPoints.value = [snappedPoint.x, snappedPoint.y, 0, 0];
-      }
+      drawingPoints.value = [snappedPoint.x, snappedPoint.y, snappedPoint.x, snappedPoint.y];
+      console.log('Started drawing:', { tool: selectedTool.value, points: drawingPoints.value });
     }
   }
 };
 
-const handleStageMouseMove = (e: KonvaEventWithTarget) => {
+// Complete the mouse move handler with proper event handling
+const handleStageMouseMove = (e: any) => {
   if (!isDrawing.value) return;
   
-  e.evt.preventDefault();
+  const nativeEvent = e.evt || e;
+  if (nativeEvent && nativeEvent.preventDefault) {
+    nativeEvent.preventDefault();
+  }
   
-  // Get the stage and pointer position
   const stage = e.target.getStage();
   if (!stage) return;
   
   const pointerPos = stage.getPointerPosition();
   if (!pointerPos) return;
   
-  // Apply snapping if enabled
-  const snappedPoint = getSnappedPoint(pointerPos.x, pointerPos.y, gridSize.value, snapToGrid.value);
+  const snappedPoint = getSnappedPoint(pointerPos.x, pointerPos.y, model.value.gridSize || 20, model.value.snapToGrid || false);
   
   if (selectedTool.value === 'line' || selectedTool.value === 'arrow') {
-    // Update end point of line/arrow
+    drawingPoints.value = [drawingPoints.value[0], drawingPoints.value[1], snappedPoint.x, snappedPoint.y];
+  } else if (selectedTool.value === 'rect' || selectedTool.value === 'circle') {
     drawingPoints.value = [
       drawingPoints.value[0], 
       drawingPoints.value[1], 
       snappedPoint.x, 
       snappedPoint.y
     ];
-  } else if (selectedTool.value === 'rect' || selectedTool.value === 'circle') {
-    // Calculate width and height based on start point and current position
-    const width = snappedPoint.x - drawingPoints.value[0];
-    const height = snappedPoint.y - drawingPoints.value[1];
-    drawingPoints.value = [
-      drawingPoints.value[0], 
-      drawingPoints.value[1], 
-      width, 
-      height
-    ];
   }
 };
 
-const handleStageMouseUp = (e: KonvaEventWithTarget) => {
+// Complete the mouse up handler with proper event handling
+const handleStageMouseUp = (e: any) => {
+  console.log('Mouse up event:', { isDrawing: isDrawing.value, tool: selectedTool.value });
+  
   if (!isDrawing.value) return;
   
-  e.evt.preventDefault();
+  const nativeEvent = e.evt || e;
+  if (nativeEvent && nativeEvent.preventDefault) {
+    nativeEvent.preventDefault();
+  }
   
-  // Finalize the shape creation
+  console.log('Finalizing shape with points:', drawingPoints.value);
+  
   const shape = finalizeShape(
     selectedTool.value,
     drawingPoints.value,
     model.value.defaultFill || '#ffffff',
-    model.value.defaultStroke || '#000000'
+    model.value.defaultStroke || '#00ccff'
   );
   
-  // Add the shape to the model if valid
+  console.log('Created shape:', shape);
+  
   if (shape) {
     model.value.shapes.push(shape);
     selectedShape.value = shape.id;
+    console.log('Added shape to model. Total shapes:', model.value.shapes.length);
     emit('model-change');
+  } else {
+    console.log('Shape creation failed');
   }
   
-  // Reset drawing state and switch to select tool
   isDrawing.value = false;
   drawingPoints.value = [];
   selectedTool.value = 'select';
 };
-
-// Create a new shape and add it to the model
-function createNewShape(type: string, x: number, y: number, width: number, height: number, points?: number[] | null, text?: string) {
-  const shapeConfig = createShapeConfig(
-    type,
-    x, 
-    y, 
-    width, 
-    height,
-    model.value.defaultFill || '#ffffff',
-    model.value.defaultStroke || '#000000',
-    points,
-    text
-  );
-  
-  model.value.shapes.push(shapeConfig);
-  selectedShape.value = shapeConfig.id;
-  
-  // Signal that the model has changed
-  emit('model-change');
-}
 
 // Add a state for the nested model selector
 // Create a new shape with a nested model
@@ -375,23 +399,6 @@ const getSelectedShapeConfig = computed(() => {
   return model.value.shapes[getSelectedShapeIndex.value];
 });
 
-// Update shape properties
-const updateShapeProperty = (property: string, value: any) => {
-  if (getSelectedShapeIndex.value === -1) return;
-  
-  // Create a deep copy of the shape to modify
-  const updatedShape = JSON.parse(JSON.stringify(model.value.shapes[getSelectedShapeIndex.value]));
-  
-  // Update the property
-  (updatedShape as any)[property] = value;
-  
-  // Replace the shape in the model
-  model.value.shapes.splice(getSelectedShapeIndex.value, 1, updatedShape);
-  
-  // Signal that the model has changed
-  emit('model-change');
-};
-
 // Delete the selected shape
 const deleteSelectedShape = () => {
   if (getSelectedShapeIndex.value === -1) return;
@@ -411,20 +418,6 @@ const deleteSelectedShape = () => {
   
   // Signal that the model has changed
   emit('model-change');
-};
-
-// Show binding editor for a property
-const openBindingEditor = (property: string) => {
-  if (!selectedShape.value) return;
-  
-  const bindingKey = `${selectedShape.value}:${property}`;
-  bindingEditorProps.value = {
-    shapeId: selectedShape.value,
-    propertyName: property,
-    existingBinding: bindings.value[bindingKey]
-  };
-  
-  showBindingEditor.value = true;
 };
 
 // Handle binding save
@@ -500,12 +493,6 @@ const resetZoom = () => {
   position.value = { x: 0, y: 0 };
 };
 
-// Update model settings
-const updateModelSetting = (setting: string, value: any) => {
-  (model.value as any)[setting] = value;
-  emit('model-change');
-};
-
 // Toggle grid visibility
 const toggleGrid = () => {
   snapToGrid.value = !snapToGrid.value;
@@ -544,41 +531,79 @@ const handleResize = () => {
   }
 };
 
-// Fix stage reference issue by properly accessing the stage
-const getStageNode = () => {
-  if (!stageRef.value) return null;
-  
-  // Safely handle different ways the node might be accessed
-  const stage = stageRef.value.getStage?.() || 
-                stageRef.value?.getNode?.() || 
-                stageRef.value?.$el?.getNode?.() ||
-                null;
-  
-  return stage;
+// Add this method to force canvas sizing:
+
+const forceCanvasResize = () => {
+  nextTick(() => {
+    if (stageRef.value && canvasContainer.value) {
+      const stage = stageRef.value.getStage();
+      const containerRect = canvasContainer.value.getBoundingClientRect();
+      
+      if (stage && containerRect.width > 0 && containerRect.height > 0) {
+        console.log('Force resizing canvas:', containerRect);
+        
+        // Update stage dimensions
+        stage.width(containerRect.width);
+        stage.height(containerRect.height);
+        
+        // Update our reactive size
+        stageSize.value = { 
+          width: containerRect.width, 
+          height: containerRect.height 
+        };
+        
+        // Force redraw
+        stage.batchDraw();
+        
+        // Check the actual canvas element
+        const canvasElement = stage.getCanvas()._canvas;
+        console.log('Canvas element after resize:', {
+          width: canvasElement.width,
+          height: canvasElement.height,
+          styleWidth: canvasElement.style.width,
+          styleHeight: canvasElement.style.height
+        });
+      }
+    }
+  });
 };
 
-// Initialize the editor with improved timing for size calculation
+// Call this after mounting and when the stage is created
 onMounted(async () => {
-  await loadModel();
+  console.log('ModelEditor mounted');
   
-  // Set up resize handler
-  window.addEventListener('resize', handleResize);
+  // Initialize stage size
+  await nextTick();
+  updateStageSize();
   
-  // Initial size calculation with a small delay to ensure DOM is ready
-  nextTick(() => {
-    handleResize();
-    // Add extra call after a short delay to handle any layout adjustments
-    setTimeout(() => {
-      handleResize();
-    }, 200);
-  });
+  // Wait for Vue Konva to create the canvas, then force resize
+  setTimeout(() => {
+    forceCanvasResize();
+  }, 100);
   
-  document.addEventListener('keydown', handleKeyDown);
+  // Set up resize observer
+  if (canvasContainer.value) {
+    resizeObserver = new ResizeObserver(() => {
+      updateStageSize();
+      forceCanvasResize();
+    });
+    resizeObserver.observe(canvasContainer.value);
+  }
+  
+  // Load model if modelId is provided
+  if (props.modelId) {
+    await loadModel();
+  } else {
+    // Create empty model
+    model.value = createEmptyModel();
+    loading.value = false;
+  }
 });
 
 onUnmounted(() => {
-  window.removeEventListener('resize', handleResize);
-  document.removeEventListener('keydown', handleKeyDown);
+  if (resizeObserver) {
+    resizeObserver.disconnect();
+  }
 });
 
 // Handle key events for shortcuts
@@ -657,376 +682,161 @@ defineExpose({
 
 <template>
   <div class="model-editor">
+    <!-- Debug info -->
+    <div class="debug-info" style="position: absolute; top: 10px; left: 10px; z-index: 1000; background: rgba(0,0,0,0.8); color: white; padding: 10px; border-radius: 4px; font-size: 12px;">
+      <div>Selected Tool: {{ selectedTool }}</div>
+      <div>Is Drawing: {{ isDrawing }}</div>
+      <div>Stage Size: {{ stageSize.width }}x{{ stageSize.height }}</div>
+      <div>Shapes Count: {{ model?.shapes?.length || 0 }}</div>
+    </div>
+
+    <!-- Test button -->
+    <button @click="testClick" style="position: absolute; top: 120px; left: 10px; z-index: 1000; padding: 5px; background: #007acc; color: white; border: none; border-radius: 3px;">
+      Add Test Circle
+    </button>
+    
+    <!-- Loading state -->
     <div v-if="loading" class="editor-loading">
       <div class="mb-spinner"></div>
       <span>Loading model...</span>
     </div>
+    
+    <!-- Error state -->
     <div v-else-if="error" class="editor-error">
       <div class="error-message">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
-          <path fill="#F44336" d="M12,2C17.53,2 22,6.47 22,12C22,17.53 17.53,22 12,22C6.47,22 2,17.53 2,12C2,6.47 6.47,2 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M11,7H13V13H11V7M11,15H13V17H11V15Z" />
-        </svg>
         <span>{{ error }}</span>
       </div>
-      <button class="retry-button" @click="loadModel">
-        <svg class="retry-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24">
-          <path fill="currentColor" d="M12,4V2A10,10 0 0,0 2,12H4A8,8 0 0,1 12,4Z" />
-          <path fill="currentColor" d="M12,20V22A10,10 0 0,0 22,12H20A8,8 0 0,1 12,20Z" />
-        </svg>
-        Retry
-      </button>
     </div>
+    
+    <!-- Main editor -->
     <div v-else class="editor-container">
-      <!-- Toolbar with drawing tools -->
-      <ModelEditorToolbar 
+      <!-- Toolbar -->
+      <ModelEditorToolbar
         :selected-tool="selectedTool"
         @set-tool="setSelectedTool"
         @zoom-in="zoomIn"
         @zoom-out="zoomOut"
         @zoom-reset="resetZoom"
-        @delete="selectedShape && deleteSelectedShape()"
-        @grid-toggle="toggleGrid"
+        @delete="deleteSelectedShape"
         @save="saveModel"
+        @grid-toggle="toggleGrid"
       />
       
-      <!-- Canvas area with Konva stage -->
-      <div class="canvas-container" :style="canvasStyle">
-        <div 
-          class="grid-overlay" 
-          :style="{
-            backgroundSize: `${gridSize * scale}px ${gridSize * scale}px`,
-            opacity: snapToGrid ? 0.5 : 0
+      <!-- Canvas container with proper ref -->
+      <div 
+        ref="canvasContainer" 
+        class="canvas-container"
+        style="width: 100%; height: calc(100vh - 120px); min-height: 400px; position: relative; background: #2d2d2d; overflow: hidden;"
+      >
+        <!-- Konva Stage with explicit style -->
+        <v-stage
+          v-if="stageSize.width > 0 && stageSize.height > 0"
+          ref="stageRef"
+          :config="{
+            width: stageSize.width,
+            height: stageSize.height,
+            scaleX: scale,
+            scaleY: scale,
+            x: position.x,
+            y: position.y,
+            draggable: selectedTool === 'pan',
+            listening: true
           }"
-        ></div>
-        
-        <template v-if="stageSize.width > 0 && stageSize.height > 0">
-          <v-stage
-            ref="stageRef"
-            :config="{
-              width: stageSize.width || 1,
-              height: stageSize.height || 1,
-              scaleX: scale,
-              scaleY: scale,
-              x: position.x,
-              y: position.y,
-              draggable: selectedTool === 'pan'
-            }"
-            @mousedown="handleStageMouseDown"
-            @mousemove="handleStageMouseMove"
-            @mouseup="handleStageMouseUp"
-            @mouseleave="handleStageMouseUp"
-            @touchstart="handleStageMouseDown"
-            @touchmove="handleStageMouseMove"
-            @touchend="handleStageMouseUp"
-          >
-            <v-layer ref="layerRef">
-              <!-- Background rectangle to catch all mouse events -->
-              <v-rect
+          :style="{
+            width: stageSize.width + 'px',
+            height: stageSize.height + 'px',
+            display: 'block'
+          }"
+          @mousedown="handleStageMouseDown"
+          @mousemove="handleStageMouseMove"
+          @mouseup="handleStageMouseUp"
+        >
+          <v-layer ref="layerRef">
+            <!-- Background rect for stage clicks -->
+            <v-rect
+              :config="{
+                x: -position.x / scale,
+                y: -position.y / scale,
+                width: (stageSize.width / scale) + Math.abs(position.x / scale),
+                height: (stageSize.height / scale) + Math.abs(position.y / scale),
+                fill: 'transparent',
+                name: 'background'
+              }"
+            />
+            
+            <!-- Model canvas area -->
+            <v-rect
+              :config="{
+                x: 0,
+                y: 0,
+                width: model?.width || 800,
+                height: model?.height || 600,
+                fill: model?.background || '#1e1e1e',
+                stroke: '#444',
+                strokeWidth: 1
+              }"
+            />
+            
+            <!-- Render existing shapes -->
+            <template v-for="shape in (model?.shapes || [])" :key="shape.id">
+              <!-- Circle -->
+              <v-circle
+                v-if="shape.type === 'circle'"
                 :config="{
-                  x: 0,
-                  y: 0,
-                  width: model.width || stageSize.width,
-                  height: model.height || stageSize.height,
-                  fill: model.background || 'transparent',
-                  name: 'background'
+                  id: shape.id,
+                  x: shape.x,
+                  y: shape.y,
+                  radius: shape.width ? shape.width / 2 : 25,
+                  fill: shape.fill || '#ffffff',
+                  stroke: shape.stroke || '#00ccff',
+                  strokeWidth: shape.strokeWidth || 2,
+                  draggable: selectedTool === 'select'
                 }"
+                @click="handleShapeClick(shape.id)"
+                @dragend="(e) => handleShapeDrag(shape.id, e)"
               />
               
-              <!-- Render all shapes from the model -->
-              <template v-for="shape in model.shapes" :key="shape.id">
-                <!-- Rectangle -->
-                <v-rect
-                  v-if="shape.type === 'rect'"
-                  :config="{
-                    x: shape.x,
-                    y: shape.y,
-                    width: shape.width,
-                    height: shape.height,
-                    fill: shape.fill,
-                    stroke: shape.stroke,
-                    strokeWidth: shape.strokeWidth,
-                    draggable: selectedTool === 'select',
-                    id: shape.id,
-                    name: shape.id
-                  }"
-                  @click="handleShapeClick"
-                  @tap="handleShapeClick"
-                  @dragend="(e: KonvaEventWithTarget) => { 
-                    updateShapeProperty('x', e.target.x()); 
-                    updateShapeProperty('y', e.target.y());
-                    emit('model-change');
-                  }"
-                />
-                
-                <!-- Circle -->
-                <v-circle
-                  v-else-if="shape.type === 'circle'"
-                  :config="{
-                    x: shape.x,
-                    y: shape.y,
-                    radius: shape.width ? shape.width / 2 : 25,
-                    fill: shape.fill,
-                    stroke: shape.stroke,
-                    strokeWidth: shape.strokeWidth,
-                    draggable: selectedTool === 'select',
-                    id: shape.id,
-                    name: shape.id
-                  }"
-                  @click="handleShapeClick"
-                  @tap="handleShapeClick"
-                  @dragend="(e: KonvaEventWithTarget) => { 
-                    updateShapeProperty('x', e.target.x()); 
-                    updateShapeProperty('y', e.target.y());
-                    emit('model-change');
-                  }"
-                />
-                
-                <!-- Line -->
-                <v-line
-                  v-else-if="shape.type === 'line'"
-                  :config="{
-                    points: shape.points,
-                    stroke: shape.stroke,
-                    strokeWidth: shape.strokeWidth,
-                    lineCap: 'round',
-                    lineJoin: 'round',
-                    draggable: selectedTool === 'select',
-                    id: shape.id,
-                    name: shape.id
-                  }"
-                  @click="handleShapeClick"
-                  @tap="handleShapeClick"
-                  @dragend="(e: KonvaEventWithTarget) => { 
-                    const oldPoints = shape.points;
-                    if (oldPoints) {
-                      const dx = e.target.x();
-                      const dy = e.target.y();
-                      const newPoints = [
-                        oldPoints[0] + dx, oldPoints[1] + dy, 
-                        oldPoints[2] + dx, oldPoints[3] + dy
-                      ];
-                      updateShapeProperty('points', newPoints);
-                      e.target.position({x: 0, y: 0});
-                      emit('model-change');
-                    }
-                  }"
-                />
-                
-                <!-- Arrow -->
-                <v-arrow
-                  v-else-if="shape.type === 'arrow'"
-                  :config="{
-                    points: shape.points,
-                    pointerLength: 10,
-                    pointerWidth: 10,
-                    fill: shape.stroke,
-                    stroke: shape.stroke,
-                    strokeWidth: shape.strokeWidth,
-                    draggable: selectedTool === 'select',
-                    id: shape.id,
-                    name: shape.id
-                  }"
-                  @click="handleShapeClick"
-                  @tap="handleShapeClick"
-                  @dragend="(e: KonvaEventWithTarget) => { 
-                    const oldPoints = shape.points;
-                    if (oldPoints) {
-                      const dx = e.target.x();
-                      const dy = e.target.y();
-                      const newPoints = [
-                        oldPoints[0] + dx, oldPoints[1] + dy, 
-                        oldPoints[2] + dx, oldPoints[3] + dy
-                      ];
-                      updateShapeProperty('points', newPoints);
-                      e.target.position({x: 0, y: 0});
-                      emit('model-change');
-                    }
-                  }"
-                />
-                
-                <!-- Text -->
-                <v-text
-                  v-else-if="shape.type === 'text'"
-                  :config="{
-                    x: shape.x,
-                    y: shape.y,
-                    text: shape.text || 'Text',
-                    fontSize: shape.fontSize || 18,
-                    fontFamily: shape.fontFamily || 'Arial',
-                    fill: shape.fill || '#ffffff',
-                    padding: 5,
-                    draggable: selectedTool === 'select',
-                    id: shape.id,
-                    name: shape.id
-                  }"
-                  @click="handleShapeClick"
-                  @tap="handleShapeClick"
-                  @dragend="(e: KonvaEventWithTarget) => { 
-                    updateShapeProperty('x', e.target.x()); 
-                    updateShapeProperty('y', e.target.y());
-                    emit('model-change');
-                  }"
-                />
-                
-                <!-- ... existing nested model code... -->
-              </template>
+              <!-- Rectangle -->
+              <v-rect
+                v-else-if="shape.type === 'rect'"
+                :config="{
+                  id: shape.id,
+                  x: shape.x,
+                  y: shape.y,
+                  width: shape.width,
+                  height: shape.height,
+                  fill: shape.fill || '#ffffff',
+                  stroke: shape.stroke || '#00ccff',
+                  strokeWidth: shape.strokeWidth || 2,
+                  draggable: selectedTool === 'select'
+                }"
+                @click="handleShapeClick(shape.id)"
+                @dragend="(e) => handleShapeDrag(shape.id, e)"
+              />
               
-              <!-- Drawing preview - show only when actively drawing -->
-              <template v-if="isDrawing">
-                <!-- Line preview -->
-                <v-line
-                  v-if="selectedTool === 'line' && drawingPoints.length === 4"
-                  :config="{
-                    points: drawingPoints,
-                    stroke: model.defaultStroke || '#000000',
-                    strokeWidth: 2,
-                    lineCap: 'round',
-                    lineJoin: 'round'
-                  }"
-                />
-                
-                <!-- Arrow preview -->
-                <v-arrow
-                  v-else-if="selectedTool === 'arrow' && drawingPoints.length === 4"
-                  :config="{
-                    points: drawingPoints,
-                    pointerLength: 10,
-                    pointerWidth: 10,
-                    fill: model.defaultStroke || '#000000',
-                    stroke: model.defaultStroke || '#000000',
-                    strokeWidth: 2
-                  }"
-                />
-                
-                <!-- Rectangle preview -->
-                <v-rect
-                  v-else-if="selectedTool === 'rect' && drawingPoints.length === 4"
-                  :config="{
-                    x: drawingPoints[2] < 0 ? drawingPoints[0] + drawingPoints[2] : drawingPoints[0],
-                    y: drawingPoints[3] < 0 ? drawingPoints[1] + drawingPoints[3] : drawingPoints[1],
-                    width: Math.abs(drawingPoints[2]),
-                    height: Math.abs(drawingPoints[3]),
-                    fill: model.defaultFill || '#ffffff',
-                    stroke: model.defaultStroke || '#000000',
-                    strokeWidth: 2
-                  }"
-                />
-                
-                <!-- Circle preview -->
-                <v-circle
-                  v-else-if="selectedTool === 'circle' && drawingPoints.length === 4"
-                  :config="{
-                    x: drawingPoints[0] + drawingPoints[2] / 2,
-                    y: drawingPoints[1] + drawingPoints[3] / 2,
-                    radius: Math.max(Math.abs(drawingPoints[2]), Math.abs(drawingPoints[3])) / 2,
-                    fill: model.defaultFill || '#ffffff',
-                    stroke: model.defaultStroke || '#000000',
-                    strokeWidth: 2
-                  }"
-                />
-              </template>
-              
-              <!-- Selection indicators -->
-              <template v-if="selectedShape && getSelectedShapeConfig">
-                <!-- Rectangle selection indicator -->
-                <v-rect
-                  v-if="getSelectedShapeConfig.type === 'rect'"
-                  :config="{
-                    x: getSelectedShapeConfig.x - 5,
-                    y: getSelectedShapeConfig.y - 5,
-                    width: (getSelectedShapeConfig.width || 0) + 10,
-                    height: (getSelectedShapeConfig.height || 0) + 10,
-                    stroke: '#00aaff',
-                    strokeWidth: 2,
-                    dash: [5, 5]
-                  }"
-                />
-                
-                <!-- Circle selection indicator -->
-                <v-circle
-                  v-else-if="getSelectedShapeConfig.type === 'circle' && getCircleSelectionConfig"
-                  :config="getCircleSelectionConfig"
-                />
-                
-                <!-- Text selection indicator -->
-                <v-rect
-                  v-else-if="getSelectedShapeConfig.type === 'text'"
-                  :config="{
-                    x: getSelectedShapeConfig.x - 5,
-                    y: getSelectedShapeConfig.y - 5,
-                    width: 160, // Approximate text width
-                    height: 40, // Approximate text height
-                    stroke: '#00aaff',
-                    strokeWidth: 2,
-                    dash: [5, 5]
-                  }"
-                />
-                
-                <!-- Line selection indicator -->
-                <v-rect
-                  v-else-if="['line', 'arrow'].includes(getSelectedShapeConfig.type) && getSelectedShapeConfig.points"
-                  :config="{
-                    x: Math.min(getSelectedShapeConfig.points[0], getSelectedShapeConfig.points[2]) - 5,
-                    y: Math.min(getSelectedShapeConfig.points[1], getSelectedShapeConfig.points[3]) - 5,
-                    width: Math.abs(getSelectedShapeConfig.points[2] - getSelectedShapeConfig.points[0]) + 10,
-                    height: Math.abs(getSelectedShapeConfig.points[3] - getSelectedShapeConfig.points[1]) + 10,
-                    stroke: '#00aaff',
-                    strokeWidth: 2,
-                    dash: [5, 5]
-                  }"
-                />
-              </template>
-            </v-layer>
-          </v-stage>
-        </template>
+              <!-- Add other shape types as needed -->
+            </template>
+            
+            <!-- Drawing preview for circle -->
+            <v-circle
+              v-if="isDrawing && selectedTool === 'circle' && drawingPoints.length >= 4"
+              :config="{
+                x: drawingPoints[0] + (drawingPoints[2] - drawingPoints[0]) / 2,
+                y: drawingPoints[1] + (drawingPoints[3] - drawingPoints[1]) / 2,
+                radius: Math.max(Math.abs(drawingPoints[2] - drawingPoints[0]), Math.abs(drawingPoints[3] - drawingPoints[1])) / 2,
+                stroke: '#00ccff',
+                strokeWidth: 2,
+                dash: [5, 5],
+                fill: 'transparent',
+                listening: false
+              }"
+            />
+          </v-layer>
+        </v-stage>
         
-        <div v-else class="stage-loading">
-          <span>Initializing canvas...</span>
+        <div v-else class="stage-loading" style="display: flex; align-items: center; justify-content: center; height: 100%; color: white;">
+          <span>Initializing canvas... Stage size: {{ stageSize.width }}x{{ stageSize.height }}</span>
         </div>
-        
-        <!-- Button to add nested model -->
-        <button 
-          v-if="selectedTool === 'select'" 
-          class="mb-button mb-button-primary add-nested-model-button"
-          @click="openNestedModelSelector"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
-            <path fill="currentColor" d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" />
-          </svg>
-          Add Nested Model
-        </button>
-      </div>
-      
-      <!-- Status display with drawing information -->
-      <div class="status-display">
-        Tool: {{ selectedTool }} | Drawing: {{ isDrawing ? 'Yes' : 'No' }} 
-        <template v-if="isDrawing && drawingPoints.length > 0">
-          | Points: {{ drawingPoints.slice(0,2).join(',') }} → {{ drawingPoints.slice(2).join(',') }}
-        </template>
-        <template v-else-if="selectedShape && getSelectedShapeConfig">
-          | Selected: {{ getSelectedShapeConfig.type }} ({{ getSelectedShapeConfig.id }})
-        </template>
-      </div>
-      
-      <!-- Modal for binding editor -->
-      <div v-if="showBindingEditor" class="modal-overlay">
-        <BindingEditor
-          :shapeId="bindingEditorProps.shapeId"
-          :propertyName="bindingEditorProps.propertyName"
-          :existingBinding="bindingEditorProps.existingBinding"
-          @save="handleBindingSave"
-          @cancel="handleBindingCancel"
-          @remove="handleBindingRemove"
-        />
-      </div>
-      
-      <!-- Modal for nested model selector -->
-      <div v-if="showNestedModelSelector" class="modal-overlay">
-        <ModelNestedModelSelector
-          :parentModelId="props.modelId"
-          @select="addNestedModel"
-          @cancel="cancelNestedModelSelection"
-        />
       </div>
     </div>
   </div>
@@ -1177,5 +987,47 @@ defineExpose({
   border-radius: 4px;
   font-size: 12px;
   pointer-events: none;
+}
+
+.canvas-container {
+  width: 100%;
+  height: calc(100vh - 120px);
+  min-height: 400px;
+  position: relative;
+  background: #2d2d2d;
+  overflow: hidden;
+}
+
+/* Force Konva canvas to respect container size */
+.canvas-container :deep(canvas) {
+  max-width: 100% !important;
+  max-height: 100% !important;
+  display: block !important;
+}
+
+/* Ensure the Konva container div also respects size */
+.canvas-container :deep(.konvajs-content) {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.debug-info {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 1000;
+  background: rgba(0,0,0,0.8);
+  color: white;
+  padding: 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: monospace;
+}
+
+.editor-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 </style>

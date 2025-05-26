@@ -94,30 +94,30 @@ export function processDrawingPoints(
   type: string,
   points: number[]
 ): { x: number; y: number; width?: number; height?: number; points?: number[] } {
+  if (points.length < 4) {
+    console.log('processDrawingPoints: Not enough points', points);
+    return { x: 0, y: 0 };
+  }
+
+  const [x1, y1, x2, y2] = points;
+  
   if (type === 'line' || type === 'arrow') {
-    // Fix: Return x and y coordinates of the start point along with the points array
     return {
-      x: points[0],
-      y: points[1],
-      points: points
+      x: Math.min(x1, x2),
+      y: Math.min(y1, y2),
+      points: [x1, y1, x2, y2]
     };
   }
   
-  // Extract the points
-  const [startX, startY, width, height] = points;
+  // For rectangles and circles, ensure positive dimensions
+  const x = Math.min(x1, x2);
+  const y = Math.min(y1, y2);
+  const width = Math.abs(x2 - x1);
+  const height = Math.abs(y2 - y1);
   
-  // Handle negative dimensions for rect and circle
-  const x = width < 0 ? startX + width : startX;
-  const y = height < 0 ? startY + height : startY;
-  const absWidth = Math.abs(width);
-  const absHeight = Math.abs(height);
+  console.log('processDrawingPoints:', { type, input: points, output: { x, y, width, height } });
   
-  return {
-    x,
-    y,
-    width: absWidth,
-    height: absHeight
-  };
+  return { x, y, width, height };
 }
 
 /**
@@ -135,7 +135,12 @@ export function finalizeShape(
   defaultFill: string,
   defaultStroke: string
 ): ShapeConfig | null {
-  if (points.length < 4) return null;
+  console.log('finalizeShape called:', { tool, points, defaultFill, defaultStroke });
+  
+  if (points.length < 4) {
+    console.log('finalizeShape: Not enough points');
+    return null;
+  }
   
   // Minimum size threshold to avoid creating tiny shapes by accident
   const MIN_SIZE = 5;
@@ -143,70 +148,74 @@ export function finalizeShape(
   if (tool === 'rect') {
     const { x, y, width, height } = processDrawingPoints(tool, points);
     
-    // Check if width and height are defined
-    if (width === undefined || height === undefined) return null;
+    if (width === undefined || height === undefined) {
+      console.log('finalizeShape rect: width or height undefined');
+      return null;
+    }
     
-    // Ensure the shape has minimum dimensions
-    if (width < MIN_SIZE || height < MIN_SIZE) return null;
+    if (width < MIN_SIZE || height < MIN_SIZE) {
+      console.log('finalizeShape rect: shape too small', { width, height, MIN_SIZE });
+      return null;
+    }
     
-    return createShapeConfig(
-      'rect',
-      x,
-      y,
-      width,
-      height,
-      defaultFill,
-      defaultStroke
-    );
+    const shape = createShapeConfig('rect', x, y, width, height, defaultFill, defaultStroke);
+    console.log('finalizeShape rect: created', shape);
+    return shape;
   }
   
   else if (tool === 'circle') {
     const { x, y, width, height } = processDrawingPoints(tool, points);
     
-    // Check if width and height are defined
-    if (width === undefined || height === undefined) return null;
+    if (width === undefined || height === undefined) {
+      console.log('finalizeShape circle: width or height undefined');
+      return null;
+    }
     
-    const diameter = Math.max(width, height);
+    const radius = Math.max(width, height) / 2;
+    if (radius < MIN_SIZE / 2) {
+      console.log('finalizeShape circle: radius too small', { radius, MIN_SIZE });
+      return null;
+    }
     
-    // Ensure the shape has minimum dimensions
-    if (diameter < MIN_SIZE) return null;
+    // For circles, we store the center position and radius as width
+    const centerX = x + width / 2;
+    const centerY = y + height / 2;
     
-    // Center the circle at the midpoint of the drag area
-    const circleX = x + diameter / 2;
-    const circleY = y + diameter / 2;
-    
-    return createShapeConfig(
+    const shape = createShapeConfig(
       'circle',
-      circleX,
-      circleY,
-      diameter,
-      diameter,
+      centerX,
+      centerY,
+      radius * 2, // Store diameter as width
+      radius * 2, // Store diameter as height
       defaultFill,
       defaultStroke
     );
+    console.log('finalizeShape circle: created', shape);
+    return shape;
   }
   
   else if (tool === 'line' || tool === 'arrow') {
-    const [x1, y1, x2, y2] = points;
+    const { x, y, points: linePoints } = processDrawingPoints(tool, points);
     
-    // Ensure it's not just a click (minimum length)
-    const dx = x2 - x1;
-    const dy = y2 - y1;
-    const length = Math.sqrt(dx * dx + dy * dy);
+    if (!linePoints || linePoints.length < 4) {
+      console.log('finalizeShape line/arrow: invalid points');
+      return null;
+    }
     
-    if (length < MIN_SIZE) return null;
+    const dx = linePoints[2] - linePoints[0];
+    const dy = linePoints[3] - linePoints[1];
+    const distance = Math.sqrt(dx * dx + dy * dy);
     
-    return createShapeConfig(
-      tool,
-      0,
-      0,
-      0,
-      0,
-      'transparent',
-      defaultStroke,
-      points
-    );
+    if (distance < MIN_SIZE) {
+      console.log('finalizeShape line/arrow: distance too small', { distance, MIN_SIZE });
+      return null;
+    }
+    
+    const shape = createShapeConfig(tool, x, y, 0, 0, defaultFill, defaultStroke, linePoints);
+    console.log('finalizeShape line/arrow: created', shape);
+    return shape;
   }
   
+  console.log('finalizeShape: unknown tool', tool);
   return null;
 }

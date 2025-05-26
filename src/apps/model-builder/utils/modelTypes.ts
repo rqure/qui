@@ -40,29 +40,27 @@ export interface ShapeConfig {
 // Define the overall model configuration
 export interface ModelConfig {
   name: string;
-  width: number;
-  height: number;
+  width?: number;
+  height?: number;
   background?: string;
-  gridSize?: number;
-  snapToGrid?: boolean;
+  shapes?: ShapeConfig[];
   defaultFill?: string;
   defaultStroke?: string;
-  shapes: ShapeConfig[];
-  version: string;
+  gridSize?: number;
+  snapToGrid?: boolean;
 }
 
 // Create an empty model configuration
 export function createEmptyModel(): ModelConfig {
   return {
-    name: 'Untitled Model',
+    name: 'New Model',
     width: 800,
     height: 600,
     background: '#1e1e1e',
-    gridSize: 20,
-    snapToGrid: true,
+    shapes: [],
     defaultFill: '#ffffff',
     defaultStroke: '#00ccff',
-    shapes: [],
-    version: '1.0'
+    gridSize: 20,
+    snapToGrid: true,
   };
 }
