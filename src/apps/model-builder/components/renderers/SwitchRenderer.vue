@@ -12,12 +12,18 @@ const activeColor = computed(() => props.properties.activeColor || '#00B0FF');
 const trackColor = computed(() => props.properties.trackColor || '#CCCCCC');
 const thumbColor = computed(() => props.properties.thumbColor || '#FFFFFF');
 
+// Show or hide the component based on visibility property
+const isVisible = computed(() => props.properties.visible !== false);
+
+// Computed label
+const label = computed(() => props.properties.label || 'Switch');
+
 const trackStyle = computed<CSSProperties>(() => ({
   backgroundColor: isOn.value ? activeColor.value : trackColor.value,
   width: '40px',
   height: '20px',
-  borderRadius: '10px' as CSSProperties['borderRadius'],
-  position: 'relative' as CSSProperties['position'],
+  borderRadius: '10px',
+  position: 'relative',
   transition: 'background-color 0.3s ease'
 }));
 
@@ -25,8 +31,8 @@ const thumbStyle = computed<CSSProperties>(() => ({
   backgroundColor: thumbColor.value,
   width: '16px',
   height: '16px',
-  borderRadius: '50%' as CSSProperties['borderRadius'],
-  position: 'absolute' as CSSProperties['position'],
+  borderRadius: '50%',
+  position: 'absolute',
   top: '2px',
   left: isOn.value ? '22px' : '2px',
   transition: 'left 0.3s ease',
@@ -34,14 +40,19 @@ const thumbStyle = computed<CSSProperties>(() => ({
 }));
 
 const containerStyle = computed<CSSProperties>(() => ({
-  display: 'flex' as CSSProperties['display'],
-  alignItems: 'center' as CSSProperties['alignItems'],
-  gap: '10px' as CSSProperties['gap'],
-  width: '100%' as CSSProperties['width'],
-  height: '100%' as CSSProperties['height'],
-  padding: '0 5px' as CSSProperties['padding'],
-  boxSizing: 'border-box' as CSSProperties['boxSizing']
+  display: 'flex',
+  alignItems: 'center',
+  gap: '10px',
+  width: '100%',
+  height: '100%',
+  padding: '0 5px',
+  boxSizing: 'border-box'
 }));
+
+// Handle click
+function handleClick() {
+  console.log('Switch clicked:', !isOn.value);
+}
 </script>
 
 <template>
@@ -64,17 +75,6 @@ const containerStyle = computed<CSSProperties>(() => ({
   color: inherit;
 }
 </style>
-</script>
-
-<template>
-  <div v-if="isVisible" class="switch-component" :style="containerStyle" @click="handleClick">
-    <div class="switch-track" :style="trackStyle">
-      <div class="switch-thumb" :style="thumbStyle"></div>
-    </div>
-    <div class="switch-label">{{ label }}</div>
-  </div>
-</template>
-
 <style scoped>
 .switch-component {
   cursor: pointer;

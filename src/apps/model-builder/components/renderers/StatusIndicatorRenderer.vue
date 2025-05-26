@@ -16,8 +16,8 @@ const size = computed(() => props.properties.size || 24);
 // Format: "0:#888888;1:#00B0FF;2:#FF9800;3:#F44336"
 const statusMapping = computed(() => {
   const mapping: Record<number, string> = {};
-  const mappingStr = props.properties.statusMapping || '0:#888888;1:#00B0FF;2:#FF9800;3:#F44336';
-  
+  const mappingStr: string = props.properties.statusMapping || '0:#888888;1:#00B0FF;2:#FF9800;3:#F44336';
+
   mappingStr.split(';').forEach(item => {
     const [key, color] = item.split(':');
     if (key && color) {
@@ -32,7 +32,7 @@ const statusMapping = computed(() => {
 // Format: "0:Unknown;1:Normal;2:Warning;3:Alarm"
 const statusLabels = computed(() => {
   const labels: Record<number, string> = {};
-  const labelsStr = props.properties.labels || '0:Unknown;1:Normal;2:Warning;3:Alarm';
+  const labelsStr: string = props.properties.labels || '0:Unknown;1:Normal;2:Warning;3:Alarm';
   
   labelsStr.split(';').forEach(item => {
     const [key, label] = item.split(':');
