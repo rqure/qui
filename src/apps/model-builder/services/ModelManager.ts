@@ -20,7 +20,9 @@ export class ModelManager {
   async loadModels(): Promise<UIModelEntity[]> {
     try {
       // Search for all UIModel entities in the database
+      console.log('Loading models from the database...');
       const entities: Entity[] = await this.dataStore.find('UIModel');
+      console.log(`Found ${entities.length} models in the database.`);
       
       // Convert entities to UIModelEntity objects
       this.models = entities.map(entity => this.entityToModel(entity));
@@ -128,7 +130,7 @@ export class ModelManager {
       const folders = await this.dataStore.find(
         'Folder',
         ["Name"],
-        (entity: Entity) => entity.field('Name').value.getString() === 'UIModels');
+        (entity: Entity) => entity.field('Name').value.getString() === 'UI Models');
 
       let folder: Entity | undefined;
       
@@ -141,7 +143,7 @@ export class ModelManager {
         folder = await this.dataStore.createEntity(
           root[0].entityId,
           'Folder',
-          'UIModels'
+          'UI Models'
         );
       } else {
         folder = folders[0];

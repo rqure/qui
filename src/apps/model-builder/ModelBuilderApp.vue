@@ -51,34 +51,33 @@ const componentCategories = ref([
   { id: 'containers', label: 'Containers' }
 ]);
 
-// Computed for toolbar title
-const modelTitle = computed(() => {
-  return activeModel.value?.name || 'Untitled Model';
-});
+// Track available models
+const availableModels = ref<UIModelEntity[]>([]);
 
-// Initialize the application
-onMounted(async () => {
+// Load available models
+async function loadAvailableModels() {
+  if (!modelManager.value) return;
+  
   try {
     loading.value = true;
     error.value = null;
-
-    // Initialize model manager
-    modelManager.value = new ModelManager();
-    
-    // Create default model if none exists
-    if (!activeModel.value) {
-      const model = await modelManager.value.createModel('New Model');
-      activeModel.value = model;
-      modelComponents.value = [];
-    }
-    
+    availableModels.value = await modelManager.value.loadModels();
     loading.value = false;
   } catch (err) {
-    console.error('Failed to initialize:', err);
-    error.value = 'Failed to initialize the application. Please try again.';
+    console.error('Failed to load models:', err);
+    error.value = 'Failed to load models';
     loading.value = false;
   }
+}
+
+// Initialize the application
+onMounted(async () => {
+  // Initialize model manager
+  modelManager.value = new ModelManager();
   
+  // Load available models
+  await loadAvailableModels();
+
   // Add global event listeners for resizing
   window.addEventListener('mousemove', handleMouseMove);
   window.addEventListener('mouseup', handleMouseUp);
@@ -177,6 +176,27 @@ async function createNewModel() {
   }
 }
 
+// Handle model selection
+async function selectModel(modelId: string) {
+  if (!modelManager.value) return;
+  
+  try {
+    loading.value = true;
+    error.value = null;
+    
+    const model = await modelManager.value.loadModel(modelId);
+    activeModel.value = model;
+    modelComponents.value = model.components;
+    selectedComponent.value = null;
+    
+    loading.value = false;
+  } catch (err) {
+    console.error('Failed to load model:', err);
+    error.value = 'Failed to load model';
+    loading.value = false;
+  }
+}
+
 // Handle component property changes
 function handlePropertyChange(componentId: string, property: string, value: any) {
   const component = modelComponents.value.find(c => c.id === componentId);
@@ -263,7 +283,7 @@ function showContextMenu(event: MouseEvent) {
 </script>
 
 <template>
-  <div class="model-builder" @contextmenu="showContextMenu">
+  <div class="model-builder">
     <!-- Loading State -->
     <div v-if="loading" class="loading-container">
       <LoadingIndicator message="Loading model builder..." />
@@ -284,7 +304,7 @@ function showContextMenu(event: MouseEvent) {
 
     <!-- Main Content -->
     <div v-else class="app-container">
-      <!-- Add Toolbar -->
+      <!-- Toolbar -->
       <div class="toolbar">
         <div class="toolbar-left">
           <button class="mb-button" @click="createNewModel">
@@ -293,16 +313,25 @@ function showContextMenu(event: MouseEvent) {
             </svg>
             New Model
           </button>
-        </div>
-
-        <div class="toolbar-title">
-          <h1>{{ modelTitle }}</h1>
-          <div class="model-status" v-if="activeModel">
-            <span class="model-id">ID: {{ activeModel.id }}</span>
-          </div>
+          
+          <!-- Model Selector -->
+          <select 
+            class="mb-select" 
+            :value="activeModel?.id"
+            @change="selectModel($event.target.value)"
+          >
+            <option value="" disabled>Select a model...</option>
+            <option v-for="model in availableModels" 
+                    :key="model.id" 
+                    :value="model.id"
+            >
+              {{ model.name }}
+            </option>
+          </select>
         </div>
 
         <div class="toolbar-right">
+          <!-- Save button -->
           <button 
             class="mb-button mb-button-primary" 
             @click="saveModel"
@@ -317,8 +346,8 @@ function showContextMenu(event: MouseEvent) {
         </div>
       </div>
 
-      <!-- Panels Container -->
-      <div class="panels-container">
+      <!-- Content Area -->
+      <div class="content-container">
         <!-- Toolbox -->
         <div class="left-panel" :style="{ width: `${panelWidth}px` }">
           <div class="resize-handle resize-handle-right" @mousedown="startResizeRight"></div>
@@ -413,15 +442,15 @@ function showContextMenu(event: MouseEvent) {
 .toolbar {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   padding: 8px 16px;
   background: var(--qui-bg-primary);
   border-bottom: 1px solid var(--qui-hover-border);
-  gap: 16px;
 }
 
 .toolbar-left, .toolbar-right {
-  flex: 0 0 auto;
   display: flex;
+  align-items: center;
   gap: 8px;
 }
 
@@ -448,6 +477,12 @@ function showContextMenu(event: MouseEvent) {
 
 .model-id {
   font-family: var(--qui-font-family-mono);
+}
+
+.content-container {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
 }
 
 .panels-container {
@@ -587,5 +622,22 @@ function showContextMenu(event: MouseEvent) {
 .mb-zoom-value {
   font-weight: var(--qui-font-weight-medium);
   color: var(--qui-text-primary);
+}
+
+.mb-select {
+  min-width: 200px;
+  padding: 6px 12px;
+  border-radius: 4px;
+  border: 1px solid var(--qui-hover-border);
+  background: var(--qui-bg-secondary);
+  color: var(--qui-text-primary);
+  font-size: var(--qui-font-size-base);
+  cursor: pointer;
+}
+
+.mb-select:focus {
+  border-color: var(--qui-accent-color);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(0, 176, 255, 0.2);
 }
 </style>
