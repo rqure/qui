@@ -1,35 +1,32 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import type { CSSProperties } from 'vue';
 
-const props = defineProps<{
-  properties: Record<string, any>;
-}>();
+const props = defineProps<{ properties: Record<string, any> }>();
 
-// Get component properties with defaults
-const text = computed(() => props.properties.text || 'Button');
-const backgroundColor = computed(() => props.properties.backgroundColor || '#00B0FF');
-const textColor = computed(() => props.properties.textColor || '#FFFFFF');
-const borderRadius = computed(() => `${props.properties.borderRadius || 4}px`);
-const fontSize = computed(() => `${props.properties.fontSize || 14}px`);
-const padding = computed(() => `${props.properties.padding || 8}px`);
+const text = props.properties.text || 'Button';
 
-// Compute button style
-const buttonStyle = computed(() => {
+const buttonStyle = computed<CSSProperties>(() => {
+  const backgroundColor = props.properties.backgroundColor || '#00B0FF';
+  const textColor = props.properties.textColor || '#FFFFFF';
+  const borderRadius = `${props.properties.borderRadius || 4}px`;
+  const fontSize = `${props.properties.fontSize || 14}px`;
+  const padding = `${props.properties.padding || 8}px`;
   return {
-    backgroundColor: backgroundColor.value,
-    color: textColor.value,
-    borderRadius: borderRadius.value,
-    fontSize: fontSize.value,
-    padding: padding.value,
+    backgroundColor,
+    color: textColor,
+    borderRadius: borderRadius as CSSProperties['borderRadius'],
+    fontSize: fontSize as CSSProperties['fontSize'],
+    padding: padding as CSSProperties['padding'],
     border: 'none',
     cursor: 'pointer',
-    width: '100%',
-    height: '100%',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontWeight: 'bold',
-    userSelect: 'none' as const,
+    width: '100%' as CSSProperties['width'],
+    height: '100%' as CSSProperties['height'],
+    display: 'flex' as CSSProperties['display'],
+    alignItems: 'center' as CSSProperties['alignItems'],
+    justifyContent: 'center' as CSSProperties['justifyContent'],
+    fontWeight: 'bold' as CSSProperties['fontWeight'],
+    userSelect: 'none' as CSSProperties['userSelect'],
     boxShadow: '0 2px 5px rgba(0, 0, 0, 0.2)',
     transition: 'all 0.2s ease'
   };

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import type { CSSProperties } from 'vue';
 
 const props = defineProps<{
   properties: Record<string, any>;
@@ -11,7 +12,7 @@ const textContent = computed(() => {
 });
 
 // Compute style based on properties
-const style = computed(() => {
+const style = computed<CSSProperties>(() => {
   const { 
     fontFamily = 'Arial',
     fontSize = 16,
@@ -27,16 +28,20 @@ const style = computed(() => {
     fontSize: `${fontSize}px`,
     fontWeight,
     color: textColor,
-    textAlign,
+    textAlign: textAlign as CSSProperties['textAlign'],
     backgroundColor,
     opacity,
-    width: '100%',
-    height: '100%',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: textAlign === 'center' ? 'center' : 
-                   textAlign === 'right' ? 'flex-end' : 'flex-start',
-    boxSizing: 'border-box',
+    width: '100%' as CSSProperties['width'],
+    height: '100%' as CSSProperties['height'],
+    display: 'flex' as CSSProperties['display'],
+    alignItems: 'center' as CSSProperties['alignItems'],
+    justifyContent:
+      textAlign === 'center'
+        ? 'center'
+        : textAlign === 'right'
+        ? 'flex-end'
+        : 'flex-start' as CSSProperties['justifyContent'],
+    boxSizing: 'border-box' as CSSProperties['boxSizing'],
     overflow: 'hidden'
   };
 });

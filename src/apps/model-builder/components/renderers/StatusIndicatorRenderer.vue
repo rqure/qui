@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import type { CSSProperties } from 'vue';
 
 const props = defineProps<{
   properties: Record<string, any>;
@@ -53,37 +54,25 @@ const currentLabel = computed(() => {
 });
 
 // Calculate style for the indicator based on shape and size
-const indicatorStyle = computed(() => {
-  const baseStyle = {
+const indicatorStyle = computed<CSSProperties>(() => {
+  const base: CSSProperties = {
     backgroundColor: currentColor.value,
     width: `${size.value}px`,
     height: `${size.value}px`,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
     boxShadow: `0 0 8px ${currentColor.value}80`
   };
-  
   if (shape.value === 'circle') {
-    return {
-      ...baseStyle,
-      borderRadius: '50%'
-    };
-  } else if (shape.value === 'square') {
-    return {
-      ...baseStyle,
-      borderRadius: '4px'
-    };
-  } else if (shape.value === 'triangle') {
-    return {
-      ...baseStyle,
-      clipPath: 'polygon(50% 0%, 0% 100%, 100% 100%)',
-      backgroundColor: 'transparent',
-      position: 'relative' as const
-    };
+    return { ...base, borderRadius: '50%' as CSSProperties['borderRadius'] };
   }
-  
-  return baseStyle;
+  if (shape.value === 'square') {
+    return { ...base, borderRadius: '4px' as CSSProperties['borderRadius'] };
+  }
+  // triangle
+  return {
+    ...base,
+    clipPath: 'polygon(50% 0%, 0% 100%, 100% 100%)' as CSSProperties['clipPath'],
+    position: 'relative' as CSSProperties['position']
+  };
 });
 
 // Show or hide the component based on visibility property

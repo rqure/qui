@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import type { CSSProperties } from 'vue';
 
 const props = defineProps<{
   properties: Record<string, any>;
 }>();
 
-// Compute a default style based on available properties
-const style = computed(() => {
+const style = computed<CSSProperties>(() => {
   const { 
     backgroundColor = 'rgba(0, 176, 255, 0.2)', 
     borderColor = '#00b0ff',
@@ -18,12 +18,12 @@ const style = computed(() => {
     backgroundColor,
     border: `${borderWidth}px solid ${borderColor}`,
     opacity,
-    width: '100%',
-    height: '100%',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    boxSizing: 'border-box'
+    width: '100%' as CSSProperties['width'],
+    height: '100%' as CSSProperties['height'],
+    display: 'flex' as CSSProperties['display'],
+    alignItems: 'center' as CSSProperties['alignItems'],
+    justifyContent: 'center' as CSSProperties['justifyContent'],
+    boxSizing: 'border-box' as CSSProperties['boxSizing']
   };
 });
 

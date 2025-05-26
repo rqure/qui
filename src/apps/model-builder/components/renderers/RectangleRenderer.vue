@@ -1,28 +1,25 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import type { CSSProperties } from 'vue';
 
-const props = defineProps<{
-  properties: Record<string, any>;
-}>();
+const props = defineProps<{ properties: Record<string, any> }>();
 
-// Compute component style based on properties
-const style = computed(() => {
-  const { 
-    backgroundColor = '#FFFFFF', 
+const style = computed<CSSProperties>(() => {
+  const {
+    backgroundColor = '#FFFFFF',
     borderColor = '#000000',
     borderWidth = 1,
     opacity = 1,
     cornerRadius = 0
   } = props.properties;
-  
   return {
     backgroundColor,
     border: `${borderWidth}px solid ${borderColor}`,
-    borderRadius: `${cornerRadius}px`,
+    borderRadius: `${cornerRadius}px` as CSSProperties['borderRadius'],
     opacity,
-    width: '100%',
-    height: '100%',
-    boxSizing: 'border-box'
+    width: '100%' as CSSProperties['width'],
+    height: '100%' as CSSProperties['height'],
+    boxSizing: 'border-box' as CSSProperties['boxSizing']
   };
 });
 
