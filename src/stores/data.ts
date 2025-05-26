@@ -367,6 +367,35 @@ export const useDataStore = defineStore('data', {
                 });
         },
 
+        getAllEntityTypes() {
+            const me = this;
+            const allTypes: EntityType[] = [];
+            let cursor = 0;
+            const pageSize = 100;
+            return new Promise<EntityType[]>((resolve, reject) => {
+                function fetchNextPage() {
+                    me.getEntityTypes(pageSize, cursor)
+                        .then((response) => {
+                            if (response.status !== ApiRuntimeGetEntityTypesResponse_StatusEnum.SUCCESS) {
+                                return reject(new Error(`Failed to get entity types: ${response.status}`));
+                            }
+                            allTypes.push(...response.entityTypes);
+                            if (response.nextCursor >= 0) {
+                                cursor = Number(response.nextCursor);
+                                fetchNextPage(); // Fetch next page
+                            }
+                            else {
+                                resolve(allTypes); // Resolve with all types
+                            }
+                        })
+                        .catch(error => {
+                            reject(new Error(`Failed to get entity types: ${error}`));
+                        });
+                }
+                fetchNextPage(); // Start fetching
+            });
+        },
+
         entityExists(entityId: EntityId) {
             const request = create(ApiRuntimeEntityExistsRequestSchema);
             request.entityId = entityId;

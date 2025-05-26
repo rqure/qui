@@ -1,34 +1,33 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed } from 'vue'
+import type { CSSProperties } from 'vue'
 
 const props = defineProps<{
   properties: Record<string, any>;
-}>();
+}>()
 
-// Compute component style based on properties
-const style = computed(() => {
-  const { 
-    backgroundColor = '#FFFFFF', 
+// Compute component style with proper CSSProperties typing
+const style = computed<CSSProperties>(() => {
+  const {
+    backgroundColor = '#FFFFFF',
     borderColor = '#000000',
     borderWidth = 1,
     opacity = 1
-  } = props.properties;
-  
+  } = props.properties
+
   return {
     backgroundColor,
     border: `${borderWidth}px solid ${borderColor}`,
     opacity,
-    width: '100%',
-    height: '100%',
-    borderRadius: '50%',
-    boxSizing: 'border-box'
-  };
-});
+    width: '100%' as CSSProperties['width'],
+    height: '100%' as CSSProperties['height'],
+    borderRadius: '50%' as CSSProperties['borderRadius'],
+    boxSizing: 'border-box' as CSSProperties['boxSizing']
+  }
+})
 
 // Show or hide the component based on visibility property
-const isVisible = computed(() => {
-  return props.properties.visible !== false;
-});
+const isVisible = computed(() => props.properties.visible !== false)
 </script>
 
 <template>

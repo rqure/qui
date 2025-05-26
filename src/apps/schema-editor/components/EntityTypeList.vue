@@ -40,41 +40,10 @@ async function loadEntityTypes() {
     error.value = null;
     
     // Load all entity types
-    const result = await dataStore.getEntityTypes(1000, 0);
-    
-    if (!result || !result.entityTypes) {
-      entityTypes.value = [];
-      console.error('No entityTypes property in the response:', result);
-      error.value = 'Failed to load entity types: Invalid response format';
-      loading.value = false;
-      return;
-    }
+    const result = await dataStore.getAllEntityTypes() || [];
     
     // Sort alphabetically
-    entityTypes.value = result.entityTypes.sort((a, b) => a.localeCompare(b));
-    
-    // Check if there are more results to load (using nextCursor instead of cursor)
-    if (result.nextCursor > 0) {
-      // Convert bigint to number for pagination
-      let cursor = Number(result.nextCursor);
-      
-      while (cursor > 0) {
-        const moreResults = await dataStore.getEntityTypes(1000, cursor);
-        if (!moreResults || !moreResults.entityTypes || moreResults.entityTypes.length === 0) {
-          break;
-        }
-        
-        entityTypes.value = [...entityTypes.value, ...moreResults.entityTypes].sort((a, b) => a.localeCompare(b));
-        
-        // Check if there are more results to load
-        if (!moreResults.nextCursor || moreResults.nextCursor <= 0) {
-          break;
-        }
-        
-        // Convert bigint to number for the next iteration
-        cursor = Number(moreResults.nextCursor);
-      }
-    }
+    entityTypes.value = result.sort((a, b) => a.localeCompare(b));
     
     console.log(`Loaded ${entityTypes.value.length} entity types`);
     loading.value = false;

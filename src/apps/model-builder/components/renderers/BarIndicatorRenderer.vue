@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import type { CSSProperties } from 'vue';
 
 const props = defineProps<{
   properties: Record<string, any>;
@@ -17,7 +18,9 @@ const showValue = computed(() => props.properties.showValue !== false);
 const orientation = computed(() => props.properties.orientation || 'horizontal');
 const barColor = computed(() => props.properties.barColor || '#00B0FF');
 const trackColor = computed(() => props.properties.trackColor || '#EEEEEE');
-const containerStyle = computed(() => {
+
+// Compute container style
+const containerStyle = computed<CSSProperties>(() => {
   return {
     backgroundColor: trackColor.value,
     padding: '2px',
@@ -25,7 +28,7 @@ const containerStyle = computed(() => {
     width: '100%',
     height: '100%',
     borderRadius: '4px',
-    position: 'relative' as const,
+    position: 'relative',
     overflow: 'hidden'
   };
 });
@@ -35,8 +38,8 @@ const percentage = computed(() => {
   return ((value.value - minValue.value) / (maxValue.value - minValue.value)) * 100;
 });
 
-// Progress bar style based on orientation
-const progressStyle = computed(() => {
+// Compute progress bar style
+const progressStyle = computed<CSSProperties>(() => {
   if (orientation.value === 'horizontal') {
     return {
       backgroundColor: barColor.value,
@@ -50,37 +53,38 @@ const progressStyle = computed(() => {
       backgroundColor: barColor.value,
       width: '100%',
       height: `${percentage.value}%`,
-      position: 'absolute' as const,
-      bottom: 0,
+      position: 'absolute',
+      bottom: '0',
       borderRadius: '3px',
       transition: 'height 0.3s ease'
     };
   }
 });
 
-// Value label style based on orientation
-const valueLabelStyle = computed(() => {
+// Compute label position/style
+const valueLabelStyle = computed<CSSProperties>(() => {
   return {
-    position: 'absolute' as const,
-    color: '#FFFFFF',
+    position: 'absolute',
     fontSize: '12px',
     fontWeight: 'bold',
     padding: '2px 6px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    ...(orientation.value === 'horizontal' ? {
-      right: percentage.value < 15 ? 'auto' : '5px',
-      left: percentage.value < 15 ? '5px' : 'auto',
-      top: '50%',
-      transform: 'translateY(-50%)',
-      color: percentage.value < 15 ? barColor.value : '#FFFFFF'
-    } : {
-      bottom: '5px',
-      left: '50%',
-      transform: 'translateX(-50%)',
-      color: percentage.value < 15 ? barColor.value : '#FFFFFF'
-    })
+    ...(orientation.value === 'horizontal'
+      ? {
+          right: percentage.value < 15 ? 'auto' : '5px',
+          left: percentage.value < 15 ? '5px' : 'auto',
+          top: '50%',
+          transform: 'translateY(-50%)',
+          color: percentage.value < 15 ? barColor.value : '#FFFFFF'
+        }
+      : {
+          bottom: '5px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          color: percentage.value < 15 ? barColor.value : '#FFFFFF'
+        })
   };
 });
 

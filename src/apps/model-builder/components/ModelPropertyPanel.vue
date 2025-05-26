@@ -69,10 +69,8 @@ function checkForBindingProperties() {
 // Load available entity types
 async function loadEntityTypes() {
   try {
-    const response = await dataStore.getEntityTypes();
-    if (response && response.types) {
-      availableEntities.value = response.types;
-    }
+    const allEntities = await dataStore.getAllEntityTypes();
+    availableEntities.value = allEntities || [];
   } catch (error) {
     console.error('Failed to load entity types:', error);
   }
@@ -91,6 +89,13 @@ async function handleEntitySelect(entityType: string) {
     console.error('Failed to load entity schema:', error);
     availableFields.value = [];
   }
+}
+
+// Helper to properly extract select value and trigger load of fields
+function onEntityChange(event: Event) {
+  const val = (event.target as HTMLSelectElement).value;
+  selectedEntity.value = val;
+  handleEntitySelect(val);
 }
 
 // Update a property value and emit the change
@@ -344,7 +349,7 @@ const hasDatabaseBinding = computed(() => {
             <div class="property-label">Entity Type</div>
             <select 
               v-model="selectedEntity" 
-              @change="handleEntitySelect($event.target.value)"
+              @change="onEntityChange"
               class="select-input"
             >
               <option value="">-- Select Entity Type --</option>
