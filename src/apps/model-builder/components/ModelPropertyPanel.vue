@@ -390,48 +390,46 @@ const hasDatabaseBinding = computed(() => {
 
 <style scoped>
 .property-panel {
+  height: 100%;
   display: flex;
   flex-direction: column;
-  height: 100%;
-  background: var(--qui-bg-primary);
+  background: var(--qui-bg-secondary);
 }
 
-.panel-header {
-  padding: 16px;
+.property-group {
   border-bottom: 1px solid var(--qui-hover-border);
-  background: linear-gradient(to right, rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.1));
+  background: var(--qui-bg-secondary);
 }
 
-.panel-title {
-  margin: 0 0 8px 0;
-  font-size: 16px;
+.property-group-header {
+  padding: 12px 16px;
+  font-size: var(--qui-font-size-small);
   font-weight: var(--qui-font-weight-medium);
-  color: #4fc3f7;
-}
-
-.component-type {
-  font-size: var(--qui-font-size-small);
   color: var(--qui-text-secondary);
-  opacity: 0.8;
-}
-
-.tabs {
-  display: flex;
-  padding: 0 4px;
-  background: rgba(0, 0, 0, 0.1);
-  border-bottom: 1px solid var(--qui-hover-border);
-}
-
-.tab-button {
-  padding: 10px 16px;
-  font-size: var(--qui-font-size-small);
-  color: var(--qui-text-secondary);
-  background: transparent;
-  border: none;
-  border-bottom: 2px solid transparent;
+  background: var(--qui-overlay-primary);
   cursor: pointer;
-  transition: all 0.2s ease;
-  position: relative;
+  transition: background-color 0.2s ease;
+}
+
+.property-group-header:hover {
+  background: var(--qui-overlay-secondary);
+}
+
+.property-item {
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--qui-hover-border);
+  background: var(--qui-bg-secondary);
+}
+
+.property-label {
+  font-size: var(--qui-font-size-small);
+  color: var(--qui-text-secondary);
+  margin-bottom: 4px;
+}
+
+.property-value {
+  font-size: var(--qui-font-size-base);
+  color: var(--qui-text-primary);
 }
 
 .tab-button:hover {

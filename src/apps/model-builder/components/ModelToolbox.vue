@@ -117,47 +117,38 @@ function setCategory(categoryId: string) {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--qui-bg-primary);
+  background: var(--qui-bg-secondary);
 }
 
 .toolbox-header {
   padding: 16px;
   border-bottom: 1px solid var(--qui-hover-border);
-  background: linear-gradient(to right, rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.1));
+  background: var(--qui-overlay-primary);
 }
 
 .toolbox-title {
   margin: 0 0 12px 0;
-  font-size: 16px;
+  font-size: var(--qui-font-size-base);
   font-weight: var(--qui-font-weight-medium);
-  color: #4fc3f7;
+  color: var(--qui-accent-color);
 }
 
 .category-tabs {
   display: flex;
   overflow-x: auto;
   padding: 0 4px;
-  background: rgba(0, 0, 0, 0.1);
+  background: var(--qui-overlay-primary);
   border-bottom: 1px solid var(--qui-hover-border);
-  
-  /* Hide scrollbar */
-  scrollbar-width: none;
-}
-
-.category-tabs::-webkit-scrollbar {
-  display: none;
 }
 
 .category-tab {
   padding: 10px 16px;
-  font-size: var(--qui-font-size-small);
   color: var(--qui-text-secondary);
   background: transparent;
   border: none;
   border-bottom: 2px solid transparent;
   cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.2s ease;
+  transition: all 0.2s var(--qui-animation-bounce);
 }
 
 .category-tab:hover {
@@ -165,8 +156,8 @@ function setCategory(categoryId: string) {
 }
 
 .category-tab.active {
-  color: #00b0ff;
-  border-bottom-color: #00b0ff;
+  color: var(--qui-accent-color);
+  border-bottom-color: var(--qui-accent-color);
 }
 
 .component-list {
@@ -177,6 +168,7 @@ function setCategory(categoryId: string) {
   grid-template-columns: repeat(2, 1fr);
   gap: 12px;
   align-content: start;
+  background: var(--qui-bg-secondary);
 }
 
 .empty-results {

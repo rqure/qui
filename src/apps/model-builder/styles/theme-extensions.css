@@ -1,0 +1,100 @@
+/* Model Builder Theme Extensions */
+
+/* Common background styles */
+.mb-bg-primary {
+  background: var(--qui-bg-primary);
+}
+
+.mb-bg-secondary {
+  background: var(--qui-bg-secondary);
+}
+
+.mb-bg-overlay {
+  background: var(--qui-overlay-primary);
+}
+
+/* Common text styles */
+.mb-text-primary {
+  color: var(--qui-text-primary);
+}
+
+.mb-text-secondary {
+  color: var(--qui-text-secondary);
+}
+
+.mb-text-accent {
+  color: var(--qui-accent-color);
+}
+
+/* Border styles */
+.mb-border {
+  border: 1px solid var(--qui-hover-border);
+}
+
+.mb-border-accent {
+  border: 1px solid var(--qui-accent-color);
+}
+
+/* Common interactive states */
+.mb-hover {
+  transition: all 0.2s var(--qui-animation-bounce);
+}
+
+.mb-hover:hover {
+  background: var(--qui-overlay-secondary);
+}
+
+.mb-hover-accent:hover {
+  border-color: var(--qui-accent-color);
+  box-shadow: 0 0 0 2px var(--qui-accent-glow);
+}
+
+/* Panel styles */
+.mb-panel {
+  background: var(--qui-bg-secondary);
+  border: 1px solid var(--qui-hover-border);
+}
+
+.mb-panel-header {
+  background: var(--qui-bg-primary);
+  border-bottom: 1px solid var(--qui-hover-border);
+  color: var(--qui-text-secondary);
+}
+
+/* Input styles */
+.mb-input {
+  background: var(--qui-bg-primary);
+  border: 1px solid var(--qui-hover-border);
+  color: var(--qui-text-primary);
+  transition: all 0.2s var(--qui-animation-bounce);
+}
+
+.mb-input:focus {
+  border-color: var(--qui-accent-color);
+  box-shadow: 0 0 0 2px var(--qui-accent-glow);
+  outline: none;
+}
+
+/* Button styles */
+.mb-button {
+  background: var(--qui-overlay-primary);
+  border: 1px solid var(--qui-hover-border);
+  color: var(--qui-text-primary);
+  transition: all 0.2s var(--qui-animation-bounce);
+}
+
+.mb-button:hover {
+  background: var(--qui-overlay-secondary);
+  transform: translateY(-1px);
+}
+
+.mb-button-primary {
+  background: var(--qui-accent-color);
+  border: none;
+  color: white;
+}
+
+.mb-button-primary:hover {
+  background: var(--qui-accent-secondary);
+  box-shadow: 0 2px 8px var(--qui-accent-glow);
+}
