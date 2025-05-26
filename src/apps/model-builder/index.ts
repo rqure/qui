@@ -1,23 +1,23 @@
 import { markRaw } from 'vue'
 import ModelBuilderApp from './ModelBuilderApp.vue'
 import type { RegisteredApp } from '@/core/apps/types'
-import './styles/global.css'
+import './styles/model-builder.css'
 
-// Define the icon as an SVG data URL for the Model Builder
+// Define the icon as an SVG data URL
 const modelBuilderIcon = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
   <defs>
-    <linearGradient id="modelGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#00ffaa" />
-      <stop offset="100%" stop-color="#00ddff" />
+    <linearGradient id="mbGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4fc3f7" />
+      <stop offset="100%" stop-color="#00b0ff" />
     </linearGradient>
-    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+    <filter id="mbGlow" x="-20%" y="-20%" width="140%" height="140%">
       <feGaussianBlur stdDeviation="1" result="blur" />
       <feComposite in="SourceGraphic" in2="blur" operator="over" />
     </filter>
   </defs>
-  <path fill="url(#modelGradient)" filter="url(#glow)" d="M15,5.5L15,9.5L12.5,6.5L9.5,10L7.5,7.5L4,12L6,12L7.5,10L9.5,12.5L13,8L15,10.5L15,14.5L19,14.5L19,5.5L15,5.5M5,15L4,16L4,20L8,20L9,19L19,19L20,18L20,15L5,15M8,17A1,1 0 0,1 9,18A1,1 0 0,1 8,19A1,1 0 0,1 7,18A1,1 0 0,1 8,17Z" />
-  <path fill="white" opacity="0.5" d="M7.5,10L9.5,12.5L13,8L15,10.5L15,14.5L19,14.5" stroke="#00ffaa" stroke-width="0.2" stroke-opacity="0.5" />
+  <path fill="url(#mbGradient)" filter="url(#mbGlow)" d="M22,9V7h-2V5c0-1.1-0.9-2-2-2H4C2.9,3,2,3.9,2,5v14c0,1.1,0.9,2,2,2h14c1.1,0,2-0.9,2-2v-2h2v-2h-2v-2h2v-2h-2V9H22z M16,19H4V5h12V19z M18,11h2v2h-2V11z M18,15h2v2h-2V15z M6,13h8v-2H6V13z M6,17h8v-2H6V17z M6,9h8V7H6V9z" />
+  <path fill="#ffffff" opacity="0.7" d="M14,16H6v-2h8V16z M14,12H6v-2h8V12z M14,8H6V6h8V8z" />
 </svg>
 `
 
