@@ -347,19 +347,27 @@ const editingEnabled = computed(() => activeModel.value !== null);
         <div class="mb-header-content">
           <!-- Left section with model selection -->
           <div class="mb-header-left">
-            <select 
-              class="mb-model-select" 
-              :value="activeModel?.id"
-              @change="handleModelSelect"
-            >
-              <option value="" disabled>Select a model...</option>
-              <option v-for="model in availableModels" 
-                      :key="model.id" 
-                      :value="model.id"
+            <!-- Updated model selector -->
+            <div class="model-select-container">
+              <div class="model-select-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
+                  <path fill="currentColor" d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zM6 20V4h7v5h5v11H6z"/>
+                </svg>
+              </div>
+              <select 
+                class="model-select"
+                :value="activeModel?.id"
+                @change="handleModelSelect"
               >
-                {{ model.name }}
-              </option>
-            </select>
+                <option value="" disabled>Select a model...</option>
+                <option v-for="model in availableModels" 
+                        :key="model.id" 
+                        :value="model.id"
+                >
+                  {{ model.name }}
+                </option>
+              </select>
+            </div>
 
             <div v-if="activeModel" class="mb-model-info">
               <!-- Editable model name -->
@@ -493,9 +501,57 @@ const editingEnabled = computed(() => activeModel.value !== null);
   flex: 1;
 }
 
-.mb-model-select {
-  min-width: 200px;
-  max-width: 300px;
+.model-select-container {
+  position: relative;
+  min-width: 280px;
+}
+
+.model-select-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--qui-text-secondary);
+  display: flex;
+  align-items: center;
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.model-select {
+  width: 100%;
+  height: 36px;
+  padding: 0 36px 0 36px;
+  font-family: var(--qui-font-family);
+  font-size: var(--qui-font-size-base);
+  color: var(--qui-text-primary);
+  background: var(--qui-overlay-primary);
+  border: 1px solid var(--qui-hover-border);
+  border-radius: 4px;
+  cursor: pointer;
+  appearance: none;
+  transition: all 0.2s var(--qui-animation-bounce);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath fill='rgba(255,255,255,0.5)' d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 16px;
+}
+
+.model-select:hover {
+  background-color: var(--qui-overlay-secondary);
+  border-color: var(--qui-accent-color);
+}
+
+.model-select:focus {
+  outline: none;
+  border-color: var(--qui-accent-color);
+  box-shadow: 0 0 0 2px var(--qui-overlay-primary);
+}
+
+.model-select option {
+  background: var(--qui-bg-primary);
+  color: var(--qui-text-primary);
+  padding: 8px;
 }
 
 .mb-model-info {
