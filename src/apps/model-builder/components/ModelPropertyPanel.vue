@@ -1,25 +1,40 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import type { UIModelEntity } from '../types';
-import { componentDefinitions } from '../services/ComponentDefinitions';
-import { ValueType } from '@/core/data/types';
+import type { ModelComponent, UIModelEntity, PropertyDefinition } from '../types';
 import { PropertyType } from '../types';
+import ValueEditor from '@/apps/database-browser/components/ValueEditor.vue';
+import { ValueType } from '@/core/data/types';
+import { componentDefinitions } from '../services/ComponentDefinitions';
 import PropertySwitch from './inputs/PropertySwitch.vue';
 import PropertyColorPicker from './inputs/PropertyColorPicker.vue';
 import PropertySelect from './inputs/PropertySelect.vue';
 import PropertyNumber from './inputs/PropertyNumber.vue';
 import PropertyEntityField from './inputs/PropertyEntityField.vue';
 import PropertyFormula from './inputs/PropertyFormula.vue';
-import ValueEditor from '@/apps/database-browser/components/ValueEditor.vue';
 
 const props = defineProps<{
-  component: any | null;
+  component: ModelComponent | null;
   activeModel: UIModelEntity | null;
 }>();
 
 const emit = defineEmits<{
   (e: 'property-change', componentId: string, property: string, value: any): void;
 }>();
+
+// Helper to get property value with proper typing
+function getPropertyValue(prop: PropertyDefinition): any {
+  if (!props.component?.properties) return prop.defaultValue ?? null;
+  
+  const value = props.component.properties[prop.name];
+  return value !== undefined ? value : (prop.defaultValue ?? null);
+}
+
+// Format property name with proper typing
+function formatPropertyName(name: string): string {
+  return name
+    .replace(/([A-Z])/g, ' $1')
+    .replace(/^./, str => str.toUpperCase());
+}
 
 // Get component definition for the selected component
 const componentDef = computed(() => {
@@ -45,13 +60,6 @@ const propertyGroups = computed(() => {
   
   return groups;
 });
-
-// Format category name
-function formatPropertyName(name: string): string {
-  return name
-    .replace(/([A-Z])/g, ' $1')
-    .replace(/^./, str => str.toUpperCase());
-}
 
 // Map ModelBuilder PropertyType to ValueEditor type
 function mapPropertyTypeToValueType(propType: PropertyType): string {
@@ -91,16 +99,6 @@ function createValueObject(prop: any, value: any): any {
   };
 }
 
-// Get property value
-function getPropertyValue(property: string) {
-  if (!props.component?.properties) return null;
-  return {
-    type: PropertyType.String, // Default type
-    value: props.component.properties[property],
-    toString: () => props.component.properties[property]?.toString() || ''
-  };
-}
-
 // Helper to determine which input component to use
 function getInputComponent(propertyType: PropertyType) {
   switch (propertyType) {
@@ -121,8 +119,8 @@ function getInputComponent(propertyType: PropertyType) {
   }
 }
 
-// Helper to handle property value changes
-function handlePropertyChange(property: string, value: unknown): void {
+// Handle property change with proper typing
+function handlePropertyChange(property: string, value: any): void {
   if (!props.component) return;
   emit('property-change', props.component.id, property, value);
 }
@@ -152,17 +150,12 @@ function handlePropertyChange(property: string, value: unknown): void {
           <div v-for="prop in properties" :key="prop.name" class="property-row">
             <label class="property-label" :title="prop.description">
               {{ prop.label || formatPropertyName(prop.name) }}
-              <span v-if="prop.description" class="property-info">
-                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24">
-                  <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
-                </svg>
-              </span>
             </label>
             
             <div class="property-input">
               <component 
                 :is="getInputComponent(prop.type)"
-                :value="component.properties[prop.name]"
+                :value="getPropertyValue(prop)"
                 :property="prop"
                 :component="component"
                 :active-model="activeModel"

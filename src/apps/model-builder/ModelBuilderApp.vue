@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
+import { v4 as uuidv4 } from 'uuid';
 import type { ModelComponent } from './types';
 import type { UIModelEntity } from './types';
 import { ModelManager } from './services/ModelManager';
@@ -8,6 +9,7 @@ import ModelCanvas from './components/ModelCanvas.vue';
 import ModelPropertyPanel from './components/ModelPropertyPanel.vue';
 import ModelExplorer from './components/ModelExplorer.vue';
 import ModelHeader from './components/ModelHeader.vue';
+import { componentDefinitions, initializeComponentProperties } from './services/ComponentDefinitions';
 
 // Component state
 const modelManager = new ModelManager();
@@ -156,6 +158,24 @@ function stopResizing() {
   document.removeEventListener('mousemove', handleResizing);
   document.removeEventListener('mouseup', stopResizing);
   document.body.style.cursor = '';
+}
+
+function createComponent(type: string): ModelComponent {
+  const component = {
+    id: uuidv4(),
+    type,
+    x: 100,
+    y: 100,
+    width: componentDefinitions[type]?.width || 200,
+    height: componentDefinitions[type]?.height || 150,
+    z: 1,
+    properties: {}
+  };
+
+  // Initialize component properties with default values
+  initializeComponentProperties(component);
+
+  return component;
 }
 </script>
 

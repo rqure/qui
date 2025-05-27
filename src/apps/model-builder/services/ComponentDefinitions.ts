@@ -1,4 +1,4 @@
-import { PropertyType, type ComponentDefinition, type PropertyDefinition } from '../types';
+import { PropertyType, type ComponentDefinition, type PropertyDefinition, type ModelComponent } from '../types';
 
 // Common property definitions shared between multiple components
 const commonProperties: PropertyDefinition[] = [
@@ -766,5 +766,22 @@ const componentDefinitions: Record<string, ComponentDefinition> = {
     allowResize: false
   }
 };
+
+export function initializeComponentProperties(component: ModelComponent): void {
+  const definition = componentDefinitions[component.type];
+  if (!definition) return;
+
+  // Initialize properties object if it doesn't exist
+  if (!component.properties) {
+    component.properties = {};
+  }
+
+  // Set default values for all properties defined in the component definition
+  definition.properties.forEach(prop => {
+    if (component.properties[prop.name] === undefined) {
+      component.properties[prop.name] = prop.defaultValue;
+    }
+  });
+}
 
 export { componentDefinitions };
