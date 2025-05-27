@@ -289,6 +289,46 @@ function handlePropertyChange(property: string, value: any): void {
 
 .property-input {
   position: relative;
+  width: 100%;
+  min-width: 0; /* Allow container to shrink */
+}
+
+.property-input :deep(.formula-editor) {
+  width: 100%;
+  min-width: 0;
+}
+
+.property-input :deep(.formula-input) {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  font-family: var(--qui-font-family-mono);
+  font-size: var(--qui-font-size-small);
+  padding: 8px 12px;
+  background: var(--qui-bg-primary);
+  border: 1px solid var(--qui-hover-border);
+  border-radius: 4px;
+  color: var(--qui-text-primary);
+  resize: vertical;
+}
+
+.property-input :deep(.formula-toolbar) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px;
+  background: var(--qui-overlay-primary);
+  border: 1px solid var(--qui-hover-border);
+  border-radius: 4px;
+  margin-bottom: 8px;
+}
+
+.property-input :deep(.formula-actions) {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
 }
 
 /* Input type specific styles */
@@ -319,5 +359,14 @@ function handlePropertyChange(property: string, value: any): void {
 
 .empty-state p {
   font-size: var(--qui-font-size-small);
+}
+
+/* Add responsive adjustments */
+@media (max-width: 600px) {
+  .property-input :deep(.formula-toolbar) {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 4px 8px;
+  }
 }
 </style>

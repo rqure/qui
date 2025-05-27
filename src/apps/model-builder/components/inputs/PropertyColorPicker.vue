@@ -38,26 +38,31 @@ function updateColor(e: Event) {
 .color-picker {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
+  width: 100%;
+  min-width: 0; /* Allow container to shrink below content size */
 }
 
 .color-inputs {
   display: flex;
   gap: 8px;
   flex: 1;
+  min-width: 0; /* Allow flex item to shrink */
 }
 
 .color-input {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   padding: 2px;
   border: 1px solid var(--qui-hover-border);
   border-radius: 4px;
   cursor: pointer;
+  flex-shrink: 0; /* Prevent color input from shrinking */
 }
 
 .text-input {
   flex: 1;
+  min-width: 0; /* Allow text input to shrink */
   padding: 8px 12px;
   background: var(--qui-bg-primary);
   border: 1px solid var(--qui-hover-border);
@@ -71,5 +76,6 @@ function updateColor(e: Event) {
   height: 24px;
   border-radius: 12px;
   border: 2px solid var(--qui-hover-border);
+  flex-shrink: 0; /* Prevent preview from shrinking */
 }
 </style>
