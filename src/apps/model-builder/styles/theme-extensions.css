@@ -1,100 +1,193 @@
 /* Model Builder Theme Extensions */
 
-/* Common background styles */
-.mb-bg-primary {
-  background: var(--qui-bg-primary);
+/* Ensure all model builder components use the shared styling */
+@import './model-builder.css';
+
+/* Root theme variables */
+:root {
+  /* Colors */
+  --mb-primary: var(--qui-accent-color, #00b0ff);
+  --mb-primary-light: var(--qui-accent-secondary, #4fc3f7);
+  --mb-primary-dark: #0081cb;
+  --mb-primary-glow: var(--qui-accent-glow, rgba(0, 176, 255, 0.2));
+  
+  /* Backgrounds */
+  --mb-bg-canvas: #1e1e2d;
+  --mb-bg-canvas-highlight: #1e1e3d;
+  --mb-bg-component: var(--qui-bg-secondary);
+  --mb-bg-toolbox: var(--qui-bg-secondary);
+  --mb-bg-properties: var(--qui-bg-secondary);
+  
+  /* Borders */
+  --mb-border-color: var(--qui-hover-border);
+  --mb-border-radius: 6px;
+  --mb-border-radius-lg: 8px;
+  --mb-border-radius-sm: 4px;
+  
+  /* Shadows */
+  --mb-shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.1);
+  --mb-shadow-md: 0 4px 8px rgba(0, 0, 0, 0.15);
+  --mb-shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.2);
+  --mb-shadow-inner: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+  
+  /* Grid */
+  --mb-grid-size: 20px;
+  --mb-grid-color: rgba(255, 255, 255, 0.03);
+  --mb-grid-color-highlight: rgba(79, 195, 247, 0.05);
+  
+  /* Component */
+  --mb-component-selected-color: #00b0ff;
+  --mb-component-selected-glow: rgba(0, 176, 255, 0.4);
+  --mb-component-handle-size: 8px;
+  --mb-component-handle-color: #00b0ff;
+  
+  /* Animation */
+  --mb-animation-duration: 0.2s;
+  --mb-animation-timing: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.mb-bg-secondary {
-  background: var(--qui-bg-secondary);
-}
-
-.mb-bg-overlay {
-  background: var(--qui-overlay-primary);
-}
-
-/* Common text styles */
-.mb-text-primary {
-  color: var(--qui-text-primary);
-}
-
-.mb-text-secondary {
-  color: var(--qui-text-secondary);
-}
-
-.mb-text-accent {
-  color: var(--qui-accent-color);
-}
-
-/* Border styles */
-.mb-border {
-  border: 1px solid var(--qui-hover-border);
-}
-
-.mb-border-accent {
-  border: 1px solid var(--qui-accent-color);
-}
-
-/* Common interactive states */
-.mb-hover {
-  transition: all 0.2s var(--qui-animation-bounce);
-}
-
-.mb-hover:hover {
-  background: var(--qui-overlay-secondary);
-}
-
-.mb-hover-accent:hover {
-  border-color: var(--qui-accent-color);
-  box-shadow: 0 0 0 2px var(--qui-accent-glow);
-}
-
-/* Panel styles */
-.mb-panel {
+/* Common Styles */
+.mb-card {
   background: var(--qui-bg-secondary);
   border: 1px solid var(--qui-hover-border);
+  border-radius: var(--mb-border-radius);
+  box-shadow: var(--mb-shadow-sm);
 }
 
-.mb-panel-header {
-  background: var(--qui-bg-primary);
-  border-bottom: 1px solid var(--qui-hover-border);
-  color: var(--qui-text-secondary);
+.mb-card-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--mb-border-color);
+  background: rgba(0, 0, 0, 0.1);
 }
 
-/* Input styles */
+.mb-card-body {
+  padding: 16px;
+}
+
 .mb-input {
   background: var(--qui-bg-primary);
-  border: 1px solid var(--qui-hover-border);
+  border: 1px solid var(--mb-border-color);
+  border-radius: var(--mb-border-radius-sm);
+  padding: 8px 12px;
   color: var(--qui-text-primary);
-  transition: all 0.2s var(--qui-animation-bounce);
+  font-size: var(--qui-font-size-base);
+  transition: border-color var(--mb-animation-duration) var(--mb-animation-timing);
 }
 
 .mb-input:focus {
-  border-color: var(--qui-accent-color);
-  box-shadow: 0 0 0 2px var(--qui-accent-glow);
+  border-color: var(--mb-primary);
   outline: none;
+  box-shadow: 0 0 0 2px var(--mb-primary-glow);
 }
 
-/* Button styles */
 .mb-button {
-  background: var(--qui-overlay-primary);
-  border: 1px solid var(--qui-hover-border);
-  color: var(--qui-text-primary);
-  transition: all 0.2s var(--qui-animation-bounce);
-}
-
-.mb-button:hover {
-  background: var(--qui-overlay-secondary);
-  transform: translateY(-1px);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: var(--qui-font-size-base);
+  font-weight: var(--qui-font-weight-medium);
+  transition: all var(--mb-animation-duration) var(--mb-animation-timing);
+  cursor: pointer;
 }
 
 .mb-button-primary {
-  background: var(--qui-accent-color);
-  border: none;
+  background: var(--mb-primary);
   color: white;
+  border: none;
 }
 
 .mb-button-primary:hover {
-  background: var(--qui-accent-secondary);
-  box-shadow: 0 2px 8px var(--qui-accent-glow);
+  background: var(--mb-primary-light);
+  transform: translateY(-1px);
+  box-shadow: var(--mb-shadow-md);
+}
+
+.mb-button-secondary {
+  background: transparent;
+  color: var(--qui-text-primary);
+  border: 1px solid var(--mb-border-color);
+}
+
+.mb-button-secondary:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: translateY(-1px);
+}
+
+/* Grid Patterns */
+.mb-grid {
+  background-color: var(--mb-bg-canvas);
+  background-image: 
+    linear-gradient(var(--mb-grid-color) 1px, transparent 1px),
+    linear-gradient(90deg, var(--mb-grid-color) 1px, transparent 1px);
+  background-size: var(--mb-grid-size) var(--mb-grid-size);
+}
+
+.mb-grid-highlight {
+  background-color: var(--mb-bg-canvas-highlight);
+  background-image: 
+    linear-gradient(var(--mb-grid-color-highlight) 1px, transparent 1px),
+    linear-gradient(90deg, var(--mb-grid-color-highlight) 1px, transparent 1px);
+  background-size: var(--mb-grid-size) var(--mb-grid-size);
+}
+
+/* Component Styles */
+.mb-component {
+  position: relative;
+  transition: all var(--mb-animation-duration) var(--mb-animation-timing);
+}
+
+.mb-component-selected {
+  outline: 2px solid var(--mb-component-selected-color);
+  outline-offset: 2px;
+  box-shadow: 0 0 10px var(--mb-component-selected-glow);
+}
+
+.mb-component-handle {
+  position: absolute;
+  width: var(--mb-component-handle-size);
+  height: var(--mb-component-handle-size);
+  background: var(--mb-component-handle-color);
+  border: 1px solid white;
+  border-radius: 50%;
+  z-index: 100;
+}
+
+/* Panel Styles */
+.mb-panel {
+  background: var(--mb-bg-component);
+  border: 1px solid var(--mb-border-color);
+  border-radius: var(--mb-border-radius);
+}
+
+.mb-panel-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--mb-border-color);
+  background: rgba(0, 0, 0, 0.1);
+  font-weight: var(--qui-font-weight-medium);
+}
+
+.mb-panel-body {
+  padding: 16px;
+}
+
+/* Utility Classes */
+.mb-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--qui-scrollbar-thumb) var(--qui-scrollbar-track);
+}
+
+.mb-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.mb-scrollbar::-webkit-scrollbar-track {
+  background: var(--qui-scrollbar-track);
+}
+
+.mb-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--qui-scrollbar-thumb);
+  border-radius: 3px;
 }

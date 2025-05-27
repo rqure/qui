@@ -291,12 +291,11 @@ function handleCanvasMouseDown(event: MouseEvent) {
 </script>
 
 <template>
-  <div
-    ref="canvasRef"
-    class="model-canvas"
-    @dragover.prevent
-    @drop="handleDrop"
-    @mousedown="handleCanvasMouseDown"
+  <div 
+    class="model-canvas mb-grid"
+    :class="{ 'mb-grid-highlight': isDragging }"
+    :style="canvasStyle"
+    @click="handleCanvasClick"
   >
     <div class="canvas-content" :style="canvasStyle">
       <!-- Render each component -->
@@ -317,20 +316,17 @@ function handleCanvasMouseDown(event: MouseEvent) {
   position: relative;
   width: 100%;
   height: 100%;
-  overflow: hidden;
-  background-color: #1e1e2d;
-  background-image: 
-    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
-  background-size: 20px 20px;
+  overflow: auto;
 }
 
-.canvas-content {
-  position: relative;
-  width: 5000px;
-  height: 5000px;
-  transform-origin: 0 0;
-  will-change: transform;
+/* Use theme variables for any remaining custom styles */
+.component-ghost {
+  position: absolute;
+  background: var(--mb-primary-glow);
+  border: 2px dashed var(--mb-primary);
+  border-radius: var(--mb-border-radius);
+  pointer-events: none;
+  z-index: 1000;
 }
 
 :deep(.drag-ghost) {

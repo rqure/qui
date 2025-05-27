@@ -50,8 +50,8 @@ function setCategory(categoryId: string) {
 </script>
 
 <template>
-  <div class="toolbox">
-    <div class="toolbox-header">
+  <div class="toolbox mb-panel">
+    <div class="toolbox-header mb-panel-header">
       <h2 class="toolbox-title">Components</h2>
       
       <!-- Search input -->
@@ -89,11 +89,11 @@ function setCategory(categoryId: string) {
     </div>
     
     <!-- Component list -->
-    <div class="component-list" v-if="filteredComponents.length > 0">
+    <div class="component-list mb-scrollbar" v-if="filteredComponents.length > 0">
       <div
         v-for="c in filteredComponents"
         :key="c.type"
-        class="toolbox-item"
+        class="mb-component-preview"
         draggable="true"
         @dragstart="onDragStart($event, c.type)"
         @click="emit('add-component', c.type)"
@@ -117,12 +117,13 @@ function setCategory(categoryId: string) {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--qui-bg-secondary);
+  background: var(--mb-bg-toolbox);
+  border-radius: var(--mb-border-radius-lg);
+  overflow: hidden;
 }
 
 .toolbox-header {
   padding: 16px;
-  border-bottom: 1px solid var(--qui-hover-border);
   background: var(--qui-overlay-primary);
 }
 
@@ -130,15 +131,22 @@ function setCategory(categoryId: string) {
   margin: 0 0 12px 0;
   font-size: var(--qui-font-size-base);
   font-weight: var(--qui-font-weight-medium);
-  color: var(--qui-accent-color);
+  color: var(--mb-primary);
+  letter-spacing: 0.3px;
 }
 
 .category-tabs {
   display: flex;
-  overflow-x: auto;
   padding: 0 4px;
   background: var(--qui-overlay-primary);
-  border-bottom: 1px solid var(--qui-hover-border);
+  border-bottom: 1px solid var(--mb-border-color);
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.category-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .category-tab {
@@ -148,7 +156,10 @@ function setCategory(categoryId: string) {
   border: none;
   border-bottom: 2px solid transparent;
   cursor: pointer;
-  transition: all 0.2s var(--qui-animation-bounce);
+  transition: all 0.2s var(--mb-animation-timing);
+  font-size: var(--qui-font-size-small);
+  white-space: nowrap;
+  position: relative;
 }
 
 .category-tab:hover {
@@ -156,8 +167,8 @@ function setCategory(categoryId: string) {
 }
 
 .category-tab.active {
-  color: var(--qui-accent-color);
-  border-bottom-color: var(--qui-accent-color);
+  color: var(--mb-primary);
+  border-bottom-color: var(--mb-primary);
 }
 
 .component-list {
@@ -165,10 +176,64 @@ function setCategory(categoryId: string) {
   overflow-y: auto;
   padding: 16px;
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
   gap: 12px;
   align-content: start;
-  background: var(--qui-bg-secondary);
+}
+
+.mb-component-preview {
+  position: relative;
+  padding: 12px 8px;
+  border-radius: var(--mb-border-radius);
+  cursor: grab;
+  transition: all 0.2s var(--mb-animation-timing);
+  background: var(--qui-overlay-primary);
+  border: 1px solid var(--mb-border-color);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.mb-component-preview:hover {
+  background: var(--mb-primary-glow);
+  border-color: var(--mb-primary);
+  transform: translateY(-2px);
+  box-shadow: var(--mb-shadow-md);
+}
+
+.mb-component-preview:active {
+  cursor: grabbing;
+  transform: translateY(0);
+  box-shadow: var(--mb-shadow-sm);
+}
+
+.mb-component-preview-icon {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s var(--mb-animation-timing);
+}
+
+.mb-component-preview:hover .mb-component-preview-icon {
+  transform: scale(1.1);
+}
+
+.mb-component-preview-label {
+  font-size: var(--qui-font-size-small);
+  color: var(--qui-text-secondary);
+  text-align: center;
+  transition: color 0.2s var(--mb-animation-timing);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+}
+
+.mb-component-preview:hover .mb-component-preview-label {
+  color: var(--mb-primary);
 }
 
 .empty-results {
@@ -180,9 +245,14 @@ function setCategory(categoryId: string) {
   color: var(--qui-text-secondary);
   opacity: 0.6;
   text-align: center;
+  gap: 12px;
 }
 
 .empty-results svg {
-  margin-bottom: 12px;
+  opacity: 0.5;
+}
+
+.empty-results p {
+  font-size: var(--qui-font-size-small);
 }
 </style>

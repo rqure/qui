@@ -336,7 +336,7 @@ const editingEnabled = computed(() => activeModel.value !== null);
 </script>
 
 <template>
-  <div class="mb-app">
+  <div class="model-builder mb-card">
     <!-- Loading State -->
     <div v-if="loading && !error" class="mb-loading-overlay">
       <LoadingIndicator message="Loading Model Builder..." />
@@ -470,6 +470,13 @@ const editingEnabled = computed(() => activeModel.value !== null);
 </template>
 
 <style scoped>
+.model-builder {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+}
+
 .mb-app {
   display: flex;
   flex-direction: column;
