@@ -120,6 +120,7 @@ function setCategory(categoryId: string) {
   background: var(--mb-bg-toolbox);
   border-radius: var(--mb-border-radius-lg);
   overflow: hidden;
+  width: 100%; /* Ensure toolbox takes full width of its container */
 }
 
 .toolbox-header {
@@ -176,9 +177,10 @@ function setCategory(categoryId: string) {
   overflow-y: auto;
   padding: 16px;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); /* Adjust minimum size */
   gap: 12px;
   align-content: start;
+  width: 100%; /* Ensure grid takes full width */
 }
 
 .mb-component-preview {
@@ -193,6 +195,8 @@ function setCategory(categoryId: string) {
   flex-direction: column;
   align-items: center;
   gap: 8px;
+  width: 100%; /* Ensure preview takes full width of grid cell */
+  box-sizing: border-box;
 }
 
 .mb-component-preview:hover {
