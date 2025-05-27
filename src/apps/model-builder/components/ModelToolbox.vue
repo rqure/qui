@@ -77,19 +77,21 @@ function setCategory(categoryId: string) {
     
     <!-- Category tabs -->
     <div class="category-tabs">
-      <button 
-        v-for="category in categories" 
-        :key="category.id"
-        class="category-tab"
-        :class="{ 'active': activeCategory === category.id }"
-        @click="setCategory(category.id)"
-      >
-        {{ category.label }}
-      </button>
+      <div class="tabs-scroll-container">
+        <button 
+          v-for="category in categories" 
+          :key="category.id"
+          class="category-tab"
+          :class="{ 'active': activeCategory === category.id }"
+          @click="setCategory(category.id)"
+        >
+          {{ category.label }}
+        </button>
+      </div>
     </div>
     
     <!-- Component list -->
-    <div class="component-list mb-scrollbar" v-if="filteredComponents.length > 0">
+    <div class="component-list" v-if="filteredComponents.length > 0">
       <div
         v-for="c in filteredComponents"
         :key="c.type"
@@ -137,21 +139,34 @@ function setCategory(categoryId: string) {
 }
 
 .category-tabs {
-  display: flex;
-  padding: 0 4px;
+  position: relative;
   background: var(--qui-overlay-primary);
   border-bottom: 1px solid var(--mb-border-color);
-  overflow-x: auto;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
 }
 
-.category-tabs::-webkit-scrollbar {
-  display: none;
+.tabs-scroll-container {
+  display: flex;
+  overflow-x: auto;
+  padding: 0 16px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--qui-scrollbar-thumb) var(--qui-scrollbar-track);
+}
+
+.tabs-scroll-container::-webkit-scrollbar {
+  height: 6px;
+}
+
+.tabs-scroll-container::-webkit-scrollbar-track {
+  background: var(--qui-scrollbar-track);
+}
+
+.tabs-scroll-container::-webkit-scrollbar-thumb {
+  background: var(--qui-scrollbar-thumb);
+  border-radius: 3px;
 }
 
 .category-tab {
-  padding: 10px 16px;
+  padding: 12px 16px;
   color: var(--qui-text-secondary);
   background: transparent;
   border: none;
@@ -161,6 +176,7 @@ function setCategory(categoryId: string) {
   font-size: var(--qui-font-size-small);
   white-space: nowrap;
   position: relative;
+  min-width: max-content;
 }
 
 .category-tab:hover {
@@ -176,11 +192,26 @@ function setCategory(categoryId: string) {
   flex: 1;
   overflow-y: auto;
   padding: 16px;
+  padding-right: 16px; /* Explicit right padding */
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); /* Adjust minimum size */
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
   gap: 12px;
   align-content: start;
-  width: 100%; /* Ensure grid takes full width */
+  scrollbar-width: thin;
+  scrollbar-color: var(--qui-scrollbar-thumb) var(--qui-scrollbar-track);
+}
+
+.component-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.component-list::-webkit-scrollbar-track {
+  background: var(--qui-scrollbar-track);
+}
+
+.component-list::-webkit-scrollbar-thumb {
+  background: var(--qui-scrollbar-thumb);
+  border-radius: 3px;
 }
 
 .mb-component-preview {
