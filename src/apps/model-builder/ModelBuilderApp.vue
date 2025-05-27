@@ -135,13 +135,12 @@ function handleResizing(event: MouseEvent) {
   if (!isResizing.value || !resizingPanel.value) return;
 
   if (resizingPanel.value === 'left') {
-    // Calculate width change based on mouse movement from start position
     const deltaX = event.clientX - startX.value;
     const newWidth = Math.min(Math.max(200, startWidth.value + deltaX), 600);
     leftPanelWidth.value = newWidth;
   } else if (resizingPanel.value === 'right') {
     const deltaX = event.clientX - startX.value;
-    const newWidth = Math.min(Math.max(200, startWidth.value + deltaX), 600);
+    const newWidth = Math.min(Math.max(200, startWidth.value - deltaX), 600);
     rightPanelWidth.value = newWidth;
   } else {
     const deltaY = startY.value - event.clientY;
@@ -199,7 +198,11 @@ function stopResizing() {
 
       <!-- Right panel (Properties) -->
       <div class="right-panel" :style="{ width: rightPanelWidth + 'px' }">
-        <div class="resize-handle right" @mousedown="startResizing('right', $event)"></div>
+        <div 
+          class="resize-handle right" 
+          @mousedown="startResizing('right', $event)"
+          title="Drag to resize"
+        ></div>
         <ModelPropertyPanel
           :component="selectedComponent"
           :active-model="activeModel"
@@ -236,20 +239,19 @@ function stopResizing() {
   position: relative;
 }
 
-.left-panel {
-  position: relative;
-  min-width: 200px;
-  max-width: 400px;
-  height: 100%;
-  border-right: 1px solid var(--qui-hover-border);
-}
-
-.right-panel {
+.left-panel, .right-panel {
   position: relative;
   height: 100%;
   overflow: hidden;
   background: var(--qui-bg-secondary);
-  transition: none;
+}
+
+.left-panel {
+  border-right: 1px solid var(--qui-hover-border);
+}
+
+.right-panel {
+  border-left: 1px solid var(--qui-hover-border);
 }
 
 .main-panel {
@@ -283,9 +285,9 @@ function stopResizing() {
 }
 
 .resize-handle.right {
-  left: 0;
   top: 0;
-  width: 4px;
+  left: -3px;
+  width: 6px;
   height: 100%;
   cursor: ew-resize;
 }
