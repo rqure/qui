@@ -134,18 +134,19 @@ function startResizing(panel: 'left' | 'right' | 'bottom', event: MouseEvent) {
 function handleResizing(event: MouseEvent) {
   if (!isResizing.value || !resizingPanel.value) return;
 
-  if (resizingPanel.value === 'bottom') {
-    const deltaY = startY.value - event.clientY;
-    const newHeight = Math.min(Math.max(100, startHeight.value + deltaY), window.innerHeight - 200);
-    bottomPanelHeight.value = newHeight;
-  } else if (resizingPanel.value === 'left') {
-    const deltaX = startX.value - event.clientX;
+  if (resizingPanel.value === 'left') {
+    // Calculate width change based on mouse movement from start position
+    const deltaX = event.clientX - startX.value;
     const newWidth = Math.min(Math.max(200, startWidth.value + deltaX), 600);
     leftPanelWidth.value = newWidth;
-  } else {
+  } else if (resizingPanel.value === 'right') {
     const deltaX = event.clientX - startX.value;
     const newWidth = Math.min(Math.max(200, startWidth.value + deltaX), 600);
     rightPanelWidth.value = newWidth;
+  } else {
+    const deltaY = startY.value - event.clientY;
+    const newHeight = Math.min(Math.max(100, startHeight.value + deltaY), window.innerHeight - 200);
+    bottomPanelHeight.value = newHeight;
   }
 }
 
@@ -174,11 +175,15 @@ function stopResizing() {
     <div class="model-builder-layout">
       <!-- Left panel (Toolbox) -->
       <div class="left-panel" :style="{ width: leftPanelWidth + 'px' }">
-        <div class="resize-handle left" @mousedown="startResizing('left', $event)"></div>
         <ModelToolbox
           :categories="toolboxCategories"
           @add-component="handleAddComponent"
         />
+        <div 
+          class="resize-handle left" 
+          @mousedown="startResizing('left', $event)"
+          title="Drag to resize"
+        ></div>
       </div>
 
       <!-- Center panel (Canvas) -->
@@ -231,7 +236,15 @@ function stopResizing() {
   position: relative;
 }
 
-.left-panel, .right-panel {
+.left-panel {
+  position: relative;
+  min-width: 200px;
+  max-width: 400px;
+  height: 100%;
+  border-right: 1px solid var(--qui-hover-border);
+}
+
+.right-panel {
   position: relative;
   height: 100%;
   overflow: hidden;
@@ -258,12 +271,13 @@ function stopResizing() {
 .resize-handle {
   position: absolute;
   z-index: 10;
+  transition: background-color 0.2s ease;
 }
 
 .resize-handle.left {
-  right: 0;
   top: 0;
-  width: 4px;
+  right: -3px;
+  width: 6px;
   height: 100%;
   cursor: ew-resize;
 }
