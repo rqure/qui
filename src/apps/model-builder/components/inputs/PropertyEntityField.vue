@@ -1,10 +1,16 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { useDataStore } from '@/stores/data';
 
 const props = defineProps<{
-  value: string;
-  property: any;
+  value: string | null;
+  property: {
+    name: string;
+    label: string;
+    type: string;
+    category: string;
+    rank: number;
+  };
   activeModel: any;
 }>();
 
@@ -29,6 +35,9 @@ async function loadAvailableFields() {
   }
 }
 
+// Update display text computation to handle null values
+const displayValue = computed(() => props.value || 'Select a field...');
+
 function selectField(field: string) {
   emit('update', field);
   showFieldSelector.value = false;
@@ -40,7 +49,7 @@ loadAvailableFields();
 <template>
   <div class="entity-field-selector">
     <div class="field-display" @click="showFieldSelector = true">
-      <span class="field-value">{{ value || 'Select a field...' }}</span>
+      <span class="field-value">{{ displayValue }}</span>
       <span class="field-icon">
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
           <path fill="currentColor" d="M7 10l5 5 5-5z"/>

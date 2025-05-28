@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import { computed } from 'vue';
+
 const props = defineProps<{
-  value: string;
+  value: string | null;  // Update type to allow null
   component: any;
   activeModel: any;
 }>();
@@ -8,6 +10,9 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'update', value: string): void;
 }>();
+
+// Add computed property to handle null values
+const formulaValue = computed(() => props.value || '');
 
 function handleChange(event: Event) {
   const textarea = event.target as HTMLTextAreaElement;
@@ -18,7 +23,7 @@ function handleChange(event: Event) {
 <template>
   <div class="formula-editor">
     <textarea
-      :value="value"
+      :value="formulaValue"
       @input="handleChange"
       class="formula-input"
       placeholder="Enter formula (e.g., {Temperature} * 9/5 + 32)"
