@@ -4,28 +4,15 @@ import { type ModelComponent } from '../types';
 import ModelComponentRenderer from './ModelComponentRenderer.vue';
 
 const props = defineProps<{
-  components: ModelComponent[];
+  model: UIModelEntity;
   selectedComponent: ModelComponent | null;
-  zoomLevel: number;
 }>();
 
-const emit = defineEmits<{
-  (e: 'select-component', component: ModelComponent | null): void;
-  (e: 'add-component', componentType: string, x: number, y: number): void;
-}>();
-
-const canvasRef = ref<HTMLElement | null>(null);
-const isDragging = ref(false);
-const isResizing = ref(false);
-const dragStartX = ref(0);
-const dragStartY = ref(0);
-const dragStartLeft = ref(0);
-const dragStartTop = ref(0);
-const dragStartWidth = ref(0);
-const dragStartHeight = ref(0);
-const resizeDirection = ref('');
-const draggedComponent = ref<ModelComponent | null>(null);
-const dragGhost = ref<HTMLElement | null>(null);
+// Sort components by z-index for proper layering
+const sortedComponents = computed(() => {
+  if (!props.model?.components) return [];
+  return [...props.model.components].sort((a, b) => (a.z || 0) - (b.z || 0));
+});
 
 // Canvas movement and zoom
 const canvasPanX = ref(0);
@@ -288,6 +275,18 @@ function handleCanvasMouseDown(event: MouseEvent) {
     event.preventDefault();
   }
 }
+
+// Add isDragging ref
+const isDragging = ref(false);
+
+// Add drag handlers
+function startDrag() {
+  isDragging.value = true;
+}
+
+function endDrag() {
+  isDragging.value = false;
+}
 </script>
 
 <template>
@@ -300,12 +299,12 @@ function handleCanvasMouseDown(event: MouseEvent) {
     <div class="canvas-content" :style="canvasStyle">
       <!-- Render each component -->
       <ModelComponentRenderer
-        v-for="component in components"
+        v-for="component in sortedComponents"
         :key="component.id"
         :component="component"
-        :is-selected="component === selectedComponent"
-        @mousedown="handleComponentMouseDown($event, component)"
-        @click="selectComponent(component, $event)"
+        :is-selected="selectedComponent?.id === component.id"
+        @select="$emit('select-component', component)"
+        @update="$emit('update-component', $event)"
       />
     </div>
   </div>
@@ -339,5 +338,9 @@ function handleCanvasMouseDown(event: MouseEvent) {
   pointer-events: none;
   z-index: 9999;
   transform: translate(-50%, -50%);
+}
+
+.dragging {
+  cursor: grabbing;
 }
 </style>

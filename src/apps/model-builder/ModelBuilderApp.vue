@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { v4 as uuidv4 } from 'uuid';
+import { initializeComponentProperties } from './services/ComponentDefinitions';
 import type { ModelComponent } from './types';
 import type { UIModelEntity } from './types';
 import { ModelManager } from './services/ModelManager';
@@ -9,7 +10,6 @@ import ModelCanvas from './components/ModelCanvas.vue';
 import ModelPropertyPanel from './components/ModelPropertyPanel.vue';
 import ModelExplorer from './components/ModelExplorer.vue';
 import ModelHeader from './components/ModelHeader.vue';
-import { componentDefinitions, initializeComponentProperties } from './services/ComponentDefinitions';
 
 // Component state
 const modelManager = new ModelManager();
@@ -67,8 +67,13 @@ async function handleSaveModel() {
 async function handleSelectModel(modelId: string) {
   try {
     const model = await modelManager.loadModel(modelId);
-    activeModel.value = model;
-    components.value = model.components || [];
+    if (model) {
+      activeModel.value = model;
+      // Initialize properties for all components
+      model.components.forEach(component => {
+        initializeComponentProperties(component);
+      });
+    }
   } catch (error) {
     console.error('Failed to load model:', error);
   }
@@ -82,20 +87,33 @@ async function handleRenameModel(newName: string) {
 
 // Component handlers
 function handleAddComponent(componentType: string) {
-  const newComponent = modelManager.createComponent(componentType);
-  components.value.push(newComponent);
-  if (activeModel.value) {
-    activeModel.value.components = components.value;
-  }
+  if (!activeModel.value) return;
+
+  const component = {
+    id: uuidv4(),
+    type: componentType,
+    x: 100,
+    y: 100,
+    width: 200,
+    height: 150,
+    z: 1,
+    properties: {}
+  };
+
+  initializeComponentProperties(component);
+  activeModel.value.components.push(component);
+  selectedComponent.value = component;
 }
 
-function handlePropertyChange(componentId: string, property: string, value: any) {
-  const component = components.value.find(c => c.id === componentId);
+function handlePropertyChange(componentId: string, property: string, value: unknown) {
+  if (!activeModel.value) return;
+  
+  const component = activeModel.value.components.find(c => c.id === componentId);
   if (component) {
-    component.properties[property] = value;
-    if (activeModel.value) {
-      activeModel.value.components = components.value;
+    if (!component.properties) {
+      component.properties = {};
     }
+    component.properties[property] = value;
   }
 }
 
@@ -160,22 +178,43 @@ function stopResizing() {
   document.body.style.cursor = '';
 }
 
-function createComponent(type: string): ModelComponent {
-  const component = {
-    id: uuidv4(),
-    type,
-    x: 100,
-    y: 100,
-    width: componentDefinitions[type]?.width || 200,
-    height: componentDefinitions[type]?.height || 150,
-    z: 1,
-    properties: {}
-  };
+// Add a computed property for components if not already present
+const modelComponents = computed(() => activeModel.value?.components || []);
 
-  // Initialize component properties with default values
-  initializeComponentProperties(component);
+// Handler functions for component selection and deletion
+function handleComponentSelection(component: ModelComponent) {
+  selectedComponent.value = component;
+}
 
-  return component;
+function handleSelectComponent(component: ModelComponent) {
+  selectedComponent.value = component;
+}
+
+function handleDeleteComponent(componentId: string) {
+  if (!activeModel.value) return;
+  
+  // Find the component index
+  const index = activeModel.value.components.findIndex(c => c.id === componentId);
+  if (index !== -1) {
+    // If deleting selected component, clear selection
+    if (selectedComponent.value?.id === componentId) {
+      selectedComponent.value = null;
+    }
+    
+    // Remove the component
+    activeModel.value.components.splice(index, 1);
+  }
+}
+
+// Add missing handler for component updates
+function handleUpdateComponent(component: ModelComponent) {
+  if (!activeModel.value) return;
+  
+  const index = activeModel.value.components.findIndex(c => c.id === component.id);
+  if (index !== -1) {
+    activeModel.value.components[index] = component;
+    selectedComponent.value = component;
+  }
 }
 </script>
 
@@ -208,11 +247,12 @@ function createComponent(type: string): ModelComponent {
       <!-- Center panel (Canvas) -->
       <div class="main-panel">
         <ModelCanvas
-          :components="components"
+          v-if="activeModel"
+          :model="activeModel"
           :selected-component="selectedComponent"
-          :zoom-level="zoomLevel"
-          @add-component="handleAddComponent"
-          @select-component="handleComponentSelect"
+          @select-component="handleSelectComponent"
+          @update-component="handleUpdateComponent"
+          @delete-component="handleDeleteComponent"
         />
       </div>
 
@@ -235,9 +275,10 @@ function createComponent(type: string): ModelComponent {
     <div class="bottom-panel" :style="{ height: bottomPanelHeight + 'px' }">
       <div class="resize-handle bottom" @mousedown="startResizing('bottom', $event)"></div>
       <ModelExplorer
-        :components="components"
-        :selected-component="selectedComponent"
-        @select-component="handleComponentSelect"
+        :components="modelComponents"
+        :selected-component-id="selectedComponent?.id"
+        @select-component="handleSelectComponent"
+        @delete-component="handleDeleteComponent"
       />
     </div>
   </div>

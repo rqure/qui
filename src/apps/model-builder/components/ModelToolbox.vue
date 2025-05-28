@@ -52,7 +52,7 @@ function setCategory(categoryId: string) {
 <template>
   <div class="toolbox mb-panel">
     <div class="toolbox-header mb-panel-header">
-      <h2 class="toolbox-title">Components</h2>
+      <h2 class="toolbox-title">Toolbox</h2>
       
       <!-- Search input -->
       <div class="mb-search-container">

@@ -1,64 +1,36 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
-import { type ModelComponent } from '../types';
+import { ref, computed } from 'vue';
+import type { ModelComponent, UIModelEntity } from '../types';
 
 const props = defineProps<{
   components: ModelComponent[];
-  selectedComponent: ModelComponent | null;
+  selectedComponentId?: string;
 }>();
 
 const emit = defineEmits<{
-  (e: 'select-component', component: ModelComponent | null): void;
+  (e: 'select-component', component: ModelComponent): void;
+  (e: 'delete-component', componentId: string): void;
 }>();
 
 const searchQuery = ref('');
 
 // Filter components based on search query
 const filteredComponents = computed(() => {
-  if (!searchQuery.value) return props.components;
-  
   const query = searchQuery.value.toLowerCase();
-  return props.components.filter(component => 
-    component.type.toLowerCase().includes(query) || 
-    component.properties?.name?.toLowerCase().includes(query) ||
-    component.id.toLowerCase().includes(query)
-  );
+  return props.components?.filter(component => 
+    (component.properties?.name || component.type).toLowerCase().includes(query)
+  ) || [];
 });
-
-// Handle component selection
-function selectComponent(component: ModelComponent) {
-  emit('select-component', component);
-}
-
-// Clear search query
-function clearSearch() {
-  searchQuery.value = '';
-}
-
-// Get component display name with fallback to type and id
-function getComponentName(component: ModelComponent): string {
-  // First try to get custom name from properties
-  if (component.properties?.name) return component.properties.name;
-  
-  // Then try to use component type with a nice format
-  const typeName = component.type
-    .replace(/([A-Z])/g, ' $1') // Add spaces before capital letters
-    .replace(/^./, str => str.toUpperCase()); // Capitalize first letter
-  
-  // Add short ID suffix for uniqueness
-  const shortId = component.id.substring(0, 5);
-  
-  return `${typeName} (${shortId})`;
-}
 </script>
 
 <template>
-  <div class="model-explorer">
-    <div class="explorer-header">
-      <h3 class="explorer-title">Component Explorer</h3>
+  <div class="explorer mb-panel">
+    <div class="explorer-header mb-panel-header">
+      <h2 class="explorer-title">Components</h2>
       
+      <!-- Search input -->
       <div class="mb-search-container">
-        <span class="mb-search-icon" v-if="!searchQuery">
+        <span class="mb-search-icon">
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24">
             <path fill="currentColor" d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
           </svg>
@@ -69,165 +41,164 @@ function getComponentName(component: ModelComponent): string {
           placeholder="Search components..." 
           class="mb-search-input"
         />
-        <span class="mb-search-clear" v-if="searchQuery" @click="clearSearch">
+        <span v-if="searchQuery" class="mb-search-clear" @click="searchQuery = ''">
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24">
-            <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/>
+            <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
           </svg>
         </span>
       </div>
     </div>
-    
-    <div class="components-list" v-if="filteredComponents.length > 0">
-      <div
-        v-for="component in filteredComponents"
-        :key="component.id"
-        class="component-list-item"
-        :class="{ 'selected': component === selectedComponent }"
-        @click="selectComponent(component)"
-      >
-        <div class="component-icon">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
-            <path fill="currentColor" d="M6 13h12v-2H6v2zM3 6v2h18V6H3zm6 14h6v-2H9v2z"/>
-          </svg>
-        </div>
-        <div class="component-info">
-          <div class="component-name">{{ getComponentName(component) }}</div>
-          <div class="component-type">{{ component.type }}</div>
-        </div>
-        <div class="component-position">
-          {{ component.x }},{{ component.y }}
+
+    <div class="explorer-content mb-scrollbar">
+      <div v-if="filteredComponents.length > 0" class="component-list">
+        <div 
+          v-for="component in filteredComponents" 
+          :key="component.id"
+          class="component-item"
+          :class="{ 'selected': selectedComponentId === component.id }"
+          @click="emit('select-component', component)"
+        >
+          <div class="component-info">
+            <span class="component-name">{{ component.properties?.name || 'Unnamed' }}</span>
+            <span class="component-type mb-badge">{{ component.type }}</span>
+          </div>
+          <div class="component-actions">
+            <button class="action-button" @click.stop="emit('delete-component', component.id)">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24">
+                <path fill="currentColor" d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
-    </div>
-    
-    <div v-else class="empty-components">
-      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
-        <path fill="currentColor" d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
-      </svg>
-      <p v-if="searchQuery">No matching components</p>
-      <p v-else>No components in model</p>
+      
+      <div v-else class="empty-state">
+        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24">
+          <path fill="currentColor" d="M11 15h2v2h-2v-2zm0-8h2v6h-2V7zm1-5C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/>
+        </svg>
+        <p>No components found</p>
+      </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-.model-explorer {
+.explorer {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--qui-bg-primary);
-  color: var(--qui-text-primary);
+  background: var(--mb-bg-toolbox);
+  border-radius: var(--mb-border-radius-lg);
+  overflow: hidden;
 }
 
 .explorer-header {
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--qui-hover-border);
-  background: linear-gradient(to right, rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.1));
+  padding: 16px;
+  background: var(--qui-overlay-primary);
+  border-bottom: 1px solid var(--mb-border-color);
 }
 
 .explorer-title {
   margin: 0 0 12px 0;
-  font-size: 14px;
+  font-size: var(--qui-font-size-base);
   font-weight: var(--qui-font-weight-medium);
-  color: #4fc3f7;
+  color: var(--mb-primary);
+  letter-spacing: 0.3px;
 }
 
-.components-list {
+.explorer-content {
   flex: 1;
   overflow-y: auto;
+}
+
+.component-list {
   padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
-.component-list-item {
+.component-item {
   display: flex;
   align-items: center;
-  padding: 8px 12px;
-  border-radius: 4px;
-  margin-bottom: 4px;
+  justify-content: space-between;
+  padding: 12px;
+  background: var(--qui-overlay-primary);
+  border: 1px solid var(--mb-border-color);
+  border-radius: var(--mb-border-radius);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.2s var(--mb-animation-timing);
 }
 
-.component-list-item:hover {
-  background: var(--qui-overlay-hover);
+.component-item:hover {
+  background: var(--mb-primary-glow);
+  border-color: var(--mb-primary);
+  transform: translateX(2px);
 }
 
-.component-list-item.selected {
-  background: rgba(0, 176, 255, 0.1);
-  border-left: 2px solid #00b0ff;
-}
-
-.component-icon {
-  margin-right: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--qui-text-secondary);
-}
-
-.component-list-item.selected .component-icon {
-  color: #00b0ff;
+.component-item.selected {
+  background: var(--mb-primary-glow);
+  border-color: var(--mb-primary);
+  box-shadow: 0 0 0 1px var(--mb-primary);
 }
 
 .component-info {
-  flex: 1;
-  min-width: 0; /* Allow text to wrap/truncate */
-  margin-right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .component-name {
-  font-size: var(--qui-font-size-base);
+  font-size: var(--qui-font-size-small);
   font-weight: var(--qui-font-weight-medium);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  color: var(--qui-text-primary);
 }
 
-.component-type {
-  font-size: var(--qui-font-size-small);
+.component-actions {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.component-item:hover .component-actions {
+  opacity: 1;
+}
+
+.action-button {
+  padding: 6px;
+  border: none;
+  background: transparent;
   color: var(--qui-text-secondary);
+  cursor: pointer;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
 }
 
-.component-position {
-  font-size: var(--qui-font-size-small);
-  color: var(--qui-text-secondary);
-  min-width: 50px;
-  text-align: right;
-  font-family: var(--qui-font-family-mono);
+.action-button:hover {
+  background: rgba(255, 59, 48, 0.1);
+  color: #ff3b30;
 }
 
-.empty-components {
+.empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   height: 100%;
+  padding: 32px;
   color: var(--qui-text-secondary);
-  opacity: 0.5;
-  text-align: center;
-  padding: 20px;
-}
-
-.empty-components svg {
-  margin-bottom: 16px;
   opacity: 0.6;
+  text-align: center;
+  gap: 12px;
 }
 
-/* Responsive scrollbar for components list */
-.components-list::-webkit-scrollbar {
-  width: 6px;
+.empty-state svg {
+  opacity: 0.5;
 }
 
-.components-list::-webkit-scrollbar-track {
-  background: var(--qui-bg-secondary);
-}
-
-.components-list::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 3px;
-}
-
-.components-list::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
+.empty-state p {
+  font-size: var(--qui-font-size-small);
 }
 </style>
