@@ -1,4 +1,3 @@
-
 export interface QPoint {
     x: number;
     y: number;
@@ -67,4 +66,8 @@ export function as2dArray(point: QPoint): [number, number] {
 
 export function as3dArray(point: QPoint): [number, number, number] {
     return [point.y, point.x, point.z];
+}
+
+export function newPoint(x: number = 0, y: number = 0, z: number = 0): QPoint {
+    return { x, y, z };
 }
