@@ -8,7 +8,7 @@ import Canvas from './components/Canvas.vue';
   <div class="model-builder">
     <Toolbar />
     <ComponentsExplorer />
-    <Canvas />
+    <Canvas></Canvas>
   </div>
 </template>
 
@@ -20,7 +20,7 @@ import Canvas from './components/Canvas.vue';
     "sidebar canvas";
   grid-template-rows: 50px 1fr;
   grid-template-columns: 200px 1fr;
-  height: 100vh;
-  width: 100vw;
+  height: 100%;
+  width: 100%;
 }
 </style>
