@@ -2,7 +2,7 @@
 import { computed } from 'vue';
 
 const props = defineProps<{
-  value: string | null;  // Update type to allow null
+  value: string | null;  // Allow null value
   component: any;
   activeModel: any;
 }>();
@@ -14,9 +14,10 @@ const emit = defineEmits<{
 // Add computed property to handle null values
 const formulaValue = computed(() => props.value || '');
 
+// Update handler to ensure we emit a string
 function handleChange(event: Event) {
   const textarea = event.target as HTMLTextAreaElement;
-  emit('update', textarea.value);
+  emit('update', textarea.value || '');  // Ensure empty string instead of null
 }
 </script>
 

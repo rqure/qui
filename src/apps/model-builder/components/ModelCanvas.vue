@@ -155,10 +155,10 @@ function handleCanvasMouseDown(event: MouseEvent) {
     if (event.shiftKey) {
       // Start multi-selection
       startSelection(event);
-    } else if (event.button === 1 || event.altKey) {
+    }
+  } else if (event.button === 1 || event.altKey) { // 1 = middle mouse button
       // Start panning
       startPan(event);
-    }
   }
 }
 

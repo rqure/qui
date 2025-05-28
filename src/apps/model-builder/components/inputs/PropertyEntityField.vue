@@ -3,14 +3,8 @@ import { ref, computed } from 'vue';
 import { useDataStore } from '@/stores/data';
 
 const props = defineProps<{
-  value: string | null;
-  property: {
-    name: string;
-    label: string;
-    type: string;
-    category: string;
-    rank: number;
-  };
+  value: string | null;  // Allow null value
+  property: any;
   activeModel: any;
 }>();
 
@@ -35,11 +29,11 @@ async function loadAvailableFields() {
   }
 }
 
-// Update display text computation to handle null values
+// Add computed property to handle null values
 const displayValue = computed(() => props.value || 'Select a field...');
 
 function selectField(field: string) {
-  emit('update', field);
+  emit('update', field || '');  // Ensure empty string instead of null
   showFieldSelector.value = false;
 }
 
