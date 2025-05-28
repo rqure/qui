@@ -1,346 +1,239 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue';
-import { type ModelComponent } from '../types';
+import { ref, computed } from 'vue';
+import type { CSSProperties } from 'vue';
+import type { ModelComponent } from '../types';
 import ModelComponentRenderer from './ModelComponentRenderer.vue';
 
 const props = defineProps<{
-  model: UIModelEntity;
+  model: { 
+    components: ModelComponent[];
+    width: number;
+    height: number;
+  };
   selectedComponent: ModelComponent | null;
 }>();
 
-// Sort components by z-index for proper layering
+const emit = defineEmits<{
+  (e: 'select-component', component: ModelComponent | null): void;
+  (e: 'update-component', component: ModelComponent): void;
+  (e: 'add-component', type: string, x: number, y: number): void;
+}>();
+
+// Canvas state
+const canvasRef = ref<HTMLDivElement | null>(null);
+const dragGhost = ref<HTMLDivElement | null>(null);
+const isDragging = ref(false);
+const isResizing = ref(false);
+const draggedComponent = ref<ModelComponent | null>(null);
+const resizeDirection = ref('');
+const zoomLevel = ref(1);
+
+// Drag state
+const dragStartX = ref(0);
+const dragStartY = ref(0);
+const dragStartLeft = ref(0);
+const dragStartTop = ref(0);
+const dragStartWidth = ref(0);
+const dragStartHeight = ref(0);
+
+// Computed styles
+const canvasStyle = computed<CSSProperties>(() => ({
+  transform: `scale(${zoomLevel.value})`,
+  transformOrigin: '0 0',
+  width: `${props.model.width}px`,
+  height: `${props.model.height}px`,
+  position: 'relative',
+  backgroundColor: 'var(--mb-bg-canvas)',
+  overflow: 'hidden'
+}));
+
+// Sort components by z-index
 const sortedComponents = computed(() => {
-  if (!props.model?.components) return [];
   return [...props.model.components].sort((a, b) => (a.z || 0) - (b.z || 0));
 });
 
-// Canvas movement and zoom
-const canvasPanX = ref(0);
-const canvasPanY = ref(0);
-const isPanning = ref(false);
-const panStartX = ref(0);
-const panStartY = ref(0);
-
-// Computed scale factor based on zoom level
-const scaleFactor = computed(() => {
-  return props.zoomLevel / 100;
-});
-
-// Canvas style with transform for panning and zooming
-const canvasStyle = computed(() => {
-  return {
-    transform: `translate(${canvasPanX.value}px, ${canvasPanY.value}px) scale(${scaleFactor.value})`,
-    transformOrigin: '0 0'
-  };
-});
-
-onMounted(() => {
-  // Add event listeners for canvas interaction
-  if (canvasRef.value) {
-    canvasRef.value.addEventListener('wheel', handleCanvasWheel, { passive: false });
+// Handle canvas click to deselect components
+function handleCanvasClick(event: MouseEvent) {
+  if (event.target === canvasRef.value) {
+    emit('select-component', null);
   }
-  
-  // Create drag ghost element for component dragging
-  dragGhost.value = document.createElement('div');
-  dragGhost.value.className = 'drag-ghost';
-  document.body.appendChild(dragGhost.value);
-});
+}
+
+// Handle drag over for new component drops
+function handleDragOver(event: DragEvent) {
+  event.preventDefault();
+  event.dataTransfer!.dropEffect = 'copy';
+}
+
+// Handle drop of new components
+function handleDrop(event: DragEvent) {
+  event.preventDefault();
+  const componentType = event.dataTransfer?.getData('application/x-model-component-type');
+  if (componentType && canvasRef.value) {
+    const rect = canvasRef.value.getBoundingClientRect();
+    const x = (event.clientX - rect.left) / zoomLevel.value;
+    const y = (event.clientY - rect.top) / zoomLevel.value;
+    emit('add-component', componentType, x, y);
+  }
+}
 
 // Handle component selection
-function selectComponent(component: ModelComponent | null, event: MouseEvent) {
-  // Don't trigger selection during drag or resize operations
-  if (isDragging.value || isResizing.value) return;
-  
-  // Stop event propagation to prevent canvas click from deselecting
-  event.stopPropagation();
-  emit('select-component', component);
-}
-
-// Handle canvas click to deselect
-function handleCanvasClick() {
-  emit('select-component', null);
-}
-
-// Handle mouse down on component for drag
-function handleComponentMouseDown(event: MouseEvent, component: ModelComponent) {
-  // If right click, don't start drag
-  if (event.button === 2) return;
-  
-  // Target element to check if resize handle
-  const target = event.target as HTMLElement;
-  
-  // Check if clicked on a resize handle
-  if (target.classList.contains('mb-drag-handle')) {
-    startResize(event, component, target.classList[1].split('-').pop() || '');
-    return;
+function handleSelectComponent(component: ModelComponent) {
+  if (!isResizing.value) {
+    emit('select-component', component);
   }
-  
-  // Otherwise start drag
-  startDrag(event, component);
 }
 
-// Start component drag operation
-function startDrag(event: MouseEvent, component: ModelComponent) {
-  // Select the component
-  emit('select-component', component);
-  
-  // Set drag state
+// Handle component drag start
+function handleDragStart(event: MouseEvent, component: ModelComponent) {
+  if (!canvasRef.value) return;
+
   isDragging.value = true;
   draggedComponent.value = component;
-  
+
   // Store initial positions
   dragStartX.value = event.clientX;
   dragStartY.value = event.clientY;
   dragStartLeft.value = component.x;
   dragStartTop.value = component.y;
-  
-  // Update drag ghost
+
+  // Show drag ghost
   if (dragGhost.value) {
     dragGhost.value.style.display = 'block';
-    dragGhost.value.style.left = `${event.clientX}px`;
-    dragGhost.value.style.top = `${event.clientY}px`;
+    dragGhost.value.style.left = `${component.x}px`;
+    dragGhost.value.style.top = `${component.y}px`;
+    dragGhost.value.style.width = `${component.width}px`;
+    dragGhost.value.style.height = `${component.height}px`;
   }
-  
-  // Add global event listeners
-  window.addEventListener('mousemove', handleMouseMove);
-  window.addEventListener('mouseup', handleMouseUp);
-}
 
-// Start component resize operation
-function startResize(event: MouseEvent, component: ModelComponent, direction: string) {
-  // Select the component
-  emit('select-component', component);
-  
-  // Set resize state
-  isResizing.value = true;
-  draggedComponent.value = component;
-  resizeDirection.value = direction;
-  
-  // Store initial positions and dimensions
-  dragStartX.value = event.clientX;
-  dragStartY.value = event.clientY;
-  dragStartLeft.value = component.x;
-  dragStartTop.value = component.y;
-  dragStartWidth.value = component.width;
-  dragStartHeight.value = component.height;
-  
-  // Add global event listeners
-  window.addEventListener('mousemove', handleMouseMove);
-  window.addEventListener('mouseup', handleMouseUp);
-  
-  // Prevent default and stop propagation
+  // Prevent text selection during drag
   event.preventDefault();
-  event.stopPropagation();
+  window.addEventListener('mousemove', handleDrag);
+  window.addEventListener('mouseup', handleDragEnd);
 }
 
-// Handle mouse move during drag or resize
-function handleMouseMove(event: MouseEvent) {
-  if (isDragging.value && draggedComponent.value) {
-    // Calculate new position, taking into account the canvas zoom and pan
-    const deltaX = (event.clientX - dragStartX.value) / scaleFactor.value;
-    const deltaY = (event.clientY - dragStartY.value) / scaleFactor.value;
-    
-    // Update component position
-    draggedComponent.value.x = Math.round(dragStartLeft.value + deltaX);
-    draggedComponent.value.y = Math.round(dragStartTop.value + deltaY);
-    
-    // Update drag ghost position
-    if (dragGhost.value) {
-      dragGhost.value.style.left = `${event.clientX}px`;
-      dragGhost.value.style.top = `${event.clientY}px`;
-    }
-  } else if (isResizing.value && draggedComponent.value) {
-    // Calculate deltas considering zoom
-    const deltaX = (event.clientX - dragStartX.value) / scaleFactor.value;
-    const deltaY = (event.clientY - dragStartY.value) / scaleFactor.value;
-    
-    // Apply resizing based on direction
-    switch(resizeDirection.value) {
-      case 'nw':
-        draggedComponent.value.x = Math.round(dragStartLeft.value + deltaX);
-        draggedComponent.value.y = Math.round(dragStartTop.value + deltaY);
-        draggedComponent.value.width = Math.max(10, dragStartWidth.value - deltaX);
-        draggedComponent.value.height = Math.max(10, dragStartHeight.value - deltaY);
-        break;
-      case 'ne':
-        draggedComponent.value.y = Math.round(dragStartTop.value + deltaY);
-        draggedComponent.value.width = Math.max(10, dragStartWidth.value + deltaX);
-        draggedComponent.value.height = Math.max(10, dragStartHeight.value - deltaY);
-        break;
-      case 'sw':
-        draggedComponent.value.x = Math.round(dragStartLeft.value + deltaX);
-        draggedComponent.value.width = Math.max(10, dragStartWidth.value - deltaX);
-        draggedComponent.value.height = Math.max(10, dragStartHeight.value + deltaY);
-        break;
-      case 'se':
-        draggedComponent.value.width = Math.max(10, dragStartWidth.value + deltaX);
-        draggedComponent.value.height = Math.max(10, dragStartHeight.value + deltaY);
-        break;
-      case 'n':
-        draggedComponent.value.y = Math.round(dragStartTop.value + deltaY);
-        draggedComponent.value.height = Math.max(10, dragStartHeight.value - deltaY);
-        break;
-      case 's':
-        draggedComponent.value.height = Math.max(10, dragStartHeight.value + deltaY);
-        break;
-      case 'e':
-        draggedComponent.value.width = Math.max(10, dragStartWidth.value + deltaX);
-        break;
-      case 'w':
-        draggedComponent.value.x = Math.round(dragStartLeft.value + deltaX);
-        draggedComponent.value.width = Math.max(10, dragStartWidth.value - deltaX);
-        break;
-    }
-  } else if (isPanning.value) {
-    // Update canvas pan position
-    canvasPanX.value = panStartX.value + (event.clientX - dragStartX.value);
-    canvasPanY.value = panStartY.value + (event.clientY - dragStartY.value);
+// Handle component dragging
+function handleDrag(event: MouseEvent) {
+  if (!isDragging.value || !draggedComponent.value) return;
+
+  const deltaX = (event.clientX - dragStartX.value) / zoomLevel.value;
+  const deltaY = (event.clientY - dragStartY.value) / zoomLevel.value;
+
+  const newX = dragStartLeft.value + deltaX;
+  const newY = dragStartTop.value + deltaY;
+
+  // Update ghost position
+  if (dragGhost.value) {
+    dragGhost.value.style.left = `${newX}px`;
+    dragGhost.value.style.top = `${newY}px`;
   }
+
+  // Update component position
+  draggedComponent.value.x = newX;
+  draggedComponent.value.y = newY;
+
+  emit('update-component', draggedComponent.value);
 }
 
-// End drag or resize operation
-function handleMouseUp() {
+// Handle drag end
+function handleDragEnd() {
   isDragging.value = false;
-  isResizing.value = false;
-  isPanning.value = false;
   draggedComponent.value = null;
-  
-  // Hide drag ghost
+  isResizing.value = false;
+  resizeDirection.value = '';
+
   if (dragGhost.value) {
     dragGhost.value.style.display = 'none';
   }
-  
-  // Remove global event listeners
-  window.removeEventListener('mousemove', handleMouseMove);
-  window.removeEventListener('mouseup', handleMouseUp);
+
+  window.removeEventListener('mousemove', handleDrag);
+  window.removeEventListener('mouseup', handleDragEnd);
 }
 
-// Handle drop of new component onto canvas
-function handleDrop(event: DragEvent) {
-  if (!event.dataTransfer) return;
-  const type = event.dataTransfer.getData(
-    'application/x-model-component-type'
-  );
-  if (type && canvasRef.value) {
-    const rect = canvasRef.value.getBoundingClientRect();
-    // convert drop into canvas coords
-    const scale = props.zoomLevel / 100;
-    const x = Math.round((event.clientX - rect.left) / scale);
-    const y = Math.round((event.clientY - rect.top) / scale);
-    emit('add-component', type, x, y);
-  }
-  event.preventDefault();
-}
-
-// Handle drag over for drop indication
-function handleDragOver(event: DragEvent) {
-  if (!event.dataTransfer) return;
-  
-  if (event.dataTransfer.types.includes('application/x-model-component-type')) {
-    event.preventDefault();
-    event.dataTransfer.dropEffect = 'copy';
-  }
-}
-
-// Handle canvas wheel for zooming
-function handleCanvasWheel(event: WheelEvent) {
-  // Check if Ctrl key is pressed for zooming, otherwise allow normal scroll
-  if (event.ctrlKey) {
-    event.preventDefault();
-    const delta = Math.sign(event.deltaY) * -5; // 5% zoom per wheel tick
-    const newZoom = Math.max(50, Math.min(200, props.zoomLevel + delta));
-    // TODO: Emit zoom change event
-  }
-}
-
-// Handle canvas pan with middle mouse button
-function handleCanvasMouseDown(event: MouseEvent) {
-  // If middle mouse button or spacebar + left button
-  if (event.button === 1 || (event.button === 0 && event.shiftKey)) {
-    isPanning.value = true;
-    dragStartX.value = event.clientX;
-    dragStartY.value = event.clientY;
-    panStartX.value = canvasPanX.value;
-    panStartY.value = canvasPanY.value;
-    
-    // Add global event listeners
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
-    
-    // Change cursor to grabbing
-    if (canvasRef.value) {
-      canvasRef.value.style.cursor = 'grabbing';
-    }
-    
-    event.preventDefault();
-  }
-}
-
-// Add isDragging ref
-const isDragging = ref(false);
-
-// Add drag handlers
-function startDrag() {
-  isDragging.value = true;
-}
-
-function endDrag() {
-  isDragging.value = false;
+// Update zoom level
+function updateZoom(delta: number) {
+  zoomLevel.value = Math.max(0.1, Math.min(2, zoomLevel.value + delta * 0.1));
 }
 </script>
 
 <template>
-  <div 
-    class="model-canvas mb-grid"
-    :class="{ 'mb-grid-highlight': isDragging }"
-    :style="canvasStyle"
-    @click="handleCanvasClick"
-  >
-    <div class="canvas-content" :style="canvasStyle">
-      <!-- Render each component -->
+  <div class="canvas-container">
+    <div 
+      ref="canvasRef"
+      class="model-canvas mb-canvas"
+      :class="{ 'dragging': isDragging }"
+      :style="canvasStyle"
+      @click="handleCanvasClick"
+      @dragover="handleDragOver"
+      @drop="handleDrop"
+    >
       <ModelComponentRenderer
         v-for="component in sortedComponents"
         :key="component.id"
         :component="component"
         :is-selected="selectedComponent?.id === component.id"
-        @select="$emit('select-component', component)"
+        @mousedown="handleDragStart($event, component)"
+        @select="handleSelectComponent"
         @update="$emit('update-component', $event)"
       />
+      <div ref="dragGhost" class="drag-ghost" />
+    </div>
+    
+    <!-- Zoom controls -->
+    <div class="mb-zoom-controls">
+      <button class="mb-zoom-button" @click="updateZoom(-1)">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
+          <path fill="currentColor" d="M19 13H5v-2h14v2z"/>
+        </svg>
+      </button>
+      <div class="mb-zoom-value">{{ Math.round(zoomLevel * 100) }}%</div>
+      <button class="mb-zoom-button" @click="updateZoom(1)">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
+          <path fill="currentColor" d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+        </svg>
+      </button>
     </div>
   </div>
 </template>
 
 <style scoped>
-.model-canvas {
+.canvas-container {
   position: relative;
   width: 100%;
   height: 100%;
   overflow: auto;
+  background: var(--qui-bg-secondary);
 }
 
-/* Use theme variables for any remaining custom styles */
-.component-ghost {
-  position: absolute;
-  background: var(--mb-primary-glow);
-  border: 2px dashed var(--mb-primary);
-  border-radius: var(--mb-border-radius);
-  pointer-events: none;
-  z-index: 1000;
+.model-canvas {
+  margin: 20px auto;
+  box-shadow: var(--mb-shadow-lg);
 }
 
-:deep(.drag-ghost) {
+.drag-ghost {
   position: absolute;
   display: none;
-  width: 10px;
-  height: 10px;
-  background: rgba(0, 176, 255, 0.5);
-  border-radius: 50%;
+  border: 2px solid var(--mb-primary);
+  background: var(--mb-primary-glow);
   pointer-events: none;
-  z-index: 9999;
-  transform: translate(-50%, -50%);
+  z-index: 1000;
+  border-radius: 4px;
 }
 
 .dragging {
   cursor: grabbing;
+}
+
+/* Grid background */
+.model-canvas::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: 
+    linear-gradient(to right, var(--qui-border-color) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--qui-border-color) 1px, transparent 1px);
+  background-size: 20px 20px;
+  opacity: 0.1;
+  pointer-events: none;
 }
 </style>

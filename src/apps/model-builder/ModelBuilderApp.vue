@@ -186,7 +186,7 @@ function handleComponentSelection(component: ModelComponent) {
   selectedComponent.value = component;
 }
 
-function handleSelectComponent(component: ModelComponent) {
+function handleSelectComponent(component: ModelComponent | null) {
   selectedComponent.value = component;
 }
 
