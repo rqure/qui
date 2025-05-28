@@ -1,7 +1,6 @@
 import { markRaw } from 'vue'
 import ModelBuilderApp from './ModelBuilderApp.vue'
 import type { RegisteredApp } from '@/core/apps/types'
-import './styles/model-builder.css'
 
 // Define the icon as an SVG data URL
 const modelBuilderIcon = `
