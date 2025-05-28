@@ -12,11 +12,26 @@ export function useZoom(minZoom = 0.1, maxZoom = 2, defaultZoom = 1) {
   }
 
   function handleWheel(event: WheelEvent) {
-    if (event.ctrlKey || event.metaKey) {
-      event.preventDefault();
-      const delta = event.deltaY > 0 ? -1 : 1;
-      updateZoom(delta);
+    event.preventDefault();
+    
+    // Normalize wheel delta for consistent zooming across browsers
+    const delta = normalizeWheelDelta(event);
+    updateZoom(delta);
+    return true;
+  }
+  
+  // Helper function to normalize wheel delta values across different browsers
+  function normalizeWheelDelta(event: WheelEvent): number {
+    // Most browsers
+    if (event.deltaY) {
+      // Note: deltaY is opposite direction from desired zoom
+      // negative deltaY = scroll up = zoom in
+      const direction = event.deltaY < 0 ? 1 : -1;
+      return direction * 0.5;
     }
+    
+    // Fallback if deltaY is not available
+    return 0;
   }
 
   return {

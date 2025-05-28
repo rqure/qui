@@ -156,8 +156,7 @@ function handleCanvasMouseDown(event: MouseEvent) {
       // Start multi-selection
       startSelection(event);
     }
-  } else if (event.button === 1 || event.altKey) { // 1 = middle mouse button
-      // Start panning
+  } else if (event.button === 2) { // Right click
       startPan(event);
   }
 }
@@ -315,6 +314,7 @@ useKeyboardShortcuts({
 // Set up canvas related event listeners
 onMounted(() => {
   if (canvasWrapperRef.value) {
+    // Add wheel event with the correct options to ensure preventDefault works
     canvasWrapperRef.value.addEventListener('wheel', handleWheel, { passive: false });
   }
 });
@@ -446,5 +446,47 @@ onUnmounted(() => {
   background-size: 20px 20px;
   opacity: 0.1;
   pointer-events: none;
+}
+
+/* Enhance zoom controls visibility */
+.mb-zoom-controls {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  background: var(--qui-overlay-primary);
+  border-radius: 20px;
+  padding: 4px 8px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  z-index: 100;
+  gap: 8px;
+}
+
+.mb-zoom-button {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: rgba(0, 176, 255, 0.1);
+  color: var(--qui-text-primary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.mb-zoom-button:hover {
+  background: rgba(0, 176, 255, 0.3);
+  color: var(--mb-primary);
+}
+
+.mb-zoom-value {
+  font-size: var(--qui-font-size-small);
+  font-weight: var(--qui-font-weight-medium);
+  color: var(--qui-text-secondary);
+  min-width: 40px;
+  text-align: center;
 }
 </style>
