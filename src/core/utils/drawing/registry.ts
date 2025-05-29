@@ -52,12 +52,9 @@ export class ModelRegistry {
 
     constructor() {
         this._models = new Map<string, ModelGenerator>();
-        this.register("circle", (config: ModelConfig) => {
-            return this.tryApplyConfig(new Circle(), config);
-        });
     }
 
-    private tryApplyConfig<T extends Drawable>(instance: T, config: ModelConfig): T {
+    public applyConfig<T extends Drawable>(instance: T, config: ModelConfig): T {
         if (config.offset) {
             instance.offset = new Xyz(config.offset.x, config.offset.y, config.offset.z);
         }

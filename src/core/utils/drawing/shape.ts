@@ -4,7 +4,7 @@ import { DrawableEvent } from "./event";
 
 
 export interface IRenderableShape {
-    addTo(renderer: IRenderer): any;
+    addTo(renderer: L.Map): any;
 }
 
 export interface IRenderableShapeGenerator {
@@ -80,7 +80,7 @@ export class Shape extends Drawable {
                 }
             }
 
-            this._shape.addTo(r);
+            this._shape.addTo(r.impl);
 
             this._onDraw.trigger();
         }
