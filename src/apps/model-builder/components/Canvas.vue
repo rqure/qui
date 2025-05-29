@@ -1,26 +1,9 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, readonly } from 'vue';
 import { LMap, LControl } from '@vue-leaflet/vue-leaflet';
-import { as2dArray, getCenter, type QBounds, type QXYZ, type QModelConfig } from '@/core/utils/drawing';
 import Model from './Model.vue';
 import "leaflet/dist/leaflet.css";
 import L from 'leaflet';
-
-const bottomLeft = ref<QXYZ>({ x: 0, y: 0, z: 0 });
-const topRight = ref<QXYZ>({ x: 1000, y: 1000, z: 0 });
-const bounds = computed(() => {
-    const b: QBounds  = {
-        bottomLeft: bottomLeft.value,
-        topRight: topRight.value,
-    };
-    return b;
-});
-const zoom = ref(0);
-const minZoom = ref(1);
-const maxZoom = ref(10);
-
-const mapRef = ref<any>(null);
-const models = ref<QModelConfig[]>([]);
 
 const handleDrop = (e: DragEvent) => {
   e.preventDefault();
@@ -70,29 +53,12 @@ const handleDragOver = (e: DragEvent) => {
   <div class="canvas" @drop="handleDrop" @dragover="handleDragOver">
     <LMap
       ref="mapRef"
-      :center="as2dArray(getCenter(bounds))"
-      :zoom="zoom"
-      :minZoom="minZoom"
-      :maxZoom="maxZoom"
-      :crs="L.CRS.Simple"
-      :zoomControl="false"
-      :attributionControl="false"
     >
-      <Model :models="models" />
+
     </LMap>
   </div>
 </template>
 
 <style scoped>
-.canvas {
-  grid-area: canvas;
-  height: 100%;
-  width: 100%;
-  position: relative;
-}
 
-:deep(.leaflet-container) {
-  height: 100%;
-  width: 100%;
-}
 </style>
