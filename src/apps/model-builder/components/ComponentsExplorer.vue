@@ -2,14 +2,28 @@
 import { ref } from 'vue';
 
 const components = ref([
-  { name: 'Model', icon: '📦' },
-  { name: 'Entity', icon: '🔷' },
-  { name: 'Relationship', icon: '🔀' }
+  { 
+    name: 'Rectangle', 
+    icon: '⬜', 
+    type: 'polygon', 
+    defaults: { 
+      edges: [
+        { x: 0, y: 0, z: 0 },
+        { x: 100, y: 0, z: 0 },
+        { x: 100, y: 60, z: 0 },
+        { x: 0, y: 60, z: 0 }
+      ]
+    } 
+  },
+  { name: 'Circle', icon: '⭕', type: 'circle', defaults: { radius: 30 } },
+  { name: 'Triangle', icon: '▲', type: 'polygon', defaults: { sides: 3, radius: 40 } },
+  { name: 'Line', icon: '➖', type: 'polyline', defaults: { length: 100 } }
 ]);
 
 const handleDragStart = (e: DragEvent, component: any) => {
   if (e.dataTransfer) {
-    e.dataTransfer.setData('componentType', component.name);
+    e.dataTransfer.setData('componentType', component.type);
+    e.dataTransfer.setData('componentDefaults', JSON.stringify(component.defaults));
   }
 };
 </script>

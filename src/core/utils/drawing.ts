@@ -12,6 +12,7 @@ export interface QBounds {
 export type QModelType = 'circle' | 'div' | 'imageOverlay' | 'polygon' | 'polyline' | 'text' | 'svgText' | 'model';
 
 export interface QModelConfig {
+    id: string;
     type: QModelType;
     parent?: QModelConfig | undefined;
     isVisible: boolean;
@@ -105,6 +106,7 @@ export function newBounds(bottomLeft: QXYZ, topRight: QXYZ): QBounds {
 }
 
 export function newModelConfig(
+    id: string,
     type: QModelType,
     parent?: QModelConfig,
     isVisible: boolean = true,
@@ -129,6 +131,7 @@ export function newModelConfig(
     url?: string,
 ): QModelConfig {
     return {
+        id,
         type,
         url,
         parent,

@@ -5,9 +5,14 @@ import { absoluteOffset, as2dArray, as2dArrays, as3dArray, bounds2Array, boundsO
 import "leaflet/dist/leaflet.css";
 import L, { LatLngBounds, type LatLngTuple } from 'leaflet';
 
-const models = ref<QModelConfig[]>([]);
+const props = defineProps<{
+  models: QModelConfig[]
+}>();
+
+console.log('Model component models:', props.models);
 
 function asDivIcon(m: QModelConfig): any {
+    console.log('Creating div icon for model:', m);
     return L.divIcon({
         className: m.className || '',
         html: m.html || '',
@@ -19,54 +24,68 @@ function asDivIcon(m: QModelConfig): any {
 </script>
 
 <template>
-    <div v-for="model in models">
-        <LCircle v-if="model.type === 'circle'"
-            :latLng="as2dArray(locationOf(model))"
-            :radius="model.radius"
-            :color="model.color"
-            :fillColor="model.fillColor"
-            :fillOpacity="model.fillOpacity"
-            :weight="model.weight"
-            :opacity="model.opacity"
-            :dashOffset="model.dashOffset"
-            :stroke="model.stroke">
-        </LCircle>
+    <div v-for="model in models" :key="model.id">
+        <template v-if="model.type === 'circle'">
+            {{ console.log('Rendering circle:', model) }}
+            <LCircle
+                :latLng="as2dArray(locationOf(model))"
+                :radius="model.radius"
+                :color="model.color"
+                :fillColor="model.fillColor"
+                :fillOpacity="model.fillOpacity"
+                :weight="model.weight"
+                :opacity="model.opacity"
+                :dashOffset="model.dashOffset"
+                :stroke="model.stroke">
+            </LCircle>
+        </template>
         
-        <LMarker v-else-if="model.type === 'div'"
-            :latLng="as2dArray(locationOf(model))"
-            :icon="asDivIcon(model)"
-            :className="model.className">
-        </LMarker>
+        <template v-else-if="model.type === 'div'">
+            {{ console.log('Rendering div:', model) }}
+            <LMarker
+                :latLng="as2dArray(locationOf(model))"
+                :icon="asDivIcon(model)"
+                :className="model.className">
+            </LMarker>
+        </template>
 
-        <LPolygon v-else-if="model.type === 'polygon'"
-            :latLngs="as2dArrays(edgesOf(model))"
-            :color="model.color"
-            :fillColor="model.fillColor"
-            :fillOpacity="model.fillOpacity"
-            :weight="model.weight"
-            :opacity="model.opacity"
-            :dashOffset="model.dashOffset"
-            :stroke="model.stroke">
-        </LPolygon>
+        <template v-else-if="model.type === 'polygon'">
+            {{ console.log('Rendering polygon:', model) }}
+            <LPolygon
+                :latLngs="as2dArrays(edgesOf(model))"
+                :color="model.color"
+                :fillColor="model.fillColor"
+                :fillOpacity="model.fillOpacity"
+                :weight="model.weight"
+                :opacity="model.opacity"
+                :dashOffset="model.dashOffset"
+                :stroke="model.stroke">
+            </LPolygon>
+        </template>
         
-        <LPolyline v-else-if="model.type === 'polyline'"
-            :latLngs="as2dArrays(edgesOf(model))"
-            :color="model.color"
-            :fillColor="model.fillColor"
-            :fillOpacity="model.fillOpacity"
-            :weight="model.weight"
-            :opacity="model.opacity"
-            :dashOffset="model.dashOffset"
-            :stroke="model.stroke">
-        </LPolyline>
+        <template v-else-if="model.type === 'polyline'">
+            {{ console.log('Rendering polyline:', model) }}
+            <LPolyline
+                :latLngs="as2dArrays(edgesOf(model))"
+                :color="model.color"
+                :fillColor="model.fillColor"
+                :fillOpacity="model.fillOpacity"
+                :weight="model.weight"
+                :opacity="model.opacity"
+                :dashOffset="model.dashOffset"
+                :stroke="model.stroke">
+            </LPolyline>
+        </template>
 
-        <LImageOverlay v-else-if="model.type === 'imageOverlay'"
-            :url="model.url || ''"
-            :bounds="new LatLngBounds(bounds2Array(boundsOf(model)))"
-            :opacity="model.opacity">
-        </LImageOverlay>
+        <template v-else-if="model.type === 'imageOverlay'">
+            {{ console.log('Rendering image overlay:', model) }}
+            <LImageOverlay
+                :url="model.url || ''"
+                :bounds="new LatLngBounds(bounds2Array(boundsOf(model)))"
+                :opacity="model.opacity">
+            </LImageOverlay>
+        </template>
     </div>
-
 </template>
 
 <style scoped>
