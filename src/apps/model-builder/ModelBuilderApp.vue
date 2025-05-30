@@ -11,6 +11,10 @@ const canvasRef = ref<InstanceType<typeof Canvas> | null>(null);
 const handleCenter = () => {
   canvasRef.value?.centerCanvas();
 };
+
+const handleModeChange = (newMode: 'pan' | 'select') => {
+  mode.value = newMode;
+};
 </script>
 
 <template>

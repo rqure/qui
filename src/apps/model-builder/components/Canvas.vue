@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, toRaw, watch } from 'vue';
+import { ref, onMounted, toRaw, watch, computed } from 'vue';
 import "leaflet/dist/leaflet.css";
 import L from 'leaflet';
 import { QCanvas } from '@/core/utils/drawing/canvas';
@@ -21,6 +21,8 @@ const zoomLevel = ref(0);
 const canvasSize = ref({ width: 0, height: 0 });
 const gridLayer = ref<L.GridLayer | null>(null);
 const mode = ref<'pan' | 'select'>('pan');
+const selectedShapes = ref<Set<any>>(new Set());
+const cursorStyle = computed(() => mode.value === 'select' ? 'pointer' : 'grab');
 
 onMounted(() => {
     if (!mapRef.value) return;
@@ -59,14 +61,81 @@ onMounted(() => {
     // Ensure lmap exists before adding event listeners
     if (!lmap) return;
 
+    // Update mode handling
+    watch(() => props.mode, (newMode) => {
+        if (!lmap) return;
+        
+        if (newMode === 'pan') {
+            lmap.dragging.enable();
+            lmap.boxZoom.enable();
+            // Clear any existing selection
+            selectedShapes.value.forEach((shape: any) => {
+                shape.setStyle({ color: 'var(--qui-text-primary)' });
+            });
+            selectedShapes.value.clear();
+        } else {
+            lmap.dragging.disable();
+            lmap.boxZoom.disable();
+        }
+        
+        mapRef.value!.style.cursor = newMode === 'pan' ? 'grab' : 'pointer';
+    }, { immediate: true });
+
+    // Improved click handling - remove auto-switching to pan mode
+    lmap.on('click', (e: L.LeafletMouseEvent) => {
+        if (props.mode !== 'select') return;
+        
+        // Clear current selection
+        selectedShapes.value.forEach((shape: any) => {
+            shape.setStyle({ color: 'var(--qui-text-primary)' });
+        });
+        selectedShapes.value.clear();
+
+        // Find clicked shapes
+        canvas?.impl.eachLayer((layer: any) => {
+            if (layer instanceof L.Path) {
+                const bounds = layer.getBounds();
+                if (bounds.contains(e.latlng)) {
+                    selectedShapes.value.add(layer);
+                    layer.setStyle({ 
+                        color: 'var(--qui-accent-color)',
+                        weight: 2,
+                    });
+                }
+            }
+        });
+    });
+
+    // Update cursor for dragging
+    lmap.on('mousedown', () => {
+        if (props.mode === 'pan') {
+            mapRef.value!.style.cursor = 'grabbing';
+        }
+    });
+
+    lmap.on('mouseup', () => {
+        if (props.mode === 'pan') {
+            mapRef.value!.style.cursor = 'grab';
+        }
+    });
+
     // Update map dragging based on mode
     watch(mode, (newMode) => {
         if (!lmap) return;
+        
         if (newMode === 'pan') {
             lmap.dragging.enable();
+            // Clear any existing selection
+            selectedShapes.value.forEach((shape: any) => {
+                shape.setStyle({ color: 'var(--qui-text-primary)' });
+            });
+            selectedShapes.value.clear();
         } else {
             lmap.dragging.disable();
         }
+        
+        // Update cursor
+        mapRef.value!.style.cursor = cursorStyle.value;
     }, { immediate: true });
 
     // Track mouse position and zoom with null checks
@@ -130,7 +199,13 @@ const handleDragOver = (event: DragEvent) => {
 };
 
 const props = defineProps<{
-  showGrid?: boolean
+  showGrid?: boolean,
+  mode: 'pan' | 'select'  // Make mode required
+}>();
+
+const emit = defineEmits<{
+  'centerCanvas': [],
+  'update:mode': [value: 'pan' | 'select']
 }>();
 
 watch(() => props.showGrid, (newValue) => {
@@ -145,10 +220,6 @@ watch(() => props.showGrid, (newValue) => {
   }
 }, { immediate: true });
 
-const emit = defineEmits<{
-  'centerCanvas': []
-}>();
-
 const centerCanvas = () => {
   if (!canvas || !lmap) return;
   canvas.moveTo(canvas.center, 0); // Reset to center at default zoom
@@ -159,8 +230,16 @@ defineExpose({ centerCanvas, mode });
 </script>
 
 <template>
-  <div class="canvas-container" @drop="handleDrop" @dragover="handleDragOver">
-    <div class="canvas" ref="mapRef"></div>
+  <div 
+    class="canvas-container" 
+    @drop="handleDrop" 
+    @dragover="handleDragOver"
+  >
+    <div 
+      class="canvas" 
+      ref="mapRef"
+      :style="{ cursor: props.mode === 'pan' ? 'grab' : 'pointer' }"
+    ></div>
     <CanvasInfo
       :zoom="zoomLevel"
       :mouse-x="mousePos.x"
@@ -189,6 +268,12 @@ defineExpose({ centerCanvas, mode });
     height: 100%;
     width: 100%;
     background: var(--qui-bg-secondary);
+    /* Remove default cursors to use our custom ones */
+    cursor: inherit !important;
+}
+
+:deep(.leaflet-interactive) {
+    cursor: inherit !important;
 }
 
 /* Add theme styling for Leaflet controls */
