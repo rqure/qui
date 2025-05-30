@@ -6,7 +6,6 @@ export class ImageOverlay extends Shape {
     private _url: string;
     private _width: number;
     private _height: number;
-    private _onClick: DrawableEvent<void>;
 
 
     constructor() {
@@ -15,7 +14,6 @@ export class ImageOverlay extends Shape {
         this._width = 100;
         this._height = 100;
         this._shapeGenerator = this;
-        this._onClick = new DrawableEvent<void>();
     }
 
     public get url(): string {
@@ -57,7 +55,7 @@ export class ImageOverlay extends Shape {
         ], config);
 
         overlay.on("click", () => {
-            this._onClick.trigger();
+            this.onClick.trigger();
         });
 
         return overlay as unknown as IRenderableShape;

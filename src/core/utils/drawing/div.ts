@@ -10,7 +10,6 @@ class Div extends Shape {
     private _scaleWithZoom: boolean;
     private _zoom: number;
     private _marker?: L.Marker<any>;
-    private _onClick: DrawableEvent<void>;
     private _onRender: DrawableEvent<void>;
 
     constructor() {
@@ -23,7 +22,6 @@ class Div extends Shape {
         this._scaleWithZoom = true;
         this._zoom = 0;
 
-        this._onClick = new DrawableEvent<void>();
         this._onRender = new DrawableEvent<void>();
         this._onDraw.add(() => {
             if (this._scaleWithZoom) {
@@ -47,7 +45,7 @@ class Div extends Shape {
             const interactive = true;
             this._marker = L.marker([this.location.y, this.location.x], { icon, interactive });
             this._marker.on("click", () => {
-                this._onClick.trigger();
+                this.onClick.trigger();
             });
         } else {
             this._marker.setIcon(icon);

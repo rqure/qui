@@ -21,7 +21,11 @@ export class Drawable implements IDrawable {
     private _scale: Xyz;
     private _minZoom: number;
     private _parent?: Drawable;
+
     private _onDestroy: DrawableEvent<void>;
+    private _onClick: DrawableEvent<void>;
+    private _onMouseOver: DrawableEvent<void>;
+    private _onMouseOut: DrawableEvent<void>;
 
     constructor() {
         this._isVisible = false;
@@ -30,7 +34,11 @@ export class Drawable implements IDrawable {
         this._rotation = 0;
         this._scale = new Xyz(1, 1, 1);
         this._minZoom = 0;
+
         this._onDestroy = new DrawableEvent<void>();
+        this._onClick = new DrawableEvent<void>();
+        this._onMouseOver = new DrawableEvent<void>();
+        this._onMouseOut = new DrawableEvent<void>();
     }
 
     public get isVisible(): boolean {
