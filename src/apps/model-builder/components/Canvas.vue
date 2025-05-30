@@ -43,6 +43,16 @@ const isSelecting = ref(false);
 const selectionStart = ref<{ x: number; y: number } | null>(null);
 const selectionEnd = ref<{ x: number; y: number } | null>(null);
 
+// Add helper function for bounds testing
+const getBoundsFromPoints = (point1: { x: number; y: number }, point2: { x: number; y: number }) => {
+    return {
+        minX: Math.min(point1.x, point2.x),
+        maxX: Math.max(point1.x, point2.x),
+        minY: Math.min(point1.y, point2.y),
+        maxY: Math.max(point1.y, point2.y)
+    };
+};
+
 onMounted(() => {
     if (!mapRef.value) return;
 
@@ -122,13 +132,14 @@ onMounted(() => {
         });
     });
 
-    // Add selection box handling
+    // Update mousedown handler to use client coordinates relative to canvas
     lmap.on('mousedown', (e: L.LeafletMouseEvent) => {
         if (props.mode === 'select') {
+            const rect = mapRef.value!.getBoundingClientRect();
             isSelecting.value = true;
             selectionStart.value = {
-                x: e.containerPoint.x,
-                y: e.containerPoint.y
+                x: e.originalEvent.clientX - rect.left,
+                y: e.originalEvent.clientY - rect.top
             };
             selectionEnd.value = { ...selectionStart.value };
         } else if (props.mode === 'pan') {
@@ -136,24 +147,34 @@ onMounted(() => {
         }
     });
 
-    lmap.on('mousemove', (e: L.LeafletMouseEvent) => {
-        mousePos.value = { x: e.latlng.lng, y: e.latlng.lat };
-
-        if (isSelecting.value && selectionStart.value) {
+    // Update mousemove to use client coordinates
+    document.addEventListener('mousemove', (e: MouseEvent) => {
+        if (isSelecting.value && selectionStart.value && mapRef.value) {
+            const rect = mapRef.value.getBoundingClientRect();
             selectionEnd.value = {
-                x: e.containerPoint.x,
-                y: e.containerPoint.y
+                x: e.clientX - rect.left,
+                y: e.clientY - rect.top
             };
+
+            // Update mouse position for info display
+            if (lmap) {
+                const point = L.point(e.clientX - rect.left, e.clientY - rect.top);
+                const latlng = lmap.containerPointToLatLng(point);
+                mousePos.value = { x: latlng.lng, y: latlng.lat };
+            }
         }
     });
 
-    lmap.on('mouseup', (e: L.LeafletMouseEvent) => {
+    // Update mouseup handler with improved intersection testing
+    document.addEventListener('mouseup', (e: MouseEvent) => {
         if (props.mode === 'select' && isSelecting.value) {
-            // Find shapes in selection box
-            if (selectionStart.value && selectionEnd.value) {
-                const bounds = L.bounds(
-                    L.point(selectionStart.value.x, selectionStart.value.y),
-                    L.point(selectionEnd.value.x, selectionEnd.value.y)
+            if (selectionStart.value && selectionEnd.value && mapRef.value) {
+                const rect = mapRef.value.getBoundingClientRect();
+                
+                // Get selection bounds in screen coordinates
+                const selectionBounds = getBoundsFromPoints(
+                    selectionStart.value,
+                    selectionEnd.value
                 );
 
                 // Reset previous selection
@@ -165,34 +186,38 @@ onMounted(() => {
                 // Select shapes that intersect with the selection box
                 canvas?.impl.eachLayer((layer: any) => {
                     if (layer instanceof L.Path) {
-                        const layerBounds = layer.getBounds();
-                        const topLeft = lmap!.latLngToContainerPoint(layerBounds.getNorthWest());
-                        const bottomRight = lmap!.latLngToContainerPoint(layerBounds.getSouthEast());
-                        const layerScreenBounds = L.bounds(topLeft, bottomRight);
+                        // Get multiple points along the shape's bounds
+                        const bounds = layer.getBounds();
+                        const nw = lmap!.latLngToContainerPoint(bounds.getNorthWest());
+                        const ne = lmap!.latLngToContainerPoint(bounds.getNorthEast());
+                        const se = lmap!.latLngToContainerPoint(bounds.getSouthEast());
+                        const sw = lmap!.latLngToContainerPoint(bounds.getSouthWest());
+                        const center = lmap!.latLngToContainerPoint(bounds.getCenter());
 
-                        if (bounds.overlaps(layerScreenBounds)) {
+                        // Check if any point is within selection bounds
+                        const points = [nw, ne, se, sw, center];
+                        const isSelected = points.some(point => 
+                            point.x >= selectionBounds.minX &&
+                            point.x <= selectionBounds.maxX &&
+                            point.y >= selectionBounds.minY &&
+                            point.y <= selectionBounds.maxY
+                        );
+
+                        if (isSelected) {
                             selectedShapes.value.add(layer);
                             layer.setStyle(selectedStyle);
                         }
                     }
                 });
             }
-
-            // Reset selection box
-            isSelecting.value = false;
-            selectionStart.value = null;
-            selectionEnd.value = null;
-        } else if (props.mode === 'pan') {
-            mapRef.value!.style.cursor = 'grab';
         }
-    });
-
-    // Clear selection box if mouse leaves the canvas
-    lmap.on('mouseout', () => {
         isSelecting.value = false;
         selectionStart.value = null;
         selectionEnd.value = null;
     });
+
+    // Remove mouseout handler since we're using document events
+    lmap.off('mouseout');
 
     // Track zoom with null checks
     lmap.on('zoom', () => {
@@ -299,6 +324,7 @@ defineExpose({ centerCanvas, mode });
         v-if="isSelecting && selectionStart && selectionEnd"
         class="selection-box"
         :style="{
+          position: 'absolute',  // Change to absolute positioning
           left: `${Math.min(selectionStart.x, selectionEnd.x)}px`,
           top: `${Math.min(selectionStart.y, selectionEnd.y)}px`,
           width: `${Math.abs(selectionEnd.x - selectionStart.x)}px`,
@@ -361,10 +387,15 @@ defineExpose({ centerCanvas, mode });
 }
 
 .selection-box {
-    position: absolute;
+    position: absolute; /* Change from fixed to absolute */
     border: 2px solid var(--qui-accent-color);
     background-color: rgba(0, 255, 136, 0.1);
     pointer-events: none;
-    z-index: 1000;
+    z-index: 10000;
+}
+
+/* Ensure Leaflet panes don't block selection box */
+:deep(.leaflet-pane) {
+    z-index: 400;
 }
 </style>
