@@ -12,24 +12,6 @@ const emit = defineEmits<{
   'center': []
 }>();
 
-const tools = ref([
-  { name: 'select', icon: `
-    <svg width="16" height="16" viewBox="0 0 16 16">
-      <path fill="currentColor" d="M11.4 3L8 9.9 4.6 3H2l5 10h2l5-10z"/>
-    </svg>
-  `},
-  { name: 'connect', icon: `
-    <svg width="16" height="16" viewBox="0 0 16 16">
-      <path fill="currentColor" d="M6 8h4M3 8h1m8 0h1" stroke="currentColor" stroke-width="2"/>
-    </svg>
-  `},
-  { name: 'delete', icon: `
-    <svg width="16" height="16" viewBox="0 0 16 16">
-      <path fill="currentColor" d="M2 4h12m-9 2v6m3-6v6m3-6v6m-7-8h8v10H4z"/>
-    </svg>
-  `}
-]);
-
 const toggleGrid = () => {
   emit('update:showGrid', !props.showGrid);
 };
@@ -53,11 +35,6 @@ const toggleMode = () => {
           </svg>
         `"></span>
         {{ props.mode === 'pan' ? 'Pan' : 'Select' }}
-      </div>
-      <div v-for="tool in tools" 
-           :key="tool.name" 
-           class="tool-item">
-        <span v-html="tool.icon"></span>
       </div>
     </div>
     <div class="tool-group">
