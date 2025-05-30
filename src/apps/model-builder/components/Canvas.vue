@@ -133,6 +133,18 @@ watch(() => props.showGrid, (newValue) => {
     gridLayer.value = null;
   }
 }, { immediate: true });
+
+const emit = defineEmits<{
+  'centerCanvas': []
+}>();
+
+const centerCanvas = () => {
+  if (!canvas || !lmap) return;
+  canvas.moveTo(canvas.center, 0); // Reset to center at default zoom
+};
+
+// Expose centering method to parent
+defineExpose({ centerCanvas });
 </script>
 
 <template>

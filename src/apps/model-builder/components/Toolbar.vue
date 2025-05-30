@@ -7,6 +7,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'update:showGrid': [value: boolean]
+  'center': []
 }>();
 
 const tools = ref([
@@ -32,6 +33,9 @@ const toggleGrid = () => {
     <div class="tool-group">
       <div class="tool-item" @click="toggleGrid">
         {{ props.showGrid ? '☑' : '☐' }} Grid
+      </div>
+      <div class="tool-item" @click="emit('center')">
+        🎯 Center
       </div>
     </div>
   </div>
