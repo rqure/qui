@@ -42,6 +42,14 @@ export class Xyz {
         return new Xyz((this.x + other.x) / 2, (this.y + other.y) / 2, (this.z + other.z) / 2);
     }
 
+    public distanceTo(other: Xyz): number {
+        return Math.sqrt(
+            Math.pow(this.x - other.x, 2) +
+            Math.pow(this.y - other.y, 2) +
+            Math.pow(this.z - other.z, 2)
+        );
+    }
+
     public rotate(angle: number): Xyz {
         const radians = angle * Math.PI / 180;
         return new Xyz(

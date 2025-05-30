@@ -1,6 +1,7 @@
 import { Shape, type IRenderableShape } from "./shape";
 import L from "leaflet";
 import { cvar } from "./utils";
+import { Xyz } from "./xyz";
 
 export class Circle extends Shape {
     private _radius: number;
@@ -35,8 +36,8 @@ export class Circle extends Shape {
 
     public contains(point: L.LatLng): boolean {
         const center = this.location;
-        const latLng = L.latLng(point);
-        const distance = latLng.distanceTo([center.y, center.x]);
+        const p = new Xyz(point.lng, point.lat, 0)
+        const distance = p.distanceTo(center);
         return distance <= this.radius;
     }
 

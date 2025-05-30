@@ -115,7 +115,6 @@ onMounted(() => {
     lmap.on('mousedown', (e: L.LeafletMouseEvent) => {
         if (props.mode === 'select') {
             const rect = mapRef.value!.getBoundingClientRect();
-            isSelecting.value = true;
             selectionStart.value = {
                 x: e.originalEvent.clientX - rect.left,
                 y: e.originalEvent.clientY - rect.top
@@ -128,19 +127,33 @@ onMounted(() => {
 
     // Update mousemove to use client coordinates
     document.addEventListener('mousemove', (e: MouseEvent) => {
-        if (isSelecting.value && selectionStart.value && mapRef.value) {
-            const rect = mapRef.value.getBoundingClientRect();
+        if (selectionStart.value && props.mode === 'select') {
+            const rect = mapRef.value!.getBoundingClientRect();
             selectionEnd.value = {
                 x: e.clientX - rect.left,
                 y: e.clientY - rect.top
             };
 
+            // calculate distance from start to end
+            const distance = Math.sqrt(
+                Math.pow(selectionEnd.value.x - selectionStart.value.x, 2) +
+                Math.pow(selectionEnd.value.y - selectionStart.value.y, 2)
+            );
+            // If distance is less than 5 pixels, don't start selection
+            if (distance >= 5) {
+                isSelecting.value = true;
+            }
+
             // Update mouse position for info display
-            if (lmap) {
+            if (lmap && mapRef.value && isSelecting.value) {
                 const point = L.point(e.clientX - rect.left, e.clientY - rect.top);
                 const latlng = lmap.containerPointToLatLng(point);
                 mousePos.value = { x: latlng.lng, y: latlng.lat };
             }
+        }
+
+        if (isSelecting.value && selectionStart.value && mapRef.value) {
+
         }
     });
 
