@@ -15,7 +15,6 @@
     background-color var(--qui-transition-speed) var(--qui-animation-fade),
     border-color var(--qui-transition-speed) var(--qui-animation-fade),
     box-shadow var(--qui-transition-speed) var(--qui-animation-fade),
-    transform var(--qui-transition-speed) var(--qui-animation-bounce);
 }
 
 .window {
