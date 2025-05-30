@@ -1,5 +1,6 @@
 import { Shape, type IRenderableShape } from "./shape";
 import L from "leaflet";
+import { cvar } from "./utils";
 
 export class Circle extends Shape {
     private _radius: number;
@@ -20,15 +21,13 @@ export class Circle extends Shape {
 
     public generateShape(): IRenderableShape {
         const config = {
-            color: this.selected ? 'red' : this.color,
-            fillColor: this.selected ? 'red' : this.fillColor,
+            color: this.selected ? cvar('--qui-accent-color') : cvar(this.color),
+            fillColor: this.selected ? cvar('--qui-accent-color') : cvar(this.fillColor),
             fillOpacity: this.selected ? 0.2 : this.fillOpacity,
             radius: this.radius,
             weight: this.selected ? 2 : this.weight,
             pane: this.pane?.name,
         }
-
-        console.log("Generating Circle Shape", config);
 
         const l = this.location;
         return L.circle([l.y, l.x], config) as unknown as IRenderableShape;

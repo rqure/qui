@@ -13,9 +13,9 @@ import { createGridLayer } from '../utils/CustomGridLayer';
 import { Model } from '@/core/utils/drawing/model';
 
 const defaultStyle = {
-    color: 'blue',
+    color: '--qui-text-primary',
     weight: 1,
-    fillColor: 'blue',
+    fillColor: '--qui-bg-secondary',
     fillOpacity: 0.5
 };
 
@@ -338,9 +338,9 @@ defineExpose({ centerCanvas, mode });
 }
 
 .selection-box {
-    position: absolute; /* Change from fixed to absolute */
+    position: absolute;
     border: 2px solid var(--qui-accent-color);
-    background-color: rgba(0, 255, 136, 0.1);
+    background-color: var(--qui-overlay-primary);
     pointer-events: none;
     z-index: 10000;
 }
