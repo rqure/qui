@@ -20,6 +20,7 @@ const mousePos = ref({ x: 0, y: 0 });
 const zoomLevel = ref(0);
 const canvasSize = ref({ width: 0, height: 0 });
 const gridLayer = ref<L.GridLayer | null>(null);
+const mode = ref<'pan' | 'select'>('pan');
 
 onMounted(() => {
     if (!mapRef.value) return;
@@ -57,6 +58,16 @@ onMounted(() => {
 
     // Ensure lmap exists before adding event listeners
     if (!lmap) return;
+
+    // Update map dragging based on mode
+    watch(mode, (newMode) => {
+        if (!lmap) return;
+        if (newMode === 'pan') {
+            lmap.dragging.enable();
+        } else {
+            lmap.dragging.disable();
+        }
+    }, { immediate: true });
 
     // Track mouse position and zoom with null checks
     lmap.on('mousemove', (e: L.LeafletMouseEvent) => {
@@ -143,8 +154,8 @@ const centerCanvas = () => {
   canvas.moveTo(canvas.center, 0); // Reset to center at default zoom
 };
 
-// Expose centering method to parent
-defineExpose({ centerCanvas });
+// Expose mode and centering method to parent
+defineExpose({ centerCanvas, mode });
 </script>
 
 <template>

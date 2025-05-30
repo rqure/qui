@@ -4,7 +4,11 @@ import { ref } from 'vue';
 const components = ref([
   { 
     name: 'Rectangle', 
-    icon: '⬜', 
+    icon: `
+      <svg width="24" height="24" viewBox="0 0 24 24">
+        <rect x="3" y="3" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"/>
+      </svg>
+    `, 
     type: 'polygon', 
     defaults: { 
       edges: [
@@ -15,9 +19,36 @@ const components = ref([
       ]
     } 
   },
-  { name: 'Circle', icon: '⭕', type: 'circle', defaults: { radius: 30 } },
-  { name: 'Triangle', icon: '▲', type: 'polygon', defaults: { sides: 3, radius: 40 } },
-  { name: 'Line', icon: '➖', type: 'polyline', defaults: { length: 100 } }
+  { 
+    name: 'Circle', 
+    icon: `
+      <svg width="24" height="24" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/>
+      </svg>
+    `, 
+    type: 'circle', 
+    defaults: { radius: 30 } 
+  },
+  { 
+    name: 'Triangle', 
+    icon: `
+      <svg width="24" height="24" viewBox="0 0 24 24">
+        <path d="M12 3L3 21h18L12 3z" fill="none" stroke="currentColor" stroke-width="2"/>
+      </svg>
+    `, 
+    type: 'polygon', 
+    defaults: { sides: 3, radius: 40 } 
+  },
+  { 
+    name: 'Line', 
+    icon: `
+      <svg width="24" height="24" viewBox="0 0 24 24">
+        <line x1="3" y1="12" x2="21" y2="12" stroke="currentColor" stroke-width="2"/>
+      </svg>
+    `, 
+    type: 'polyline', 
+    defaults: { length: 100 } 
+  }
 ]);
 
 const handleDragStart = (e: DragEvent, component: any) => {
@@ -35,7 +66,7 @@ const handleDragStart = (e: DragEvent, component: any) => {
          class="component-item"
          draggable="true"
          @dragstart="(e) => handleDragStart(e, component)">
-      <span class="component-icon">{{ component.icon }}</span>
+      <span class="component-icon" v-html="component.icon"></span>
       <span class="component-name">{{ component.name }}</span>
     </div>
   </div>
@@ -69,5 +100,11 @@ const handleDragStart = (e: DragEvent, component: any) => {
 
 .component-icon {
   margin-right: 0.5rem;
+}
+
+.component-icon :deep(svg) {
+  width: 24px;
+  height: 24px;
+  display: block;
 }
 </style>

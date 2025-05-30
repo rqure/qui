@@ -5,6 +5,7 @@ import ComponentsExplorer from './components/ComponentsExplorer.vue';
 import Canvas from './components/Canvas.vue';
 
 const showGrid = ref(true);
+const mode = ref<'pan' | 'select'>('pan');
 const canvasRef = ref<InstanceType<typeof Canvas> | null>(null);
 
 const handleCenter = () => {
@@ -16,12 +17,14 @@ const handleCenter = () => {
   <div class="model-builder">
     <Toolbar 
       v-model:showGrid="showGrid"
+      v-model:mode="mode"
       @center="handleCenter"
     />
     <ComponentsExplorer />
     <Canvas 
       ref="canvasRef"
-      :showGrid="showGrid" 
+      :showGrid="showGrid"
+      v-model:mode="mode"
     />
   </div>
 </template>
