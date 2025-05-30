@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, toRaw } from 'vue';
-import { LMap } from '@vue-leaflet/vue-leaflet';
 import "leaflet/dist/leaflet.css";
-import L, { map } from 'leaflet';
+import L from 'leaflet';
 import { QCanvas } from '@/core/utils/drawing/canvas';
 import { ModelRegistry } from '@/core/utils/drawing/registry';
 import { Circle } from '@/core/utils/drawing/circle';
@@ -11,46 +10,49 @@ import { Polyline } from '@/core/utils/drawing/polyline';
 import { Xyz } from '@/core/utils/drawing/xyz';
 
 const mapRef = ref<HTMLElement | null>(null);
-const lmap = ref<L.Map | null>(null);
-const canvas = ref<QCanvas | null>(null);
-const registry = ref<ModelRegistry>(new ModelRegistry());
+let lmap: L.Map | null = null;
+let canvas: QCanvas | null = null;
+const registry = new ModelRegistry();
 
 onMounted(() => {
   if (!mapRef.value) return;
-  
-  lmap.value = L.map(mapRef.value, {
+
+  lmap = L.map(mapRef.value, {
     crs: L.CRS.Simple,
     zoomControl: false,
     attributionControl: false,
+    preferCanvas: true,  // 👈 Critical for vector performance
+    renderer: L.canvas(), // 👈 Force canvas renderer
   });
 
-  canvas.value = new QCanvas(lmap.value as L.Map);
-  canvas.value.setBoundry(new Xyz(-1000, -1000), new Xyz(1000, 1000));
+  canvas = new QCanvas(lmap as L.Map);
+  canvas.setBoundry(new Xyz(-1000, -1000), new Xyz(1000, 1000));
+  canvas.moveTo(canvas.center)
 
   // Register available shape types
-  registry.value.register('circle', (config) => {
-    return registry.value.applyConfig(new Circle(), config);
+  registry.register('circle', (config) => {
+    return registry.applyConfig(new Circle(), config);
   });
 
-  registry.value.register('polygon', (config) => {
-    return registry.value.applyConfig(new Polygon(), config);
+  registry.register('polygon', (config) => {
+    return registry.applyConfig(new Polygon(), config);
   });
 
-  registry.value.register('polyline', (config) => {
-    return registry.value.applyConfig(new Polyline(), config);
+  registry.register('polyline', (config) => {
+    return registry.applyConfig(new Polyline(), config);
   });
 });
 
 const handleDrop = (event: DragEvent) => {
   event.preventDefault();
-  if (!canvas.value) return;
+  if (!canvas) return;
 
   const componentType = event.dataTransfer?.getData('componentType');
   const componentDefaults = JSON.parse(event.dataTransfer?.getData('componentDefaults') || '{}');
 
   if (!componentType) return;
 
-  const modelGenerator = registry.value.get(componentType);
+  const modelGenerator = registry.get(componentType);
   if (!modelGenerator) return;
 
   const rect = (event.target as HTMLElement).getBoundingClientRect();
@@ -63,7 +65,7 @@ const handleDrop = (event: DragEvent) => {
     ...componentDefaults
   });
 
-  canvas.value.render(model);
+  canvas.render(model);
 };
 
 const handleDragOver = (event: DragEvent) => {
@@ -72,18 +74,21 @@ const handleDragOver = (event: DragEvent) => {
 </script>
 
 <template>
-  <div 
+  <div
     class="canvas"
-    ref="mapRef"
     @drop="handleDrop"
     @dragover="handleDragOver"
-  >
+    >
+
+    <div style="height: 100%; width: 100%;"
+      ref="mapRef"
+    >
+    </div>
   </div>
 </template>
 
-<style scoped>
+<style>
 .canvas {
-  grid-area: canvas;
   height: 100%;
   width: 100%;
 }
