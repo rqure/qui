@@ -21,6 +21,7 @@ export class Drawable implements IDrawable {
     private _scale: Xyz;
     private _minZoom: number;
     private _parent?: Drawable;
+    private _selected: boolean;
 
     private _onDestroy: DrawableEvent<void>;
     private _onClick: DrawableEvent<void>;
@@ -34,6 +35,7 @@ export class Drawable implements IDrawable {
         this._rotation = 0;
         this._scale = new Xyz(1, 1, 1);
         this._minZoom = 0;
+        this._selected = false;
 
         this._onDestroy = new DrawableEvent<void>();
         this._onClick = new DrawableEvent<void>();
@@ -147,6 +149,14 @@ export class Drawable implements IDrawable {
 
     public get onMouseOut(): DrawableEvent<void> {
         return this._onMouseOut;
+    }
+
+    public get selected(): boolean {
+        return this._selected;
+    }
+
+    public set selected(value: boolean) {
+        this._selected = value;
     }
 
     public destroy(): void {

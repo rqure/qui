@@ -10,11 +10,13 @@ import { Polyline } from '@/core/utils/drawing/polyline';
 import { Xyz } from '@/core/utils/drawing/xyz';
 import CanvasInfo from './CanvasInfo.vue';
 import { createGridLayer } from '../utils/CustomGridLayer';
+import { Model } from '@/core/utils/drawing/model';
 
 const mapRef = ref<HTMLElement | null>(null);
 let lmap: L.Map | null = null;
 let canvas: QCanvas | null = null;
 const registry = new ModelRegistry();
+const rootModel = ref<Model>(new Model());
 const showGrid = ref(true);
 const mousePos = ref({ x: 0, y: 0 });
 const zoomLevel = ref(0);
@@ -60,7 +62,8 @@ onMounted(() => {
 
     canvas = new QCanvas(lmap as L.Map);
     canvas.setBoundry(new Xyz(-1000, -1000), new Xyz(1000, 1000));
-    canvas.moveTo(canvas.center)
+    canvas.moveTo(canvas.center);
+    canvas.render(rootModel.value);  // Render the root model
 
     // Register available shape types
     registry.register('circle', (config) => {
@@ -112,13 +115,14 @@ onMounted(() => {
         });
         selectedShapes.value.clear();
 
-        canvas?.impl.eachLayer((layer: any) => {
-            if (layer instanceof L.Path) {
-                const pathLayer = layer as PathWithBounds;
-                const bounds = pathLayer.getBounds();
+        // Search through submodels of root model
+        rootModel.value.submodels.forEach(model => {
+            const layer = (model as any)._shape as PathWithBounds;
+            if (layer && layer instanceof L.Path) {
+                const bounds = layer.getBounds();
                 if (bounds.contains(e.latlng)) {
-                    pathLayer.setStyle(selectedStyle);
-                    selectedShapes.value.add(pathLayer);
+                    layer.setStyle(selectedStyle);
+                    selectedShapes.value.add(layer);
                 }
             }
         });
@@ -217,7 +221,7 @@ onMounted(() => {
     updateSize();
 });
 
-// Update handleDrop to apply default style to new shapes
+// Update handleDrop to add models to the root model
 const handleDrop = (event: DragEvent) => {
     event.preventDefault();
     if (!canvas || !lmap) return;
@@ -230,24 +234,21 @@ const handleDrop = (event: DragEvent) => {
     const modelGenerator = registry.get(componentType);
     if (!modelGenerator) return;
 
-    // Get the map container's bounds
     const containerRect = mapRef.value!.getBoundingClientRect();
-
-    // Calculate position relative to the map container
     const x = event.clientX - containerRect.left;
     const y = event.clientY - containerRect.top;
-
-    // Convert the container-relative point to map coordinates
     const point = lmap.containerPointToLatLng([x, y]);
 
     const model = modelGenerator({
         type: componentType,
         offset: { x: point.lng, y: point.lat, z: 0 },
-        ...defaultStyle,  // Apply default style to new shapes
+        ...defaultStyle,
         ...componentDefaults
     });
 
-    canvas.render(model);
+    // Add the new model as a submodel of the root model
+    rootModel.value.addSubmodel(model);
+    canvas.render(rootModel.value);
 };
 
 const handleDragOver = (event: DragEvent) => {
