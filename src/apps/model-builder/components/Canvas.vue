@@ -117,8 +117,8 @@ onMounted(() => {
                 const pathLayer = layer as PathWithBounds;
                 const bounds = pathLayer.getBounds();
                 if (bounds.contains(e.latlng)) {
-                    selectedShapes.value.add(pathLayer);
                     pathLayer.setStyle(selectedStyle);
+                    selectedShapes.value.add(pathLayer);
                 }
             }
         });
@@ -181,8 +181,8 @@ onMounted(() => {
                         console.log('Against selection bounds:', bounds);
                         console.log('Contains:', bounds.contains(pathLayer.getBounds()));
                         if (bounds.contains(pathLayer.getBounds())) {
-                            selectedShapes.value.add(pathLayer);
                             pathLayer.setStyle(selectedStyle);
+                            selectedShapes.value.add(pathLayer);
                         }
                     }
                 });
