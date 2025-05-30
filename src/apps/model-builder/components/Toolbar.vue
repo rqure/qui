@@ -21,8 +21,8 @@ const tools = ref([
 <style scoped>
 .toolbar {
   grid-area: toolbar;
-  background-color: #f0f0f0;
-  border-bottom: 1px solid #ddd;
+  background-color: var(--qui-bg-secondary);
+  border-bottom: var(--qui-window-border);
   display: flex;
   align-items: center;
   padding: 0 1rem;
@@ -31,10 +31,12 @@ const tools = ref([
 .tool-item {
   padding: 0.5rem;
   cursor: pointer;
+  transition: all var(--qui-transition-speed) var(--qui-animation-bounce);
 }
 
 .tool-item:hover {
-  background-color: #e0e0e0;
-  border-radius: 4px;
+  background-color: var(--qui-overlay-hover);
+  transform: var(--qui-hover-lift);
+  border-radius: var(--qui-window-radius);
 }
 </style>

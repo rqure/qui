@@ -44,8 +44,8 @@ const handleDragStart = (e: DragEvent, component: any) => {
 <style scoped>
 .sidebar {
   grid-area: sidebar;
-  background-color: #f8f8f8;
-  border-right: 1px solid #ddd;
+  background-color: var(--qui-bg-secondary);
+  border-right: var(--qui-window-border);
   padding: 1rem;
 }
 
@@ -55,13 +55,16 @@ const handleDragStart = (e: DragEvent, component: any) => {
   padding: 0.5rem;
   margin-bottom: 0.5rem;
   cursor: move;
-  background-color: white;
-  border: 1px solid #ddd;
-  border-radius: 4px;
+  background-color: var(--qui-bg-primary);
+  border: var(--qui-window-border);
+  border-radius: var(--qui-window-radius);
+  transition: all var(--qui-transition-speed) var(--qui-animation-bounce);
 }
 
 .component-item:hover {
-  background-color: #f0f0f0;
+  background-color: var(--qui-overlay-hover);
+  transform: var(--qui-hover-lift);
+  box-shadow: var(--qui-shadow-hover);
 }
 
 .component-icon {

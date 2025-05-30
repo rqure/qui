@@ -97,11 +97,30 @@ const handleDragOver = (event: DragEvent) => {
 .canvas {
   height: 100%;
   width: 100%;
+  background-color: var(--qui-bg-primary);
 }
 
 :deep(.leaflet-container) {
   height: 100%;
   width: 100%;
-  background: #f8f8f8;
+  background: var(--qui-bg-secondary);
+}
+
+/* Add theme styling for Leaflet controls */
+:deep(.leaflet-control-zoom) {
+  border: var(--qui-window-border) !important;
+  background-color: var(--qui-bg-secondary) !important;
+}
+
+:deep(.leaflet-control-zoom a) {
+  background-color: var(--qui-bg-primary) !important;
+  color: var(--qui-text-primary) !important;
+  border: var(--qui-window-border) !important;
+  transition: all var(--qui-transition-speed) var(--qui-animation-bounce);
+}
+
+:deep(.leaflet-control-zoom a:hover) {
+  background-color: var(--qui-overlay-hover) !important;
+  transform: var(--qui-hover-lift);
 }
 </style>

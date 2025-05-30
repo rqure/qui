@@ -22,5 +22,7 @@ import Canvas from './components/Canvas.vue';
   grid-template-columns: 200px 1fr;
   height: 100%;
   width: 100%;
+  background-color: var(--qui-bg-primary);
+  color: var(--qui-text-primary);
 }
 </style>
