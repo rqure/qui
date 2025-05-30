@@ -40,13 +40,53 @@ export class Polygon extends Shape {
 
     public generateShape(): IRenderableShape {
         const config = {
-            color: this.color,
-            fillColor: this.fillColor,
-            fillOpacity: this.fillOpacity,
-            weight: this.weight,
+            color: this.selected ? 'var(--qui-accent-color)' : this.color,
+            fillColor: this.selected ? 'var(--qui-accent-color)' : this.fillColor,
+            fillOpacity: this.selected ? 0.2 : this.fillOpacity,
+            weight: this.selected ? 2 : this.weight,
             pane: this.pane?.name,
         };
         
         return L.polygon([...this.edgeLocations.map(edge => [edge.y, edge.x] as unknown as LatLngExpression)], config) as unknown as IRenderableShape;
+    }
+
+    public contains(point: L.LatLng): boolean {
+        const poly = this.edgeLocations.map(edge => [edge.y, edge.x] as [number, number]);
+        return this.pointInPolygon([point.lat, point.lng], poly);
+    }
+
+    public getBounds(): L.LatLngBounds {
+        const edges = this.edgeLocations;
+        if (edges.length === 0) {
+            return new L.LatLngBounds([0, 0], [0, 0]);
+        }
+
+        let minX = edges[0].x, maxX = edges[0].x;
+        let minY = edges[0].y, maxY = edges[0].y;
+
+        for (const edge of edges) {
+            minX = Math.min(minX, edge.x);
+            maxX = Math.max(maxX, edge.x);
+            minY = Math.min(minY, edge.y);
+            maxY = Math.max(maxY, edge.y);
+        }
+
+        return L.latLngBounds([minY, minX], [maxY, maxX]);
+    }
+
+    private pointInPolygon(point: [number, number], polygon: Array<[number, number]>): boolean {
+        let inside = false;
+        const [x, y] = point;
+
+        for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+            const [xi, yi] = polygon[i];
+            const [xj, yj] = polygon[j];
+
+            const intersect = ((yi > y) !== (yj > y))
+                && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+            if (intersect) inside = !inside;
+        }
+
+        return inside;
     }
 }

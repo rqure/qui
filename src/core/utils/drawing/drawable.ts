@@ -1,6 +1,8 @@
 import type { IRenderer, QCanvas } from "./canvas";
 import { DrawableEvent } from "./event";
 import { Xyz } from "./xyz";
+import type { LatLng, LatLngBounds } from 'leaflet';
+import L from 'leaflet';
 
 export interface IDrawable {
     draw(r: IRenderer): void;
@@ -173,5 +175,13 @@ export class Drawable implements IDrawable {
 
     public erase(): void {
         this._isVisible = false;
+    }
+
+    public contains(point: L.LatLng): boolean {
+        return false; // Default implementation returns false
+    }
+
+    public getBounds(): L.LatLngBounds {
+        return new L.LatLngBounds([0, 0], [0, 0]); // Default implementation returns empty bounds
     }
 }

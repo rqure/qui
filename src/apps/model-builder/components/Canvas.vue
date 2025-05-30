@@ -12,6 +12,13 @@ import CanvasInfo from './CanvasInfo.vue';
 import { createGridLayer } from '../utils/CustomGridLayer';
 import { Model } from '@/core/utils/drawing/model';
 
+const defaultStyle = {
+    color: 'var(--qui-text-primary)',
+    weight: 1,
+    fillColor: 'var(--qui-bg-secondary)',
+    fillOpacity: 0.5
+};
+
 const mapRef = ref<HTMLElement | null>(null);
 let lmap: L.Map | null = null;
 let canvas: QCanvas | null = null;
@@ -23,22 +30,6 @@ const zoomLevel = ref(0);
 const canvasSize = ref({ width: 0, height: 0 });
 const gridLayer = ref<L.GridLayer | null>(null);
 const mode = ref<'pan' | 'select'>('pan');
-const selectedShapes = ref<Set<any>>(new Set());
-
-// Add style constants
-const defaultStyle = {
-    color: 'var(--qui-text-primary)',
-    weight: 1,
-    fillColor: 'var(--qui-bg-secondary)',
-    fillOpacity: 0.5
-};
-
-const selectedStyle = {
-    color: 'var(--qui-accent-color)',
-    weight: 2,
-    fillColor: 'var(--qui-accent-color)',
-    fillOpacity: 0.2
-};
 
 const isSelecting = ref(false);
 const selectionStart = ref<{ x: number; y: number } | null>(null);
@@ -94,10 +85,9 @@ onMounted(() => {
         if (newMode === 'pan') {
             lmap.dragging.enable();
             lmap.boxZoom.enable();
-            selectedShapes.value.forEach((layer: PathWithBounds) => {
-                layer.setStyle(defaultStyle);
+            rootModel.value.submodels.forEach(drawable => {
+                drawable.selected = false;
             });
-            selectedShapes.value.clear();
         } else {
             lmap.dragging.disable();
             lmap.boxZoom.disable();
@@ -109,23 +99,15 @@ onMounted(() => {
     // Update click handler with proper types
     lmap.on('click', (e: L.LeafletMouseEvent) => {
         if (props.mode !== 'select') return;
-        
-        selectedShapes.value.forEach((layer: PathWithBounds) => {
-            layer.setStyle(defaultStyle);
-        });
-        selectedShapes.value.clear();
 
         // Search through submodels of root model
-        rootModel.value.submodels.forEach(model => {
-            const layer = (model as any)._shape as PathWithBounds;
-            if (layer && layer instanceof L.Path) {
-                const bounds = layer.getBounds();
-                if (bounds.contains(e.latlng)) {
-                    layer.setStyle(selectedStyle);
-                    selectedShapes.value.add(layer);
-                }
+        rootModel.value.submodels.forEach(drawable => {
+            drawable.selected = false;
+            if (drawable.contains(e.latlng)) {
+                drawable.selected = true;
             }
         });
+        canvas?.render(rootModel.value);
     });
 
     // Update mousedown handler to use client coordinates relative to canvas
@@ -173,25 +155,16 @@ onMounted(() => {
                 );
                 const bounds = L.latLngBounds(startPoint, endPoint);
 
-                selectedShapes.value.forEach((layer: PathWithBounds) => {
-                    layer.setStyle(defaultStyle);
-                });
-                selectedShapes.value.clear();
-
-                canvas?.impl.eachLayer((layer: any) => {
-                    if (layer instanceof L.Path) {
-                        const pathLayer = layer as PathWithBounds;
-                        console.log('Checking layer bounds:', pathLayer.getBounds());
-                        console.log('Against selection bounds:', bounds);
-                        console.log('Contains:', bounds.contains(pathLayer.getBounds()));
-                        if (bounds.contains(pathLayer.getBounds())) {
-                            pathLayer.setStyle(selectedStyle);
-                            selectedShapes.value.add(pathLayer);
-                        }
+                rootModel.value.submodels.forEach(drawable => {
+                    drawable.selected = false;
+                    if (bounds.contains(drawable.getBounds())) {
+                        drawable.selected = true;
                     }
                 });
+                canvas?.render(rootModel.value);
             }
         }
+
         isSelecting.value = false;
         selectionStart.value = null;
         selectionEnd.value = null;

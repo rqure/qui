@@ -20,14 +20,31 @@ export class Circle extends Shape {
 
     public generateShape(): IRenderableShape {
         const config = {
-            color: this.color,
-            fillColor: this.fillColor,
-            fillOpacity: this.fillOpacity,
+            color: this.selected ? 'var(--qui-accent-color)' : this.color,
+            fillColor: this.selected ? 'var(--qui-accent-color)' : this.fillColor,
+            fillOpacity: this.selected ? 0.2 : this.fillOpacity,
             radius: this.radius,
+            weight: this.selected ? 2 : this.weight,
             pane: this.pane?.name,
         }
 
         const l = this.location;
         return L.circle([l.y, l.x], config) as unknown as IRenderableShape;
+    }
+
+    public contains(point: L.LatLng): boolean {
+        const center = this.location;
+        const latLng = L.latLng(point);
+        const distance = latLng.distanceTo([center.y, center.x]);
+        return distance <= this.radius;
+    }
+
+    public getBounds(): L.LatLngBounds {
+        const center = this.location;
+        const radiusInDegrees = this.radius / 111000; // Approximate conversion from meters to degrees
+        return L.latLngBounds(
+            [center.y - radiusInDegrees, center.x - radiusInDegrees],
+            [center.y + radiusInDegrees, center.x + radiusInDegrees]
+        );
     }
 }
