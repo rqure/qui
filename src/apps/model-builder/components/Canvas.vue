@@ -24,6 +24,21 @@ const mode = ref<'pan' | 'select'>('pan');
 const selectedShapes = ref<Set<any>>(new Set());
 const cursorStyle = computed(() => mode.value === 'select' ? 'pointer' : 'grab');
 
+// Add style constants
+const defaultStyle = {
+    color: 'var(--qui-text-primary)',
+    weight: 1,
+    fillColor: 'var(--qui-bg-secondary)',
+    fillOpacity: 0.5
+};
+
+const selectedStyle = {
+    color: 'var(--qui-accent-color)',
+    weight: 2,
+    fillColor: 'var(--qui-accent-color)',
+    fillOpacity: 0.2
+};
+
 onMounted(() => {
     if (!mapRef.value) return;
 
@@ -68,9 +83,9 @@ onMounted(() => {
         if (newMode === 'pan') {
             lmap.dragging.enable();
             lmap.boxZoom.enable();
-            // Clear any existing selection
-            selectedShapes.value.forEach((shape: any) => {
-                shape.setStyle({ color: 'var(--qui-text-primary)' });
+            // Clear selection with proper style reset
+            selectedShapes.value.forEach((layer: L.Path) => {
+                layer.setStyle(defaultStyle);
             });
             selectedShapes.value.clear();
         } else {
@@ -81,29 +96,23 @@ onMounted(() => {
         mapRef.value!.style.cursor = newMode === 'pan' ? 'grab' : 'pointer';
     }, { immediate: true });
 
-    // Improved click handling - remove auto-switching to pan mode
+    // Improved click handling with proper style management
     lmap.on('click', (e: L.LeafletMouseEvent) => {
         if (props.mode !== 'select') return;
         
-        // Clear current selection
-        selectedShapes.value.forEach((shape: any) => {
-            shape.setStyle({ color: 'var(--qui-text-primary)' });
+        // Reset styles of previously selected shapes
+        selectedShapes.value.forEach((layer: L.Path) => {
+            layer.setStyle(defaultStyle);
         });
         selectedShapes.value.clear();
 
         // Find clicked shapes with proper type checking
         canvas?.impl.eachLayer((layer: any) => {
-            // Check if layer is a Circle, Polygon or Polyline
-            if (layer instanceof L.Circle || 
-                layer instanceof L.Polygon || 
-                layer instanceof L.Polyline) {
-                const latLngBounds = layer.getBounds();
-                if (latLngBounds.contains(e.latlng)) {
+            if (layer instanceof L.Path) {
+                const bounds = layer.getBounds();
+                if (bounds.contains(e.latlng)) {
                     selectedShapes.value.add(layer);
-                    layer.setStyle({ 
-                        color: 'var(--qui-accent-color)',
-                        weight: 2,
-                    });
+                    layer.setStyle(selectedStyle);
                 }
             }
         });
@@ -166,6 +175,7 @@ onMounted(() => {
     updateSize();
 });
 
+// Update handleDrop to apply default style to new shapes
 const handleDrop = (event: DragEvent) => {
     event.preventDefault();
     if (!canvas || !lmap) return;
@@ -191,6 +201,7 @@ const handleDrop = (event: DragEvent) => {
     const model = modelGenerator({
         type: componentType,
         offset: { x: point.lng, y: point.lat, z: 0 },
+        ...defaultStyle,  // Apply default style to new shapes
         ...componentDefaults
     });
 
