@@ -45,7 +45,7 @@ onMounted(() => {
 
 const handleDrop = (event: DragEvent) => {
   event.preventDefault();
-  if (!canvas) return;
+  if (!canvas || !lmap) return;
 
   const componentType = event.dataTransfer?.getData('componentType');
   const componentDefaults = JSON.parse(event.dataTransfer?.getData('componentDefaults') || '{}');
@@ -55,13 +55,19 @@ const handleDrop = (event: DragEvent) => {
   const modelGenerator = registry.get(componentType);
   if (!modelGenerator) return;
 
-  const rect = (event.target as HTMLElement).getBoundingClientRect();
-  const x = event.clientX - rect.left;
-  const y = event.clientY - rect.top;
-
+  // Get the map container's bounds
+  const containerRect = mapRef.value!.getBoundingClientRect();
+  
+  // Calculate position relative to the map container
+  const x = event.clientX - containerRect.left;
+  const y = event.clientY - containerRect.top;
+  
+  // Convert the container-relative point to map coordinates
+  const point = lmap.containerPointToLatLng([x, y]);
+  
   const model = modelGenerator({
     type: componentType,
-    offset: { x, y, z: 0 },
+    offset: { x: point.lng, y: point.lat, z: 0 },
     ...componentDefaults
   });
 
