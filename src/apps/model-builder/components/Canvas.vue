@@ -91,11 +91,14 @@ onMounted(() => {
         });
         selectedShapes.value.clear();
 
-        // Find clicked shapes
+        // Find clicked shapes with proper type checking
         canvas?.impl.eachLayer((layer: any) => {
-            if (layer instanceof L.Path) {
-                const bounds = layer.getBounds();
-                if (bounds.contains(e.latlng)) {
+            // Check if layer is a Circle, Polygon or Polyline
+            if (layer instanceof L.Circle || 
+                layer instanceof L.Polygon || 
+                layer instanceof L.Polyline) {
+                const latLngBounds = layer.getBounds();
+                if (latLngBounds.contains(e.latlng)) {
                     selectedShapes.value.add(layer);
                     layer.setStyle({ 
                         color: 'var(--qui-accent-color)',
