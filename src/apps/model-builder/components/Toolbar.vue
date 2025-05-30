@@ -27,11 +27,13 @@ const toggleMode = () => {
       <div class="tool-item" @click="toggleMode">
         <span v-html="props.mode === 'pan' ? `
           <svg width='16' height='16' viewBox='0 0 16 16'>
-            <path fill='currentColor' d='M8 2v2L6 2l2-2v2zm0 12V8l2 2-2 2z M2 8h2L2 6l-2 2h2zm12 0H8l2-2 2 2z'/>
+            <path fill='currentColor' d='M8 3L8 5M8 11L8 13M3 8L5 8M11 8L13 8M10.5 5.5L12 4M5.5 5.5L4 4M10.5 10.5L12 12M5.5 10.5L4 12' stroke='currentColor' stroke-width='1.5'/>
+            <circle cx='8' cy='8' r='1.5' fill='currentColor'/>
           </svg>
         ` : `
           <svg width='16' height='16' viewBox='0 0 16 16'>
-            <path fill='currentColor' d='M13 3L8 13 3 3h2l3 6 3-6z'/>
+            <path fill='currentColor' d='M4 2L4 4.5L7 7.5L7 13L9 13L9 7.5L12 4.5L12 2L4 2Z'/>
+            <path fill='none' stroke='currentColor' stroke-width='0.75' d='M4 2L4 4.5L7 7.5L7 13L9 13L9 7.5L12 4.5L12 2L4 2Z'/>
           </svg>
         `"></span>
         {{ props.mode === 'pan' ? 'Pan' : 'Select' }}
@@ -78,7 +80,7 @@ const toggleMode = () => {
   transition: all var(--qui-transition-speed) var(--qui-animation-bounce);
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
 }
 
 .tool-item:hover {
@@ -90,5 +92,8 @@ const toggleMode = () => {
 .tool-item :deep(svg) {
   width: 16px;
   height: 16px;
+  display: block; /* Ensures proper positioning */
+  margin-top: -1px; /* Fine-tune vertical alignment with text */
+  flex-shrink: 0; /* Prevents SVG from shrinking */
 }
 </style>
