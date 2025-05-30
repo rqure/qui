@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, toRaw, watch, computed } from 'vue';
+import { ref, onMounted, computed, watch } from 'vue';
 import "leaflet/dist/leaflet.css";
 import L from 'leaflet';
 import { QCanvas } from '@/core/utils/drawing/canvas';
@@ -22,7 +22,6 @@ const canvasSize = ref({ width: 0, height: 0 });
 const gridLayer = ref<L.GridLayer | null>(null);
 const mode = ref<'pan' | 'select'>('pan');
 const selectedShapes = ref<Set<any>>(new Set());
-const cursorStyle = computed(() => mode.value === 'select' ? 'pointer' : 'grab');
 
 // Add style constants
 const defaultStyle = {
@@ -43,15 +42,10 @@ const isSelecting = ref(false);
 const selectionStart = ref<{ x: number; y: number } | null>(null);
 const selectionEnd = ref<{ x: number; y: number } | null>(null);
 
-// Add helper function for bounds testing
-const getBoundsFromPoints = (point1: { x: number; y: number }, point2: { x: number; y: number }) => {
-    return {
-        minX: Math.min(point1.x, point2.x),
-        maxX: Math.max(point1.x, point2.x),
-        minY: Math.min(point1.y, point2.y),
-        maxY: Math.max(point1.y, point2.y)
-    };
-};
+// Add interface for PathWithBounds
+interface PathWithBounds extends L.Path {
+    getBounds(): L.LatLngBounds;
+}
 
 onMounted(() => {
     if (!mapRef.value) return;
@@ -90,15 +84,14 @@ onMounted(() => {
     // Ensure lmap exists before adding event listeners
     if (!lmap) return;
 
-    // Update mode handling
-    watch(() => props.mode, (newMode) => {
+    // Update mode handling with proper types
+    watch(() => props.mode, (newMode: 'pan' | 'select') => {
         if (!lmap) return;
         
         if (newMode === 'pan') {
             lmap.dragging.enable();
             lmap.boxZoom.enable();
-            // Clear selection with proper style reset
-            selectedShapes.value.forEach((layer: L.Path) => {
+            selectedShapes.value.forEach((layer: PathWithBounds) => {
                 layer.setStyle(defaultStyle);
             });
             selectedShapes.value.clear();
@@ -110,23 +103,22 @@ onMounted(() => {
         mapRef.value!.style.cursor = newMode === 'pan' ? 'grab' : 'pointer';
     }, { immediate: true });
 
-    // Improved click handling with proper style management
+    // Update click handler with proper types
     lmap.on('click', (e: L.LeafletMouseEvent) => {
         if (props.mode !== 'select') return;
         
-        // Reset styles of previously selected shapes
-        selectedShapes.value.forEach((layer: L.Path) => {
+        selectedShapes.value.forEach((layer: PathWithBounds) => {
             layer.setStyle(defaultStyle);
         });
         selectedShapes.value.clear();
 
-        // Find clicked shapes with proper type checking
         canvas?.impl.eachLayer((layer: any) => {
             if (layer instanceof L.Path) {
-                const bounds = layer.getBounds();
+                const pathLayer = layer as PathWithBounds;
+                const bounds = pathLayer.getBounds();
                 if (bounds.contains(e.latlng)) {
-                    selectedShapes.value.add(layer);
-                    layer.setStyle(selectedStyle);
+                    selectedShapes.value.add(pathLayer);
+                    pathLayer.setStyle(selectedStyle);
                 }
             }
         });
@@ -165,47 +157,32 @@ onMounted(() => {
         }
     });
 
-    // Update mouseup handler with improved intersection testing
+    // Update mouseup handler with proper types
     document.addEventListener('mouseup', (e: MouseEvent) => {
         if (props.mode === 'select' && isSelecting.value) {
             if (selectionStart.value && selectionEnd.value && mapRef.value) {
-                const rect = mapRef.value.getBoundingClientRect();
-                
-                // Get selection bounds in screen coordinates
-                const selectionBounds = getBoundsFromPoints(
-                    selectionStart.value,
-                    selectionEnd.value
+                const startPoint = lmap!.containerPointToLatLng(
+                    L.point(selectionStart.value.x, selectionStart.value.y)
                 );
+                const endPoint = lmap!.containerPointToLatLng(
+                    L.point(selectionEnd.value.x, selectionEnd.value.y)
+                );
+                const bounds = L.latLngBounds(startPoint, endPoint);
 
-                // Reset previous selection
-                selectedShapes.value.forEach((layer: L.Path) => {
+                selectedShapes.value.forEach((layer: PathWithBounds) => {
                     layer.setStyle(defaultStyle);
                 });
                 selectedShapes.value.clear();
 
-                // Select shapes that intersect with the selection box
                 canvas?.impl.eachLayer((layer: any) => {
                     if (layer instanceof L.Path) {
-                        // Get multiple points along the shape's bounds
-                        const bounds = layer.getBounds();
-                        const nw = lmap!.latLngToContainerPoint(bounds.getNorthWest());
-                        const ne = lmap!.latLngToContainerPoint(bounds.getNorthEast());
-                        const se = lmap!.latLngToContainerPoint(bounds.getSouthEast());
-                        const sw = lmap!.latLngToContainerPoint(bounds.getSouthWest());
-                        const center = lmap!.latLngToContainerPoint(bounds.getCenter());
-
-                        // Check if any point is within selection bounds
-                        const points = [nw, ne, se, sw, center];
-                        const isSelected = points.some(point => 
-                            point.x >= selectionBounds.minX &&
-                            point.x <= selectionBounds.maxX &&
-                            point.y >= selectionBounds.minY &&
-                            point.y <= selectionBounds.maxY
-                        );
-
-                        if (isSelected) {
-                            selectedShapes.value.add(layer);
-                            layer.setStyle(selectedStyle);
+                        const pathLayer = layer as PathWithBounds;
+                        console.log('Checking layer bounds:', pathLayer.getBounds());
+                        console.log('Against selection bounds:', bounds);
+                        console.log('Contains:', bounds.contains(pathLayer.getBounds()));
+                        if (bounds.contains(pathLayer.getBounds())) {
+                            selectedShapes.value.add(pathLayer);
+                            pathLayer.setStyle(selectedStyle);
                         }
                     }
                 });
@@ -287,7 +264,7 @@ const emit = defineEmits<{
   'update:mode': [value: 'pan' | 'select']
 }>();
 
-watch(() => props.showGrid, (newValue) => {
+watch(() => props.showGrid, (newValue: boolean) => {
   if (!lmap) return;
     
   if (newValue && !gridLayer.value) {
