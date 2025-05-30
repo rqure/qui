@@ -137,6 +137,18 @@ export class Drawable implements IDrawable {
         return this._onDestroy;
     }
 
+    public get onClick(): DrawableEvent<void> {
+        return this._onClick;
+    }
+
+    public get onMouseOver(): DrawableEvent<void> {
+        return this._onMouseOver;
+    }
+
+    public get onMouseOut(): DrawableEvent<void> {
+        return this._onMouseOut;
+    }
+
     public destroy(): void {
         this._onDestroy.trigger();
         this._onDestroy.clear();
