@@ -20,13 +20,15 @@ export class Circle extends Shape {
 
     public generateShape(): IRenderableShape {
         const config = {
-            color: this.selected ? 'var(--qui-accent-color)' : this.color,
-            fillColor: this.selected ? 'var(--qui-accent-color)' : this.fillColor,
+            color: this.selected ? 'red' : this.color,
+            fillColor: this.selected ? 'red' : this.fillColor,
             fillOpacity: this.selected ? 0.2 : this.fillOpacity,
             radius: this.radius,
             weight: this.selected ? 2 : this.weight,
             pane: this.pane?.name,
         }
+
+        console.log("Generating Circle Shape", config);
 
         const l = this.location;
         return L.circle([l.y, l.x], config) as unknown as IRenderableShape;

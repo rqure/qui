@@ -5,6 +5,7 @@ import { DrawableEvent } from "./event";
 
 export interface IRenderableShape {
     addTo(renderer: L.Map): any;
+    remove(): void;
 }
 
 export interface IRenderableShapeGenerator {
@@ -84,5 +85,14 @@ export class Shape extends Drawable {
 
             this._onDraw.trigger();
         }
+    }
+
+    public override erase(): void {
+        if (this._shape) {
+            this._shape.remove();
+            this._shape = undefined;
+        }
+
+        super.erase();
     }
 }

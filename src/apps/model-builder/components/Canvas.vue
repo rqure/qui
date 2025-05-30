@@ -13,9 +13,9 @@ import { createGridLayer } from '../utils/CustomGridLayer';
 import { Model } from '@/core/utils/drawing/model';
 
 const defaultStyle = {
-    color: 'var(--qui-text-primary)',
+    color: 'blue',
     weight: 1,
-    fillColor: 'var(--qui-bg-secondary)',
+    fillColor: 'blue',
     fillOpacity: 0.5
 };
 
@@ -88,6 +88,7 @@ onMounted(() => {
             rootModel.value.submodels.forEach(drawable => {
                 drawable.selected = false;
             });
+            canvas?.render(rootModel.value);
         } else {
             lmap.dragging.disable();
             lmap.boxZoom.disable();
@@ -99,6 +100,11 @@ onMounted(() => {
     // Update click handler with proper types
     lmap.on('click', (e: L.LeafletMouseEvent) => {
         if (props.mode !== 'select') return;
+        console.log('Canvas clicked at:', e.latlng);
+        if (isSelecting.value) {
+            isSelecting.value = false;
+            return;
+        }
 
         // Search through submodels of root model
         rootModel.value.submodels.forEach(drawable => {
@@ -165,7 +171,6 @@ onMounted(() => {
             }
         }
 
-        isSelecting.value = false;
         selectionStart.value = null;
         selectionEnd.value = null;
     });
