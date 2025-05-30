@@ -11,7 +11,7 @@ const showGrid = ref(true);
   <div class="model-builder">
     <Toolbar v-model:showGrid="showGrid" />
     <ComponentsExplorer />
-    <Canvas :showGrid="showGrid"></Canvas>
+    <Canvas :showGrid="showGrid" />
   </div>
 </template>
 

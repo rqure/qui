@@ -1,7 +1,14 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 
-const showGrid = ref(true);
+const props = defineProps<{
+  showGrid: boolean
+}>();
+
+const emit = defineEmits<{
+  'update:showGrid': [value: boolean]
+}>();
+
 const tools = ref([
   { name: 'select', icon: '◻️' },
   { name: 'connect', icon: '↔️' },
@@ -9,7 +16,7 @@ const tools = ref([
 ]);
 
 const toggleGrid = () => {
-  showGrid.value = !showGrid.value;
+  emit('update:showGrid', !props.showGrid);
 };
 </script>
 
@@ -24,7 +31,7 @@ const toggleGrid = () => {
     </div>
     <div class="tool-group">
       <div class="tool-item" @click="toggleGrid">
-        {{ showGrid ? '☑' : '☐' }} Grid
+        {{ props.showGrid ? '☑' : '☐' }} Grid
       </div>
     </div>
   </div>
