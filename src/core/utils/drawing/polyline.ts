@@ -1,6 +1,7 @@
 import { Shape, type IRenderableShape } from "./shape";
 import { Xyz } from "./xyz";
 import L from "leaflet";
+import { cvar } from "./utils";
 
 export class Polyline extends Shape {
     private _edges: Xyz[];
@@ -39,20 +40,14 @@ export class Polyline extends Shape {
 
     public generateShape(): IRenderableShape {
         const config = {
-            color: this.selected ? 'var(--qui-accent-color)' : this.color,
+            color: this.selected ? cvar('--qui-accent-color') : cvar(this.color),
             opacity: this.selected ? 0.8 : this.fillOpacity,
             weight: this.selected ? 2 : this.weight,
             pane: this.pane?.name,
         };
 
-        const edgeLocations = this.edges.map(edge => {
-            return edge.multiply(this.absoluteScale)
-                .rotate(this.absoluteRotation)
-                .plus(this.absoluteOffset);
-        });
-
         return L.polyline(
-            [...edgeLocations.map(edge => [edge.y, edge.x] as unknown as L.LatLngExpression)],
+            [...this.edgeLocations.map(edge => [edge.y, edge.x] as unknown as L.LatLngExpression)],
             config
         ) as unknown as IRenderableShape;
     }

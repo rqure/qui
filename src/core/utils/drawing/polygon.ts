@@ -2,6 +2,7 @@ import { extend, type LatLngExpression } from "leaflet";
 import type { Xyz } from "./xyz";
 import { Shape, type IRenderableShape } from "./shape";
 import L from "leaflet";
+import { cvar } from "./utils";
 
 export class Polygon extends Shape {
     private _edges: Xyz[];
@@ -40,8 +41,8 @@ export class Polygon extends Shape {
 
     public generateShape(): IRenderableShape {
         const config = {
-            color: this.selected ? 'var(--qui-accent-color)' : this.color,
-            fillColor: this.selected ? 'var(--qui-accent-color)' : this.fillColor,
+            color: this.selected ? cvar('--qui-accent-color') : cvar(this.color),
+            fillColor: this.selected ? cvar('--qui-accent-color') : cvar(this.fillColor),
             fillOpacity: this.selected ? 0.2 : this.fillOpacity,
             weight: this.selected ? 2 : this.weight,
             pane: this.pane?.name,
