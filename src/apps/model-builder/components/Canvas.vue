@@ -35,11 +35,6 @@ const isSelecting = ref(false);
 const selectionStart = ref<{ x: number; y: number } | null>(null);
 const selectionEnd = ref<{ x: number; y: number } | null>(null);
 
-// Add interface for PathWithBounds
-interface PathWithBounds extends L.Path {
-    getBounds(): L.LatLngBounds;
-}
-
 onMounted(() => {
     if (!mapRef.value) return;
 
