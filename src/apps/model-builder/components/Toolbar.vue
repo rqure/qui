@@ -1,30 +1,48 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 
+const showGrid = ref(true);
 const tools = ref([
   { name: 'select', icon: '◻️' },
   { name: 'connect', icon: '↔️' },
   { name: 'delete', icon: '🗑️' }
 ]);
+
+const toggleGrid = () => {
+  showGrid.value = !showGrid.value;
+};
 </script>
 
 <template>
   <div class="toolbar">
-    <div v-for="tool in tools" 
-         :key="tool.name" 
-         class="tool-item">
-      {{ tool.icon }}
+    <div class="tool-group">
+      <div v-for="tool in tools" 
+           :key="tool.name" 
+           class="tool-item">
+        {{ tool.icon }}
+      </div>
+    </div>
+    <div class="tool-group">
+      <div class="tool-item" @click="toggleGrid">
+        {{ showGrid ? '☑' : '☐' }} Grid
+      </div>
     </div>
   </div>
 </template>
 
 <style scoped>
+.tool-group {
+  display: flex;
+  gap: 8px;
+}
+
 .toolbar {
   grid-area: toolbar;
   background-color: var(--qui-bg-secondary);
   border-bottom: var(--qui-window-border);
   display: flex;
   align-items: center;
+  justify-content: space-between;
   padding: 0 1rem;
 }
 

@@ -1,14 +1,17 @@
 <script setup lang="ts">
+import { ref } from 'vue';
 import Toolbar from './components/Toolbar.vue';
 import ComponentsExplorer from './components/ComponentsExplorer.vue';
 import Canvas from './components/Canvas.vue';
+
+const showGrid = ref(true);
 </script>
 
 <template>
   <div class="model-builder">
-    <Toolbar />
+    <Toolbar v-model:showGrid="showGrid" />
     <ComponentsExplorer />
-    <Canvas></Canvas>
+    <Canvas :showGrid="showGrid"></Canvas>
   </div>
 </template>
 

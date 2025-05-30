@@ -31,7 +31,7 @@ const props = defineProps<{
 .canvas-info {
   position: absolute;
   bottom: 10px;
-  left: 10px;
+  right: 10px;
   z-index: 1000;
   background: var(--qui-bg-secondary);
   border: var(--qui-window-border);

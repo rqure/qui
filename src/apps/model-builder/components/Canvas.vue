@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, toRaw } from 'vue';
+import { ref, onMounted, toRaw, watch } from 'vue';
 import "leaflet/dist/leaflet.css";
 import L from 'leaflet';
 import { QCanvas } from '@/core/utils/drawing/canvas';
@@ -118,38 +118,34 @@ const handleDragOver = (event: DragEvent) => {
     event.preventDefault();
 };
 
-const toggleGrid = () => {
-    showGrid.value = !showGrid.value;
-    if (!lmap) return;
+const props = defineProps<{
+  showGrid?: boolean
+}>();
+
+watch(() => props.showGrid, (newValue) => {
+  if (!lmap) return;
     
-    if (showGrid.value && !gridLayer.value) {
-        gridLayer.value = createGridLayer();
-        gridLayer.value.addTo(lmap);
-    } else if (!showGrid.value && gridLayer.value) {
-        gridLayer.value.removeFrom(lmap);
-        gridLayer.value = null;
-    }
-};
+  if (newValue && !gridLayer.value) {
+    gridLayer.value = createGridLayer();
+    gridLayer.value.addTo(lmap);
+  } else if (!newValue && gridLayer.value) {
+    gridLayer.value.removeFrom(lmap);
+    gridLayer.value = null;
+  }
+}, { immediate: true });
 </script>
 
 <template>
-    <div class="canvas-container" @drop="handleDrop" @dragover="handleDragOver">
-        <div class="canvas-toolbar">
-            <button class="canvas-tool" @click="toggleGrid">
-                {{ showGrid ? '☑' : '☐' }} Grid
-            </button>
-        </div>
-
-        <div class="canvas" ref="mapRef"></div>
-
-        <CanvasInfo
-            :zoom="zoomLevel"
-            :mouse-x="mousePos.x"
-            :mouse-y="mousePos.y"
-            :canvas-width="canvasSize.width"
-            :canvas-height="canvasSize.height"
-        />
-    </div>
+  <div class="canvas-container" @drop="handleDrop" @dragover="handleDragOver">
+    <div class="canvas" ref="mapRef"></div>
+    <CanvasInfo
+      :zoom="zoomLevel"
+      :mouse-x="mousePos.x"
+      :mouse-y="mousePos.y"
+      :canvas-width="canvasSize.width"
+      :canvas-height="canvasSize.height"
+    />
+  </div>
 </template>
 
 <style>
@@ -164,32 +160,6 @@ const toggleGrid = () => {
     width: 100%;
     position: relative;
     background-color: var(--qui-bg-secondary);
-}
-
-.canvas-toolbar {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    z-index: 1000;
-    display: flex;
-    gap: 8px;
-}
-
-.canvas-tool {
-    background: var(--qui-bg-secondary);
-    border: var(--qui-window-border);
-    border-radius: var(--qui-window-radius);
-    color: var(--qui-text-primary);
-    padding: 4px 8px;
-    cursor: pointer;
-    font-family: var(--qui-font-family);
-    font-size: var(--qui-font-size-small);
-    transition: all var(--qui-transition-speed) var(--qui-animation-bounce);
-}
-
-.canvas-tool:hover {
-    background: var(--qui-overlay-hover);
-    transform: var(--qui-hover-lift);
 }
 
 :deep(.leaflet-container) {
