@@ -5,13 +5,24 @@ import ComponentsExplorer from './components/ComponentsExplorer.vue';
 import Canvas from './components/Canvas.vue';
 
 const showGrid = ref(true);
+const canvasRef = ref<InstanceType<typeof Canvas> | null>(null);
+
+const handleCenter = () => {
+  canvasRef.value?.centerCanvas();
+};
 </script>
 
 <template>
   <div class="model-builder">
-    <Toolbar v-model:showGrid="showGrid" />
+    <Toolbar 
+      v-model:showGrid="showGrid"
+      @center="handleCenter"
+    />
     <ComponentsExplorer />
-    <Canvas :showGrid="showGrid" />
+    <Canvas 
+      ref="canvasRef"
+      :showGrid="showGrid" 
+    />
   </div>
 </template>
 
