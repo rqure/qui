@@ -39,6 +39,10 @@ const selectedStyle = {
     fillOpacity: 0.2
 };
 
+const isSelecting = ref(false);
+const selectionStart = ref<{ x: number; y: number } | null>(null);
+const selectionEnd = ref<{ x: number; y: number } | null>(null);
+
 onMounted(() => {
     if (!mapRef.value) return;
 
@@ -118,43 +122,79 @@ onMounted(() => {
         });
     });
 
-    // Update cursor for dragging
-    lmap.on('mousedown', () => {
-        if (props.mode === 'pan') {
+    // Add selection box handling
+    lmap.on('mousedown', (e: L.LeafletMouseEvent) => {
+        if (props.mode === 'select') {
+            isSelecting.value = true;
+            selectionStart.value = {
+                x: e.containerPoint.x,
+                y: e.containerPoint.y
+            };
+            selectionEnd.value = { ...selectionStart.value };
+        } else if (props.mode === 'pan') {
             mapRef.value!.style.cursor = 'grabbing';
         }
     });
 
-    lmap.on('mouseup', () => {
-        if (props.mode === 'pan') {
+    lmap.on('mousemove', (e: L.LeafletMouseEvent) => {
+        mousePos.value = { x: e.latlng.lng, y: e.latlng.lat };
+
+        if (isSelecting.value && selectionStart.value) {
+            selectionEnd.value = {
+                x: e.containerPoint.x,
+                y: e.containerPoint.y
+            };
+        }
+    });
+
+    lmap.on('mouseup', (e: L.LeafletMouseEvent) => {
+        if (props.mode === 'select' && isSelecting.value) {
+            // Find shapes in selection box
+            if (selectionStart.value && selectionEnd.value) {
+                const bounds = L.bounds(
+                    L.point(selectionStart.value.x, selectionStart.value.y),
+                    L.point(selectionEnd.value.x, selectionEnd.value.y)
+                );
+
+                // Reset previous selection
+                selectedShapes.value.forEach((layer: L.Path) => {
+                    layer.setStyle(defaultStyle);
+                });
+                selectedShapes.value.clear();
+
+                // Select shapes that intersect with the selection box
+                canvas?.impl.eachLayer((layer: any) => {
+                    if (layer instanceof L.Path) {
+                        const layerBounds = layer.getBounds();
+                        const topLeft = lmap!.latLngToContainerPoint(layerBounds.getNorthWest());
+                        const bottomRight = lmap!.latLngToContainerPoint(layerBounds.getSouthEast());
+                        const layerScreenBounds = L.bounds(topLeft, bottomRight);
+
+                        if (bounds.overlaps(layerScreenBounds)) {
+                            selectedShapes.value.add(layer);
+                            layer.setStyle(selectedStyle);
+                        }
+                    }
+                });
+            }
+
+            // Reset selection box
+            isSelecting.value = false;
+            selectionStart.value = null;
+            selectionEnd.value = null;
+        } else if (props.mode === 'pan') {
             mapRef.value!.style.cursor = 'grab';
         }
     });
 
-    // Update map dragging based on mode
-    watch(mode, (newMode) => {
-        if (!lmap) return;
-        
-        if (newMode === 'pan') {
-            lmap.dragging.enable();
-            // Clear any existing selection
-            selectedShapes.value.forEach((shape: any) => {
-                shape.setStyle({ color: 'var(--qui-text-primary)' });
-            });
-            selectedShapes.value.clear();
-        } else {
-            lmap.dragging.disable();
-        }
-        
-        // Update cursor
-        mapRef.value!.style.cursor = cursorStyle.value;
-    }, { immediate: true });
-
-    // Track mouse position and zoom with null checks
-    lmap.on('mousemove', (e: L.LeafletMouseEvent) => {
-        mousePos.value = { x: e.latlng.lng, y: e.latlng.lat };
+    // Clear selection box if mouse leaves the canvas
+    lmap.on('mouseout', () => {
+        isSelecting.value = false;
+        selectionStart.value = null;
+        selectionEnd.value = null;
     });
 
+    // Track zoom with null checks
     lmap.on('zoom', () => {
         if (!lmap) return;
         zoomLevel.value = lmap.getZoom();
@@ -253,7 +293,19 @@ defineExpose({ centerCanvas, mode });
       class="canvas" 
       ref="mapRef"
       :style="{ cursor: props.mode === 'pan' ? 'grab' : 'pointer' }"
-    ></div>
+    >
+      <!-- Add selection box overlay -->
+      <div
+        v-if="isSelecting && selectionStart && selectionEnd"
+        class="selection-box"
+        :style="{
+          left: `${Math.min(selectionStart.x, selectionEnd.x)}px`,
+          top: `${Math.min(selectionStart.y, selectionEnd.y)}px`,
+          width: `${Math.abs(selectionEnd.x - selectionStart.x)}px`,
+          height: `${Math.abs(selectionEnd.y - selectionStart.y)}px`,
+        }"
+      ></div>
+    </div>
     <CanvasInfo
       :zoom="zoomLevel"
       :mouse-x="mousePos.x"
@@ -306,5 +358,13 @@ defineExpose({ centerCanvas, mode });
 :deep(.leaflet-control-zoom a:hover) {
     background-color: var(--qui-overlay-hover) !important;
     transform: var(--qui-hover-lift);
+}
+
+.selection-box {
+    position: absolute;
+    border: 2px solid var(--qui-accent-color);
+    background-color: rgba(0, 255, 136, 0.1);
+    pointer-events: none;
+    z-index: 1000;
 }
 </style>
