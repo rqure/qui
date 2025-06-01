@@ -134,6 +134,9 @@ onMounted(() => {
     // Update mousedown handler for selection, resize and move operations
     lmap.on('mousedown', (e: L.LeafletMouseEvent) => {
         if (props.mode === 'select') {
+            // Reset selection state at start
+            isSelecting.value = false;
+            
             const rect = mapRef.value!.getBoundingClientRect();
             selectionStart.value = {
                 x: e.originalEvent.clientX - rect.left,
@@ -165,6 +168,10 @@ onMounted(() => {
                     });
                     
                     if (closestHandle && minDistance < 10) {
+                        // Reset selection state when starting resize/move
+                        selectionStart.value = null;
+                        selectionEnd.value = null;
+                        
                         // Start resizing or moving
                         if ((closestHandle as ResizeOrMoveHandle).handleType === 'move') {
                             isMoving.value = true;
@@ -175,7 +182,7 @@ onMounted(() => {
                         activeHandle.value = closestHandle;
                         activeDrawable.value = selectedDrawable;
                         lastMousePos.value = new Xyz(latlng.lng, latlng.lat);
-                        return; // Skip regular selection
+                        return;
                     }
                 }
             }
@@ -259,6 +266,11 @@ onMounted(() => {
             activeDrawable.value = null;
             lastMousePos.value = null;
             document.body.style.cursor = '';
+            
+            // Reset selection state
+            isSelecting.value = false;
+            selectionStart.value = null;
+            selectionEnd.value = null;
             
             // Update properties in the panel if needed
             if (activeDrawable.value) {
@@ -436,9 +448,9 @@ defineExpose({ centerCanvas, mode });
         cursor: props.mode === 'pan' ? 'grab' : 'pointer'
       }"
     >
-      <!-- Add selection box overlay -->
+      <!-- Only show selection box when not resizing or moving -->
       <div
-        v-if="isSelecting && selectionStart && selectionEnd"
+        v-if="isSelecting && selectionStart && selectionEnd && !isResizing && !isMoving"
         class="selection-box"
         :style="{
           position: 'absolute',
