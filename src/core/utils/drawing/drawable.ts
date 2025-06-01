@@ -34,6 +34,7 @@ export class Drawable implements IDrawable {
     private _minZoom: number;
     private _parent?: Drawable;
     private _selected: boolean;
+    private _isHovering: boolean;
 
     private _onDestroy: DrawableEvent<void>;
     private _onClick: DrawableEvent<void>;
@@ -48,6 +49,7 @@ export class Drawable implements IDrawable {
         this._scale = new Xyz(1, 1, 1);
         this._minZoom = 0;
         this._selected = false;
+        this._isHovering = false;
 
         this._onDestroy = new DrawableEvent<void>();
         this._onClick = new DrawableEvent<void>();
@@ -169,6 +171,14 @@ export class Drawable implements IDrawable {
 
     public set selected(value: boolean) {
         this._selected = value;
+    }
+
+    public get isHovering(): boolean {
+        return this._isHovering;
+    }
+
+    public set isHovering(value: boolean) {
+        this._isHovering = value;
     }
 
     public destroy(): void {

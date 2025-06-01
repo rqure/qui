@@ -23,16 +23,40 @@ export class Circle extends Shape {
 
     public generateShape(): IRenderableShape {
         const config = {
-            color: this.selected ? cvar('--qui-accent-color') : cvar(this.color),
-            fillColor: this.selected ? cvar('--qui-accent-color') : cvar(this.fillColor),
-            fillOpacity: this.selected ? 0.2 : this.fillOpacity,
+            color: this.getColorForState(),
+            fillColor: this.getFillColorForState(),
+            fillOpacity: this.getFillOpacityForState(),
             radius: this.radius,
-            weight: this.selected ? 2 : this.weight,
+            weight: this.getWeightForState(),
             pane: this.pane?.name,
         }
 
         const l = this.location;
         return L.circle([l.y, l.x], config) as unknown as IRenderableShape;
+    }
+
+    private getColorForState(): string {
+        if (this.selected) return cvar('--qui-accent-color');
+        if (this.isHovering) return cvar('--qui-accent-secondary');
+        return cvar(this.color);
+    }
+
+    private getFillColorForState(): string {
+        if (this.selected) return cvar('--qui-accent-color');
+        if (this.isHovering) return cvar('--qui-accent-secondary');
+        return cvar(this.fillColor);
+    }
+
+    private getFillOpacityForState(): number {
+        if (this.selected) return 0.2;
+        if (this.isHovering) return this.fillOpacity * 0.8;
+        return this.fillOpacity;
+    }
+
+    private getWeightForState(): number {
+        if (this.selected) return 2;
+        if (this.isHovering) return this.weight * 1.5;
+        return this.weight;
     }
 
     public contains(point: L.LatLng): boolean {

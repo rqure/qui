@@ -206,6 +206,32 @@ onMounted(() => {
     lmap.on('resize', updateSize);
     lmap.on('move', updateSize);
     updateSize();
+
+    // Add event handlers for hover effects on shapes
+    lmap.on('mouseover', (e: L.LeafletMouseEvent) => {
+        if (!e.originalEvent.target) return;
+        
+        // Find the drawable that contains the point
+        const hoveredModel = rootModel.value.submodels.find(model => 
+            model.contains(e.latlng)
+        );
+        
+        if (hoveredModel) {
+            hoveredModel.isHovering = true;
+            canvas?.render(rootModel.value);
+            hoveredModel.onMouseOver.trigger();
+        }
+    });
+
+    lmap.on('mouseout', (e: L.LeafletMouseEvent) => {
+        rootModel.value.submodels.forEach(model => {
+            if (model.isHovering) {
+                model.isHovering = false;
+                model.onMouseOut.trigger();
+            }
+        });
+        canvas?.render(rootModel.value);
+    });
 });
 
 // Update handleDrop to add models to the root model
@@ -332,6 +358,7 @@ defineExpose({ centerCanvas, mode });
 
 :deep(.leaflet-interactive) {
     cursor: inherit !important;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* Add theme styling for Leaflet controls */
