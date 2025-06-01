@@ -39,6 +39,7 @@ const handleSelectionChange = (item?: Drawable) => {
       @selection-change="handleSelectionChange"
     />
     <PropertiesEditor
+      v-if="selectedItem"
       v-model:selectedItem="selectedItem"
     />
   </div>
@@ -48,10 +49,10 @@ const handleSelectionChange = (item?: Drawable) => {
 .model-builder {
   display: grid;
   grid-template-areas:
-    "toolbar toolbar toolbar"
-    "sidebar canvas properties";
+    "toolbar toolbar"
+    "sidebar canvas";
   grid-template-rows: 50px 1fr;
-  grid-template-columns: 200px 1fr 250px;
+  grid-template-columns: 200px 1fr;
   height: 100%;
   width: 100%;
   background-color: var(--qui-bg-primary);

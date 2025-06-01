@@ -70,11 +70,45 @@ const updateProperty = (property: string, value: any) => {
 
 <style scoped>
 .properties-editor {
-  grid-area: properties;
+  position: fixed;
+  top: calc(var(--qui-titlebar-height) + 60px); /* Position below toolbar with margin */
+  right: 20px; /* Increased margin from edge */
+  bottom: 70px; /* Leave more space for CanvasInfo */
   background-color: var(--qui-bg-secondary);
-  border-left: var(--qui-window-border);
+  border: var(--qui-window-border);
+  border-radius: var(--qui-window-radius);
   padding: 1rem;
   width: 250px;
+  box-shadow: var(--qui-shadow-window);
+  backdrop-filter: blur(var(--qui-backdrop-blur));
+  z-index: 1000;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.properties-container {
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* Add scrollbar styling */
+.properties-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.properties-container::-webkit-scrollbar-track {
+  background: var(--qui-scrollbar-track);
+  border-radius: var(--qui-window-radius);
+}
+
+.properties-container::-webkit-scrollbar-thumb {
+  background: var(--qui-scrollbar-thumb);
+  border-radius: var(--qui-window-radius);
+}
+
+.properties-container::-webkit-scrollbar-thumb:hover {
+  background: var(--qui-scrollbar-thumb-hover);
 }
 
 .no-selection {

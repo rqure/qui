@@ -30,8 +30,8 @@ const props = defineProps<{
 <style scoped>
 .canvas-info {
   position: absolute;
-  bottom: 10px;
-  right: 10px;
+  bottom: 20px; /* Increased margin from bottom */
+  right: 20px; /* Increased margin from right */
   z-index: 1000;
   background: var(--qui-bg-secondary);
   border: var(--qui-window-border);
