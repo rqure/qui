@@ -32,40 +32,42 @@ const updateProperty = (property: string, value: any) => {
 </script>
 
 <template>
-  <div class="properties-editor">
-    <div v-if="!selectedItem" class="no-selection">
-      No item selected
-    </div>
-    <div v-else class="properties-container">
-      <h3>Properties</h3>
-      <div class="property-group">
-        <div v-for="prop in properties" 
-             :key="prop.name" 
-             class="property-row">
-          <label>{{ prop.label }}</label>
-          <input v-if="prop.type === 'number'"
-                 type="number"
-                 :value="prop.value"
-                 @input="e => updateProperty(prop.name, +(e.target as HTMLInputElement).value)" />
-          <input v-else-if="prop.type === 'color'"
-                 type="color"
-                 :value="prop.value"
-                 @input="e => updateProperty(prop.name, (e.target as HTMLInputElement).value)" />
-          <input v-else-if="prop.type === 'range'"
-                 type="range"
-                 :value="prop.value"
-                 :min="prop.min"
-                 :max="prop.max"
-                 :step="prop.step"
-                 @input="e => updateProperty(prop.name, +(e.target as HTMLInputElement).value)" />
-          <input v-else
-                 type="text"
-                 :value="prop.value"
-                 @input="e => updateProperty(prop.name, (e.target as HTMLInputElement).value)" />
+  <Transition name="slide">
+    <div class="properties-editor">
+      <div v-if="!selectedItem" class="no-selection">
+        No item selected
+      </div>
+      <div v-else class="properties-container">
+        <h3>Properties</h3>
+        <div class="property-group">
+          <div v-for="prop in properties" 
+               :key="prop.name" 
+               class="property-row">
+            <label>{{ prop.label }}</label>
+            <input v-if="prop.type === 'number'"
+                   type="number"
+                   :value="prop.value"
+                   @input="e => updateProperty(prop.name, +(e.target as HTMLInputElement).value)" />
+            <input v-else-if="prop.type === 'color'"
+                   type="color"
+                   :value="prop.value"
+                   @input="e => updateProperty(prop.name, (e.target as HTMLInputElement).value)" />
+            <input v-else-if="prop.type === 'range'"
+                   type="range"
+                   :value="prop.value"
+                   :min="prop.min"
+                   :max="prop.max"
+                   :step="prop.step"
+                   @input="e => updateProperty(prop.name, +(e.target as HTMLInputElement).value)" />
+            <input v-else
+                   type="text"
+                   :value="prop.value"
+                   @input="e => updateProperty(prop.name, (e.target as HTMLInputElement).value)" />
+          </div>
         </div>
       </div>
     </div>
-  </div>
+  </Transition>
 </template>
 
 <style scoped>
@@ -155,5 +157,21 @@ h3, h4 {
 h4 {
   font-size: var(--qui-font-size-small);
   color: var(--qui-text-secondary);
+}
+
+/* Add slide animation */
+.slide-enter-active,
+.slide-leave-active {
+  transition: transform var(--qui-transition-speed) var(--qui-animation-bounce);
+}
+
+.slide-enter-from,
+.slide-leave-to {
+  transform: translateX(100%);
+}
+
+.slide-enter-to,
+.slide-leave-from {
+  transform: translateX(0);
 }
 </style>

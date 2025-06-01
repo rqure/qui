@@ -38,10 +38,12 @@ const handleSelectionChange = (item?: Drawable) => {
       v-model:mode="mode"
       @selection-change="handleSelectionChange"
     />
-    <PropertiesEditor
-      v-if="selectedItem"
-      v-model:selectedItem="selectedItem"
-    />
+    <Transition name="slide">
+      <PropertiesEditor
+        v-if="selectedItem"
+        v-model:selectedItem="selectedItem"
+      />
+    </Transition>
   </div>
 </template>
 
@@ -57,5 +59,23 @@ const handleSelectionChange = (item?: Drawable) => {
   width: 100%;
   background-color: var(--qui-bg-primary);
   color: var(--qui-text-primary);
+}
+
+/* Add slide animation */
+.slide-enter-active,
+.slide-leave-active {
+  transition: all var(--qui-transition-speed) var(--qui-animation-bounce);
+}
+
+.slide-enter-from,
+.slide-leave-to {
+  opacity: 0;
+  transform: translateX(30px);
+}
+
+.slide-enter-to,
+.slide-leave-from {
+  opacity: 1;
+  transform: translateX(0);
 }
 </style>
