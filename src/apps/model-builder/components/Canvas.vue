@@ -133,6 +133,11 @@ onMounted(() => {
 
     // Update mousedown handler for selection, resize and move operations
     lmap.on('mousedown', (e: L.LeafletMouseEvent) => {
+        // Ignore right mouse button clicks for selection
+        if (e.originalEvent instanceof MouseEvent && e.originalEvent.button === 2) {
+            return;
+        }
+        
         if (props.mode === 'select') {
             // Reset selection state at start
             isSelecting.value = false;
@@ -193,6 +198,11 @@ onMounted(() => {
 
     // Update mousemove for selection, resize and move operations
     document.addEventListener('mousemove', (e: MouseEvent) => {
+        // Ignore right mouse button drags
+        if (e.buttons === 2) {
+            return;
+        }
+        
         if (!lmap || !mapRef.value) return;
 
         const rect = mapRef.value.getBoundingClientRect();
