@@ -2,6 +2,7 @@ import { Shape, type IRenderableShape } from "./shape";
 import { Xyz } from "./xyz";
 import L from "leaflet";
 import { cvar } from "./utils";
+import type { ResizeOrMoveHandle } from "./drawable";
 
 export class Polyline extends Shape {
     private _edges: Xyz[];
@@ -99,5 +100,87 @@ export class Polyline extends Shape {
             Math.pow(lineEnd.lat - lineStart.lat, 2)
         );
         return numerator / denominator;
+    }
+    
+    // Override resize to handle polyline specific resizing
+    public override resize(handle: ResizeOrMoveHandle, delta: Xyz): void {
+        if (handle.handleType === 'move') return; // Movement is handled separately
+        
+        // Get bounds before resizing
+        const oldBounds = this.getBounds();
+        const oldWidth = oldBounds.getEast() - oldBounds.getWest();
+        const oldHeight = oldBounds.getNorth() - oldBounds.getSouth();
+        
+        // Calculate scale factors based on handle type
+        let scaleX = 1, scaleY = 1;
+        let anchorX = 0, anchorY = 0;
+        
+        switch(handle.handleType) {
+            case 'topleft':
+                anchorX = oldBounds.getEast();
+                anchorY = oldBounds.getSouth();
+                scaleX = (oldWidth - delta.x) / oldWidth;
+                scaleY = (oldHeight + delta.y) / oldHeight;
+                break;
+            case 'topright':
+                anchorX = oldBounds.getWest();
+                anchorY = oldBounds.getSouth();
+                scaleX = (oldWidth + delta.x) / oldWidth;
+                scaleY = (oldHeight + delta.y) / oldHeight;
+                break;
+            case 'bottomleft':
+                anchorX = oldBounds.getEast();
+                anchorY = oldBounds.getNorth();
+                scaleX = (oldWidth - delta.x) / oldWidth;
+                scaleY = (oldHeight - delta.y) / oldHeight;
+                break;
+            case 'bottomright':
+                anchorX = oldBounds.getWest();
+                anchorY = oldBounds.getNorth();
+                scaleX = (oldWidth + delta.x) / oldWidth;
+                scaleY = (oldHeight - delta.y) / oldHeight;
+                break;
+            case 'left':
+                anchorX = oldBounds.getEast();
+                anchorY = (oldBounds.getNorth() + oldBounds.getSouth()) / 2;
+                scaleX = (oldWidth - delta.x) / oldWidth;
+                break;
+            case 'right':
+                anchorX = oldBounds.getWest();
+                anchorY = (oldBounds.getNorth() + oldBounds.getSouth()) / 2;
+                scaleX = (oldWidth + delta.x) / oldWidth;
+                break;
+            case 'top':
+                anchorX = (oldBounds.getWest() + oldBounds.getEast()) / 2;
+                anchorY = oldBounds.getSouth();
+                scaleY = (oldHeight + delta.y) / oldHeight;
+                break;
+            case 'bottom':
+                anchorX = (oldBounds.getWest() + oldBounds.getEast()) / 2;
+                anchorY = oldBounds.getNorth();
+                scaleY = (oldHeight - delta.y) / oldHeight;
+                break;
+        }
+        
+        // Avoid negative or zero scaling
+        scaleX = Math.max(0.1, scaleX);
+        scaleY = Math.max(0.1, scaleY);
+        
+        // Apply scale to each edge
+        const anchor = new Xyz(anchorX, anchorY);
+        const newEdges = this._edges.map(edge => {
+            const localPos = edge.minus(this.offset); // Get position relative to offset
+            const scaledPos = new Xyz(
+                localPos.x * scaleX,
+                localPos.y * scaleY,
+                localPos.z
+            );
+            return scaledPos.plus(this.offset);
+        });
+        
+        this._edges = newEdges;
+        
+        // Trigger resize event
+        super.resize(handle, delta);
     }
 }

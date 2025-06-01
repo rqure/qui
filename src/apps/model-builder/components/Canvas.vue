@@ -8,7 +8,7 @@ import { Circle } from '@/core/utils/drawing/circle';
 import { Polygon } from '@/core/utils/drawing/polygon';
 import { Polyline } from '@/core/utils/drawing/polyline';
 import { Xyz } from '@/core/utils/drawing/xyz';
-import type { Drawable } from '@/core/utils/drawing/drawable'; // Add this import
+import type { Drawable, ResizeOrMoveHandle } from '@/core/utils/drawing/drawable';
 import CanvasInfo from './CanvasInfo.vue';
 import { createGridLayer } from '../utils/CustomGridLayer';
 import { Model } from '@/core/utils/drawing/model';
@@ -36,6 +36,13 @@ const isSelecting = ref(false);
 const selectionStart = ref<{ x: number; y: number } | null>(null);
 const selectionEnd = ref<{ x: number; y: number } | null>(null);
 
+// Add state for resize and move operations
+const isResizing = ref(false);
+const isMoving = ref(false);
+const activeHandle = ref<ResizeOrMoveHandle | null>(null);
+const activeDrawable = ref<Drawable | null>(null);
+const lastMousePos = ref<Xyz | null>(null);
+
 onMounted(() => {
     if (!mapRef.value) return;
 
@@ -43,14 +50,14 @@ onMounted(() => {
         crs: L.CRS.Simple,
         zoomControl: false,
         attributionControl: false,
-        preferCanvas: true,  // 👈 Critical for vector performance
-        renderer: L.canvas(), // 👈 Force canvas renderer
+        preferCanvas: true,
+        renderer: L.canvas(),
     });
 
     canvas = new QCanvas(lmap as L.Map);
     canvas.setBoundry(new Xyz(-1000, -1000), new Xyz(1000, 1000));
     canvas.moveTo(canvas.center);
-    canvas.render(rootModel.value);  // Render the root model
+    canvas.render(rootModel.value);
 
     // Register available shape types
     registry.register('circle', (config) => {
@@ -95,8 +102,17 @@ onMounted(() => {
 
     // Update click handler with proper types
     lmap.on('click', (e: L.LeafletMouseEvent) => {
-        if (props.mode !== 'select') return;
+        if (props.mode !== 'select' || isResizing.value || isMoving.value) return;
         console.log('Canvas clicked at:', e.latlng);
+        
+        // Check if we clicked on a resize handle
+        const target = e.originalEvent.target as HTMLElement;
+        if (target && target.classList.contains('leaflet-interactive')) {
+            // Might be a handle, check if it has the custom handleType property
+            const path = target.closest('path');
+            if (path) return; // Let the path handle its own click
+        }
+        
         if (isSelecting.value) {
             isSelecting.value = false;
             return;
@@ -105,15 +121,17 @@ onMounted(() => {
         rootModel.value.submodels.forEach(model => {
             model.selected = false;
         });
+        
         const clickedModel = rootModel.value.submodels.find(m => m.contains(e.latlng));
         if (clickedModel) {
             clickedModel.selected = true;
         }
+        
         canvas?.render(rootModel.value);
         emit('selection-change', rootModel.value.submodels.find(m => m.selected) as Drawable);
     });
 
-    // Update mousedown handler to use client coordinates relative to canvas
+    // Update mousedown handler for selection, resize and move operations
     lmap.on('mousedown', (e: L.LeafletMouseEvent) => {
         if (props.mode === 'select') {
             const rect = mapRef.value!.getBoundingClientRect();
@@ -122,15 +140,92 @@ onMounted(() => {
                 y: e.originalEvent.clientY - rect.top
             };
             selectionEnd.value = { ...selectionStart.value };
+            
+            // Check if we're clicking on a resize handle
+            const target = e.originalEvent.target as HTMLElement;
+            if (target && target.classList.contains('leaflet-interactive')) {
+                // Find the nearest handle
+                const latlng = e.latlng;
+                const selectedDrawable = rootModel.value.submodels.find(m => m.selected);
+                
+                if (selectedDrawable) {
+                    const handles = selectedDrawable.getResizeHandles();
+                    const point = new Xyz(latlng.lng, latlng.lat);
+                    
+                    // Find the closest handle
+                    let minDistance = Infinity;
+                    let closestHandle: ResizeOrMoveHandle | null = null;
+                    
+                    handles.forEach(handle => {
+                        const distance = point.distanceTo(handle.position);
+                        if (distance < minDistance) {
+                            minDistance = distance;
+                            closestHandle = handle;
+                        }
+                    });
+                    
+                    if (closestHandle && minDistance < 10) {
+                        // Start resizing or moving
+                        if ((closestHandle as ResizeOrMoveHandle).handleType === 'move') {
+                            isMoving.value = true;
+                        } else {
+                            isResizing.value = true;
+                        }
+                        
+                        activeHandle.value = closestHandle;
+                        activeDrawable.value = selectedDrawable;
+                        lastMousePos.value = new Xyz(latlng.lng, latlng.lat);
+                        return; // Skip regular selection
+                    }
+                }
+            }
         } else if (props.mode === 'pan') {
             mapRef.value!.style.cursor = 'grabbing';
         }
     });
 
-    // Update mousemove to use client coordinates
+    // Update mousemove for selection, resize and move operations
     document.addEventListener('mousemove', (e: MouseEvent) => {
+        if (!lmap || !mapRef.value) return;
+        
+        const rect = mapRef.value.getBoundingClientRect();
+        const point = L.point(e.clientX - rect.left, e.clientY - rect.top);
+        const latlng = lmap.containerPointToLatLng(point);
+        mousePos.value = { x: latlng.lng, y: latlng.lat };
+        
+        if (isResizing.value && activeDrawable.value && activeHandle.value && lastMousePos.value) {
+            // Calculate delta
+            const currentPos = new Xyz(latlng.lng, latlng.lat);
+            const delta = currentPos.minus(lastMousePos.value);
+            
+            // Apply resize operation
+            activeDrawable.value.resize(activeHandle.value, delta);
+            
+            // Update last position
+            lastMousePos.value = currentPos;
+            
+            // Redraw
+            canvas?.render(rootModel.value);
+            return;
+        }
+        
+        if (isMoving.value && activeDrawable.value && lastMousePos.value) {
+            // Calculate delta
+            const currentPos = new Xyz(latlng.lng, latlng.lat);
+            const delta = currentPos.minus(lastMousePos.value);
+            
+            // Apply move operation
+            activeDrawable.value.move(delta);
+            
+            // Update last position
+            lastMousePos.value = currentPos;
+            
+            // Redraw
+            canvas?.render(rootModel.value);
+            return;
+        }
+        
         if (selectionStart.value && props.mode === 'select') {
-            const rect = mapRef.value!.getBoundingClientRect();
             selectionEnd.value = {
                 x: e.clientX - rect.left,
                 y: e.clientY - rect.top
@@ -147,26 +242,37 @@ onMounted(() => {
             }
 
             // Update mouse position for info display
-            if (lmap && mapRef.value && isSelecting.value) {
-                const point = L.point(e.clientX - rect.left, e.clientY - rect.top);
+            if (isSelecting.value) {
                 const latlng = lmap.containerPointToLatLng(point);
                 mousePos.value = { x: latlng.lng, y: latlng.lat };
             }
         }
-
-        if (isSelecting.value && selectionStart.value && mapRef.value) {
-
-        }
     });
 
-    // Update mouseup handler with proper types
+    // Update mouseup handler to finalize resize and move operations
     document.addEventListener('mouseup', (e: MouseEvent) => {
+        // End resize or move operations
+        if (isResizing.value || isMoving.value) {
+            isResizing.value = false;
+            isMoving.value = false;
+            activeHandle.value = null;
+            activeDrawable.value = null;
+            lastMousePos.value = null;
+            document.body.style.cursor = '';
+            
+            // Update properties in the panel if needed
+            if (activeDrawable.value) {
+                emit('selection-change', activeDrawable.value);
+            }
+            return;
+        }
+        
         if (props.mode === 'select' && isSelecting.value) {
-            if (selectionStart.value && selectionEnd.value && mapRef.value) {
-                const startPoint = lmap!.containerPointToLatLng(
+            if (selectionStart.value && selectionEnd.value && mapRef.value && lmap) {
+                const startPoint = lmap.containerPointToLatLng(
                     L.point(selectionStart.value.x, selectionStart.value.y)
                 );
-                const endPoint = lmap!.containerPointToLatLng(
+                const endPoint = lmap.containerPointToLatLng(
                     L.point(selectionEnd.value.x, selectionEnd.value.y)
                 );
                 const bounds = L.latLngBounds(startPoint, endPoint);
@@ -178,10 +284,21 @@ onMounted(() => {
                     }
                 });
                 canvas?.render(rootModel.value);
-                emit('selection-change', undefined);
+                
+                const selectedItems = rootModel.value.submodels.filter(m => m.selected);
+                // if more than one item is selected, the options are different (TODO)
+                // otherwise, emit the single selected item
+                if (selectedItems.length > 1) {
+                    emit('selection-change', undefined);
+                } else if (selectedItems.length === 1) {
+                    emit('selection-change', selectedItems[0] as Drawable);
+                } else {
+                    emit('selection-change', undefined);
+                }
             }
         }
 
+        isSelecting.value = false;
         selectionStart.value = null;
         selectionEnd.value = null;
     });
@@ -272,7 +389,7 @@ const handleDragOver = (event: DragEvent) => {
 
 const props = defineProps<{
   showGrid?: boolean,
-  mode: 'pan' | 'select'  // Make mode required
+  mode: 'pan' | 'select'
 }>();
 
 const emit = defineEmits<{
@@ -311,14 +428,20 @@ defineExpose({ centerCanvas, mode });
     <div 
       class="canvas" 
       ref="mapRef"
-      :style="{ cursor: props.mode === 'pan' ? 'grab' : 'pointer' }"
+      :class="{
+        'resizing': isResizing,
+        'moving': isMoving
+      }"
+      :style="{ 
+        cursor: props.mode === 'pan' ? 'grab' : 'pointer'
+      }"
     >
       <!-- Add selection box overlay -->
       <div
         v-if="isSelecting && selectionStart && selectionEnd"
         class="selection-box"
         :style="{
-          position: 'absolute',  // Change to absolute positioning
+          position: 'absolute',
           left: `${Math.min(selectionStart.x, selectionEnd.x)}px`,
           top: `${Math.min(selectionStart.y, selectionEnd.y)}px`,
           width: `${Math.abs(selectionEnd.x - selectionStart.x)}px`,
@@ -350,11 +473,18 @@ defineExpose({ centerCanvas, mode });
     background-color: var(--qui-bg-secondary);
 }
 
+.canvas.resizing {
+    cursor: crosshair !important;
+}
+
+.canvas.moving {
+    cursor: move !important;
+}
+
 :deep(.leaflet-container) {
     height: 100%;
     width: 100%;
     background: var(--qui-bg-secondary);
-    /* Remove default cursors to use our custom ones */
     cursor: inherit !important;
 }
 
@@ -392,5 +522,23 @@ defineExpose({ centerCanvas, mode });
 /* Ensure Leaflet panes don't block selection box */
 :deep(.leaflet-pane) {
     z-index: 400;
+}
+
+/* Style resize handles */
+:deep(.leaflet-marker-pane) {
+    z-index: 600;
+}
+
+:deep(.resize-handle) {
+    border: 2px solid white;
+    background-color: var(--qui-accent-color);
+    border-radius: 50%;
+    box-shadow: 0 0 3px rgba(0, 0, 0, 0.3);
+}
+
+:deep(.move-handle) {
+    border: 2px solid white;
+    background-color: var(--qui-accent-secondary);
+    border-radius: 50%;
 }
 </style>

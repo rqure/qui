@@ -2,7 +2,7 @@ import { Shape, type IRenderableShape } from "./shape";
 import L from "leaflet";
 import { cvar } from "./utils";
 import { Xyz } from "./xyz";
-import type { EditableProperty } from "./drawable";
+import type { EditableProperty, ResizeOrMoveHandle } from "./drawable";
 
 export class Circle extends Shape {
     private _radius: number;
@@ -85,5 +85,16 @@ export class Circle extends Shape {
                 label: 'Radius'
             }
         ];
+    }
+    
+    // Override resize to handle circle specific resizing
+    public override resize(handle: ResizeOrMoveHandle, delta: Xyz): void {
+        const center = this.location;
+        const handlePos = handle.position;
+        const distance = new Xyz(handlePos.x, handlePos.y).plus(delta).distanceTo(center);
+        
+        // Update radius based on distance from center
+        this.radius = Math.max(1, distance);
+        super.resize(handle, delta);
     }
 }

@@ -24,6 +24,12 @@ export interface EditableProperty {
     step?: number;
 }
 
+export interface ResizeOrMoveHandle {
+    position: Xyz;
+    cursor: string;
+    handleType: 'topleft' | 'topright' | 'bottomleft' | 'bottomright' | 'top' | 'right' | 'bottom' | 'left' | 'move';
+}
+
 export class Drawable implements IDrawable {
     private _isVisible: boolean;
     private _offset: Xyz;
@@ -40,6 +46,8 @@ export class Drawable implements IDrawable {
     private _onClick: DrawableEvent<void>;
     private _onMouseOver: DrawableEvent<void>;
     private _onMouseOut: DrawableEvent<void>;
+    private _onResize: DrawableEvent<void>;
+    private _onMove: DrawableEvent<void>;
 
     constructor() {
         this._isVisible = false;
@@ -55,6 +63,8 @@ export class Drawable implements IDrawable {
         this._onClick = new DrawableEvent<void>();
         this._onMouseOver = new DrawableEvent<void>();
         this._onMouseOut = new DrawableEvent<void>();
+        this._onResize = new DrawableEvent<void>();
+        this._onMove = new DrawableEvent<void>();
     }
 
     public get isVisible(): boolean {
@@ -165,6 +175,14 @@ export class Drawable implements IDrawable {
         return this._onMouseOut;
     }
 
+    public get onResize(): DrawableEvent<void> {
+        return this._onResize;
+    }
+
+    public get onMove(): DrawableEvent<void> {
+        return this._onMove;
+    }
+
     public get selected(): boolean {
         return this._selected;
     }
@@ -226,5 +244,42 @@ export class Drawable implements IDrawable {
                 label: 'Rotation'
             }
         ];
+    }
+    
+    // New methods for resizing and moving
+    public getResizeHandles(): ResizeOrMoveHandle[] {
+        if (!this.selected) return [];
+        
+        const bounds = this.getBounds();
+        const nw = bounds.getNorthWest();
+        const ne = bounds.getNorthEast();
+        const sw = bounds.getSouthWest();
+        const se = bounds.getSouthEast();
+        const n = L.latLng((nw.lat + ne.lat) / 2, (nw.lng + ne.lng) / 2);
+        const e = L.latLng((ne.lat + se.lat) / 2, (ne.lng + se.lng) / 2);
+        const s = L.latLng((sw.lat + se.lat) / 2, (sw.lng + se.lng) / 2);
+        const w = L.latLng((nw.lat + sw.lat) / 2, (nw.lng + sw.lng) / 2);
+        
+        return [
+            { position: new Xyz(nw.lng, nw.lat), cursor: 'nw-resize', handleType: 'topleft' },
+            { position: new Xyz(ne.lng, ne.lat), cursor: 'ne-resize', handleType: 'topright' },
+            { position: new Xyz(sw.lng, sw.lat), cursor: 'sw-resize', handleType: 'bottomleft' },
+            { position: new Xyz(se.lng, se.lat), cursor: 'se-resize', handleType: 'bottomright' },
+            { position: new Xyz(n.lng, n.lat), cursor: 'n-resize', handleType: 'top' },
+            { position: new Xyz(e.lng, e.lat), cursor: 'e-resize', handleType: 'right' },
+            { position: new Xyz(s.lng, s.lat), cursor: 's-resize', handleType: 'bottom' },
+            { position: new Xyz(w.lng, w.lat), cursor: 'w-resize', handleType: 'left' },
+            { position: new Xyz(bounds.getCenter().lng, bounds.getCenter().lat), cursor: 'move', handleType: 'move' }
+        ];
+    }
+
+    public resize(handle: ResizeOrMoveHandle, delta: Xyz): void {
+        // Override in derived classes for specific resize behavior
+        this._onResize.trigger();
+    }
+
+    public move(delta: Xyz): void {
+        this.offset = this.offset.plus(delta);
+        this._onMove.trigger();
     }
 }

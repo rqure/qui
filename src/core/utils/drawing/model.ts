@@ -1,5 +1,6 @@
 import type { IRenderer } from "./canvas";
-import { Drawable } from "./drawable";
+import { Drawable, type ResizeOrMoveHandle } from "./drawable";
+import { Xyz } from "./xyz";
 
 
 export class Model extends Drawable {
@@ -62,5 +63,18 @@ export class Model extends Drawable {
         this._submodels = [];
 
         super.destroy();
+    }
+    
+    // Override resize to propagate to children
+    public override resize(handle: ResizeOrMoveHandle, delta: Xyz): void {
+        // Handle model-specific resizing if needed
+        
+        super.resize(handle, delta);
+    }
+    
+    // Override move to propagate to children
+    public override move(delta: Xyz): void {
+        super.move(delta);
+        // No need to manually move children since they use absoluteOffset
     }
 }
