@@ -104,10 +104,11 @@ onMounted(() => {
 
         rootModel.value.submodels.forEach(model => {
             model.selected = false;
-            if (model.contains(e.latlng)) {
-                model.selected = true;
-            }
         });
+        const clickedModel = rootModel.value.submodels.find(m => m.contains(e.latlng));
+        if (clickedModel) {
+            clickedModel.selected = true;
+        }
         canvas?.render(rootModel.value);
         emit('selection-change', rootModel.value.submodels.find(m => m.selected) as Drawable);
     });
@@ -177,6 +178,7 @@ onMounted(() => {
                     }
                 });
                 canvas?.render(rootModel.value);
+                emit('selection-change', undefined);
             }
         }
 
