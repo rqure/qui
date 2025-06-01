@@ -49,16 +49,27 @@ const handleSelectionChange = (item?: Drawable) => {
 
 <style scoped>
 .model-builder {
-  display: grid;
-  grid-template-areas:
-    "toolbar toolbar"
-    "sidebar canvas";
-  grid-template-rows: 50px 1fr;
-  grid-template-columns: 200px 1fr;
-  height: 100%;
-  width: 100%;
-  background-color: var(--qui-bg-primary);
-  color: var(--qui-text-primary);
+    display: grid;
+    grid-template-areas:
+        "toolbar toolbar"
+        "sidebar canvas";
+    grid-template-rows: 50px 1fr;
+    grid-template-columns: 200px 1fr;
+    height: 100%;
+    width: 100%;
+    background-color: var(--qui-bg-primary);
+    color: var(--qui-text-primary);
+    position: relative;
+}
+
+:deep(.toolbar) {
+    grid-area: toolbar;
+    z-index: 2;
+}
+
+:deep(.sidebar) {
+    grid-area: sidebar;
+    z-index: 2;
 }
 
 /* Add slide animation */

@@ -459,6 +459,9 @@ defineExpose({ centerCanvas, mode });
     height: 100%;
     width: 100%;
     background-color: var(--qui-bg-primary);
+    grid-area: canvas;
+    position: relative;
+    z-index: 0;
 }
 
 .canvas {
