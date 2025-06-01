@@ -524,11 +524,6 @@ defineExpose({ centerCanvas, mode });
     z-index: 400;
 }
 
-/* Style resize handles */
-:deep(.leaflet-marker-pane) {
-    z-index: 600;
-}
-
 :deep(.resize-handle) {
     border: 2px solid white;
     background-color: var(--qui-accent-color);
