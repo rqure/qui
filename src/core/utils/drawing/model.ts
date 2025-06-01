@@ -31,11 +31,11 @@ export class Model extends Drawable {
         super.erase();
     }
 
-    public get submodels(): Drawable[] {
+    public get submodels(): Array<Drawable> {
         return this._submodels;
     }
 
-    public set submodels(value: Drawable[]) {
+    public set submodels(value: Array<Drawable>) {
         for (const shape of this._submodels) {
             shape.parent = undefined;
         }

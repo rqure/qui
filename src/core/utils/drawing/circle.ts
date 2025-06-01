@@ -2,6 +2,7 @@ import { Shape, type IRenderableShape } from "./shape";
 import L from "leaflet";
 import { cvar } from "./utils";
 import { Xyz } from "./xyz";
+import type { EditableProperty } from "./drawable";
 
 export class Circle extends Shape {
     private _radius: number;
@@ -48,5 +49,17 @@ export class Circle extends Shape {
             [center.y - radiusInDegrees, center.x - radiusInDegrees],
             [center.y + radiusInDegrees, center.x + radiusInDegrees]
         );
+    }
+
+    public override getEditableProperties(): EditableProperty[] {
+        return [
+            ...super.getEditableProperties(),
+            {
+                name: 'radius',
+                type: 'number',
+                value: this.radius,
+                label: 'Radius'
+            }
+        ];
     }
 }

@@ -8,6 +8,7 @@ import { Circle } from '@/core/utils/drawing/circle';
 import { Polygon } from '@/core/utils/drawing/polygon';
 import { Polyline } from '@/core/utils/drawing/polyline';
 import { Xyz } from '@/core/utils/drawing/xyz';
+import type { Drawable } from '@/core/utils/drawing/drawable'; // Add this import
 import CanvasInfo from './CanvasInfo.vue';
 import { createGridLayer } from '../utils/CustomGridLayer';
 import { Model } from '@/core/utils/drawing/model';
@@ -101,14 +102,14 @@ onMounted(() => {
             return;
         }
 
-        // Search through submodels of root model
-        rootModel.value.submodels.forEach(drawable => {
-            drawable.selected = false;
-            if (drawable.contains(e.latlng)) {
-                drawable.selected = true;
+        rootModel.value.submodels.forEach(model => {
+            model.selected = false;
+            if (model.contains(e.latlng)) {
+                model.selected = true;
             }
         });
         canvas?.render(rootModel.value);
+        emit('selection-change', rootModel.value.submodels.find(m => m.selected) as Drawable);
     });
 
     // Update mousedown handler to use client coordinates relative to canvas
@@ -169,10 +170,10 @@ onMounted(() => {
                 );
                 const bounds = L.latLngBounds(startPoint, endPoint);
 
-                rootModel.value.submodels.forEach(drawable => {
-                    drawable.selected = false;
-                    if (bounds.contains(drawable.getBounds())) {
-                        drawable.selected = true;
+                rootModel.value.submodels.forEach(model => {
+                    model.selected = false;
+                    if (bounds.contains(model.getBounds())) {
+                        model.selected = true;
                     }
                 });
                 canvas?.render(rootModel.value);
@@ -248,7 +249,8 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'centerCanvas': [],
-  'update:mode': [value: 'pan' | 'select']
+  'update:mode': [value: 'pan' | 'select'],
+  'selection-change': [drawable?: Drawable]
 }>();
 
 watch(() => props.showGrid, (newValue: boolean) => {

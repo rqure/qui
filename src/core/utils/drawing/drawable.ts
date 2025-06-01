@@ -14,6 +14,16 @@ export interface Pane {
     zIndex: number;
 }
 
+export interface EditableProperty {
+    name: string;
+    type: 'number' | 'text' | 'color' | 'range';
+    value: any;
+    label: string;
+    min?: number;
+    max?: number;
+    step?: number;
+}
+
 export class Drawable implements IDrawable {
     private _isVisible: boolean;
     private _offset: Xyz;
@@ -183,5 +193,28 @@ export class Drawable implements IDrawable {
 
     public getBounds(): L.LatLngBounds {
         return new L.LatLngBounds([0, 0], [0, 0]); // Default implementation returns empty bounds
+    }
+
+    public getEditableProperties(): EditableProperty[] {
+        return [
+            {
+                name: 'offset.x',
+                type: 'number',
+                value: this.offset.x,
+                label: 'Position X'
+            },
+            {
+                name: 'offset.y',
+                type: 'number',
+                value: this.offset.y,
+                label: 'Position Y'
+            },
+            {
+                name: 'rotation',
+                type: 'number',
+                value: this.rotation,
+                label: 'Rotation'
+            }
+        ];
     }
 }

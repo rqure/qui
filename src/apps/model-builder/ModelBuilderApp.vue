@@ -3,10 +3,13 @@ import { ref } from 'vue';
 import Toolbar from './components/Toolbar.vue';
 import ComponentsExplorer from './components/ComponentsExplorer.vue';
 import Canvas from './components/Canvas.vue';
+import PropertiesEditor from './components/PropertiesEditor.vue';
+import type { Drawable } from '@/core/utils/drawing/drawable';
 
 const showGrid = ref(true);
 const mode = ref<'pan' | 'select'>('pan');
 const canvasRef = ref<InstanceType<typeof Canvas> | null>(null);
+const selectedItem = ref<Drawable>();
 
 const handleCenter = () => {
   canvasRef.value?.centerCanvas();
@@ -14,6 +17,10 @@ const handleCenter = () => {
 
 const handleModeChange = (newMode: 'pan' | 'select') => {
   mode.value = newMode;
+};
+
+const handleSelectionChange = (item?: Drawable) => {
+  selectedItem.value = item;
 };
 </script>
 
@@ -29,6 +36,10 @@ const handleModeChange = (newMode: 'pan' | 'select') => {
       ref="canvasRef"
       :showGrid="showGrid"
       v-model:mode="mode"
+      @selection-change="handleSelectionChange"
+    />
+    <PropertiesEditor
+      v-model:selectedItem="selectedItem"
     />
   </div>
 </template>
@@ -37,10 +48,10 @@ const handleModeChange = (newMode: 'pan' | 'select') => {
 .model-builder {
   display: grid;
   grid-template-areas:
-    "toolbar toolbar"
-    "sidebar canvas";
+    "toolbar toolbar toolbar"
+    "sidebar canvas properties";
   grid-template-rows: 50px 1fr;
-  grid-template-columns: 200px 1fr;
+  grid-template-columns: 200px 1fr 250px;
   height: 100%;
   width: 100%;
   background-color: var(--qui-bg-primary);

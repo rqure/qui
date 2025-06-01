@@ -1,5 +1,5 @@
 import type { IRenderer } from "./canvas";
-import { Drawable } from "./drawable";
+import { Drawable, type EditableProperty } from "./drawable";
 import { DrawableEvent } from "./event";
 
 
@@ -94,5 +94,32 @@ export class Shape extends Drawable {
         }
 
         super.erase();
+    }
+
+    public override getEditableProperties(): EditableProperty[] {
+        return [
+            ...super.getEditableProperties(),
+            {
+                name: 'color',
+                type: 'color',
+                value: this.color,
+                label: 'Color'
+            },
+            {
+                name: 'fillColor',
+                type: 'color',
+                value: this.fillColor,
+                label: 'Fill Color'
+            },
+            {
+                name: 'fillOpacity',
+                type: 'range',
+                value: this.fillOpacity,
+                label: 'Fill Opacity',
+                min: 0,
+                max: 1,
+                step: 0.1
+            }
+        ];
     }
 }
