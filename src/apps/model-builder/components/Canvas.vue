@@ -13,6 +13,13 @@ import CanvasInfo from './CanvasInfo.vue';
 import { createGridLayer } from '../utils/CustomGridLayer';
 import { Model } from '@/core/utils/drawing/model';
 
+enum CanvasState {
+  IDLE,
+  SELECTING,
+  RESIZING,
+  MOVING
+}
+
 const defaultStyle = {
     color: '--qui-text-primary',
     weight: 1,
@@ -32,13 +39,10 @@ const canvasSize = ref({ width: 0, height: 0 });
 const gridLayer = ref<L.GridLayer | null>(null);
 const mode = ref<'pan' | 'select'>('pan');
 
-const isSelecting = ref(false);
+// Use state machine approach instead of multiple flags
+const canvasState = ref<CanvasState>(CanvasState.IDLE);
 const selectionStart = ref<{ x: number; y: number } | null>(null);
 const selectionEnd = ref<{ x: number; y: number } | null>(null);
-
-// Add state for resize and move operations
-const isResizing = ref(false);
-const isMoving = ref(false);
 const activeHandle = ref<ResizeOrMoveHandle | null>(null);
 const activeDrawable = ref<Drawable | null>(null);
 const lastMousePos = ref<Xyz | null>(null);
@@ -102,7 +106,10 @@ onMounted(() => {
 
     // Update click handler with proper types
     lmap.on('click', (e: L.LeafletMouseEvent) => {
-        if (props.mode !== 'select' || isResizing.value || isMoving.value) return;
+        if (props.mode !== 'select' || 
+            canvasState.value === CanvasState.RESIZING || 
+            canvasState.value === CanvasState.MOVING) return;
+        
         console.log('Canvas clicked at:', e.latlng);
 
         // Check if we clicked on a resize handle
@@ -113,8 +120,8 @@ onMounted(() => {
             if (path) return; // Let the path handle its own click
         }
 
-        if (isSelecting.value) {
-            isSelecting.value = false;
+        if (canvasState.value === CanvasState.SELECTING) {
+            canvasState.value = CanvasState.IDLE;
             return;
         }
 
@@ -128,7 +135,7 @@ onMounted(() => {
         }
 
         canvas?.render(rootModel.value);
-        emit('selection-change', rootModel.value.submodels.find(m => m.selected) as Drawable);
+        emit('selection-change', rootModel.value.submodels.find(m => m.selected) as Drawable | undefined);
     });
 
     // Update mousedown handler for selection, resize and move operations
@@ -139,8 +146,8 @@ onMounted(() => {
         }
         
         if (props.mode === 'select') {
-            // Reset selection state at start
-            isSelecting.value = false;
+            // Reset to idle state at start
+            canvasState.value = CanvasState.IDLE;
 
             const rect = mapRef.value!.getBoundingClientRect();
             selectionStart.value = {
@@ -173,15 +180,15 @@ onMounted(() => {
                     });
 
                     if (closestHandle && minDistance < 10) {
-                        // Reset selection state when starting resize/move
+                        // Reset selection points when starting resize/move
                         selectionStart.value = null;
                         selectionEnd.value = null;
 
-                        // Start resizing or moving
+                        // Transition to appropriate state
                         if ((closestHandle as ResizeOrMoveHandle).handleType === 'move') {
-                            isMoving.value = true;
+                            canvasState.value = CanvasState.MOVING;
                         } else {
-                            isResizing.value = true;
+                            canvasState.value = CanvasState.RESIZING;
                         }
 
                         activeHandle.value = closestHandle;
@@ -210,117 +217,125 @@ onMounted(() => {
         const latlng = lmap.containerPointToLatLng(point);
         mousePos.value = { x: latlng.lng, y: latlng.lat };
 
-        if (isResizing.value && activeDrawable.value && activeHandle.value && lastMousePos.value) {
-            // Calculate delta
-            const currentPos = new Xyz(latlng.lng, latlng.lat);
-            const delta = currentPos.minus(lastMousePos.value);
+        // Handle different states
+        switch (canvasState.value) {
+            case CanvasState.RESIZING:
+                if (activeDrawable.value && activeHandle.value && lastMousePos.value) {
+                    // Calculate delta
+                    const currentPos = new Xyz(latlng.lng, latlng.lat);
+                    const delta = currentPos.minus(lastMousePos.value);
 
-            // Apply resize operation
-            activeDrawable.value.resize(activeHandle.value, delta);
+                    // Apply resize operation
+                    activeDrawable.value.resize(activeHandle.value, delta);
 
-            // Update last position
-            lastMousePos.value = currentPos;
+                    // Update last position
+                    lastMousePos.value = currentPos;
 
-            // Redraw
-            canvas?.render(rootModel.value);
-            return;
-        }
+                    // Redraw
+                    canvas?.render(rootModel.value);
+                }
+                break;
 
-        if (isMoving.value && activeDrawable.value && lastMousePos.value) {
-            // Calculate delta
-            const currentPos = new Xyz(latlng.lng, latlng.lat);
-            const delta = currentPos.minus(lastMousePos.value);
+            case CanvasState.MOVING:
+                if (activeDrawable.value && lastMousePos.value) {
+                    // Calculate delta
+                    const currentPos = new Xyz(latlng.lng, latlng.lat);
+                    const delta = currentPos.minus(lastMousePos.value);
 
-            // Apply move operation
-            activeDrawable.value.move(delta);
+                    // Apply move operation
+                    activeDrawable.value.move(delta);
 
-            // Update last position
-            lastMousePos.value = currentPos;
+                    // Update last position
+                    lastMousePos.value = currentPos;
 
-            // Redraw
-            canvas?.render(rootModel.value);
-            return;
-        }
+                    // Redraw
+                    canvas?.render(rootModel.value);
+                }
+                break;
 
-        if (selectionStart.value && props.mode === 'select') {
-            selectionEnd.value = {
-                x: e.clientX - rect.left,
-                y: e.clientY - rect.top
-            };
+            case CanvasState.IDLE:
+                if (selectionStart.value && props.mode === 'select') {
+                    selectionEnd.value = {
+                        x: e.clientX - rect.left,
+                        y: e.clientY - rect.top
+                    };
 
-            // calculate distance from start to end
-            const distance = Math.sqrt(
-                Math.pow(selectionEnd.value.x - selectionStart.value.x, 2) +
-                Math.pow(selectionEnd.value.y - selectionStart.value.y, 2)
-            );
-            // If distance is less than 5 pixels, don't start selection
-            if (distance >= 5) {
-                isSelecting.value = true;
-            }
+                    // calculate distance from start to end
+                    const distance = Math.sqrt(
+                        Math.pow(selectionEnd.value.x - selectionStart.value.x, 2) +
+                        Math.pow(selectionEnd.value.y - selectionStart.value.y, 2)
+                    );
+                    // If distance is more than 5 pixels, transition to selecting state
+                    if (distance >= 5) {
+                        canvasState.value = CanvasState.SELECTING;
+                    }
+                }
+                break;
 
-            // Update mouse position for info display
-            if (isSelecting.value) {
-                const latlng = lmap.containerPointToLatLng(point);
-                mousePos.value = { x: latlng.lng, y: latlng.lat };
-            }
+            case CanvasState.SELECTING:
+                if (selectionStart.value && props.mode === 'select') {
+                    selectionEnd.value = {
+                        x: e.clientX - rect.left,
+                        y: e.clientY - rect.top
+                    };
+                    
+                    // Update mouse position for info display
+                    const latlng = lmap.containerPointToLatLng(point);
+                    mousePos.value = { x: latlng.lng, y: latlng.lat };
+                }
+                break;
         }
     });
 
-    // Update mouseup handler to finalize resize and move operations
+    // Update mouseup handler to finalize operations based on state
     document.addEventListener('mouseup', (e: MouseEvent) => {
-        // End resize or move operations
-        if (isResizing.value || isMoving.value) {
-            isResizing.value = false;
-            isMoving.value = false;
-            activeHandle.value = null;
-            activeDrawable.value = null;
-            lastMousePos.value = null;
-            document.body.style.cursor = '';
-
-            // Reset selection state
-            isSelecting.value = false;
-            selectionStart.value = null;
-            selectionEnd.value = null;
-
-            // Update properties in the panel if needed
-            if (activeDrawable.value) {
-                emit('selection-change', activeDrawable.value);
-            }
-            return;
-        }
-
-        if (props.mode === 'select' && isSelecting.value) {
-            if (selectionStart.value && selectionEnd.value && mapRef.value && lmap) {
-                const startPoint = lmap.containerPointToLatLng(
-                    L.point(selectionStart.value.x, selectionStart.value.y)
-                );
-                const endPoint = lmap.containerPointToLatLng(
-                    L.point(selectionEnd.value.x, selectionEnd.value.y)
-                );
-                const bounds = L.latLngBounds(startPoint, endPoint);
-
-                rootModel.value.submodels.forEach(model => {
-                    model.selected = false;
-                    if (bounds.contains(model.getBounds())) {
-                        model.selected = true;
-                    }
-                });
-                canvas?.render(rootModel.value);
-
-                const selectedItems = rootModel.value.submodels.filter(m => m.selected);
-                // if more than one item is selected, the options are different (TODO)
-                // otherwise, emit the single selected item
-                if (selectedItems.length > 1) {
-                    emit('selection-change', undefined);
-                } else if (selectedItems.length === 1) {
-                    emit('selection-change', selectedItems[0] as Drawable);
-                } else {
-                    emit('selection-change', undefined);
+        switch (canvasState.value) {
+            case CanvasState.RESIZING:
+            case CanvasState.MOVING:
+                // Update properties in the panel if needed
+                if (activeDrawable.value) {
+                    emit('selection-change', activeDrawable.value as Drawable);
                 }
-            }
+                break;
+
+            case CanvasState.SELECTING:
+                if (selectionStart.value && selectionEnd.value && mapRef.value && lmap) {
+                    const startPoint = lmap.containerPointToLatLng(
+                        L.point(selectionStart.value.x, selectionStart.value.y)
+                    );
+                    const endPoint = lmap.containerPointToLatLng(
+                        L.point(selectionEnd.value.x, selectionEnd.value.y)
+                    );
+                    const bounds = L.latLngBounds(startPoint, endPoint);
+
+                    rootModel.value.submodels.forEach(model => {
+                        model.selected = false;
+                        if (bounds.contains(model.getBounds())) {
+                            model.selected = true;
+                        }
+                    });
+                    canvas?.render(rootModel.value);
+
+                    const selectedItems = rootModel.value.submodels.filter(m => m.selected);
+                    if (selectedItems.length > 1) {
+                        emit('selection-change', undefined);
+                    } else if (selectedItems.length === 1) {
+                        emit('selection-change', selectedItems[0] as Drawable);
+                    } else {
+                        emit('selection-change', undefined);
+                    }
+                }
+                break;
         }
 
-        isSelecting.value = false;
+        // Reset state machine to idle
+        canvasState.value = CanvasState.IDLE;
+        document.body.style.cursor = '';
+        
+        // Clear state data
+        activeHandle.value = null;
+        activeDrawable.value = null;
+        lastMousePos.value = null;
         selectionStart.value = null;
         selectionEnd.value = null;
     });
@@ -443,24 +458,27 @@ defineExpose({ centerCanvas, mode });
 
 <template>
     <div class="canvas-container" @drop="handleDrop" @dragover="handleDragOver">
-        <div class="canvas" ref="mapRef" :class="{
-            'resizing': isResizing,
-            'moving': isMoving
-        }" :style="{
-        cursor: props.mode === 'pan' ? 'grab' : 'pointer'
-    }">
-            <!-- Only show selection box when not resizing or moving -->
-            <div v-if="isSelecting && selectionStart && selectionEnd && !isResizing && !isMoving" class="selection-box"
-                :style="{
+        <div class="canvas" ref="mapRef" 
+             :class="{
+                'resizing': canvasState === CanvasState.RESIZING,
+                'moving': canvasState === CanvasState.MOVING
+             }" 
+             :style="{ 
+                cursor: props.mode === 'pan' ? 'grab' : 'pointer'
+             }">
+            <!-- Only show selection box when in selecting state -->
+            <div v-if="canvasState === CanvasState.SELECTING && selectionStart && selectionEnd" 
+                 class="selection-box"
+                 :style="{
                     position: 'absolute',
                     left: `${Math.min(selectionStart.x, selectionEnd.x)}px`,
                     top: `${Math.min(selectionStart.y, selectionEnd.y)}px`,
                     width: `${Math.abs(selectionEnd.x - selectionStart.x)}px`,
                     height: `${Math.abs(selectionEnd.y - selectionStart.y)}px`,
-                }"></div>
+                 }"></div>
         </div>
-        <CanvasInfo :zoom="zoomLevel" :mouse-x="mousePos.x" :mouse-y="mousePos.y" :canvas-width="canvasSize.width"
-            :canvas-height="canvasSize.height" />
+        <CanvasInfo :zoom="zoomLevel" :mouse-x="mousePos.x" :mouse-y="mousePos.y" 
+                    :canvas-width="canvasSize.width" :canvas-height="canvasSize.height" />
     </div>
 </template>
 
@@ -481,6 +499,7 @@ defineExpose({ centerCanvas, mode });
     background-color: var(--qui-bg-secondary);
 }
 
+/* Style classes based on state machine values */
 .canvas.resizing {
     cursor: crosshair !important;
 }
