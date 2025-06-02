@@ -104,40 +104,6 @@ onMounted(() => {
         mapRef.value!.style.cursor = newMode === 'pan' ? 'grab' : 'pointer';
     }, { immediate: true });
 
-    // Update click handler with proper types
-    lmap.on('click', (e: L.LeafletMouseEvent) => {
-        if (props.mode !== 'select' || 
-            canvasState.value === CanvasState.RESIZING || 
-            canvasState.value === CanvasState.MOVING) return;
-        
-        console.log('Canvas clicked at:', e.latlng);
-
-        // Check if we clicked on a resize handle
-        const target = e.originalEvent.target as HTMLElement;
-        if (target && target.classList.contains('leaflet-interactive')) {
-            // Might be a handle, check if it has the custom handleType property
-            const path = target.closest('path');
-            if (path) return; // Let the path handle its own click
-        }
-
-        if (canvasState.value === CanvasState.SELECTING) {
-            canvasState.value = CanvasState.IDLE;
-            return;
-        }
-
-        rootModel.value.submodels.forEach(model => {
-            model.selected = false;
-        });
-
-        const clickedModel = rootModel.value.submodels.find(m => m.contains(e.latlng));
-        if (clickedModel) {
-            clickedModel.selected = true;
-        }
-
-        canvas?.render(rootModel.value);
-        emit('selection-change', rootModel.value.submodels.find(m => m.selected) as Drawable | undefined);
-    });
-
     // Update mousedown handler for selection, resize and move operations
     lmap.on('mousedown', (e: L.LeafletMouseEvent) => {
         // Ignore right mouse button clicks for selection
@@ -326,6 +292,23 @@ onMounted(() => {
                     }
                 }
                 break;
+            case CanvasState.IDLE:
+                if (selectionStart.value && props.mode === 'select') {
+                    rootModel.value.submodels.forEach(model => {
+                        model.selected = false;
+                    });
+                    const endPoint = lmap!.containerPointToLatLng(
+                        L.point(selectionEnd.value!.x, selectionEnd.value!.y)
+                    );
+                    const clickedModel = rootModel.value.submodels.find(m => m.contains(endPoint));
+                    if (clickedModel) {
+                        clickedModel.selected = true;
+                    }
+
+                    canvas?.render(rootModel.value);
+                    emit('selection-change', rootModel.value.submodels.find(m => m.selected) as Drawable | undefined);
+                    break;
+                }
         }
 
         // Reset state machine to idle
