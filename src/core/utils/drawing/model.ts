@@ -1,5 +1,5 @@
 import type { IRenderer } from "./canvas";
-import { Drawable, type ResizeOrMoveHandle } from "./drawable";
+import { Drawable, type ResizeHandle } from "./drawable";
 import { Xyz } from "./xyz";
 
 
@@ -66,7 +66,7 @@ export class Model extends Drawable {
     }
     
     // Override resize to propagate to children
-    public override resize(handle: ResizeOrMoveHandle, delta: Xyz): void {
+    public override resize(handle: ResizeHandle, delta: Xyz): void {
         // Handle model-specific resizing if needed
         
         super.resize(handle, delta);

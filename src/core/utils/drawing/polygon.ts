@@ -3,7 +3,7 @@ import { Xyz } from "./xyz";
 import { Shape, type IRenderableShape } from "./shape";
 import L from "leaflet";
 import { cvar } from "./utils";
-import type { ResizeOrMoveHandle } from "./drawable";
+import type { ResizeHandle } from "./drawable";
 
 export class Polygon extends Shape {
     private _edges: Xyz[];
@@ -118,8 +118,8 @@ export class Polygon extends Shape {
     }
     
     // Override resize to handle polygon specific resizing
-    public override resize(handle: ResizeOrMoveHandle, delta: Xyz): void {
-        if (handle.handleType === 'move') return; // Movement is handled separately
+    public override resize(handle: ResizeHandle, delta: Xyz): void {
+        if (!this.isResizable) return;
         
         // Get bounds before resizing
         const oldBounds = this.getBounds();

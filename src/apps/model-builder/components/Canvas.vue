@@ -8,7 +8,7 @@ import { Circle } from '@/core/utils/drawing/circle';
 import { Polygon } from '@/core/utils/drawing/polygon';
 import { Polyline } from '@/core/utils/drawing/polyline';
 import { Xyz } from '@/core/utils/drawing/xyz';
-import type { Drawable, ResizeOrMoveHandle } from '@/core/utils/drawing/drawable';
+import type { Drawable, Handle } from '@/core/utils/drawing/drawable';
 import CanvasInfo from './CanvasInfo.vue';
 import { createGridLayer } from '../utils/CustomGridLayer';
 import { Model } from '@/core/utils/drawing/model';
@@ -43,7 +43,7 @@ const mode = ref<'pan' | 'select'>('pan');
 const canvasState = ref<CanvasState>(CanvasState.IDLE);
 const selectionStart = ref<{ x: number; y: number } | null>(null);
 const selectionEnd = ref<{ x: number; y: number } | null>(null);
-const activeHandle = ref<ResizeOrMoveHandle | null>(null);
+const activeHandle = ref<Handle | null>(null);  // Changed from ResizeOrMoveHandle to Handle
 // Change to array of drawables for multi-selection
 const activeDrawables = ref<Drawable[]>([]);
 const lastMousePos = ref<Xyz | null>(null);
@@ -136,7 +136,7 @@ onMounted(() => {
 
                     // Find the closest handle
                     let minDistance = Infinity;
-                    let closestHandle: ResizeOrMoveHandle | null = null;
+                    let closestHandle: Handle | null = null;
 
                     handles.forEach(handle => {
                         const distance = point.distanceTo(handle.position);
@@ -151,15 +151,20 @@ onMounted(() => {
                         selectionStart.value = null;
                         selectionEnd.value = null;
 
-                        // Transition to appropriate state
-                        if ((closestHandle as ResizeOrMoveHandle).handleType === 'move') {
+                        const handleType = (closestHandle as Handle).handleType; // Access safely once
+
+                        // Transition to appropriate state based on handle type
+                        if (handleType === 'move') {
                             canvasState.value = CanvasState.MOVING;
                             // Get all selected drawables for multi-selection movement
-                            activeDrawables.value = rootModel.value.submodels.filter(m => m.selected);
+                            activeDrawables.value = rootModel.value.submodels.filter(m => m.selected && m.isMovable);
                         } else {
+                            // Handle is a resize handle
                             canvasState.value = CanvasState.RESIZING;
                             // Only the drawable with handles can be resized
-                            activeDrawables.value = [selectedDrawable];
+                            if (selectedDrawable.isResizable) {
+                                activeDrawables.value = [selectedDrawable];
+                            }
                         }
 
                         activeHandle.value = closestHandle;
@@ -209,32 +214,24 @@ onMounted(() => {
         // Handle different states
         switch (canvasState.value) {
             case CanvasState.RESIZING:
+            case CanvasState.MOVING:
                 if (activeDrawables.value.length > 0 && activeHandle.value && lastMousePos.value) {
                     // Calculate delta
                     const currentPos = new Xyz(latlng.lng, latlng.lat);
                     const delta = currentPos.minus(lastMousePos.value);
 
-                    // Apply resize operation to the first drawable (only one can be resized)
-                    activeDrawables.value[0].resize(activeHandle.value, delta);
-
-                    // Update last position
-                    lastMousePos.value = currentPos;
-
-                    // Redraw
-                    canvas?.render(rootModel.value);
-                }
-                break;
-
-            case CanvasState.MOVING:
-                if (activeDrawables.value.length > 0 && lastMousePos.value) {
-                    // Calculate delta
-                    const currentPos = new Xyz(latlng.lng, latlng.lat);
-                    const delta = currentPos.minus(lastMousePos.value);
-
-                    // Apply move operation to all selected drawables
-                    activeDrawables.value.forEach(drawable => {
-                        drawable.move(delta);
-                    });
+                    // Use polymorphic behavior via the apply method
+                    if (canvasState.value === CanvasState.RESIZING) {
+                        // For resize, only apply to the first drawable
+                        activeHandle.value.apply(activeDrawables.value[0] as Drawable, delta);
+                    } else {
+                        // For moving, apply to all active drawables
+                        activeDrawables.value.forEach(drawable => {
+                            if (activeHandle.value) {
+                                activeHandle.value.apply(drawable as Drawable, delta);
+                            }
+                        });
+                    }
 
                     // Update last position
                     lastMousePos.value = currentPos;
