@@ -44,7 +44,8 @@ const canvasState = ref<CanvasState>(CanvasState.IDLE);
 const selectionStart = ref<{ x: number; y: number } | null>(null);
 const selectionEnd = ref<{ x: number; y: number } | null>(null);
 const activeHandle = ref<ResizeOrMoveHandle | null>(null);
-const activeDrawable = ref<Drawable | null>(null);
+// Change to array of drawables for multi-selection
+const activeDrawables = ref<Drawable[]>([]);
 const lastMousePos = ref<Xyz | null>(null);
 
 onMounted(() => {
@@ -153,15 +154,37 @@ onMounted(() => {
                         // Transition to appropriate state
                         if ((closestHandle as ResizeOrMoveHandle).handleType === 'move') {
                             canvasState.value = CanvasState.MOVING;
+                            // Get all selected drawables for multi-selection movement
+                            activeDrawables.value = rootModel.value.submodels.filter(m => m.selected);
                         } else {
                             canvasState.value = CanvasState.RESIZING;
+                            // Only the drawable with handles can be resized
+                            activeDrawables.value = [selectedDrawable];
                         }
 
                         activeHandle.value = closestHandle;
-                        activeDrawable.value = selectedDrawable;
                         lastMousePos.value = new Xyz(latlng.lng, latlng.lat);
                         return;
                     }
+                }
+            }
+            
+            // Check if we clicked directly on a drawable (for moving without handles)
+            const clickedModel = rootModel.value.submodels.find(m => m.contains(e.latlng));
+            if (clickedModel) {
+                // If the clicked model is already selected, or if Ctrl/Cmd key is pressed,
+                // prepare for moving all selected models
+                if (clickedModel.selected || (e.originalEvent && (e.originalEvent.ctrlKey || e.originalEvent.metaKey))) {
+                    if (!clickedModel.selected) {
+                        clickedModel.selected = true;
+                    }
+                    
+                    canvasState.value = CanvasState.MOVING;
+                    activeDrawables.value = rootModel.value.submodels.filter(m => m.selected);
+                    lastMousePos.value = new Xyz(e.latlng.lng, e.latlng.lat);
+                    selectionStart.value = null;
+                    selectionEnd.value = null;
+                    return;
                 }
             }
         } else if (props.mode === 'pan') {
@@ -186,13 +209,13 @@ onMounted(() => {
         // Handle different states
         switch (canvasState.value) {
             case CanvasState.RESIZING:
-                if (activeDrawable.value && activeHandle.value && lastMousePos.value) {
+                if (activeDrawables.value.length > 0 && activeHandle.value && lastMousePos.value) {
                     // Calculate delta
                     const currentPos = new Xyz(latlng.lng, latlng.lat);
                     const delta = currentPos.minus(lastMousePos.value);
 
-                    // Apply resize operation
-                    activeDrawable.value.resize(activeHandle.value, delta);
+                    // Apply resize operation to the first drawable (only one can be resized)
+                    activeDrawables.value[0].resize(activeHandle.value, delta);
 
                     // Update last position
                     lastMousePos.value = currentPos;
@@ -203,13 +226,15 @@ onMounted(() => {
                 break;
 
             case CanvasState.MOVING:
-                if (activeDrawable.value && lastMousePos.value) {
+                if (activeDrawables.value.length > 0 && lastMousePos.value) {
                     // Calculate delta
                     const currentPos = new Xyz(latlng.lng, latlng.lat);
                     const delta = currentPos.minus(lastMousePos.value);
 
-                    // Apply move operation
-                    activeDrawable.value.move(delta);
+                    // Apply move operation to all selected drawables
+                    activeDrawables.value.forEach(drawable => {
+                        drawable.move(delta);
+                    });
 
                     // Update last position
                     lastMousePos.value = currentPos;
@@ -259,8 +284,11 @@ onMounted(() => {
             case CanvasState.RESIZING:
             case CanvasState.MOVING:
                 // Update properties in the panel if needed
-                if (activeDrawable.value) {
-                    emit('selection-change', activeDrawable.value as Drawable);
+                if (activeDrawables.value.length === 1) {
+                    emit('selection-change', activeDrawables.value[0] as Drawable);
+                } else if (activeDrawables.value.length > 1) {
+                    // Multiple items selected
+                    emit('selection-change', undefined);
                 }
                 break;
 
@@ -294,19 +322,35 @@ onMounted(() => {
                 break;
             case CanvasState.IDLE:
                 if (selectionStart.value && props.mode === 'select') {
-                    rootModel.value.submodels.forEach(model => {
-                        model.selected = false;
-                    });
+                    // If neither Ctrl nor Shift are pressed, deselect everything first
+                    if (!(e instanceof MouseEvent) || !(e.ctrlKey || e.shiftKey)) {
+                        rootModel.value.submodels.forEach(model => {
+                            model.selected = false;
+                        });
+                    }
+                    
                     const endPoint = lmap!.containerPointToLatLng(
                         L.point(selectionEnd.value!.x, selectionEnd.value!.y)
                     );
                     const clickedModel = rootModel.value.submodels.find(m => m.contains(endPoint));
                     if (clickedModel) {
-                        clickedModel.selected = true;
+                        // Toggle selection if Ctrl/Cmd is pressed, otherwise select
+                        if ((e instanceof MouseEvent) && (e.ctrlKey || e.metaKey)) {
+                            clickedModel.selected = !clickedModel.selected;
+                        } else {
+                            clickedModel.selected = true;
+                        }
                     }
 
                     canvas?.render(rootModel.value);
-                    emit('selection-change', rootModel.value.submodels.find(m => m.selected) as Drawable | undefined);
+                    
+                    // Emit the selected items
+                    const selectedItems = rootModel.value.submodels.filter(m => m.selected);
+                    if (selectedItems.length === 1) {
+                        emit('selection-change', selectedItems[0] as Drawable);
+                    } else {
+                        emit('selection-change', undefined);
+                    }
                     break;
                 }
         }
@@ -317,7 +361,7 @@ onMounted(() => {
         
         // Clear state data
         activeHandle.value = null;
-        activeDrawable.value = null;
+        activeDrawables.value = [];
         lastMousePos.value = null;
         selectionStart.value = null;
         selectionEnd.value = null;
@@ -523,8 +567,8 @@ defineExpose({ centerCanvas, mode });
 
 .selection-box {
     position: absolute;
-    border: 1px solid var(--qui-accent-color);  // Reduced from 2px
-    background-color: rgba(var(--qui-accent-color-rgb, 33, 150, 243), 0.1);  // More subtle background
+    border: 1px solid var(--qui-accent-color); /* Thin border for subtle appearance */
+    background-color: rgba(33, 150, 243, 0.1); /* Subtle transparent background using hardcoded blue color */
     pointer-events: none;
     z-index: 10000;
 }
@@ -535,17 +579,17 @@ defineExpose({ centerCanvas, mode });
 }
 
 :deep(.resize-handle) {
-    border: 1px solid white;  // Reduced from 2px
+    border: 1px solid white; /* Thin border */
     background-color: var(--qui-accent-color);
-    opacity: 0.7;  // Added opacity
+    opacity: 0.7; /* Slightly transparent */
     border-radius: 50%;
-    box-shadow: 0 0 2px rgba(0, 0, 0, 0.2);  // Reduced shadow
+    box-shadow: 0 0 2px rgba(0, 0, 0, 0.2); /* Subtle shadow */
 }
 
 :deep(.move-handle) {
-    border: 1px solid white;  // Reduced from 2px
+    border: 1px solid white; /* Thin border */
     background-color: var(--qui-accent-secondary);
-    opacity: 0.7;  // Added opacity
+    opacity: 0.7; /* Slightly transparent */
     border-radius: 50%;
 }
 </style>
