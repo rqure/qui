@@ -45,6 +45,7 @@ export class Polyline extends Shape {
             opacity: this.selected ? 0.8 : this.fillOpacity,
             weight: this.selected ? 2 : this.weight,
             pane: this.pane?.name,
+            interactive: this.isSelectable,
         };
 
         return L.polyline(

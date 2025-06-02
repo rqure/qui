@@ -86,16 +86,16 @@ export class Shape extends Drawable {
             this._shape.addTo(r.impl);
             this._onDraw.trigger();
             
-            // Draw resize handles if selected
-            this.drawResizeHandles(r);
+            if (this.isResizable) {
+                this.drawResizeHandles(r);
+            }
         }
     }
 
     protected drawResizeHandles(r: IRenderer): void {
-        // Remove any existing handles
         this.clearResizeHandles();
         
-        if (this.selected) {
+        if (this.isSelectable && this.selected) {
             const handles = this.getResizeHandles();
             handles.forEach(handle => {
                 const markerOptions = {

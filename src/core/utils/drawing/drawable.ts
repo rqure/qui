@@ -42,6 +42,11 @@ export class Drawable implements IDrawable {
     private _selected: boolean;
     private _isHovering: boolean;
 
+    private _isHoverable: boolean;
+    private _isSelectable: boolean;
+    private _isMovable: boolean;
+    private _isResizable: boolean;
+
     private _onDestroy: DrawableEvent<void>;
     private _onClick: DrawableEvent<void>;
     private _onMouseOver: DrawableEvent<void>;
@@ -58,6 +63,11 @@ export class Drawable implements IDrawable {
         this._minZoom = 0;
         this._selected = false;
         this._isHovering = false;
+        
+        this._isHoverable = true;
+        this._isSelectable = true;
+        this._isMovable = true;
+        this._isResizable = true;
 
         this._onDestroy = new DrawableEvent<void>();
         this._onClick = new DrawableEvent<void>();
@@ -197,6 +207,38 @@ export class Drawable implements IDrawable {
 
     public set isHovering(value: boolean) {
         this._isHovering = value;
+    }
+
+    public get isSelectable(): boolean {
+        return this._isSelectable;
+    }
+
+    public set isSelectable(value: boolean) {
+        this._isSelectable = value;
+    }
+
+    public get isMovable(): boolean {
+        return this._isMovable;
+    }
+
+    public set isMovable(value: boolean) {
+        this._isMovable = value;
+    }
+
+    public get isResizable(): boolean {
+        return this._isResizable;
+    }
+
+    public set isResizable(value: boolean) {
+        this._isResizable = value;
+    }
+
+    public get isHoverable(): boolean {
+        return this._isHoverable;
+    }
+
+    public set isHoverable(value: boolean) {
+        this._isHoverable = value;
     }
 
     public destroy(): void {

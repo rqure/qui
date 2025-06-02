@@ -47,32 +47,33 @@ export class Polygon extends Shape {
             fillOpacity: this.getFillOpacityForState(),
             weight: this.getWeightForState(),
             pane: this.pane?.name,
+            interactive: this.isSelectable,
         };
         
         return L.polygon([...this.edgeLocations.map(edge => [edge.y, edge.x] as unknown as LatLngExpression)], config) as unknown as IRenderableShape;
     }
 
     private getColorForState(): string {
-        if (this.selected) return cvar('--qui-accent-color');
-        if (this.isHovering) return cvar('--qui-accent-secondary');
+        if (this.isSelectable && this.selected) return cvar('--qui-accent-color');
+        if (this.isHoverable && this.isHovering) return cvar('--qui-accent-secondary');
         return cvar(this.color);
     }
 
     private getFillColorForState(): string {
-        if (this.selected) return cvar('--qui-accent-color');
-        if (this.isHovering) return cvar('--qui-accent-secondary');
+        if (this.isSelectable && this.selected) return cvar('--qui-accent-color');
+        if (this.isHoverable && this.isHovering) return cvar('--qui-accent-secondary');
         return cvar(this.fillColor);
     }
 
     private getFillOpacityForState(): number {
-        if (this.selected) return 0.1;  // Reduced from 0.2
-        if (this.isHovering) return this.fillOpacity * 0.5;  // Reduced from 0.8
+        if (this.isSelectable && this.selected) return 0.1;  // Reduced from 0.2
+        if (this.isHoverable && this.isHovering) return this.fillOpacity * 0.5;  // Reduced from 0.8
         return this.fillOpacity;
     }
 
     private getWeightForState(): number {
-        if (this.selected) return Math.min(2, this.weight + 0.5);  // More subtle increase
-        if (this.isHovering) return Math.min(this.weight * 1.2, this.weight + 0.5);  // Reduced from 1.5
+        if (this.isSelectable && this.selected) return Math.min(2, this.weight + 0.5);  // More subtle increase
+        if (this.isHoverable && this.isHovering) return Math.min(this.weight * 1.2, this.weight + 0.5);  // Reduced from 1.5
         return this.weight;
     }
 
