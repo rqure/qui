@@ -523,8 +523,8 @@ defineExpose({ centerCanvas, mode });
 
 .selection-box {
     position: absolute;
-    border: 2px solid var(--qui-accent-color);
-    background-color: var(--qui-overlay-primary);
+    border: 1px solid var(--qui-accent-color);  // Reduced from 2px
+    background-color: rgba(var(--qui-accent-color-rgb, 33, 150, 243), 0.1);  // More subtle background
     pointer-events: none;
     z-index: 10000;
 }
@@ -535,15 +535,17 @@ defineExpose({ centerCanvas, mode });
 }
 
 :deep(.resize-handle) {
-    border: 2px solid white;
+    border: 1px solid white;  // Reduced from 2px
     background-color: var(--qui-accent-color);
+    opacity: 0.7;  // Added opacity
     border-radius: 50%;
-    box-shadow: 0 0 3px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 0 2px rgba(0, 0, 0, 0.2);  // Reduced shadow
 }
 
 :deep(.move-handle) {
-    border: 2px solid white;
+    border: 1px solid white;  // Reduced from 2px
     background-color: var(--qui-accent-secondary);
+    opacity: 0.7;  // Added opacity
     border-radius: 50%;
 }
 </style>

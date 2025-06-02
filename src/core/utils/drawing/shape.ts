@@ -99,11 +99,11 @@ export class Shape extends Drawable {
             const handles = this.getResizeHandles();
             handles.forEach(handle => {
                 const markerOptions = {
-                    radius: handle.handleType === 'move' ? 6 : 5,
+                    radius: handle.handleType === 'move' ? 5 : 4,  // Reduced from 6/5
                     color: handle.handleType === 'move' ? '#2196F3' : '#ffffff',
                     fillColor: handle.handleType === 'move' ? '#2196F3' : '#4CAF50',
-                    fillOpacity: 1.0,
-                    weight: 1.5,
+                    fillOpacity: 0.7,  // Reduced from 1.0
+                    weight: 1,  // Reduced from 1.5
                     interactive: true,
                     pane: 'overlayPane'
                 };
