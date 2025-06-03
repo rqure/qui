@@ -287,6 +287,9 @@ onMounted(() => {
                     // Multiple items selected
                     emit('selection-change', undefined);
                 }
+                activeDrawables.value.forEach(drawable => {
+                    canvas?.render(drawable);
+                });
                 break;
 
             case CanvasState.SELECTING:
@@ -305,25 +308,28 @@ onMounted(() => {
                             model.selected = true;
                         }
                     });
-                    canvas?.render(rootModel.value);
 
                     const selectedItems = rootModel.value.submodels.filter(m => m.selected);
                     if (selectedItems.length > 1) {
+                        // When multiple items are selected, disable resizing
+                        selectedItems.forEach(item => item.isResizable = false)
                         emit('selection-change', undefined);
                     } else if (selectedItems.length === 1) {
                         emit('selection-change', selectedItems[0] as Drawable);
                     } else {
                         emit('selection-change', undefined);
                     }
+
+                    canvas?.render(rootModel.value);
                 }
                 break;
             case CanvasState.IDLE:
+                rootModel.value.submodels.forEach(m => m.isResizable = true);
+
                 if (selectionStart.value && props.mode === 'select') {
                     // If neither Ctrl nor Shift are pressed, deselect everything first
                     if (!(e instanceof MouseEvent) || !(e.ctrlKey || e.shiftKey)) {
-                        rootModel.value.submodels.forEach(model => {
-                            model.selected = false;
-                        });
+                        rootModel.value.submodels.forEach(m => m.selected = false);
                     }
                     
                     const endPoint = lmap!.containerPointToLatLng(
@@ -338,16 +344,19 @@ onMounted(() => {
                             clickedModel.selected = true;
                         }
                     }
-
-                    canvas?.render(rootModel.value);
                     
                     // Emit the selected items
                     const selectedItems = rootModel.value.submodels.filter(m => m.selected);
-                    if (selectedItems.length === 1) {
+                    if (selectedItems.length > 1) {
+                        // If multiple items are selected, disable resizing
+                        selectedItems.forEach(item => item.isResizable = false);
+                    } else if (selectedItems.length === 1) {
                         emit('selection-change', selectedItems[0] as Drawable);
                     } else {
                         emit('selection-change', undefined);
                     }
+
+                    canvas?.render(rootModel.value);
                     break;
                 }
         }
