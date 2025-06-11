@@ -22,7 +22,7 @@ export class Shape extends Drawable {
     protected _shape?: IRenderableShape;
     protected _shapeGenerator?: IRenderableShapeGenerator;
     protected _onDraw: DrawableEvent<void> = new DrawableEvent<void>();
-    protected _resizeHandles: L.CircleMarker[] = [];
+    protected _handles: L.CircleMarker[] = [];
 
     constructor() {
         super();
@@ -86,60 +86,51 @@ export class Shape extends Drawable {
             this._shape.addTo(r.impl);
             this._onDraw.trigger();
             
-            if (this.isResizable) {
-                this.drawResizeHandles(r);
-            }
+            this.drawHandles(r);
         }
     }
 
-    protected drawResizeHandles(r: IRenderer): void {
-        this.clearResizeHandles();
+    protected drawHandles(r: IRenderer): void {
+        this.clearHandles();
         
-        if (this.isSelectable && this.selected) {
-            const handles = this.getResizeHandles();
-            handles.forEach(handle => {
-                const isMove = handle.handleType === 'move';
-                const markerOptions = {
-                    radius: isMove ? 5 : 4,
-                    color: isMove ? '#2196F3' : '#ffffff',
-                    fillColor: isMove ? '#2196F3' : '#4CAF50',
-                    fillOpacity: 0.7,
-                    weight: 1,
-                    interactive: true,
-                    pane: 'overlayPane'
-                };
-                
-                const marker = L.circleMarker(
-                    [handle.position.y, handle.position.x], 
-                    markerOptions
-                );
-                
-                marker.addTo(r.impl);
-                
-                // Store custom data on the marker
-                (marker as any).handleType = handle.handleType;
-                (marker as any).cursorStyle = handle.cursor;
-                
-                marker.on('mouseover', (e) => {
-                    document.body.style.cursor = handle.cursor;
-                });
-                
-                marker.on('mouseout', () => {
-                    document.body.style.cursor = '';
-                });
-                
-                this._resizeHandles.push(marker);
-            });
+        if (!this.isSelectable || !this.selected) {
+            return;
         }
+
+        this.getHandles().forEach(handle => {
+            const marker = L.circleMarker(
+                [handle.position.y, handle.position.x],
+                handle.getDrawOpts() as L.CircleMarkerOptions
+            );
+            
+            marker.addTo(r.impl);
+            
+            // Store custom data on the marker
+            (marker as any).cursorStyle = handle.cursor;
+            
+            marker.on('mouseover', (e) => {
+                document.body.style.cursor = handle.cursor;
+            });
+            
+            marker.on('mouseout', () => {
+                document.body.style.cursor = '';
+            });
+
+            marker.on('mousedown', (e) => {
+                handle.onMouseDown(e);
+            });
+            
+            this._handles.push(marker);
+        });
     }
 
-    protected clearResizeHandles(): void {
-        this._resizeHandles.forEach(handle => handle.remove());
-        this._resizeHandles = [];
+    protected clearHandles(): void {
+        this._handles.forEach(handle => handle.remove());
+        this._handles = [];
     }
 
     public override erase(): void {
-        this.clearResizeHandles();
+        this.clearHandles();
         
         if (this._shape) {
             this._shape.remove();

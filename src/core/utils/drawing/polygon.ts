@@ -3,7 +3,7 @@ import { Xyz } from "./xyz";
 import { Shape, type IRenderableShape } from "./shape";
 import L from "leaflet";
 import { cvar } from "./utils";
-import type { ResizeHandle } from "./drawable";
+import type { ResizeHandle } from "./handles";
 
 export class Polygon extends Shape {
     private _edges: Xyz[];

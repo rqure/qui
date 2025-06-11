@@ -8,10 +8,11 @@ import { Circle } from '@/core/utils/drawing/circle';
 import { Polygon } from '@/core/utils/drawing/polygon';
 import { Polyline } from '@/core/utils/drawing/polyline';
 import { Xyz } from '@/core/utils/drawing/xyz';
-import type { Drawable, Handle } from '@/core/utils/drawing/drawable';
+import type { Drawable } from '@/core/utils/drawing/drawable';
 import CanvasInfo from './CanvasInfo.vue';
 import { createGridLayer } from '../utils/CustomGridLayer';
 import { Model } from '@/core/utils/drawing/model';
+import type { Handle } from '@/core/utils/drawing/handles';
 
 enum CanvasState {
   IDLE,
@@ -131,7 +132,7 @@ onMounted(() => {
                 const selectedDrawable = rootModel.value.submodels.find(m => m.selected);
 
                 if (selectedDrawable) {
-                    const handles = selectedDrawable.getResizeHandles();
+                    const handles = selectedDrawable.getHandles();
                     const point = new Xyz(latlng.lng, latlng.lat);
 
                     // Find the closest handle

@@ -2,7 +2,8 @@ import { Shape, type IRenderableShape } from "./shape";
 import L from "leaflet";
 import { cvar } from "./utils";
 import { Xyz } from "./xyz";
-import type { EditableProperty, ResizeHandle } from "./drawable";
+import type { EditableProperty } from "./drawable";
+import type { ResizeHandle } from "./handles";
 
 export class Circle extends Shape {
     private _radius: number;

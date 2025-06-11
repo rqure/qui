@@ -2,7 +2,7 @@ import { Shape, type IRenderableShape } from "./shape";
 import { Xyz } from "./xyz";
 import L from "leaflet";
 import { cvar } from "./utils";
-import type { ResizeHandle } from "./drawable";
+import type { ResizeHandle } from "./handles";
 
 export class Polyline extends Shape {
     private _edges: Xyz[];

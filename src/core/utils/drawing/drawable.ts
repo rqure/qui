@@ -1,5 +1,6 @@
 import type { IRenderer, QCanvas } from "./canvas";
 import { DrawableEvent } from "./event";
+import { EResizeHandle, MoveHandle, NEResizeHandle, NResizeHandle, NWResizeHandle, ResizeHandle, SEResizeHandle, SResizeHandle, SWResizeHandle, WResizeHandle, type Handle } from "./handles";
 import { Xyz } from "./xyz";
 import type { LatLng, LatLngBounds } from 'leaflet';
 import L from 'leaflet';
@@ -23,23 +24,6 @@ export interface EditableProperty {
     max?: number;
     step?: number;
 }
-
-export interface BaseHandle {
-    position: Xyz;
-    cursor: string;
-    handleType: string; // Common property for all handle types
-    apply(drawable: Drawable, delta: Xyz): void;
-}
-
-export interface ResizeHandle extends BaseHandle {
-    handleType: 'topleft' | 'topright' | 'bottomleft' | 'bottomright' | 'top' | 'right' | 'bottom' | 'left';
-}
-
-export interface MoveHandle extends BaseHandle {
-    handleType: 'move';
-}
-
-export type Handle = ResizeHandle | MoveHandle;
 
 export class Drawable implements IDrawable {
     private _isVisible: boolean;
@@ -300,7 +284,7 @@ export class Drawable implements IDrawable {
     }
     
     // New methods for resizing and moving
-    public getResizeHandles(): Handle[] {
+    public getHandles(): Handle[] {
         if (!this.selected) return [];
         
         const bounds = this.getBounds();
@@ -313,57 +297,19 @@ export class Drawable implements IDrawable {
         const s = L.latLng((sw.lat + se.lat) / 2, (sw.lng + se.lng) / 2);
         const w = L.latLng((nw.lat + sw.lat) / 2, (nw.lng + sw.lng) / 2);
         
-        const handles: Handle[] = [];
+        const handles: Handle[] = [];;
         
-        // Add resize handles if object is resizable
-        if (this.isResizable) {
-            // Use a factory function with proper method binding
-            const createResizeHandle = (
-                position: Xyz, 
-                cursor: string, 
-                handleType: ResizeHandle['handleType']
-            ): ResizeHandle => ({
-                position,
-                cursor,
-                handleType,
-                apply: (drawable: Drawable, delta: Xyz) => {
-                    if (drawable.isResizable) {
-                        drawable.resize({
-                            position,
-                            cursor,
-                            handleType,
-                            apply: (d, delta) => {} // Dummy implementation as it's not used recursively
-                        }, delta);
-                    }
-                }
-            });
-            
-            handles.push(
-                createResizeHandle(new Xyz(nw.lng, nw.lat), 'nw-resize', 'topleft'),
-                createResizeHandle(new Xyz(ne.lng, ne.lat), 'ne-resize', 'topright'),
-                createResizeHandle(new Xyz(sw.lng, sw.lat), 'sw-resize', 'bottomleft'),
-                createResizeHandle(new Xyz(se.lng, se.lat), 'se-resize', 'bottomright'),
-                createResizeHandle(new Xyz(n.lng, n.lat), 'n-resize', 'top'),
-                createResizeHandle(new Xyz(e.lng, e.lat), 'e-resize', 'right'),
-                createResizeHandle(new Xyz(s.lng, s.lat), 's-resize', 'bottom'),
-                createResizeHandle(new Xyz(w.lng, w.lat), 'w-resize', 'left')
-            );
-        }
-        
-        // Add move handle if object is movable
-        if (this.isMovable) {
-            const moveHandle: MoveHandle = {
-                position: new Xyz(bounds.getCenter().lng, bounds.getCenter().lat),
-                cursor: 'move',
-                handleType: 'move',
-                apply: (drawable: Drawable, delta: Xyz) => {
-                    if (drawable.isMovable) {
-                        drawable.move(delta);
-                    }
-                }
-            };
-            handles.push(moveHandle);
-        }
+        handles.push(
+            new NWResizeHandle(new Xyz(nw.lng, nw.lat)),
+            new NEResizeHandle(new Xyz(ne.lng, ne.lat)),
+            new SWResizeHandle(new Xyz(sw.lng, sw.lat)),
+            new SEResizeHandle(new Xyz(se.lng, se.lat)),
+            new NResizeHandle(new Xyz(n.lng, n.lat)),
+            new EResizeHandle(new Xyz(e.lng, e.lat)),
+            new SResizeHandle(new Xyz(s.lng, s.lat)),
+            new WResizeHandle(new Xyz(w.lng, w.lat)),
+            new MoveHandle(new Xyz(bounds.getCenter().lng, bounds.getCenter().lat))
+        );
         
         return handles;
     }
