@@ -91,14 +91,11 @@ export class Circle extends Shape {
     
     // Override resize to handle circle specific resizing
     public override resize(handle: ResizeHandle, delta: Xyz): void {
-        if (!this.isResizable) return;
-        
         const center = this.location;
         const handlePos = handle.position;
         const distance = new Xyz(handlePos.x, handlePos.y).plus(delta).distanceTo(center);
         
-        // Update radius based on distance from center
-        this.radius = Math.max(1, distance);
+        this.radius = Math.max(1, distance); // Ensure minimum radius of 1
         super.resize(handle, delta);
     }
 }

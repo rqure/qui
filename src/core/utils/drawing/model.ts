@@ -1,5 +1,6 @@
 import type { IRenderer } from "./canvas";
-import { Drawable, type ResizeHandle } from "./drawable";
+import { Drawable } from "./drawable";
+import type { ResizeHandle } from "./handles";
 import { Xyz } from "./xyz";
 
 

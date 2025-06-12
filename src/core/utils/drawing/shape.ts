@@ -22,7 +22,6 @@ export class Shape extends Drawable {
     protected _shape?: IRenderableShape;
     protected _shapeGenerator?: IRenderableShapeGenerator;
     protected _onDraw: DrawableEvent<void> = new DrawableEvent<void>();
-    protected _handles: L.CircleMarker[] = [];
 
     constructor() {
         super();
@@ -85,53 +84,10 @@ export class Shape extends Drawable {
 
             this._shape.addTo(r.impl);
             this._onDraw.trigger();
-            
-            this.drawHandles(r);
         }
-    }
-
-    protected drawHandles(r: IRenderer): void {
-        this.clearHandles();
-        
-        if (!this.isSelectable || !this.selected) {
-            return;
-        }
-
-        this.getHandles().forEach(handle => {
-            const marker = L.circleMarker(
-                [handle.position.y, handle.position.x],
-                handle.getDrawOpts() as L.CircleMarkerOptions
-            );
-            
-            marker.addTo(r.impl);
-            
-            // Store custom data on the marker
-            (marker as any).cursorStyle = handle.cursor;
-            
-            marker.on('mouseover', (e) => {
-                document.body.style.cursor = handle.cursor;
-            });
-            
-            marker.on('mouseout', () => {
-                document.body.style.cursor = '';
-            });
-
-            marker.on('mousedown', (e) => {
-                handle.onMouseDown(e);
-            });
-            
-            this._handles.push(marker);
-        });
-    }
-
-    protected clearHandles(): void {
-        this._handles.forEach(handle => handle.remove());
-        this._handles = [];
     }
 
     public override erase(): void {
-        this.clearHandles();
-        
         if (this._shape) {
             this._shape.remove();
             this._shape = undefined;

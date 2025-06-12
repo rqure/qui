@@ -119,72 +119,66 @@ export class Polygon extends Shape {
     
     // Override resize to handle polygon specific resizing
     public override resize(handle: ResizeHandle, delta: Xyz): void {
-        if (!this.isResizable) return;
+        const bounds = this.getBounds();
+        const oldWidth = bounds.getEast() - bounds.getWest();
+        const oldHeight = bounds.getNorth() - bounds.getSouth();
         
-        // Get bounds before resizing
-        const oldBounds = this.getBounds();
-        const oldWidth = oldBounds.getEast() - oldBounds.getWest();
-        const oldHeight = oldBounds.getNorth() - oldBounds.getSouth();
-        
-        // Calculate scale factors based on handle type
         let scaleX = 1, scaleY = 1;
         let anchorX = 0, anchorY = 0;
         
         switch(handle.handleType) {
             case 'topleft':
-                anchorX = oldBounds.getEast();
-                anchorY = oldBounds.getSouth();
+                anchorX = bounds.getEast();
+                anchorY = bounds.getSouth();
                 scaleX = (oldWidth - delta.x) / oldWidth;
                 scaleY = (oldHeight + delta.y) / oldHeight;
                 break;
             case 'topright':
-                anchorX = oldBounds.getWest();
-                anchorY = oldBounds.getSouth();
+                anchorX = bounds.getWest();
+                anchorY = bounds.getSouth();
                 scaleX = (oldWidth + delta.x) / oldWidth;
                 scaleY = (oldHeight + delta.y) / oldHeight;
                 break;
             case 'bottomleft':
-                anchorX = oldBounds.getEast();
-                anchorY = oldBounds.getNorth();
+                anchorX = bounds.getEast();
+                anchorY = bounds.getNorth();
                 scaleX = (oldWidth - delta.x) / oldWidth;
                 scaleY = (oldHeight - delta.y) / oldHeight;
                 break;
             case 'bottomright':
-                anchorX = oldBounds.getWest();
-                anchorY = oldBounds.getNorth();
+                anchorX = bounds.getWest();
+                anchorY = bounds.getNorth();
                 scaleX = (oldWidth + delta.x) / oldWidth;
                 scaleY = (oldHeight - delta.y) / oldHeight;
                 break;
             case 'left':
-                anchorX = oldBounds.getEast();
-                anchorY = (oldBounds.getNorth() + oldBounds.getSouth()) / 2;
+                anchorX = bounds.getEast();
+                anchorY = (bounds.getNorth() + bounds.getSouth()) / 2;
                 scaleX = (oldWidth - delta.x) / oldWidth;
                 break;
             case 'right':
-                anchorX = oldBounds.getWest();
-                anchorY = (oldBounds.getNorth() + oldBounds.getSouth()) / 2;
+                anchorX = bounds.getWest();
+                anchorY = (bounds.getNorth() + bounds.getSouth()) / 2;
                 scaleX = (oldWidth + delta.x) / oldWidth;
                 break;
             case 'top':
-                anchorX = (oldBounds.getWest() + oldBounds.getEast()) / 2;
-                anchorY = oldBounds.getSouth();
+                anchorX = (bounds.getWest() + bounds.getEast()) / 2;
+                anchorY = bounds.getSouth();
                 scaleY = (oldHeight + delta.y) / oldHeight;
                 break;
             case 'bottom':
-                anchorX = (oldBounds.getWest() + oldBounds.getEast()) / 2;
-                anchorY = oldBounds.getNorth();
+                anchorX = (bounds.getWest() + bounds.getEast()) / 2;
+                anchorY = bounds.getNorth();
                 scaleY = (oldHeight - delta.y) / oldHeight;
                 break;
         }
         
-        // Avoid negative or zero scaling
         scaleX = Math.max(0.1, scaleX);
         scaleY = Math.max(0.1, scaleY);
         
-        // Apply scale to each edge
         const anchor = new Xyz(anchorX, anchorY);
         const newEdges = this._edges.map(edge => {
-            const localPos = edge.minus(this.offset); // Get position relative to offset
+            const localPos = edge.minus(this.offset);
             const scaledPos = new Xyz(
                 localPos.x * scaleX,
                 localPos.y * scaleY,
@@ -194,8 +188,6 @@ export class Polygon extends Shape {
         });
         
         this._edges = newEdges;
-        
-        // Trigger resize event
         super.resize(handle, delta);
     }
 }

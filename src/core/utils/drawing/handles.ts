@@ -24,10 +24,6 @@ export class ResizeHandle implements Handle {
     }
 
     apply(drawable: Drawable, delta: Xyz): void {
-        if (!drawable.isResizable) {
-            return;
-        }
-        
         drawable.resize(this, delta);
     }
 
@@ -103,10 +99,6 @@ export class MoveHandle implements Handle {
     }
 
     apply(drawable: Drawable, delta: Xyz): void {
-        if (!drawable.isMovable) {
-            return;
-        }
-        
         drawable.move(delta);
     }
 

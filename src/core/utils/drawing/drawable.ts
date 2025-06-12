@@ -39,8 +39,6 @@ export class Drawable implements IDrawable {
 
     private _isHoverable: boolean;
     private _isSelectable: boolean;
-    private _isMovable: boolean;
-    private _isResizable: boolean;
 
     private _onDestroy: DrawableEvent<void>;
     private _onClick: DrawableEvent<void>;
@@ -61,8 +59,6 @@ export class Drawable implements IDrawable {
         
         this._isHoverable = true;
         this._isSelectable = true;
-        this._isMovable = true;
-        this._isResizable = true;
 
         this._onDestroy = new DrawableEvent<void>();
         this._onClick = new DrawableEvent<void>();
@@ -212,22 +208,6 @@ export class Drawable implements IDrawable {
         this._isSelectable = value;
     }
 
-    public get isMovable(): boolean {
-        return this._isMovable;
-    }
-
-    public set isMovable(value: boolean) {
-        this._isMovable = value;
-    }
-
-    public get isResizable(): boolean {
-        return this._isResizable;
-    }
-
-    public set isResizable(value: boolean) {
-        this._isResizable = value;
-    }
-
     public get isHoverable(): boolean {
         return this._isHoverable;
     }
@@ -250,6 +230,15 @@ export class Drawable implements IDrawable {
 
     public erase(): void {
         this._isVisible = false;
+    }
+
+    public move(delta: Xyz): void {
+        this.offset = this.offset.plus(delta);
+        this._onMove.trigger();
+    }
+
+    public resize(handle: ResizeHandle, delta: Xyz): void {
+        this._onResize.trigger();
     }
 
     public contains(point: L.LatLng): boolean {
@@ -281,48 +270,5 @@ export class Drawable implements IDrawable {
                 label: 'Rotation'
             }
         ];
-    }
-    
-    // New methods for resizing and moving
-    public getHandles(): Handle[] {
-        if (!this.selected) return [];
-        
-        const bounds = this.getBounds();
-        const nw = bounds.getNorthWest();
-        const ne = bounds.getNorthEast();
-        const sw = bounds.getSouthWest();
-        const se = bounds.getSouthEast();
-        const n = L.latLng((nw.lat + ne.lat) / 2, (nw.lng + ne.lng) / 2);
-        const e = L.latLng((ne.lat + se.lat) / 2, (ne.lng + se.lng) / 2);
-        const s = L.latLng((sw.lat + se.lat) / 2, (sw.lng + se.lng) / 2);
-        const w = L.latLng((nw.lat + sw.lat) / 2, (nw.lng + sw.lng) / 2);
-        
-        const handles: Handle[] = [];;
-        
-        handles.push(
-            new NWResizeHandle(new Xyz(nw.lng, nw.lat)),
-            new NEResizeHandle(new Xyz(ne.lng, ne.lat)),
-            new SWResizeHandle(new Xyz(sw.lng, sw.lat)),
-            new SEResizeHandle(new Xyz(se.lng, se.lat)),
-            new NResizeHandle(new Xyz(n.lng, n.lat)),
-            new EResizeHandle(new Xyz(e.lng, e.lat)),
-            new SResizeHandle(new Xyz(s.lng, s.lat)),
-            new WResizeHandle(new Xyz(w.lng, w.lat)),
-            new MoveHandle(new Xyz(bounds.getCenter().lng, bounds.getCenter().lat))
-        );
-        
-        return handles;
-    }
-
-    public resize(handle: ResizeHandle, delta: Xyz): void {
-        // Override in derived classes for specific resize behavior
-        if (!this.isResizable) return;
-        this._onResize.trigger();
-    }
-
-    public move(delta: Xyz): void {
-        if (!this.isMovable) return;
-        this.offset = this.offset.plus(delta);
-        this._onMove.trigger();
     }
 }

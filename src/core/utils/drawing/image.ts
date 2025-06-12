@@ -1,6 +1,8 @@
 import { DrawableEvent } from "./event";
+import type { ResizeHandle } from "./handles";
 import { Shape, type IRenderableShape } from "./shape";
 import L from "leaflet";
+import type { Xyz } from "./xyz";
 
 export class ImageOverlay extends Shape {
     private _url: string;
@@ -38,6 +40,40 @@ export class ImageOverlay extends Shape {
 
     public set height(value: number) {
         this._height = value;
+    }
+
+    public override resize(handle: ResizeHandle, delta: Xyz): void {
+        const bounds = this.getBounds();
+        const oldWidth = bounds.getEast() - bounds.getWest();
+        const oldHeight = bounds.getNorth() - bounds.getSouth();
+        
+        switch(handle.handleType) {
+            case 'right':
+            case 'bottomright':
+            case 'topright':
+                this._width = Math.max(10, oldWidth + delta.x);
+                break;
+            case 'left':
+            case 'bottomleft':
+            case 'topleft':
+                this._width = Math.max(10, oldWidth - delta.x);
+                break;
+        }
+        
+        switch(handle.handleType) {
+            case 'top':
+            case 'topleft':
+            case 'topright':
+                this._height = Math.max(10, oldHeight + delta.y);
+                break;
+            case 'bottom':
+            case 'bottomleft':
+            case 'bottomright':
+                this._height = Math.max(10, oldHeight - delta.y);
+                break;
+        }
+        
+        super.resize(handle, delta);
     }
 
     public generateShape(): IRenderableShape {
