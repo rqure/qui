@@ -144,6 +144,12 @@ onMounted(() => {
                 lastMousePos.value = new Xyz(e.latlng.lng, e.latlng.lat);
                 selectionStart.value = null;
                 selectionEnd.value = null;
+            } else if (!(e.originalEvent && (e.originalEvent.ctrlKey || e.originalEvent.metaKey))) {
+                // Clear selection when clicking empty space and not multi-selecting
+                selectionBox.value.targets.forEach(target => target.selected = false);
+                selectionBox.value.clearTargets();
+                emit('selection-change', undefined);
+                canvas?.render(rootModel.value);
             }
         } else if (props.mode === 'pan') {
             mapRef.value!.style.cursor = 'grabbing';
