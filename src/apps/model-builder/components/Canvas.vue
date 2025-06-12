@@ -13,12 +13,12 @@ import CanvasInfo from './CanvasInfo.vue';
 import { createGridLayer } from '../utils/CustomGridLayer';
 import { Model } from '@/core/utils/drawing/model';
 import type { Handle } from '@/core/utils/drawing/handles';
+import { SelectionBox } from '@/core/utils/drawing/selection-box';
 
 enum CanvasState {
   IDLE,
   SELECTING,
-  RESIZING,
-  MOVING
+  DRAGGING
 }
 
 const defaultStyle = {
@@ -32,6 +32,7 @@ const mapRef = ref<HTMLElement | null>(null);
 let lmap: L.Map | null = null;
 let canvas: QCanvas | null = null;
 const registry = new ModelRegistry();
+const selectionBox = ref(new SelectionBox());
 const rootModel = ref<Model>(new Model());
 const showGrid = ref(true);
 const mousePos = ref({ x: 0, y: 0 });
@@ -44,9 +45,6 @@ const mode = ref<'pan' | 'select'>('pan');
 const canvasState = ref<CanvasState>(CanvasState.IDLE);
 const selectionStart = ref<{ x: number; y: number } | null>(null);
 const selectionEnd = ref<{ x: number; y: number } | null>(null);
-const activeHandle = ref<Handle | null>(null);  // Changed from ResizeOrMoveHandle to Handle
-// Change to array of drawables for multi-selection
-const activeDrawables = ref<Drawable[]>([]);
 const lastMousePos = ref<Xyz | null>(null);
 
 onMounted(() => {
@@ -106,15 +104,14 @@ onMounted(() => {
         mapRef.value!.style.cursor = newMode === 'pan' ? 'grab' : 'pointer';
     }, { immediate: true });
 
-    // Update mousedown handler for selection, resize and move operations
+    // Add selection box to root model
+    rootModel.value.addSubmodel(selectionBox.value as unknown as Drawable);
+
+    // Update mousedown handler
     lmap.on('mousedown', (e: L.LeafletMouseEvent) => {
-        // Ignore right mouse button clicks for selection
-        if (e.originalEvent instanceof MouseEvent && e.originalEvent.button === 2) {
-            return;
-        }
+        if (e.originalEvent instanceof MouseEvent && e.originalEvent.button === 2) return;
         
         if (props.mode === 'select') {
-            // Reset to idle state at start
             canvasState.value = CanvasState.IDLE;
 
             const rect = mapRef.value!.getBoundingClientRect();
@@ -123,87 +120,39 @@ onMounted(() => {
                 y: e.originalEvent.clientY - rect.top
             };
             selectionEnd.value = { ...selectionStart.value };
-
-            // Check if we're clicking on a resize handle
-            const target = e.originalEvent.target as HTMLElement;
-            if (target && target.classList.contains('leaflet-interactive')) {
-                // Find the nearest handle
-                const latlng = e.latlng;
-                const selectedDrawable = rootModel.value.submodels.find(m => m.selected);
-
-                if (selectedDrawable) {
-                    const handles = selectedDrawable.getHandles();
-                    const point = new Xyz(latlng.lng, latlng.lat);
-
-                    // Find the closest handle
-                    let minDistance = Infinity;
-                    let closestHandle: Handle | null = null;
-
-                    handles.forEach(handle => {
-                        const distance = point.distanceTo(handle.position);
-                        if (distance < minDistance) {
-                            minDistance = distance;
-                            closestHandle = handle;
-                        }
-                    });
-
-                    if (closestHandle && minDistance < 10) {
-                        // Reset selection points when starting resize/move
-                        selectionStart.value = null;
-                        selectionEnd.value = null;
-
-                        const handleType = (closestHandle as Handle).handleType; // Access safely once
-
-                        // Transition to appropriate state based on handle type
-                        if (handleType === 'move') {
-                            canvasState.value = CanvasState.MOVING;
-                            // Get all selected drawables for multi-selection movement
-                            activeDrawables.value = rootModel.value.submodels.filter(m => m.selected && m.isMovable);
-                        } else {
-                            // Handle is a resize handle
-                            canvasState.value = CanvasState.RESIZING;
-                            // Only the drawable with handles can be resized
-                            if (selectedDrawable.isResizable) {
-                                activeDrawables.value = [selectedDrawable];
-                            }
-                        }
-
-                        activeHandle.value = closestHandle;
-                        lastMousePos.value = new Xyz(latlng.lng, latlng.lat);
-                        return;
-                    }
-                }
-            }
             
-            // Check if we clicked directly on a drawable (for moving without handles)
-            const clickedModel = rootModel.value.submodels.find(m => m.contains(e.latlng));
+            // Check if we clicked directly on a drawable
+            const clickedModel = rootModel.value.submodels.find(m => 
+                m !== selectionBox.value && m.contains(e.latlng)
+            );
+
             if (clickedModel) {
-                // If the clicked model is already selected, or if Ctrl/Cmd key is pressed,
-                // prepare for moving all selected models
-                if (clickedModel.selected || (e.originalEvent && (e.originalEvent.ctrlKey || e.originalEvent.metaKey))) {
-                    if (!clickedModel.selected) {
-                        clickedModel.selected = true;
-                    }
-                    
-                    canvasState.value = CanvasState.MOVING;
-                    activeDrawables.value = rootModel.value.submodels.filter(m => m.selected);
-                    lastMousePos.value = new Xyz(e.latlng.lng, e.latlng.lat);
-                    selectionStart.value = null;
-                    selectionEnd.value = null;
-                    return;
+                if (!(e.originalEvent && (e.originalEvent.ctrlKey || e.originalEvent.metaKey))) {
+                    // Clear previous selection if not multi-selecting
+                    (selectionBox.value.targets as Drawable[]).forEach((target: Drawable) => target.selected = false);
+                    selectionBox.value.clearTargets();
                 }
+
+                clickedModel.selected = !clickedModel.selected;
+                if (clickedModel.selected) {
+                    selectionBox.value.addTarget(clickedModel as Drawable);
+                } else {
+                    selectionBox.value.removeTarget(clickedModel as Drawable);
+                }
+
+                canvasState.value = CanvasState.DRAGGING;
+                lastMousePos.value = new Xyz(e.latlng.lng, e.latlng.lat);
+                selectionStart.value = null;
+                selectionEnd.value = null;
             }
         } else if (props.mode === 'pan') {
             mapRef.value!.style.cursor = 'grabbing';
         }
     });
 
-    // Update mousemove for selection, resize and move operations
+    // Update mousemove handler
     document.addEventListener('mousemove', (e: MouseEvent) => {
-        // Ignore right mouse button drags
-        if (e.buttons === 2) {
-            return;
-        }
+        if (e.buttons === 2) return;
         
         if (!lmap || !mapRef.value) return;
 
@@ -212,32 +161,15 @@ onMounted(() => {
         const latlng = lmap.containerPointToLatLng(point);
         mousePos.value = { x: latlng.lng, y: latlng.lat };
 
-        // Handle different states
         switch (canvasState.value) {
-            case CanvasState.RESIZING:
-            case CanvasState.MOVING:
-                if (activeDrawables.value.length > 0 && activeHandle.value && lastMousePos.value) {
-                    // Calculate delta
+            case CanvasState.DRAGGING:
+                if (lastMousePos.value) {
                     const currentPos = new Xyz(latlng.lng, latlng.lat);
                     const delta = currentPos.minus(lastMousePos.value);
-
-                    // Use polymorphic behavior via the apply method
-                    if (canvasState.value === CanvasState.RESIZING) {
-                        // For resize, only apply to the first drawable
-                        activeHandle.value.apply(activeDrawables.value[0] as Drawable, delta);
-                    } else {
-                        // For moving, apply to all active drawables
-                        activeDrawables.value.forEach(drawable => {
-                            if (activeHandle.value) {
-                                activeHandle.value.apply(drawable as Drawable, delta);
-                            }
-                        });
-                    }
-
-                    // Update last position
+                    (selectionBox.value.targets as Drawable[]).forEach((target: Drawable) => {
+                        if (target.selected) target.move(delta);
+                    });
                     lastMousePos.value = currentPos;
-
-                    // Redraw
                     canvas?.render(rootModel.value);
                 }
                 break;
@@ -276,23 +208,9 @@ onMounted(() => {
         }
     });
 
-    // Update mouseup handler to finalize operations based on state
+    // Update mouseup handler
     document.addEventListener('mouseup', (e: MouseEvent) => {
         switch (canvasState.value) {
-            case CanvasState.RESIZING:
-            case CanvasState.MOVING:
-                // Update properties in the panel if needed
-                if (activeDrawables.value.length === 1) {
-                    emit('selection-change', activeDrawables.value[0] as Drawable);
-                } else if (activeDrawables.value.length > 1) {
-                    // Multiple items selected
-                    emit('selection-change', undefined);
-                }
-                activeDrawables.value.forEach(drawable => {
-                    canvas?.render(drawable);
-                });
-                break;
-
             case CanvasState.SELECTING:
                 if (selectionStart.value && selectionEnd.value && mapRef.value && lmap) {
                     const startPoint = lmap.containerPointToLatLng(
@@ -303,75 +221,41 @@ onMounted(() => {
                     );
                     const bounds = L.latLngBounds(startPoint, endPoint);
 
+                    // Clear previous selection if not multi-selecting
+                    if (!(e instanceof MouseEvent && (e.ctrlKey || e.metaKey))) {
+                        selectionBox.value.targets.forEach(target => target.selected = false);
+                        selectionBox.value.clearTargets();
+                    }
+
+                    // Add new selections
                     rootModel.value.submodels.forEach(model => {
-                        model.selected = false;
-                        if (bounds.contains(model.getBounds())) {
+                        if (model !== selectionBox.value && bounds.contains(model.getBounds())) {
                             model.selected = true;
+                            selectionBox.value.addTarget(model as Drawable);
                         }
                     });
-
-                    const selectedItems = rootModel.value.submodels.filter(m => m.selected);
-                    if (selectedItems.length > 1) {
-                        // When multiple items are selected, disable resizing
-                        selectedItems.forEach(item => item.isResizable = false)
-                        emit('selection-change', undefined);
-                    } else if (selectedItems.length === 1) {
-                        emit('selection-change', selectedItems[0] as Drawable);
-                    } else {
-                        emit('selection-change', undefined);
-                    }
 
                     canvas?.render(rootModel.value);
                 }
                 break;
-            case CanvasState.IDLE:
-                rootModel.value.submodels.forEach(m => m.isResizable = true);
-
-                if (selectionStart.value && props.mode === 'select') {
-                    // If neither Ctrl nor Shift are pressed, deselect everything first
-                    if (!(e instanceof MouseEvent) || !(e.ctrlKey || e.shiftKey)) {
-                        rootModel.value.submodels.forEach(m => m.selected = false);
-                    }
-                    
-                    const endPoint = lmap!.containerPointToLatLng(
-                        L.point(selectionEnd.value!.x, selectionEnd.value!.y)
-                    );
-                    const clickedModel = rootModel.value.submodels.find(m => m.contains(endPoint));
-                    if (clickedModel) {
-                        // Toggle selection if Ctrl/Cmd is pressed, otherwise select
-                        if ((e instanceof MouseEvent) && (e.ctrlKey || e.metaKey)) {
-                            clickedModel.selected = !clickedModel.selected;
-                        } else {
-                            clickedModel.selected = true;
-                        }
-                    }
-                    
-                    // Emit the selected items
-                    const selectedItems = rootModel.value.submodels.filter(m => m.selected);
-                    if (selectedItems.length > 1) {
-                        // If multiple items are selected, disable resizing
-                        selectedItems.forEach(item => item.isResizable = false);
-                    } else if (selectedItems.length === 1) {
-                        emit('selection-change', selectedItems[0] as Drawable);
-                    } else {
-                        emit('selection-change', undefined);
-                    }
-
-                    canvas?.render(rootModel.value);
-                    break;
-                }
         }
 
-        // Reset state machine to idle
+        // Reset state
         canvasState.value = CanvasState.IDLE;
         document.body.style.cursor = '';
-        
-        // Clear state data
-        activeHandle.value = null;
-        activeDrawables.value = [];
         lastMousePos.value = null;
         selectionStart.value = null;
         selectionEnd.value = null;
+
+        // Update selection-change event
+        const selectedTargets = selectionBox.value.targets;
+        if (selectedTargets.length === 1) {
+            emit('selection-change', selectedTargets[0] as Drawable);
+        } else if (selectedTargets.length > 1) {
+            emit('selection-change', undefined);
+        } else {
+            emit('selection-change', undefined);
+        }
     });
 
     // Remove mouseout handler since we're using document events
@@ -493,13 +377,8 @@ defineExpose({ centerCanvas, mode });
 <template>
     <div class="canvas-container" @drop="handleDrop" @dragover="handleDragOver">
         <div class="canvas" ref="mapRef" 
-             :class="{
-                'resizing': canvasState === CanvasState.RESIZING,
-                'moving': canvasState === CanvasState.MOVING
-             }" 
-             :style="{ 
-                cursor: props.mode === 'pan' ? 'grab' : 'pointer'
-             }">
+             :class="{ 'dragging': canvasState === CanvasState.DRAGGING }" 
+             :style="{ cursor: props.mode === 'pan' ? 'grab' : 'pointer' }">
             <!-- Only show selection box when in selecting state -->
             <div v-if="canvasState === CanvasState.SELECTING && selectionStart && selectionEnd" 
                  class="selection-box"
@@ -534,11 +413,7 @@ defineExpose({ centerCanvas, mode });
 }
 
 /* Style classes based on state machine values */
-.canvas.resizing {
-    cursor: crosshair !important;
-}
-
-.canvas.moving {
+.canvas.dragging {
     cursor: move !important;
 }
 

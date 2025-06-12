@@ -1,23 +1,24 @@
 import type { Drawable } from "./drawable";
 import type { Xyz } from "./xyz";
 
-
+export type HandleType = 'topleft' | 'topright' | 'bottomleft' | 'bottomright' | 'top' | 'right' | 'bottom' | 'left' | 'move';
+export type ResizeCursorType = 'nw-resize' | 'ne-resize' | 'sw-resize' | 'se-resize' | 'n-resize' | 'e-resize' | 's-resize' | 'w-resize';
+export type MoveCursorType = 'move';
 
 export interface Handle {
     position: Xyz;
-    cursor: string;
+    cursor: ResizeCursorType | MoveCursorType;
+    handleType: HandleType;
     apply(drawable: Drawable, delta: Xyz): void;
     getDrawOpts(): Record<string, any>;
 }
 
-export type ResizeHandleType = 'topleft' | 'topright' | 'bottomleft' | 'bottomright' | 'top' | 'right' | 'bottom' | 'left';
-export type ReizeCursorType = 'nw-resize' | 'ne-resize' | 'sw-resize' | 'se-resize' | 'n-resize' | 'e-resize' | 's-resize' | 'w-resize';
 export class ResizeHandle implements Handle {
-    handleType: ResizeHandleType;
     position: Xyz;
-    cursor: ReizeCursorType;
+    cursor: ResizeCursorType;
+    handleType: HandleType;
 
-    constructor(position: Xyz, cursor: ReizeCursorType, handleType: ResizeHandleType) {
+    constructor(position: Xyz, cursor: ResizeCursorType, handleType: HandleType) {
         this.position = position;
         this.cursor = cursor;
         this.handleType = handleType;
@@ -88,14 +89,15 @@ export class WResizeHandle extends ResizeHandle {
     }
 }
 
-export type MoveCursorType = 'move';
 export class MoveHandle implements Handle {
     position: Xyz;
     cursor: MoveCursorType;
+    handleType: HandleType;
 
     constructor(position: Xyz) {
         this.position = position;
         this.cursor = 'move';
+        this.handleType = 'move';
     }
 
     apply(drawable: Drawable, delta: Xyz): void {

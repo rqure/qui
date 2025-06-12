@@ -10,15 +10,32 @@ export class SelectionBox extends Model {
     private _targets: Drawable[] = [];
     private _markers: L.CircleMarker[] = [];
 
-    constructor(targets: Drawable[] = []) {
+    constructor() {
         super();
-        this._targets = targets;
+        this._targets = [];
         this.isSelectable = false;
         this.isHoverable = false;
     }
 
     public get targets(): Drawable[] {
         return this._targets;
+    }
+
+    public addTarget(target: Drawable): void {
+        if (!this._targets.includes(target)) {
+            this._targets.push(target);
+        }
+    }
+
+    public removeTarget(target: Drawable): void {
+        const index = this._targets.indexOf(target);
+        if (index !== -1) {
+            this._targets.splice(index, 1);
+        }
+    }
+
+    public clearTargets(): void {
+        this._targets = [];
     }
 
     protected getSelectionBounds(): L.LatLngBounds {
