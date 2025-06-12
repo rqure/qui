@@ -105,8 +105,6 @@ export class Polyline extends Shape {
     
     // Override resize to handle polyline specific resizing
     public override resize(handle: ResizeHandle, delta: Xyz): void {
-        if (!this.isResizable) return;
-        
         // Get bounds before resizing
         const oldBounds = this.getBounds();
         const oldWidth = oldBounds.getEast() - oldBounds.getWest();
