@@ -11,10 +11,6 @@ import { useMenuStore } from '@/stores/menu'
 const auth = useAuthStore()
 const menuStore = useMenuStore()
 
-const handleLogin = () => {
-  auth.login()
-}
-
 const handleGlobalContextMenu = (e: MouseEvent) => {
   e.preventDefault()
   // Show empty menu when clicking on empty areas
@@ -33,14 +29,12 @@ const handleGlobalContextMenu = (e: MouseEvent) => {
 
 <template>
   <ThemeProvider>
-    <WebtopLogin v-if="!auth.isAuthenticated" @login="handleLogin" />
-    <div v-else class="webtop" @contextmenu="handleGlobalContextMenu">
+    <div v-if="auth.isAuthenticated" class="app" @contextmenu="handleGlobalContextMenu">
       <WorkspaceComponent />
-      <div class="taskbar-container">
-        <TaskbarComponent />
-      </div>
-      <ContextMenuComponent />
+      <TaskbarComponent />
     </div>
+    <WebtopLogin v-else />
+    <ContextMenuComponent />
   </ThemeProvider>
 </template>
 

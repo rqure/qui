@@ -124,21 +124,15 @@ async function createNewEntityType() {
       schema = EntityFactories.newEntitySchema(newEntityType.value);
       
       // Add a name field by default for all entities
-      schema.field('Name', [
-        FieldSchemaOptions.withValueType(ValueType.String),
-        FieldSchemaOptions.withRank(0)
-      ]);
+      const nameField = schema.field('Name', ValueType.String);
+      nameField.rank = 0;
       
       // Add parent and children fields by default for navigation
-      schema.field('Parent', [
-        FieldSchemaOptions.withValueType(ValueType.EntityReference),
-        FieldSchemaOptions.withRank(1)
-      ]);
+      const parentField = schema.field('Parent', ValueType.EntityReference);
+      parentField.rank = 1;
       
-      schema.field('Children', [
-        FieldSchemaOptions.withValueType(ValueType.EntityList),
-        FieldSchemaOptions.withRank(2)
-      ]);
+      const childrenField = schema.field('Children', ValueType.EntityList);
+      childrenField.rank = 2;
     }
     
     // Set the schema

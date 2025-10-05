@@ -345,7 +345,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, nextTick } from 'vue';
 import type { EntitySchema, FieldSchema, Entity, EntityId } from '@/core/data/types';
-import { ValueType } from '@/core/data/types';
+import { ValueType, ValueFactories } from '@/core/data/types';
 import { useDataStore } from '@/stores/data';
 import TypeBadge from './TypeBadge.vue';
 import ConfirmDialog from './ConfirmDialog.vue';
@@ -488,7 +488,11 @@ watch(() => workingSchema.value.fields, (newFields) => {
 onMounted(async () => {
   // Load all available permissions
   try {
-    const result = await dataStore.find('Permission', ['Name'], () => true);
+    const result = await dataStore.find('Permission');
+    // Read the Name field for each permission
+    const nameFields = result.map(entity => entity.field('Name', ValueFactories.newString('')));
+    await dataStore.read(nameFields);
+    
     availablePermissions.value = result.sort((a, b) => {
       const nameA = a.field('Name').value.getString();
       const nameB = b.field('Name').value.getString();

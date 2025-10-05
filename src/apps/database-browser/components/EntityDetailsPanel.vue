@@ -2,11 +2,10 @@
 import { ref, watch, onMounted, onUnmounted, computed } from 'vue';
 import { useDataStore } from '@/stores/data';
 import type { EntityId, Field, EntitySchema, EntityType, Notification } from '@/core/data/types';
-import { EntityFactories, Utils } from '@/core/data/types';
+import { EntityFactories, Utils, Value } from '@/core/data/types';
 import { formatTimestamp } from '@/apps/database-browser/utils/formatters';
 import ValueDisplay from '@/apps/database-browser/components/ValueDisplay.vue';
 import ValueEditor from '@/apps/database-browser/components/ValueEditor.vue';
-import type { DatabaseNotification } from '@/generated/protobufs_pb';
 import { useEntityDropZone } from '@/core/utils/composables';
 import { ValueType, ValueFactories } from '@/core/data/types';
 
@@ -35,7 +34,7 @@ const entityType = ref<EntityType>('');
 const editingField = ref<string | null>(null);
 const writerNames = ref<Record<EntityId, string>>({});
 const loadingWriterNames = ref<Record<EntityId, boolean>>({});
-const notificationSubscriptions = ref<Array<{ token: string, unsubscribe: () => Promise<boolean> }>>([]);
+const notificationSubscriptions = ref<{ token: string, unsubscribe: () => Promise<void> }[]>([]);
 const refreshTimestampsTimer = ref<number | null>(null);
 const currentTimestamp = ref(Date.now());
 const fieldDropTargets = ref<Record<string, boolean>>({});
@@ -333,7 +332,7 @@ async function registerFieldNotifications() {
       // Set up notification config to watch this specific field
       const notificationConfig = {
         entityId: props.entityId,
-        fieldType: field.fieldType
+        field: field.fieldType
       };
       
       // Register the notification and get the subscription
@@ -347,7 +346,7 @@ async function registerFieldNotifications() {
         // Return a dummy subscription that does nothing on unsubscribe
         return {
           token: `failed-${field.fieldType}`,
-          unsubscribe: async () => Promise.resolve(true)
+          unsubscribe: async () => {}
         };
       }
     });
@@ -362,13 +361,13 @@ async function registerFieldNotifications() {
   }
 }
 
-function handleFieldNotification(notification: Notification) {
+function handleFieldNotification(notification: any) {
   try {
-    if (!notification.current) return;
+    if (!notification) return;
     
     // Find the field in our fields array
     const fieldIndex = fields.value.findIndex(f => 
-      f.fieldType === notification.current?.fieldType &&
+      f.fieldType === notification.fieldType &&
       f.entityId === props.entityId
     );
     
@@ -378,18 +377,20 @@ function handleFieldNotification(notification: Notification) {
     const field = fields.value[fieldIndex];
     
     // Update the value from the notification
-    if (notification.current?.value) {
-      field.value = notification.current?.value;
+    if (notification.value !== undefined) {
+      // Parse the value from the notification
+      const valueType = dataStore.parseValueType(notification.valueType || 'String');
+      field.value = new Value(valueType, notification.value);
     }
     
     // Update write time if available
-    if (notification.current.writeTime) {
-      field.writeTime = notification.current.writeTime;
+    if (notification.writeTime) {
+      field.writeTime = new Date(notification.writeTime);
     }
     
     // Update writer ID if available and load the writer name
-    if (notification.current.writerId && notification.current.writerId !== field.writerId) {
-      field.writerId = notification.current.writerId;
+    if (notification.writerId && notification.writerId !== field.writerId) {
+      field.writerId = notification.writerId;
       
       // Load the writer name for this new writer ID
       if (!writerNames.value[field.writerId]) {
@@ -539,7 +540,6 @@ async function updateFieldWithEntityId(fieldType: string, entityId: EntityId) {
           entityId: newField.entityId,
           fieldType: newField.fieldType,
           valueType: newField.value.type,
-          pbType: newField.value.pbType(),
           valueRaw: newField.value.raw
         });
         
@@ -573,7 +573,6 @@ async function updateFieldWithEntityId(fieldType: string, entityId: EntityId) {
             entityId: newField.entityId,
             fieldType: newField.fieldType,
             valueType: newField.value.type,
-            pbType: newField.value.pbType(),
             valueRaw: newField.value.raw
           });
           
