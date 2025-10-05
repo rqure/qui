@@ -1,9 +1,9 @@
 import type { AuthProvider } from './auth-provider';
-import { getAuthServiceBaseUrl2 } from '@/core/utils/url';
+import { getApiBaseUrl } from '@/core/utils/url';
 
 // Constants for token storage and refresh
-const TOKEN_REFRESH_INTERVAL_MS = 4 * 60 * 1000; // 4 minutes
-const REFRESH_TOKEN_STORAGE_KEY = 'qui_refresh_token';
+const TOKEN_REFRESH_INTERVAL_MS = 50 * 1000; // 50 seconds (token expires in 1 minute)
+const TOKEN_STORAGE_KEY = 'qui_auth_token';
 const USER_PROFILE_STORAGE_KEY = 'qui_user_profile';
 
 /**
@@ -37,41 +37,36 @@ export class CredentialsAuthProvider implements AuthProvider {
         throw new Error('Username and password are required');
       }
       
-      const authEndpoint = getAuthServiceBaseUrl2();
+      const loginEndpoint = `${getApiBaseUrl()}/login`;
       
-      const response = await fetch(authEndpoint, {
+      const response = await fetch(loginEndpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
         },
         body: JSON.stringify({
           username: credentials.username,
           password: credentials.password,
         }),
-        credentials: 'include',
-        mode: 'cors',
       });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => null);
-        throw new Error(errorData?.message || `Authentication failed with status: ${response.status}`);
+        throw new Error(errorData?.error || `Authentication failed with status: ${response.status}`);
       }
       
       const data = await response.json();
       
-      if (!data.success) {
-        throw new Error(data.message || 'Authentication failed');
+      if (!data.success || !data.data?.token) {
+        throw new Error(data.error || 'Authentication failed');
       }
       
       // Construct user profile
       this.userProfile = {
-        username: data.username || credentials.username,
-        name: data.username || credentials.username,
-        email: data.email || '',
-        token: data.accessToken,
-        refreshToken: data.refreshToken,
-        ...data,
+        username: credentials.username,
+        name: credentials.username,
+        email: '',
+        token: data.data.token,
       };
       
       this.isAuthenticatedFlag = true;
@@ -89,6 +84,23 @@ export class CredentialsAuthProvider implements AuthProvider {
    * Logout user
    */
   async logout(): Promise<void> {
+    // Call logout endpoint if we have a token
+    if (this.userProfile?.token) {
+      try {
+        const logoutEndpoint = `${getApiBaseUrl()}/logout`;
+        await fetch(logoutEndpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.userProfile.token}`,
+          },
+          body: JSON.stringify({}),
+        });
+      } catch (error) {
+        console.warn('Logout API call failed:', error);
+      }
+    }
+    
     this.clearTokenRefresh();
     this.clearStoredSession();
     this.isAuthenticatedFlag = false;
@@ -120,24 +132,20 @@ export class CredentialsAuthProvider implements AuthProvider {
    * Refresh the auth token
    */
   async refreshToken(): Promise<boolean> {
-    if (!this.userProfile?.refreshToken) {
+    if (!this.userProfile?.token) {
       return false;
     }
     
     try {
-      const authEndpoint = getAuthServiceBaseUrl2();
+      const refreshEndpoint = `${getApiBaseUrl()}/refresh`;
       
-      const response = await fetch(authEndpoint, {
+      const response = await fetch(refreshEndpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
+          'Authorization': `Bearer ${this.userProfile.token}`,
         },
-        body: JSON.stringify({
-          refreshToken: this.userProfile.refreshToken
-        }),
-        credentials: 'include',
-        mode: 'cors',
+        body: JSON.stringify({}),
       });
       
       if (!response.ok) {
@@ -146,14 +154,13 @@ export class CredentialsAuthProvider implements AuthProvider {
       
       const data = await response.json();
       
-      if (!data.success) {
-        throw new Error(data.message || 'Token refresh failed');
+      if (!data.success || !data.data?.token) {
+        throw new Error(data.error || 'Token refresh failed');
       }
       
-      // Update tokens in profile
+      // Update token in profile
       if (this.userProfile) {
-        this.userProfile.token = data.accessToken;
-        this.userProfile.refreshToken = data.refreshToken;
+        this.userProfile.token = data.data.token;
         this.persistUserSession();
       }
       
@@ -174,12 +181,12 @@ export class CredentialsAuthProvider implements AuthProvider {
   }
   
   /**
-   * Try to recover session from stored refresh token
+   * Try to recover session from stored token
    */
   private async recoverSessionFromStorage(): Promise<boolean> {
     try {
-      const refreshToken = localStorage.getItem(REFRESH_TOKEN_STORAGE_KEY);
-      if (!refreshToken) {
+      const token = localStorage.getItem(TOKEN_STORAGE_KEY);
+      if (!token) {
         return false;
       }
       
@@ -195,19 +202,15 @@ export class CredentialsAuthProvider implements AuthProvider {
       }
       
       // Try to refresh the token
-      const authEndpoint = getAuthServiceBaseUrl2();
+      const refreshEndpoint = `${getApiBaseUrl()}/refresh`;
       
-      const response = await fetch(authEndpoint, {
+      const response = await fetch(refreshEndpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
+          'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          refreshToken
-        }),
-        credentials: 'include',
-        mode: 'cors',
+        body: JSON.stringify({}),
       });
       
       if (!response.ok) {
@@ -217,24 +220,23 @@ export class CredentialsAuthProvider implements AuthProvider {
       
       const data = await response.json();
       
-      if (!data.success) {
+      if (!data.success || !data.data?.token) {
         this.clearStoredSession();
         return false;
       }
       
-      // Update the profile with new tokens
+      // Update the profile with new token
       this.userProfile = {
         ...parsedProfile,
-        username: data.username || parsedProfile?.username || 'unknown',
-        token: data.accessToken,
-        refreshToken: data.refreshToken,
+        username: parsedProfile?.username || 'unknown',
+        token: data.data.token,
       };
       
       this.isAuthenticatedFlag = true;
       this.persistUserSession();
       this.setupTokenRefresh();
       
-      console.log('Session recovered successfully from refresh token');
+      console.log('Session recovered successfully from stored token');
       return true;
     } catch (error) {
       console.warn('Failed to recover session:', error);
@@ -273,8 +275,8 @@ export class CredentialsAuthProvider implements AuthProvider {
    * Save user profile to localStorage
    */
   private persistUserSession(): void {
-    if (this.userProfile?.refreshToken) {
-      localStorage.setItem(REFRESH_TOKEN_STORAGE_KEY, this.userProfile.refreshToken);
+    if (this.userProfile?.token) {
+      localStorage.setItem(TOKEN_STORAGE_KEY, this.userProfile.token);
       localStorage.setItem(USER_PROFILE_STORAGE_KEY, JSON.stringify(this.userProfile));
     }
   }
@@ -283,7 +285,7 @@ export class CredentialsAuthProvider implements AuthProvider {
    * Clear stored session data
    */
   private clearStoredSession(): void {
-    localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
+    localStorage.removeItem(TOKEN_STORAGE_KEY);
     localStorage.removeItem(USER_PROFILE_STORAGE_KEY);
   }
   

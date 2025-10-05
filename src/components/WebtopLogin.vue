@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, onMounted } from 'vue'
 import QeiLogo from '@/components/common/QeiLogo.vue'
 import LoadingIndicator from '@/components/common/LoadingIndicator.vue'
 import { useAuthStore } from '@/stores/auth'
@@ -13,10 +13,7 @@ const isLoading = ref(false)
 const error = ref('')
 const username = ref('')
 const password = ref('')
-const loginMethod = ref('password') // 'password', 'sso', 'google', 'microsoft'
 const isRecovering = ref(false)
-const ssoAvailable = ref(true) // Will be set based on Keycloak initialization
-const isKeycloakCallback = ref(false)
 
 onMounted(async () => {
   isLoading.value = true;
@@ -26,30 +23,13 @@ onMounted(async () => {
     // Set up auth providers and check if already authenticated
     const isAuthenticated = await checkAuthentication();
     
-    // Update SSO availability status based on Keycloak provider
-    ssoAvailable.value = !!authStore.authProviders?.keycloak;
-    
     if (isAuthenticated) {
       emit('login', authStore.username);
-    } else if (isKeycloakCallback.value) {
-      // If we were redirected but not authenticated, show error
-      error.value = 'SSO authentication failed. Please try again.';
-      
-      // Remove callback params from URL without reloading
-      const url = new URL(window.location.href);
-      url.search = '';
-      window.history.replaceState({}, document.title, url.toString());
     }
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : 'Unknown error';
     error.value = 'Failed to initialize authentication. Please try again.';
     console.error('Authentication initialization error:', errorMessage);
-    
-    // If SSO initialization specifically failed, update UI accordingly
-    if (errorMessage.includes('SSO')) {
-      ssoAvailable.value = false;
-      loginMethod.value = 'password'; // Fall back to password auth
-    }
   } finally {
     isLoading.value = false;
     isRecovering.value = false;
@@ -72,64 +52,29 @@ const handleSubmit = async () => {
   error.value = ''
   
   try {
-    if (loginMethod.value === 'password') {
-      // Username/password login with timeout
-      if (!username.value || !password.value) {
-        error.value = 'Please enter both username and password'
-        isLoading.value = false
-        return
-      }
-      
-      // Set up a 5-second timeout for the login request
-      const loginPromise = authStore.loginWithCredentials(username.value, password.value)
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Login timed out after 5 seconds')), 5000)
-      })
-      
-      try {
-        // Race the login promise against the timeout
-        await Promise.race([loginPromise, timeoutPromise])
-        emit('login', username.value)
-      } catch (err) {
-        // Handle specific error messages from the auth endpoint
-        const errorMessage = err instanceof Error ? err.message : 'Authentication failed'
-        error.value = errorMessage.includes('timed out') ? 
-          'Connection timed out. Please try again later.' : errorMessage
-        throw err
-      }
-    } else if (loginMethod.value === 'sso') {
-      // Check if SSO is available first
-      if (!ssoAvailable.value) {
-        error.value = 'SSO login is not available. Please use another login method.'
-        isLoading.value = false
-        return
-      }
-      
-      // Redirect to Keycloak SSO - no need for timeout since it's a redirect
-      try {
-        await authStore.login();
-        // The page will redirect to Keycloak, so we won't reach here
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Authentication failed'
-        error.value = errorMessage;
-        
-        // If SSO is not available, update the UI
-        if (errorMessage.includes('SSO')) {
-          ssoAvailable.value = false;
-          loginMethod.value = 'password'; // Fall back to password auth
-        }
-        throw err
-      }
-    } else {
-      // Social login (Google, Microsoft, etc.) - also a redirect
-      try {
-        await authStore.loginWithProvider(loginMethod.value)
-        // Will redirect to the provider's auth page
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Authentication failed'
-        error.value = errorMessage;
-        throw err
-      }
+    // Username/password login with timeout
+    if (!username.value || !password.value) {
+      error.value = 'Please enter both username and password'
+      isLoading.value = false
+      return
+    }
+    
+    // Set up a 10-second timeout for the login request
+    const loginPromise = authStore.loginWithCredentials(username.value, password.value)
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Login timed out after 10 seconds')), 10000)
+    })
+    
+    try {
+      // Race the login promise against the timeout
+      await Promise.race([loginPromise, timeoutPromise])
+      emit('login', username.value)
+    } catch (err) {
+      // Handle specific error messages from the auth endpoint
+      const errorMessage = err instanceof Error ? err.message : 'Authentication failed'
+      error.value = errorMessage.includes('timed out') ? 
+        'Connection timed out. Please try again later.' : errorMessage
+      throw err
     }
   } catch (err) {
     console.error(err)
@@ -139,17 +84,6 @@ const handleSubmit = async () => {
   } finally {
     isLoading.value = false
   }
-}
-
-const selectLoginMethod = (method: string) => {
-  // Only allow selecting SSO if it's available
-  if (method === 'sso' && !ssoAvailable.value) {
-    error.value = 'SSO login is not available. Please use another login method.';
-    return;
-  }
-  
-  loginMethod.value = method
-  error.value = '' // Clear errors when changing methods
 }
 </script>
 
@@ -167,13 +101,14 @@ const selectLoginMethod = (method: string) => {
         <div v-if="error" class="error-message">{{ error }}</div>
         
         <!-- Username/password login form -->
-        <div v-if="loginMethod === 'password'" class="credentials-form">
+        <div class="credentials-form">
           <input
             v-model="username"
             type="text"
             placeholder="Username"
             class="login-input"
             autocomplete="username"
+            required
           />
           <input
             v-model="password"
@@ -181,74 +116,11 @@ const selectLoginMethod = (method: string) => {
             placeholder="Password"
             class="login-input"
             autocomplete="current-password"
+            required
           />
           <button type="submit" class="login-button">
             Sign in
           </button>
-        </div>
-        
-        <!-- SSO login button (when SSO is selected) -->
-        <button 
-          v-else-if="loginMethod === 'sso'" 
-          type="submit" 
-          class="login-button sso-button"
-          :disabled="!ssoAvailable"
-        >
-          Sign in with SSO
-        </button>
-        
-        <!-- Provider-specific login buttons (when a provider is selected) -->
-        <button 
-          v-else 
-          type="submit" 
-          class="login-button"
-          :class="`${loginMethod}-button`"
-        >
-          Continue with {{ loginMethod.charAt(0).toUpperCase() + loginMethod.slice(1) }}
-        </button>
-        
-        <!-- Login method selector -->
-        <div class="login-options">
-          <div class="separator"><span>or sign in with</span></div>
-          
-          <div class="login-methods">
-            <button 
-              type="button" 
-              class="icon-button password-icon" 
-              :class="{ active: loginMethod === 'password' }"
-              @click="selectLoginMethod('password')"
-              title="Username & Password">
-              <span class="visually-hidden">Username & Password</span>
-            </button>
-            
-            <button 
-              type="button" 
-              class="icon-button sso-icon" 
-              :class="{ active: loginMethod === 'sso', 'unavailable': !ssoAvailable }"
-              @click="selectLoginMethod('sso')"
-              :title="ssoAvailable ? 'Single Sign-On' : 'SSO Unavailable'"
-              :disabled="!ssoAvailable">
-              <span class="visually-hidden">Single Sign-On</span>
-            </button>
-            
-            <button 
-              type="button" 
-              class="icon-button google-icon" 
-              :class="{ active: loginMethod === 'google' }"
-              @click="selectLoginMethod('google')"
-              title="Google">
-              <span class="visually-hidden">Google</span>
-            </button>
-            
-            <button 
-              type="button" 
-              class="icon-button microsoft-icon" 
-              :class="{ active: loginMethod === 'microsoft' }"
-              @click="selectLoginMethod('microsoft')"
-              title="Microsoft">
-              <span class="visually-hidden">Microsoft</span>
-            </button>
-          </div>
         </div>
       </form>
     </div>

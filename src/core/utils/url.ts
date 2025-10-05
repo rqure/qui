@@ -1,21 +1,14 @@
 /**
- * Gets the base URL for API requests based on the current hostname
+ * Gets the base URL for qweb API requests
  */
 export function getApiBaseUrl(): string {  
-  return `${window.location.origin}/core/`;
+  return `${window.location.origin}/api`;
 }
 
 /**
- * Gets the base URL for CORE authentication services
+ * Gets the WebSocket URL for qweb
  */
-export function getAuthServiceBaseUrl2(): string {
-  return `${getApiBaseUrl()}auth/`;
-}
-
-
-/**
- * Gets the base URL for Keycloak authentication services
- */
-export function getAuthServiceBaseUrl(): string {
-  return `${window.location.origin}/auth`
+export function getWebSocketUrl(): string {
+  const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${wsProtocol}//${window.location.host}/ws`;
 }

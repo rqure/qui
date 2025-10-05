@@ -4,18 +4,16 @@ import { useDataStore } from './data'
 import { useAppStore } from './apps'
 import type { SecurityProfile } from '@/core/security/types'
 import type { AuthProvider } from '@/core/security/auth-provider'
-import { KeycloakAuthProvider } from '@/core/security/keycloak-provider'
 import { CredentialsAuthProvider } from '@/core/security/credentials-provider'
 import databaseBrowserApp from '@/apps/database-browser'
 import schemaEditorApp from '@/apps/schema-editor'
 import modelBuilderApp from '@/apps/model-builder'
 
 // Define auth method type
-type AuthMethod = 'keycloak' | 'credentials' | '';
+type AuthMethod = 'credentials' | '';
 
-// Type for providers map without the empty string key
+// Type for providers map
 type ProvidersMap = {
-  keycloak: AuthProvider;
   credentials: AuthProvider;
 }
 
@@ -38,7 +36,6 @@ export const useAuthStore = defineStore('auth', {
       if (Object.keys(this.authProviders).length > 0) return;
       
       this.authProviders = {
-        keycloak: new KeycloakAuthProvider(),
         credentials: new CredentialsAuthProvider(),
       };
     },
@@ -69,28 +66,7 @@ export const useAuthStore = defineStore('auth', {
       }
     },
     
-    /**
-     * Login with Keycloak SSO (direct redirect approach)
-     */
-    async login(idpHint?: string) {
-      this.setupAuthProviders();
-      
-      // If already authenticated, return early
-      if (this.isAuthenticated) {
-        return true;
-      }
-      
-      const keycloakProvider = this.authProviders.keycloak;
-      try {
-        // This will redirect to Keycloak
-        await keycloakProvider.login(idpHint);
-        // The page will redirect, so we won't actually reach this point
-        return true;
-      } catch (error) {
-        console.error('Keycloak login failed:', error);
-        throw error;
-      }
-    },
+
     
     /**
      * Login with username and password
@@ -117,23 +93,7 @@ export const useAuthStore = defineStore('auth', {
       }
     },
     
-    /**
-     * Login with external provider (Google, Microsoft, etc.)
-     */
-    async loginWithProvider(provider: string) {
-      this.setupAuthProviders();
-      
-      try {
-        // For now, we'll use Keycloak with an identity provider hint
-        const keycloakProvider = this.authProviders.keycloak;
-        await keycloakProvider.login(provider);
-        
-        return false; // The page will redirect, so this won't actually return
-      } catch (error) {
-        console.error(`${provider} login failed:`, error);
-        throw error;
-      }
-    },
+
     
     /**
      * Finalize successful authentication
