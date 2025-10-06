@@ -40,6 +40,8 @@ export const useDataStore = defineStore('data', {
     reconnectAttempts: 0,
     maxReconnectAttempts: 10,
     reconnectDelay: 1000,
+    connectionTimeout: null as number | null,
+    connectionTimeoutMs: 5000,
   }),
 
   actions: {
@@ -53,9 +55,15 @@ export const useDataStore = defineStore('data', {
     },
 
     connect() {
-      if (this.socket) {
-        console.log('WebSocket already connected');
+      if (this.socket && (this.socket.readyState === WebSocket.CONNECTING || this.socket.readyState === WebSocket.OPEN)) {
+        console.log('WebSocket already connected or connecting');
         return;
+      }
+
+      // Clear any existing connection timeout
+      if (this.connectionTimeout !== null) {
+        clearTimeout(this.connectionTimeout);
+        this.connectionTimeout = null;
       }
 
       const authStore = useAuthStore();
@@ -70,16 +78,39 @@ export const useDataStore = defineStore('data', {
       
       this.socket = new WebSocket(wsUrl);
 
+      // Set connection timeout
+      this.connectionTimeout = window.setTimeout(() => {
+        if (this.socket && this.socket.readyState === WebSocket.CONNECTING) {
+          console.warn('WebSocket connection timeout');
+          this.socket.close();
+        }
+      }, this.connectionTimeoutMs);
+
       this.socket.onopen = () => {
         console.log('WebSocket connected');
         this.isConnected = true;
         this.reconnectAttempts = 0;
+        
+        // Clear connection timeout on successful connection
+        if (this.connectionTimeout !== null) {
+          clearTimeout(this.connectionTimeout);
+          this.connectionTimeout = null;
+        }
       };
 
       this.socket.onclose = (event) => {
         const wasConnected = this.isConnected;
         console.log('WebSocket closed:', event.code, event.reason);
         this.isConnected = false;
+        
+        // Clear connection timeout
+        if (this.connectionTimeout !== null) {
+          clearTimeout(this.connectionTimeout);
+          this.connectionTimeout = null;
+        }
+        
+        // Store reference before clearing
+        const closedSocket = this.socket;
         this.socket = null;
 
         Object.keys(this.pendingRequests).forEach(id => {
@@ -91,12 +122,18 @@ export const useDataStore = defineStore('data', {
           this.triggerConnectionLostCallbacks();
         }
 
-        if (this.reconnectAttempts < this.maxReconnectAttempts) {
+        // Only attempt reconnect if this was an unexpected closure
+        if (event.code !== 1000 && this.reconnectAttempts < this.maxReconnectAttempts) {
           const delay = Math.min(30000, this.reconnectDelay * Math.pow(1.5, this.reconnectAttempts));
           this.reconnectAttempts++;
           
           console.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`);
-          setTimeout(() => this.connect(), delay);
+          setTimeout(() => {
+            // Double-check we're still disconnected before attempting reconnect
+            if (!this.socket || this.socket === closedSocket) {
+              this.connect();
+            }
+          }, delay);
         }
       };
 
@@ -110,6 +147,11 @@ export const useDataStore = defineStore('data', {
     },
 
     disconnect() {
+      if (this.connectionTimeout !== null) {
+        clearTimeout(this.connectionTimeout);
+        this.connectionTimeout = null;
+      }
+      
       if (this.socket) {
         console.log('Disconnecting WebSocket');
         this.socket.close(1000, 'Normal closure');
