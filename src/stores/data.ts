@@ -58,7 +58,14 @@ export const useDataStore = defineStore('data', {
         return;
       }
 
-      const wsUrl = getWebSocketUrl();
+      const authStore = useAuthStore();
+      const token = authStore.userProfile?.token;
+      
+      let wsUrl = getWebSocketUrl();
+      if (token) {
+        wsUrl += `?token=${encodeURIComponent(token)}`;
+      }
+      
       console.log('Connecting to WebSocket:', wsUrl);
       
       this.socket = new WebSocket(wsUrl);
