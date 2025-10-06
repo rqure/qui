@@ -46,5 +46,6 @@ const handleContextMenu = (e: MouseEvent) => {
   inset: 0;
   bottom: 40px;
   overflow: hidden;
+  background: var(--qui-bg-primary);
 }
 </style>
