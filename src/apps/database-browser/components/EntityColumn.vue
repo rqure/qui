@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
 import { useDataStore } from '@/stores/data';
-import { EntityFactories, type Entity, type EntityId, type EntityType } from '@/core/data/types';
+import { EntityFactories, Utils, type Entity, type EntityId, type EntityType } from '@/core/data/types';
 import { useEntityDrag } from '@/core/utils/composables';
 
 // Define EntityItem interface
@@ -133,7 +133,10 @@ async function loadEntities() {
         
         await dataStore.read([nameField, childrenField]);
         
-        const entityType = childEntity.entityType;
+        // Get entity type from ID and resolve it to a name
+        const entityTypeNumber = Utils.getEntityTypeFromId(childId);
+        const entityType = await dataStore.resolveEntityType(entityTypeNumber);
+        
         const name = nameField.value.getString();
         const childrenList = childrenField.value.getEntityList();
         
@@ -382,7 +385,6 @@ function handleDragStart(event: DragEvent, entity: EntityItem) {
   padding: 6px 16px;
   color: var(--qui-accent-color);
   font-size: 11px;
-  text-transform: uppercase;
   letter-spacing: 0.7px;
   font-weight: var(--qui-font-weight-medium);
   background: rgba(0, 0, 0, 0.2);
