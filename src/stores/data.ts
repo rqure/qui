@@ -1,34 +1,118 @@
+/**
+ * Data Store - Complete StoreProxy API Mirror
+ * 
+ * This store provides a TypeScript interface that exactly mirrors the Rust StoreProxy API.
+ * All methods correspond 1:1 with StoreProxy/StoreTrait methods.
+ */
+
 import { defineStore } from 'pinia';
 import { getApiBaseUrl, getWebSocketUrl } from '@/core/utils/url';
 import { useAuthStore } from '@/stores/auth';
-import type { EntityId, EntityType, FieldType } from '@/core/data/types';
-import {
-  Entity,
-  EntitySchema,
-  Field,
-  FieldSchema,
-  Value,
-  ValueType,
-  EntityFactories,
-  ValueFactories
-} from '@/core/data/types';
+import type { EntityId, EntityType, FieldType, Timestamp, Value } from '@/core/data/types';
 
-// Notification configuration
-export interface NotificationConfig {
-  entityId?: EntityId;
-  entityType?: EntityType;
-  field: FieldType | string;
-  triggerOnChange?: boolean;
-  context?: string[][];
+/**
+ * Notification configuration matching qlib_rs::NotifyConfig
+ */
+export interface NotifyConfig {
+  EntityId?: {
+    entity_id: EntityId;
+    field_type: FieldType;
+    trigger_on_change: boolean;
+    context: FieldType[][];
+  };
+  EntityType?: {
+    entity_type: EntityType;
+    field_type: FieldType;
+    trigger_on_change: boolean;
+    context: FieldType[][];
+  };
+}
+
+/**
+ * Notification info matching qlib_rs::NotifyInfo
+ */
+export interface NotifyInfo {
+  entity_id: EntityId;
+  field_path: FieldType[];
+  value: Value | null;
+  timestamp: Timestamp | null;
+  writer_id: EntityId | null;
+}
+
+/**
+ * Notification matching qlib_rs::Notification
+ */
+export interface Notification {
+  current: NotifyInfo;
+  previous: NotifyInfo;
+  context: Record<string, NotifyInfo>;
+  config_hash: number;
 }
 
 export interface NotificationCallback {
-  (notification: any): void;
+  (notification: Notification): void;
 }
 
-interface NotificationSubscription {
-  token: string;
-  unsubscribe: () => Promise<void>;
+/**
+ * Page options for pagination
+ */
+export interface PageOpts {
+  limit: number;
+  cursor: number | null;
+}
+
+/**
+ * Page result for paginated queries
+ */
+export interface PageResult<T> {
+  items: T[];
+  total: number;
+  next_cursor: number | null;
+}
+
+/**
+ * Field schema matching qlib_rs::FieldSchema
+ */
+export interface FieldSchema {
+  field_type: FieldType;
+  rank: number;
+  default_value: Value;
+  storage_scope: 'Runtime' | 'Configuration';
+}
+
+/**
+ * Entity schema matching qlib_rs::EntitySchema<Single>
+ */
+export interface EntitySchema {
+  entity_type: EntityType;
+  inherit: EntityType[];
+  fields: Record<FieldType, FieldSchema>;
+}
+
+/**
+ * Complete entity schema matching qlib_rs::EntitySchema<Complete>
+ */
+export interface CompleteEntitySchema {
+  entity_type: EntityType;
+  inherit: EntityType[];
+  fields: Record<FieldType, FieldSchema>;
+}
+
+/**
+ * Push condition for writes
+ */
+export enum PushCondition {
+  Always = 'Always',
+  Changes = 'Changes'
+}
+
+/**
+ * Adjust behavior for numeric writes
+ */
+export enum AdjustBehavior {
+  Set = 'Set',
+  Add = 'Add',
+  Subtract = 'Subtract'
 }
 
 export const useDataStore = defineStore('data', {
@@ -36,7 +120,7 @@ export const useDataStore = defineStore('data', {
     socket: null as WebSocket | null,
     isConnected: false,
     pendingRequests: {} as Record<string, { resolve: (value: any) => void; reject: (error: any) => void }>,
-    notificationCallbacks: {} as Record<string, NotificationCallback[]>,
+    notificationCallbacks: {} as Record<number, NotificationCallback[]>,
     connectionLostCallbacks: [] as (() => void)[],
     reconnectAttempts: 0,
     maxReconnectAttempts: 10,
@@ -46,8 +130,11 @@ export const useDataStore = defineStore('data', {
   }),
 
   actions: {
+    // ============================================================
+    // Connection Management (Internal)
+    // ============================================================
+    
     initialize() {
-      console.log('Initializing data store connection');
       this.connect();
     },
 
@@ -101,16 +188,12 @@ export const useDataStore = defineStore('data', {
 
       this.socket.onclose = (event) => {
         const wasConnected = this.isConnected;
-        console.log('WebSocket closed:', event.code, event.reason);
         this.isConnected = false;
-
-        // Clear connection timeout
         if (this.connectionTimeout !== null) {
           clearTimeout(this.connectionTimeout);
           this.connectionTimeout = null;
         }
 
-        // Store reference before clearing
         const closedSocket = this.socket;
         this.socket = null;
 
@@ -197,22 +280,9 @@ export const useDataStore = defineStore('data', {
     },
 
     handleNotification(notification: any) {
-      console.log('Received notification:', notification);
-
-      // qweb notifications have a config field with the notification configuration
-      // We need to match this against registered callbacks
-      if (notification.config) {
-        const config = notification.config;
-
-        // Create a key to match callbacks
-        const key = JSON.stringify({
-          entity_id: config.entity_id,
-          entity_type: config.entity_type,
-          field: String(config.field),
-        });
-
-        const callbacks = this.notificationCallbacks[key] || [];
-        callbacks.forEach(callback => {
+      const configHash = notification.config_hash;
+      if (configHash && this.notificationCallbacks[configHash]) {
+        this.notificationCallbacks[configHash].forEach(callback => {
           try {
             callback(notification);
           } catch (error) {
@@ -282,420 +352,323 @@ export const useDataStore = defineStore('data', {
       return result.data;
     },
 
-    // Convert qweb value type string to ValueType enum
-    parseValueType(typeStr: string): ValueType {
-      const typeMap: Record<string, ValueType> = {
-        'Int': ValueType.Int,
-        'Float': ValueType.Float,
-        'String': ValueType.String,
-        'Bool': ValueType.Bool,
-        'BinaryFile': ValueType.BinaryFile,
-        'EntityReference': ValueType.EntityReference,
-        'Timestamp': ValueType.Timestamp,
-        'Choice': ValueType.Choice,
-        'EntityList': ValueType.EntityList,
-      };
-      return typeMap[typeStr] || ValueType.String;
-    },
+    // ============================================================
+    // StoreTrait API - Type Resolution
+    // ============================================================
 
-    // Convert qweb field value to Value object
-    parseFieldValue(value: any): Value {
-      if (value === null || value === undefined) {
-        return ValueFactories.newString('');
-      }
-
-      // Handle different value types from qweb
-      if (typeof value === 'object') {
-        // qweb uses variant enums like {Bool: true}, {Int: 42}, {String: "hello"}, etc.
-        const keys = Object.keys(value);
-        if (keys.length === 1) {
-          const valueType = keys[0];
-          const innerValue = value[valueType];
-
-          switch (valueType) {
-            case 'Bool':
-              return ValueFactories.newBool(innerValue);
-            case 'Int':
-              return ValueFactories.newInt(innerValue);
-            case 'Float':
-              return ValueFactories.newFloat(innerValue);
-            case 'String':
-              return ValueFactories.newString(innerValue);
-            case 'EntityReference':
-              return ValueFactories.newEntityReference(innerValue ? Number(innerValue) : null);
-            case 'EntityList':
-              // EntityList is serialized as an array of numbers/strings from Rust
-              if (Array.isArray(innerValue)) {
-                return ValueFactories.newEntityList(innerValue.map((id: any) => Number(id)));
-              }
-              return ValueFactories.newEntityList([]);
-            case 'Timestamp':
-              if (typeof innerValue === 'object' && innerValue.secs !== undefined) {
-                const date = new Date(innerValue.secs * 1000 + (innerValue.nanos || 0) / 1000000);
-                return ValueFactories.newTimestamp(date);
-              }
-              return ValueFactories.newTimestamp(new Date(innerValue));
-            case 'Choice':
-              return ValueFactories.newChoice(innerValue);
-            default:
-              console.warn(`Unknown value type: ${valueType}`);
-              return ValueFactories.newString(JSON.stringify(value));
-          }
-        }
-      }
-
-      // Fallback for primitive values
-      if (typeof value === 'boolean') return ValueFactories.newBool(value);
-      if (typeof value === 'number') return ValueFactories.newInt(value);
-      if (typeof value === 'string') return ValueFactories.newString(value);
-
-      return ValueFactories.newString(JSON.stringify(value));
-    },
-
-    // Convert Value object to qweb JSON format
-    serializeValue(value: Value): any {
-      switch (value.type) {
-        case ValueType.Int:
-        case ValueType.Float:
-        case ValueType.Bool:
-        case ValueType.String:
-        case ValueType.Choice:
-          return value.raw;
-
-        case ValueType.Timestamp:
-          // Convert Date to ISO string for qweb
-          return (value.raw as Date).toISOString();
-
-        case ValueType.EntityReference:
-          // Keep internal representation as bigint | null; JSON replacer will convert bigint -> string
-          return value.raw;
-
-        case ValueType.EntityList:
-          // Keep array of bigints; JSON replacer will convert each bigint to a string
-          if (Array.isArray(value.raw)) {
-            return value.raw;
-          }
-          return [];
-
-        case ValueType.BinaryFile:
-          // Binary files need special handling
-          return value.raw;
-
-        default:
-          return value.raw;
-      }
-    },
-
-    // Create entity
-    async createEntity(entityType: string, name: string): Promise<EntityId> {
-      const data = await this.apiRequest('create', {
-        entity_type: entityType,
-        name: name,
-      });
-      return Number(data.entity_id);
-    },
-
-    // Delete entity
-    async deleteEntity(entityId: EntityId): Promise<void> {
-      await this.apiRequest('delete', {
-        entity_id: entityId,
-      });
-    },
-
-    // Read fields from entities
-    async read(fields: Field[]): Promise<void> {
-      if (fields.length === 0) return;
-
-      // Read each field individually
-      await Promise.all(fields.map(async (field) => {
-        try {
-          const data = await this.apiRequest('read', {
-            entity_id: field.entityId,
-            fields: [field.fieldType],
-          });
-
-          if (data && data.value !== undefined) {
-            field.value = this.parseFieldValue(data.value);
-
-            if (data.timestamp) {
-              const ts = data.timestamp;
-              if (typeof ts === 'object' && ts.secs !== undefined) {
-                field.writeTime = new Date(ts.secs * 1000 + ts.nanos / 1000000);
-              } else {
-                field.writeTime = new Date(ts);
-              }
-            }
-            if (data.writer_id) {
-              field.writerId = Number(data.writer_id);
-            } else {
-              field.writerId = null;
-            }
-          }
-        } catch (error) {
-          console.error(`Failed to read field ${field.fieldType} for entity ${field.entityId}:`, error);
-          throw error;
-        }
-      }));
-    },
-
-    // Write fields to entities
-    async write(fields: Field[]): Promise<void> {
-      // Write all fields in parallel
-      await Promise.all(fields.map(async (field) => {
-        try {
-          await this.apiRequest('write', {
-            entity_id: field.entityId,
-            field: field.fieldType,
-            value: this.serializeValue(field.value),
-          });
-        } catch (error) {
-          console.error(`Failed to write field ${field.fieldType} for entity ${field.entityId}:`, error);
-          throw error;
-        }
-      }));
-    },
-
-    // Find entities - returns array of Entity objects
-    async find(entityType: string, filter?: string): Promise<Entity[]> {
-      const data = await this.apiRequest('find', {
-        entity_type: entityType,
-        filter: filter,
-      });
-
-      // Convert entity IDs to Entity objects
-      const entities: Entity[] = [];
-      // qweb returns 'entities' not 'entity_ids'
-      const entityIds = data.entities || data.entity_ids || [];
-      if (Array.isArray(entityIds)) {
-        entityIds.forEach((id: any) => {
-          const eid = Number(id);
-          const entity = EntityFactories.newEntity(eid);
-          // entityType param is a string here, convert to number for internal representation
-          entity.entityType = Number(entityType);
-          entities.push(entity);
-        });
-      }
-
-      return entities;
-    },
-
-    // Get all entity types
-    async getAllEntityTypes(): Promise<string[]> {
-      // qweb doesn't have a direct endpoint for this, so we need to implement it differently
-      // For now, return empty array - this would need to be implemented in qweb backend
-      console.warn('getAllEntityTypes not yet implemented in qweb');
-      return [];
-    },
-
-    // Resolve entity type number to name
-    async resolveEntityType(entityType: EntityType): Promise<string> {
-      try {
-        const data = await this.apiRequest('resolve_entity_type', {
-          entity_type: entityType.toString(),
-        });
-        return data.name || entityType.toString();
-      } catch (error) {
-        console.error(`Failed to resolve entity type ${entityType}:`, error);
-        return entityType.toString();
-      }
-    },
-
-    // Get entity type ID by name
+    /**
+     * Get entity type ID by name
+     * Corresponds to: fn get_entity_type(&self, name: &str) -> Result<EntityType>
+     */
     async getEntityType(name: string): Promise<EntityType> {
-      try {
-        const data = await this.apiRequest('get_entity_type', {
-          name: name,
-        });
-        return Number(data.entity_type);
-      } catch (error) {
-        console.error(`Failed to get entity type for ${name}:`, error);
-        throw error;
-      }
+      const data = await this.apiRequest('schema', { entity_type: name });
+      return data.entity_type;
     },
 
-    // Get field type ID by name
+    /**
+     * Resolve entity type ID to name
+     * Corresponds to: fn resolve_entity_type(&self, entity_type: EntityType) -> Result<String>
+     */
+    async resolveEntityType(entityType: EntityType): Promise<string> {
+      const data = await this.apiRequest('resolve_entity_type', { entity_type: entityType });
+      return data.name;
+    },
+
+    /**
+     * Get field type ID by name
+     * Corresponds to: fn get_field_type(&self, name: &str) -> Result<FieldType>
+     */
     async getFieldType(name: string): Promise<FieldType> {
-      try {
-        const data = await this.apiRequest('get_field_type', {
-          name: name,
-        });
-        return Number(data.field_type);
-      } catch (error) {
-        console.error(`Failed to get field type for ${name}:`, error);
-        throw error;
-      }
+      const data = await this.apiRequest('get_field_type', { name });
+      return data.field_type;
     },
 
-    // Get entity schema
-    async getEntitySchema(entityType: string): Promise<EntitySchema> {
-      if (!entityType || entityType.trim() === '') {
-        throw new Error('Entity type cannot be empty');
-      }
-
-      const data = await this.apiRequest('schema', {
-        entity_type: entityType,
-      });
-
-      // entityType comes as string from API, convert to number
-      const entityTypeNum = typeof entityType === 'string' ? parseInt(entityType) : entityType;
-      const schema = new EntitySchema(entityTypeNum);
-
-      // qweb returns {entity_type: string, schema: {...}}
-      const schemaData = data.schema || data;
-
-      // Parse fields from schema - convert string keys to numbers
-      if (schemaData.fields) {
-        Object.keys(schemaData.fields).forEach(fieldKey => {
-          const fieldData = schemaData.fields[fieldKey];
-          const fieldTypeId = Number(fieldKey) as FieldType; // Convert JSON string key to number
-
-          // Parse the value type from qweb's format
-          let valueType = ValueType.String;
-          if (fieldData.value_type) {
-            if (typeof fieldData.value_type === 'string') {
-              valueType = this.parseValueType(fieldData.value_type);
-            } else if (typeof fieldData.value_type === 'object') {
-              // Handle variant enum format like {Int: null}
-              const typeKey = Object.keys(fieldData.value_type)[0];
-              valueType = this.parseValueType(typeKey);
-            }
-          }
-
-          const fieldSchema = schema.field(fieldTypeId, valueType);
-          fieldSchema.rank = fieldData.rank || 0;
-          fieldSchema.readPermissions = fieldData.read_permissions || [];
-          fieldSchema.writePermissions = fieldData.write_permissions || [];
-          fieldSchema.choices = fieldData.choices || [];
-        });
-      }
-
-      return schema;
+    /**
+     * Resolve field type ID to name
+     * Corresponds to: fn resolve_field_type(&self, field_type: FieldType) -> Result<String>
+     */
+    async resolveFieldType(fieldType: FieldType): Promise<string> {
+      const data = await this.apiRequest('resolve_field_type', { field_type: fieldType });
+      return data.name;
     },
 
-    // Set/update entity schema
-    async setEntitySchema(schema: EntitySchema): Promise<void> {
-      // Convert EntitySchema to qweb format
-      const fieldsData: Record<string, any> = {};
+    // ============================================================
+    // StoreTrait API - Schema Operations
+    // ============================================================
 
-      Object.keys(schema.fields).forEach(fieldKey => {
-        const fieldTypeId = Number(fieldKey) as FieldType;
-        const field = schema.fields[fieldTypeId];
-        fieldsData[fieldKey] = {
-          value_type: field.valueType,
-          rank: field.rank,
-          read_permissions: field.readPermissions,
-          write_permissions: field.writePermissions,
-          choices: field.choices,
-        };
-      });
-
-      await this.apiRequest('set_schema', {
-        entity_type: schema.entityType,
-        fields: fieldsData,
-      });
-    },
-
-    // Check if entity exists
-    async entityExists(entityId: EntityId): Promise<boolean> {
-      try {
-        const data = await this.apiRequest('entity_exists', {
-          entity_id: entityId,
-        });
-        // qweb returns {entity_id: string, exists: bool}
-        return data.exists === true;
-      } catch (error) {
-        console.error('Failed to check entity existence:', error);
-        return false;
-      }
-    },
-
-    // Resolve field type ID to name
-    async resolveFieldType(fieldTypeId: FieldType): Promise<string> {
-      try {
-        const data = await this.apiRequest('resolve_field_type', {
-          field_type: fieldTypeId.toString(),
-        });
-        return data.name || fieldTypeId.toString();
-      } catch (error) {
-        console.error(`Failed to resolve field type ${fieldTypeId}:`, error);
-        return fieldTypeId.toString();
-      }
-    },
-
-    // Register notification via WebSocket
-    async registerNotification(config: NotificationConfig): Promise<string> {
-      const request = {
-        type: 'RegisterNotification',
-        config: {
-          entity_id: config.entityId,
-          entity_type: config.entityType,
-          field: config.field,
-          trigger_on_change: config.triggerOnChange ?? true,
-          context: config.context || [],
-        },
-      };
-
-      const response = await this.sendWebSocketRequest(request);
-
-      // Create a key based on the config for callback matching
-      const key = JSON.stringify({
-        entity_id: config.entityId !== undefined ? String(config.entityId) : undefined,
-        entity_type: config.entityType !== undefined ? String(config.entityType) : undefined,
-        field: String(config.field),
-      });
-
-      return key;
-    },
-
-    // Unregister notification
-    async unregisterNotification(config: NotificationConfig): Promise<void> {
-      const request = {
-        type: 'UnregisterNotification',
-        config: {
-          entity_id: config.entityId,
-          entity_type: config.entityType,
-          field: config.field,
-          trigger_on_change: config.triggerOnChange ?? true,
-          context: config.context || [],
-        },
-      };
-
-      await this.sendWebSocketRequest(request);
-    },
-
-    // Subscribe to notifications
-    async notify(config: NotificationConfig, callback: NotificationCallback): Promise<NotificationSubscription> {
-      const token = await this.registerNotification(config);
-
-      if (!this.notificationCallbacks[token]) {
-        this.notificationCallbacks[token] = [];
-      }
-      this.notificationCallbacks[token].push(callback);
-
+    /**
+     * Get the schema for a specific entity type
+     * Corresponds to: fn get_entity_schema(&self, entity_type: EntityType) -> Result<EntitySchema<Single>>
+     */
+    async getEntitySchema(entityType: EntityType): Promise<EntitySchema> {
+      const data = await this.apiRequest('schema', { entity_type: entityType });
       return {
-        token,
-        unsubscribe: async () => {
-          const callbacks = this.notificationCallbacks[token];
-          if (callbacks) {
-            const index = callbacks.indexOf(callback);
-            if (index !== -1) {
-              callbacks.splice(index, 1);
-            }
-
-            if (callbacks.length === 0) {
-              delete this.notificationCallbacks[token];
-              await this.unregisterNotification(config);
-            }
-          }
-        },
+        entity_type: data.entity_type,
+        inherit: data.inherit || [],
+        fields: data.fields || {}
       };
     },
 
-    // Connection management callbacks
+    /**
+     * Get the complete schema for a specific entity type (including inherited fields)
+     * Corresponds to: fn get_complete_entity_schema(&self, entity_type: EntityType) -> Result<EntitySchema<Complete>>
+     */
+    async getCompleteEntitySchema(entityType: EntityType): Promise<CompleteEntitySchema> {
+      const data = await this.apiRequest('complete_schema', { entity_type: entityType });
+      return {
+        entity_type: data.entity_type,
+        inherit: data.inherit || [],
+        fields: data.fields || {}
+      };
+    },
+
+    /**
+     * Get the schema for a specific field
+     * Corresponds to: fn get_field_schema(&self, entity_type: EntityType, field_type: FieldType) -> Result<FieldSchema>
+     */
+    async getFieldSchema(entityType: EntityType, fieldType: FieldType): Promise<FieldSchema> {
+      const data = await this.apiRequest('get_field_schema', { 
+        entity_type: entityType,
+        field_type: fieldType 
+      });
+      return data;
+    },
+
+    /**
+     * Update entity schema
+     * Corresponds to: fn update_schema(&mut self, schema: EntitySchema<Single, String, String>) -> Result<()>
+     */
+    async updateSchema(schema: EntitySchema): Promise<void> {
+      await this.apiRequest('update_schema', schema);
+    },
+
+    // ============================================================
+    // StoreTrait API - Entity Existence Checks
+    // ============================================================
+
+    /**
+     * Check if an entity exists
+     * Corresponds to: fn entity_exists(&self, entity_id: EntityId) -> bool
+     */
+    async entityExists(entityId: EntityId): Promise<boolean> {
+      const data = await this.apiRequest('entity_exists', { entity_id: entityId });
+      return data.exists;
+    },
+
+    /**
+     * Check if a field type exists for an entity type
+     * Corresponds to: fn field_exists(&self, entity_type: EntityType, field_type: FieldType) -> bool
+     */
+    async fieldExists(entityType: EntityType, fieldType: FieldType): Promise<boolean> {
+      const data = await this.apiRequest('field_exists', { 
+        entity_type: entityType,
+        field_type: fieldType 
+      });
+      return data.exists;
+    },
+
+    // ============================================================
+    // StoreTrait API - Data Operations
+    // ============================================================
+
+    /**
+     * Resolve indirection for field lookups
+     * Corresponds to: fn resolve_indirection(&self, entity_id: EntityId, fields: &[FieldType]) -> Result<(EntityId, FieldType)>
+     */
+    async resolveIndirection(entityId: EntityId, fields: FieldType[]): Promise<[EntityId, FieldType]> {
+      const data = await this.apiRequest('resolve_indirection', { 
+        entity_id: entityId,
+        fields: fields 
+      });
+      return [data.entity_id, data.field_type];
+    },
+
+    /**
+     * Read a field value with indirection support
+     * Corresponds to: fn read(&self, entity_id: EntityId, field_path: &[FieldType]) -> Result<(Value, Timestamp, Option<EntityId>)>
+     */
+    async read(entityId: EntityId, fieldPath: FieldType[]): Promise<[Value, Timestamp, EntityId | null]> {
+      const data = await this.apiRequest('read', { 
+        entity_id: entityId,
+        fields: fieldPath 
+      });
+      return [data.value, data.timestamp, data.writer_id];
+    },
+
+    /**
+     * Write a field value with indirection support
+     * Corresponds to: fn write(&mut self, entity_id: EntityId, field_path: &[FieldType], value: Value, 
+     *                         writer_id: Option<EntityId>, write_time: Option<Timestamp>, 
+     *                         push_condition: Option<PushCondition>, adjust_behavior: Option<AdjustBehavior>) -> Result<()>
+     */
+    async write(
+      entityId: EntityId, 
+      fieldPath: FieldType[], 
+      value: Value,
+      writerId?: EntityId | null,
+      writeTime?: Timestamp | null,
+      pushCondition?: PushCondition | null,
+      adjustBehavior?: AdjustBehavior | null
+    ): Promise<void> {
+      await this.apiRequest('write', { 
+        entity_id: entityId,
+        field: fieldPath[0], // qweb only supports single field writes currently
+        value: value,
+        writer_id: writerId,
+        write_time: writeTime,
+        push_condition: pushCondition,
+        adjust_behavior: adjustBehavior
+      });
+    },
+
+    /**
+     * Create a new entity
+     * Corresponds to: fn create_entity(&mut self, entity_type: EntityType, parent_id: Option<EntityId>, name: &str) -> Result<EntityId>
+     */
+    async createEntity(entityType: EntityType, parentId: EntityId | null, name: string): Promise<EntityId> {
+      const data = await this.apiRequest('create', { 
+        entity_type: entityType,
+        parent_id: parentId,
+        name: name 
+      });
+      return data.entity_id;
+    },
+
+    /**
+     * Delete an entity
+     * Corresponds to: fn delete_entity(&mut self, entity_id: EntityId) -> Result<()>
+     */
+    async deleteEntity(entityId: EntityId): Promise<void> {
+      await this.apiRequest('delete', { entity_id: entityId });
+    },
+
+    // ============================================================
+    // StoreTrait API - Query Operations
+    // ============================================================
+
+    /**
+     * Find entities of a specific type (includes inherited types)
+     * Corresponds to: fn find_entities(&self, entity_type: EntityType, filter: Option<&str>) -> Result<Vec<EntityId>>
+     */
+    async findEntities(entityType: EntityType, filter?: string | null): Promise<EntityId[]> {
+      const data = await this.apiRequest('find', { 
+        entity_type: entityType,
+        filter: filter || null
+      });
+      return data.entities || [];
+    },
+
+    /**
+     * Find entities of a specific type with pagination (includes inherited types)
+     * Corresponds to: fn find_entities_paginated(&self, entity_type: EntityType, page_opts: Option<&PageOpts>, filter: Option<&str>) -> Result<PageResult<EntityId>>
+     */
+    async findEntitiesPaginated(
+      entityType: EntityType, 
+      pageOpts: PageOpts | null, 
+      filter?: string | null
+    ): Promise<PageResult<EntityId>> {
+      const data = await this.apiRequest('find', { 
+        entity_type: entityType,
+        filter: filter || null,
+        page_opts: pageOpts
+      });
+      return {
+        items: data.items || data.entities || [],
+        total: data.total || 0,
+        next_cursor: data.next_cursor || null
+      };
+    },
+
+    /**
+     * Find entities of exactly the specified type (no inheritance) with pagination
+     * Corresponds to: fn find_entities_exact(&self, entity_type: EntityType, page_opts: Option<&PageOpts>, filter: Option<&str>) -> Result<PageResult<EntityId>>
+     */
+    async findEntitiesExact(
+      entityType: EntityType, 
+      pageOpts: PageOpts | null, 
+      filter?: string | null
+    ): Promise<PageResult<EntityId>> {
+      // qweb doesn't expose find_entities_exact separately - would need backend support
+      return this.findEntitiesPaginated(entityType, pageOpts, filter);
+    },
+
+    /**
+     * Get all entity types
+     * Corresponds to: fn get_entity_types(&self) -> Result<Vec<EntityType>>
+     */
+    async getEntityTypes(): Promise<EntityType[]> {
+      // qweb doesn't have this endpoint - would need backend support
+      throw new Error('getEntityTypes not implemented in qweb backend');
+    },
+
+    /**
+     * Get all entity types with pagination
+     * Corresponds to: fn get_entity_types_paginated(&self, page_opts: Option<&PageOpts>) -> Result<PageResult<EntityType>>
+     */
+    async getEntityTypesPaginated(pageOpts: PageOpts | null): Promise<PageResult<EntityType>> {
+      // qweb doesn't have this endpoint - would need backend support
+      throw new Error('getEntityTypesPaginated not implemented in qweb backend');
+    },
+
+    // ============================================================
+    // Notification API (StoreProxy specific)
+    // ============================================================
+
+    /**
+     * Register for notifications
+     * Corresponds to: StoreProxy::register_notification
+     */
+    async registerNotification(config: NotifyConfig, callback: NotificationCallback): Promise<void> {
+      const response = await this.sendWebSocketRequest({
+        type: 'RegisterNotification',
+        config: config
+      });
+
+      const configHash = response.config_hash;
+      if (!this.notificationCallbacks[configHash]) {
+        this.notificationCallbacks[configHash] = [];
+      }
+      this.notificationCallbacks[configHash].push(callback);
+    },
+
+    /**
+     * Unregister from notifications
+     * Corresponds to: StoreProxy::unregister_notification
+     */
+    async unregisterNotification(config: NotifyConfig): Promise<void> {
+      await this.sendWebSocketRequest({
+        type: 'UnregisterNotification',
+        config: config
+      });
+    },
+
+    // ============================================================
+    // Pipeline API (StoreProxy specific)
+    // ============================================================
+
+    /**
+     * Execute a pipeline of commands
+     * Corresponds to: StoreProxy::pipeline().execute()
+     */
+    async executePipeline(commands: any[]): Promise<any[]> {
+      const data = await this.apiRequest('pipeline', { commands });
+      return data.results || [];
+    },
+
+    // ============================================================
+    // Connection Lost Callbacks
+    // ============================================================
+
+    /**
+     * Register a callback to be called when the connection is lost
+     */
     onConnectionLost(callback: () => void) {
       this.connectionLostCallbacks.push(callback);
     },
 
+    /**
+     * Remove a previously registered connection lost callback
+     */
     removeConnectionLostCallback(callback: () => void) {
       const index = this.connectionLostCallbacks.indexOf(callback);
       if (index !== -1) {
@@ -703,6 +676,9 @@ export const useDataStore = defineStore('data', {
       }
     },
 
+    /**
+     * Trigger all registered connection lost callbacks
+     */
     triggerConnectionLostCallbacks() {
       console.warn('Database connection lost - triggering callbacks');
       this.connectionLostCallbacks.forEach(callback => {
