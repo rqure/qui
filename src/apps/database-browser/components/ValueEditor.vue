@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
 import { ValueFactories, ValueType } from '@/core/data/types';
+import type { FieldType } from '@/core/data/types';
 import { useDataStore } from '@/stores/data';
 
 // Define our own Value interface to avoid type errors
@@ -14,13 +15,13 @@ interface Value {
   getString?: () => string;
   getBool?: () => boolean;
   getTimestamp?: () => Date;
-  getEntityReference?: () => string;
+  getEntityReference?: () => number | null;
   getChoice?: () => number;
 }
 
 const props = defineProps<{
   value: Value;
-  fieldType?: string;
+  fieldType?: FieldType | string;
   entityType?: string;
 }>();
 
@@ -47,7 +48,8 @@ function getInitialValue(): string {
   } else if (props.value.type === ValueType.Bool && typeof props.value.getBool === 'function') {
     return props.value.getBool().toString();
   } else if (props.value.type === ValueType.EntityReference && typeof props.value.getEntityReference === 'function') {
-    return props.value.getEntityReference();
+    const ref = props.value.getEntityReference();
+    return ref !== null && ref !== undefined ? String(ref) : '';
   } else if (props.value.type === ValueType.Timestamp && typeof props.value.getTimestamp === 'function') {
     return formatDateForInput(props.value.getTimestamp());
   } else if (props.value.type === ValueType.Choice && typeof props.value.getChoice === 'function') {
@@ -159,7 +161,7 @@ function handleSave() {
     } else if (props.value.type === ValueType.String) {
       newValue = ValueFactories.newString(editValue.value);
     } else if (props.value.type === ValueType.EntityReference) {
-      newValue = ValueFactories.newEntityReference(editValue.value);
+      newValue = ValueFactories.newEntityReference(editValue.value ? Number(editValue.value) : null);
     } else if (props.value.type === ValueType.Timestamp) {
       const date = new Date(editValue.value);
       newValue = ValueFactories.newTimestamp(date);

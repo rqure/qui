@@ -2,6 +2,7 @@
 import { computed, ref, onMounted, onUnmounted, watch } from 'vue';
 import { useDataStore } from '@/stores/data';
 import { ValueType } from '@/core/data/types';
+import type { FieldType } from '@/core/data/types';
 import { useEntityDrag, ENTITY_MIME_TYPE } from '@/core/utils/composables';
 
 // Define our own Value interface to avoid type errors
@@ -12,13 +13,13 @@ interface Value {
   raw?: any;
   getChoice?: () => number; // Add optional getChoice method for Choice type values
   // Add missing method declarations
-  getEntityReference?: () => string;
-  getEntityList?: () => string[];
+  getEntityReference?: () => number | null;
+  getEntityList?: () => number[];
 }
 
 const props = defineProps<{
   value: Value;
-  fieldType?: string; // Add fieldType prop to get schema information
+  fieldType?: FieldType | string; // Add fieldType prop to get schema information
   entityType?: string; // Add entityType prop to get schema information
 }>();
 
@@ -131,8 +132,8 @@ async function loadChoiceOptions() {
     const schema = await dataStore.getEntitySchema(props.entityType);
     
     // Check if we have a field schema for this field
-    if (schema?.fields && schema.fields[props.fieldType]) {
-      const fieldSchema = schema.fields[props.fieldType];
+    if (schema?.fields && schema.fields[props.fieldType?.toString() || '']) {
+      const fieldSchema = schema.fields[props.fieldType!.toString()];
       
       // Store the choice options
       choiceOptions.value = fieldSchema.choices || [];
@@ -194,13 +195,16 @@ onMounted(async () => {
 const { startEntityDrag, navigateToEntity } = useEntityDrag();
 
 // Add drag functionality for entity references and entity lists
-function handleDragStart(event: DragEvent, entityId: string) {
-  startEntityDrag(event, entityId, props.entityType, undefined, props.fieldType);
+function handleDragStart(event: DragEvent, entityId: number | string) {
+  // Pass numeric ID to composable; it will stringify for browser APIs
+  const idVal = typeof entityId === 'number' ? entityId : (isNaN(Number(entityId)) ? entityId : Number(entityId));
+  startEntityDrag(event, idVal as any, props.entityType, undefined, props.fieldType as any);
 }
 
 // Make an EntityId clickable - emitting a navigation event
-function handleEntityClick(entityId: string) {
-  navigateToEntity(entityId);
+function handleEntityClick(entityId: number | string) {
+  const idVal = typeof entityId === 'number' ? entityId : (isNaN(Number(entityId)) ? entityId : Number(entityId));
+  navigateToEntity(idVal as any);
 }
 </script>
 

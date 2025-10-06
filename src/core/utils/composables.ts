@@ -12,16 +12,18 @@ export function useEntityDrag() {
   // Start dragging an entity
   const startEntityDrag = (
     event: DragEvent, 
-    entityId: string, 
+    entityId: EntityId | string, 
     entityType?: string,
     entityName?: string,
     fieldType?: string
   ) => {
     if (!event.dataTransfer) return;
-    
+    // Centralize conversion here: drag APIs require string payloads
+    const idStr = typeof entityId === 'number' ? String(entityId) : entityId;
+
     // Set data for the drag operation - use the consistent MIME type
-    event.dataTransfer.setData(ENTITY_MIME_TYPE, entityId);
-    event.dataTransfer.setData('text/plain', entityId);
+    event.dataTransfer.setData(ENTITY_MIME_TYPE, idStr);
+    event.dataTransfer.setData('text/plain', idStr);
     
     // Add metadata for field type, if provided
     if (fieldType) {
@@ -32,7 +34,7 @@ export function useEntityDrag() {
     event.dataTransfer.effectAllowed = 'all';
     
     // Create a drag image
-    const dragIcon = createDragImage(entityId, entityType);
+  const dragIcon = createDragImage(idStr, entityType);
     event.dataTransfer.setDragImage(dragIcon, 20, 20);
     
     // Remove the temporary element after a delay
@@ -55,8 +57,10 @@ export function useEntityDrag() {
   };
   
   // Trigger entity navigation (click or drop)
-  const navigateToEntity = (entityId: string) => {
-    broadcastEntityNavigation(entityId);
+  const navigateToEntity = (entityId: EntityId | string) => {
+    // Convert to numeric for broadcast detail where possible
+    const idVal = typeof entityId === 'number' ? entityId : (isNaN(Number(entityId)) ? entityId : Number(entityId));
+    broadcastEntityNavigation(idVal as any);
   };
   
   return {
@@ -92,7 +96,9 @@ export function useEntityDropZone(
     });
     
     if (entityId) {
-      onEntityDrop(entityId);
+      // Convert to numeric EntityId where appropriate before invoking callback
+      const parsed = isNaN(Number(entityId)) ? entityId : Number(entityId);
+      onEntityDrop(parsed as any);
       return true;
     }
     
@@ -184,7 +190,7 @@ export function initCrossWindowEntityHandling(callback: (entityId: EntityId) => 
 declare global {
   interface WindowEventMap {
     'show-context-menu': CustomEvent<{x: number, y: number, items: any[]}>;
-    'entity:navigate': CustomEvent<{entityId: string}>;
+    'entity:navigate': CustomEvent<{entityId: EntityId | number}>;
   }
 
   interface Window {

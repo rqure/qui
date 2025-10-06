@@ -1,11 +1,11 @@
 /**
- * Simplified type definitions for qweb-based data layer
- * Removes protobuf dependencies while maintaining similar interfaces
+ * Type definitions matching backend exactly
+ * EntityId: u64, EntityType: u32, FieldType: u64
  */
 
-export type EntityId = string;
-export type EntityType = string;
-export type FieldType = string;
+export type EntityId = number;
+export type EntityType = number;
+export type FieldType = number;
 export type WriteTime = Date;
 
 export enum ValueType {
@@ -49,7 +49,7 @@ export class Value {
   }
   getBool(): boolean { return this.raw as boolean; }
   getBinaryFile(): string { return this.raw as string; }
-  getEntityReference(): EntityId { return this.raw as EntityId; }
+  getEntityReference(): EntityId | null { return this.raw as EntityId | null; }
   getTimestamp(): Date { return this.raw as Date; }
   getChoice(): number { return this.raw as number; }
   getEntityList(): EntityId[] { return this.raw as EntityId[]; }
@@ -59,7 +59,7 @@ export class Value {
   setString(value: string): void { this.raw = value; }
   setBool(value: boolean): void { this.raw = value; }
   setBinaryFile(value: string): void { this.raw = value; }
-  setEntityReference(value: EntityId): void { this.raw = value; }
+  setEntityReference(value: EntityId | null): void { this.raw = value; }
   setTimestamp(value: Date): void { this.raw = value; }
   setChoice(value: number): void { this.raw = value; }
   setEntityList(value: EntityId[]): void { this.raw = value; }
@@ -107,17 +107,17 @@ export class Value {
  */
 export class Field {
   entityId: EntityId;
-  fieldType: FieldType;
+  fieldType: FieldType | string;
   value: Value;
   writeTime: WriteTime;
-  writerId: EntityId;
+  writerId: EntityId | null;
 
-  constructor(entityId: EntityId, fieldType: FieldType, value: Value) {
+  constructor(entityId: EntityId, fieldType: FieldType | string, value: Value) {
     this.entityId = entityId;
-    this.fieldType = fieldType;
+    this.fieldType = fieldType as FieldType | string;
     this.value = value;
     this.writeTime = new Date(0);
-    this.writerId = '';
+    this.writerId = null;
   }
 
   clone(): Field {
@@ -166,23 +166,33 @@ export class FieldSchema {
 export class Entity {
   entityId: EntityId;
   entityType: EntityType;
-  fields: Record<FieldType, Field>;
+  // Use string keys so fields can be referenced by numeric id or by name
+  fields: Record<string, Field>;
 
   constructor(entityId: EntityId) {
     this.entityId = entityId;
-    this.entityType = '';
+    this.entityType = 0;
     this.fields = {};
   }
 
-  field(fieldType: FieldType, value?: Value): Field {
-    if (!this.fields[fieldType]) {
-      this.fields[fieldType] = new Field(
+  field(fieldType: FieldType | string, value?: Value): Field {
+    // Coerce numeric-looking string field types into numbers so the
+    // rest of the app can treat most field IDs as numeric internally.
+    const resolvedFieldType: FieldType | string = (typeof fieldType === 'string' && !isNaN(Number(fieldType)))
+      ? Number(fieldType)
+      : fieldType;
+
+    const key = resolvedFieldType.toString();
+    if (!this.fields[key]) {
+      this.fields[key] = new Field(
         this.entityId,
-        fieldType,
+        resolvedFieldType as FieldType,
         value || new Value(ValueType.String, '')
       );
+      // ensure the Field stores the resolved (possibly numeric) fieldType
+      this.fields[key].fieldType = resolvedFieldType as FieldType | string;
     }
-    return this.fields[fieldType];
+    return this.fields[key];
   }
 }
 
@@ -191,27 +201,32 @@ export class Entity {
  */
 export class EntitySchema {
   entityType: EntityType;
-  fields: Record<FieldType, FieldSchema>;
+  // Use string keys for schema fields as well
+  fields: Record<string, FieldSchema>;
 
   constructor(entityType: EntityType) {
     this.entityType = entityType;
     this.fields = {};
   }
 
-  field(fieldType: FieldType, valueType?: ValueType): FieldSchema {
-    if (!this.fields[fieldType]) {
-      this.fields[fieldType] = new FieldSchema(
+  field(fieldType: FieldType | string, valueType?: ValueType): FieldSchema {
+    const key = fieldType.toString();
+    if (!this.fields[key]) {
+      this.fields[key] = new FieldSchema(
         this.entityType,
-        fieldType,
+        fieldType as FieldType,
         valueType || ValueType.String
       );
+      // ensure FieldSchema stores numeric fieldType where applicable
+      this.fields[key].fieldType = (typeof fieldType === 'string' && !isNaN(Number(fieldType))) ? Number(fieldType) as FieldType : (fieldType as FieldType);
     }
-    return this.fields[fieldType];
+    return this.fields[key];
   }
 
   clone(): EntitySchema {
     const cloned = new EntitySchema(this.entityType);
     Object.keys(this.fields).forEach(key => {
+      const fieldType = Number(key) as FieldType;
       cloned.fields[key] = this.fields[key].clone();
     });
     return cloned;
@@ -288,7 +303,7 @@ export const ValueFactories = {
   newString: (value: string): Value => new Value(ValueType.String, value),
   newBool: (value: boolean): Value => new Value(ValueType.Bool, value),
   newBinaryFile: (value: string): Value => new Value(ValueType.BinaryFile, value),
-  newEntityReference: (value: EntityId): Value => new Value(ValueType.EntityReference, value),
+  newEntityReference: (value: EntityId | null): Value => new Value(ValueType.EntityReference, value),
   newTimestamp: (value: Date): Value => new Value(ValueType.Timestamp, value),
   newChoice: (value: number): Value => new Value(ValueType.Choice, value),
   newEntityList: (value: EntityId[]): Value => new Value(ValueType.EntityList, value),
@@ -300,7 +315,7 @@ export const ValueFactories = {
 export const EntityFactories = {
   newEntity: (entityId: EntityId): Entity => new Entity(entityId),
   newEntitySchema: (entityType: EntityType): EntitySchema => new EntitySchema(entityType),
-  newField: (entityId: EntityId, fieldType: FieldType, value: Value): Field => 
+  newField: (entityId: EntityId, fieldType: FieldType, value: Value): Field =>
     new Field(entityId, fieldType, value),
   newFieldSchema: (entityType: EntityType, fieldType: FieldType, valueType: ValueType): FieldSchema =>
     new FieldSchema(entityType, fieldType, valueType),
@@ -361,11 +376,12 @@ export const Utils = {
   parseIndirection: (indirection: string): string[] => {
     return indirection.split('->');
   },
-  getEntityTypeFromId: (entityId: string): number => {
+  getEntityTypeFromId: (entityId: string | number): number => {
     // In qweb, entity IDs encode type info in upper 32 bits
-    // Extract entity type from the entity ID
+    // Accept both numeric and string IDs; convert to string for BigInt.
     try {
-      const id = BigInt(entityId);
+      const idStr = typeof entityId === 'number' ? entityId.toString() : entityId;
+      const id = BigInt(idStr);
       const entityType = Number(id >> 32n);
       return entityType;
     } catch (e) {

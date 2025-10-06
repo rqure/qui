@@ -1,15 +1,22 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
+import type { EntityId } from '@/core/data/types';
+import { Entity, Utils } from '@/core/data/types';
+import { EntityFactories } from '@/core/data/types';
 import { useDataStore } from '@/stores/data';
-import { EntityFactories, Utils, type Entity, type EntityId, type EntityType } from '@/core/data/types';
+
+// Field type IDs will be resolved at runtime using the data store
+let NameFieldType: number | null = null;
+let ChildrenFieldType: number | null = null;
+let ParentFieldType: number | null = null;
 import { useEntityDrag } from '@/core/utils/composables';
 
 // Define EntityItem interface
 interface EntityItem {
-  id: string;
+  id: EntityId;
   name: string;
   type: string;
-  children: string[];
+  children: EntityId[];
 }
 
 const props = defineProps<{
@@ -62,7 +69,7 @@ const groupedEntities = computed(() => {
     ? entities.value.filter(entity => entity.name.toLowerCase().includes(searchQuery.value.toLowerCase()))
     : entities.value;
 
-  const groups: Record<EntityType, EntityItem[]> = {};
+  const groups: Record<string, EntityItem[]> = {}; // Group by entity type name (string)
   
   filtered.forEach(entity => {
     if (!groups[entity.type]) {
@@ -77,7 +84,7 @@ const groupedEntities = computed(() => {
   });
 
   // Sort the group keys alphabetically
-  const sortedGroups: [EntityType, EntityItem[]][] = Object.entries(groups)
+  const sortedGroups: [string, EntityItem[]][] = Object.entries(groups)
     .sort(([typeA], [typeB]) => typeA.localeCompare(typeB));
 
   return sortedGroups;
@@ -104,18 +111,26 @@ async function loadEntities() {
   entities.value = [];
   
   try {
+    // Ensure field type IDs are resolved
+    if (NameFieldType === null) NameFieldType = await dataStore.getFieldType('Name');
+    if (ChildrenFieldType === null) ChildrenFieldType = await dataStore.getFieldType('Children');
+    if (ParentFieldType === null) ParentFieldType = await dataStore.getFieldType('Parent');
+
     if (!props.parentId) {
       const roots = await dataStore.find("Root") as Entity[];
       if (roots.length > 0) {
-        let rootName = roots[0].field("Name").value.getString();
+        const rootNameField = roots[0].field(NameFieldType as number);
+        await dataStore.read([rootNameField]);
+        let rootName = rootNameField.value.getString();
         // Ensure name is never empty
         rootName = (rootName && rootName.trim() !== '') ? rootName : 'Root';
-        
+        const rootChildrenField = roots[0].field(ChildrenFieldType as number);
+        await dataStore.read([rootChildrenField]);
         entities.value.push({
           id: roots[0].entityId,
           name: rootName,
           type: "Root",
-          children: roots[0].field("Children").value.getEntityList()
+          children: rootChildrenField.value.getEntityList()
         });
       }
       loading.value = false;
@@ -123,7 +138,7 @@ async function loadEntities() {
     }
 
     const parentEntity = EntityFactories.newEntity(props.parentId);
-    const children = parentEntity.field("Children");
+  const children = parentEntity.field(ChildrenFieldType as number);
     await dataStore.read([children]);
     
     const childrenIds = children.value.getEntityList();
@@ -132,13 +147,13 @@ async function loadEntities() {
     await Promise.all(childrenIds.map(async (childId: EntityId) => {
       try {
         const childEntity = EntityFactories.newEntity(childId);
-        const nameField = childEntity.field("Name");
-        const childrenField = childEntity.field("Children");
+  const nameField = childEntity.field(NameFieldType as number);
+  const childrenField = childEntity.field(ChildrenFieldType as number);
         
         await dataStore.read([nameField, childrenField]);
         
         // Get entity type from ID and resolve it to a name
-        const entityTypeNumber = Utils.getEntityTypeFromId(childId);
+  const entityTypeNumber = Utils.getEntityTypeFromId(childId);
         const entityType = await dataStore.resolveEntityType(entityTypeNumber);
         
         // Get the name and ensure it's never empty

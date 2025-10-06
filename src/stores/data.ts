@@ -1,12 +1,13 @@
 import { defineStore } from 'pinia';
 import { getApiBaseUrl, getWebSocketUrl } from '@/core/utils/url';
 import { useAuthStore } from '@/stores/auth';
-import { 
-  Entity, 
-  EntitySchema, 
-  Field, 
-  FieldSchema, 
-  Value, 
+import type { EntityId, EntityType, FieldType } from '@/core/data/types';
+import {
+  Entity,
+  EntitySchema,
+  Field,
+  FieldSchema,
+  Value,
   ValueType,
   EntityFactories,
   ValueFactories
@@ -14,9 +15,9 @@ import {
 
 // Notification configuration
 export interface NotificationConfig {
-  entityId?: string;
-  entityType?: string;
-  field: string;
+  entityId?: EntityId;
+  entityType?: EntityType;
+  field: FieldType | string;
   triggerOnChange?: boolean;
   context?: string[][];
 }
@@ -68,14 +69,14 @@ export const useDataStore = defineStore('data', {
 
       const authStore = useAuthStore();
       const token = authStore.userProfile?.token;
-      
+
       let wsUrl = getWebSocketUrl();
       if (token) {
         wsUrl += `?token=${encodeURIComponent(token)}`;
       }
-      
+
       console.log('Connecting to WebSocket:', wsUrl);
-      
+
       this.socket = new WebSocket(wsUrl);
 
       // Set connection timeout
@@ -90,7 +91,7 @@ export const useDataStore = defineStore('data', {
         console.log('WebSocket connected');
         this.isConnected = true;
         this.reconnectAttempts = 0;
-        
+
         // Clear connection timeout on successful connection
         if (this.connectionTimeout !== null) {
           clearTimeout(this.connectionTimeout);
@@ -102,13 +103,13 @@ export const useDataStore = defineStore('data', {
         const wasConnected = this.isConnected;
         console.log('WebSocket closed:', event.code, event.reason);
         this.isConnected = false;
-        
+
         // Clear connection timeout
         if (this.connectionTimeout !== null) {
           clearTimeout(this.connectionTimeout);
           this.connectionTimeout = null;
         }
-        
+
         // Store reference before clearing
         const closedSocket = this.socket;
         this.socket = null;
@@ -126,7 +127,7 @@ export const useDataStore = defineStore('data', {
         if (event.code !== 1000 && this.reconnectAttempts < this.maxReconnectAttempts) {
           const delay = Math.min(30000, this.reconnectDelay * Math.pow(1.5, this.reconnectAttempts));
           this.reconnectAttempts++;
-          
+
           console.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`);
           setTimeout(() => {
             // Double-check we're still disconnected before attempting reconnect
@@ -151,7 +152,7 @@ export const useDataStore = defineStore('data', {
         clearTimeout(this.connectionTimeout);
         this.connectionTimeout = null;
       }
-      
+
       if (this.socket) {
         console.log('Disconnecting WebSocket');
         this.socket.close(1000, 'Normal closure');
@@ -164,21 +165,21 @@ export const useDataStore = defineStore('data', {
     onMessage(event: MessageEvent) {
       try {
         const message = JSON.parse(event.data);
-        
+
         // qweb WebSocket messages can be:
         // 1. Notifications: {type: "notification", ...}
         // 2. Responses: {success: bool, data?: any, error?: string, request_id?: string}
-        
+
         if (message.type === 'notification') {
           this.handleNotification(message);
           return;
         }
-        
+
         // Handle responses with request_id
         if (message.request_id && this.pendingRequests[message.request_id]) {
           const pending = this.pendingRequests[message.request_id];
           delete this.pendingRequests[message.request_id];
-          
+
           if (message.success) {
             pending.resolve(message.data || message);
           } else {
@@ -186,7 +187,7 @@ export const useDataStore = defineStore('data', {
           }
           return;
         }
-        
+
         if (message.success !== undefined) {
           console.log('Received WebSocket response:', message);
         }
@@ -197,19 +198,19 @@ export const useDataStore = defineStore('data', {
 
     handleNotification(notification: any) {
       console.log('Received notification:', notification);
-      
+
       // qweb notifications have a config field with the notification configuration
       // We need to match this against registered callbacks
       if (notification.config) {
         const config = notification.config;
-        
+
         // Create a key to match callbacks
         const key = JSON.stringify({
           entity_id: config.entity_id,
           entity_type: config.entity_type,
-          field: config.field,
+          field: String(config.field),
         });
-        
+
         const callbacks = this.notificationCallbacks[key] || [];
         callbacks.forEach(callback => {
           try {
@@ -229,16 +230,16 @@ export const useDataStore = defineStore('data', {
       return new Promise((resolve, reject) => {
         // Generate a unique request ID
         const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        
+
         // Store the promise handlers
         this.pendingRequests[requestId] = { resolve, reject };
-        
+
         // Add request_id to the request
         const requestWithId = { ...request, request_id: requestId };
-        
+
         try {
           this.socket!.send(JSON.stringify(requestWithId));
-          
+
           // Set a timeout for the request
           setTimeout(() => {
             if (this.pendingRequests[requestId]) {
@@ -272,7 +273,7 @@ export const useDataStore = defineStore('data', {
       }
 
       const result = await response.json();
-      
+
       // qweb returns {success: bool, data?: any, error?: string}
       if (!result.success) {
         throw new Error(result.error || 'Request failed');
@@ -302,7 +303,7 @@ export const useDataStore = defineStore('data', {
       if (value === null || value === undefined) {
         return ValueFactories.newString('');
       }
-      
+
       // Handle different value types from qweb
       if (typeof value === 'object') {
         // qweb uses variant enums like {Bool: true}, {Int: 42}, {String: "hello"}, etc.
@@ -310,7 +311,7 @@ export const useDataStore = defineStore('data', {
         if (keys.length === 1) {
           const valueType = keys[0];
           const innerValue = value[valueType];
-          
+
           switch (valueType) {
             case 'Bool':
               return ValueFactories.newBool(innerValue);
@@ -321,11 +322,11 @@ export const useDataStore = defineStore('data', {
             case 'String':
               return ValueFactories.newString(innerValue);
             case 'EntityReference':
-              return ValueFactories.newEntityReference(innerValue ? innerValue.toString() : null);
+              return ValueFactories.newEntityReference(innerValue ? Number(innerValue) : null);
             case 'EntityList':
-              // EntityList is serialized as an array of numbers (u64) from Rust
+              // EntityList is serialized as an array of numbers/strings from Rust
               if (Array.isArray(innerValue)) {
-                return ValueFactories.newEntityList(innerValue.map((id: any) => String(id)));
+                return ValueFactories.newEntityList(innerValue.map((id: any) => Number(id)));
               }
               return ValueFactories.newEntityList([]);
             case 'Timestamp':
@@ -342,12 +343,12 @@ export const useDataStore = defineStore('data', {
           }
         }
       }
-      
+
       // Fallback for primitive values
       if (typeof value === 'boolean') return ValueFactories.newBool(value);
       if (typeof value === 'number') return ValueFactories.newInt(value);
       if (typeof value === 'string') return ValueFactories.newString(value);
-      
+
       return ValueFactories.newString(JSON.stringify(value));
     },
 
@@ -360,42 +361,42 @@ export const useDataStore = defineStore('data', {
         case ValueType.String:
         case ValueType.Choice:
           return value.raw;
-          
+
         case ValueType.Timestamp:
           // Convert Date to ISO string for qweb
           return (value.raw as Date).toISOString();
-          
+
         case ValueType.EntityReference:
-          // Convert entity reference to string ID or null
-          return value.raw ? String(value.raw) : null;
-          
+          // Keep internal representation as bigint | null; JSON replacer will convert bigint -> string
+          return value.raw;
+
         case ValueType.EntityList:
-          // Convert array of entity IDs to array of string IDs
+          // Keep array of bigints; JSON replacer will convert each bigint to a string
           if (Array.isArray(value.raw)) {
-            return value.raw.map((id: any) => String(id));
+            return value.raw;
           }
           return [];
-          
+
         case ValueType.BinaryFile:
           // Binary files need special handling
           return value.raw;
-          
+
         default:
           return value.raw;
       }
     },
 
     // Create entity
-    async createEntity(entityType: string, name: string): Promise<string> {
+    async createEntity(entityType: string, name: string): Promise<EntityId> {
       const data = await this.apiRequest('create', {
         entity_type: entityType,
         name: name,
       });
-      return data.entity_id;
+      return Number(data.entity_id);
     },
 
     // Delete entity
-    async deleteEntity(entityId: string): Promise<void> {
+    async deleteEntity(entityId: EntityId): Promise<void> {
       await this.apiRequest('delete', {
         entity_id: entityId,
       });
@@ -415,7 +416,7 @@ export const useDataStore = defineStore('data', {
 
           if (data && data.value !== undefined) {
             field.value = this.parseFieldValue(data.value);
-            
+
             if (data.timestamp) {
               const ts = data.timestamp;
               if (typeof ts === 'object' && ts.secs !== undefined) {
@@ -425,7 +426,9 @@ export const useDataStore = defineStore('data', {
               }
             }
             if (data.writer_id) {
-              field.writerId = data.writer_id;
+              field.writerId = Number(data.writer_id);
+            } else {
+              field.writerId = null;
             }
           }
         } catch (error) {
@@ -464,9 +467,11 @@ export const useDataStore = defineStore('data', {
       // qweb returns 'entities' not 'entity_ids'
       const entityIds = data.entities || data.entity_ids || [];
       if (Array.isArray(entityIds)) {
-        entityIds.forEach((id: string) => {
-          const entity = EntityFactories.newEntity(id);
-          entity.entityType = entityType;
+        entityIds.forEach((id: any) => {
+          const eid = Number(id);
+          const entity = EntityFactories.newEntity(eid);
+          // entityType param is a string here, convert to number for internal representation
+          entity.entityType = Number(entityType);
           entities.push(entity);
         });
       }
@@ -483,14 +488,40 @@ export const useDataStore = defineStore('data', {
     },
 
     // Resolve entity type number to name
-    async resolveEntityType(entityType: number): Promise<string> {
+    async resolveEntityType(entityType: EntityType): Promise<string> {
       try {
         const data = await this.apiRequest('resolve_entity_type', {
           entity_type: entityType.toString(),
         });
-        return data.name || '';
+        return data.name || entityType.toString();
       } catch (error) {
-        console.error('Failed to resolve entity type:', error);
+        console.error(`Failed to resolve entity type ${entityType}:`, error);
+        return entityType.toString();
+      }
+    },
+
+    // Get entity type ID by name
+    async getEntityType(name: string): Promise<EntityType> {
+      try {
+        const data = await this.apiRequest('get_entity_type', {
+          name: name,
+        });
+        return Number(data.entity_type);
+      } catch (error) {
+        console.error(`Failed to get entity type for ${name}:`, error);
+        throw error;
+      }
+    },
+
+    // Get field type ID by name
+    async getFieldType(name: string): Promise<FieldType> {
+      try {
+        const data = await this.apiRequest('get_field_type', {
+          name: name,
+        });
+        return Number(data.field_type);
+      } catch (error) {
+        console.error(`Failed to get field type for ${name}:`, error);
         throw error;
       }
     },
@@ -500,21 +531,24 @@ export const useDataStore = defineStore('data', {
       if (!entityType || entityType.trim() === '') {
         throw new Error('Entity type cannot be empty');
       }
-      
+
       const data = await this.apiRequest('schema', {
         entity_type: entityType,
       });
 
-      const schema = new EntitySchema(entityType);
-      
+      // entityType comes as string from API, convert to number
+      const entityTypeNum = typeof entityType === 'string' ? parseInt(entityType) : entityType;
+      const schema = new EntitySchema(entityTypeNum);
+
       // qweb returns {entity_type: string, schema: {...}}
       const schemaData = data.schema || data;
-      
-      // Parse fields from schema
+
+      // Parse fields from schema - convert string keys to numbers
       if (schemaData.fields) {
-        Object.keys(schemaData.fields).forEach(fieldName => {
-          const fieldData = schemaData.fields[fieldName];
-          
+        Object.keys(schemaData.fields).forEach(fieldKey => {
+          const fieldData = schemaData.fields[fieldKey];
+          const fieldTypeId = Number(fieldKey) as FieldType; // Convert JSON string key to number
+
           // Parse the value type from qweb's format
           let valueType = ValueType.String;
           if (fieldData.value_type) {
@@ -526,8 +560,8 @@ export const useDataStore = defineStore('data', {
               valueType = this.parseValueType(typeKey);
             }
           }
-          
-          const fieldSchema = schema.field(fieldName, valueType);
+
+          const fieldSchema = schema.field(fieldTypeId, valueType);
           fieldSchema.rank = fieldData.rank || 0;
           fieldSchema.readPermissions = fieldData.read_permissions || [];
           fieldSchema.writePermissions = fieldData.write_permissions || [];
@@ -542,10 +576,11 @@ export const useDataStore = defineStore('data', {
     async setEntitySchema(schema: EntitySchema): Promise<void> {
       // Convert EntitySchema to qweb format
       const fieldsData: Record<string, any> = {};
-      
-      Object.keys(schema.fields).forEach(fieldName => {
-        const field = schema.fields[fieldName];
-        fieldsData[fieldName] = {
+
+      Object.keys(schema.fields).forEach(fieldKey => {
+        const fieldTypeId = Number(fieldKey) as FieldType;
+        const field = schema.fields[fieldTypeId];
+        fieldsData[fieldKey] = {
           value_type: field.valueType,
           rank: field.rank,
           read_permissions: field.readPermissions,
@@ -561,7 +596,7 @@ export const useDataStore = defineStore('data', {
     },
 
     // Check if entity exists
-    async entityExists(entityId: string): Promise<boolean> {
+    async entityExists(entityId: EntityId): Promise<boolean> {
       try {
         const data = await this.apiRequest('entity_exists', {
           entity_id: entityId,
@@ -571,6 +606,19 @@ export const useDataStore = defineStore('data', {
       } catch (error) {
         console.error('Failed to check entity existence:', error);
         return false;
+      }
+    },
+
+    // Resolve field type ID to name
+    async resolveFieldType(fieldTypeId: FieldType): Promise<string> {
+      try {
+        const data = await this.apiRequest('resolve_field_type', {
+          field_type: fieldTypeId.toString(),
+        });
+        return data.name || fieldTypeId.toString();
+      } catch (error) {
+        console.error(`Failed to resolve field type ${fieldTypeId}:`, error);
+        return fieldTypeId.toString();
       }
     },
 
@@ -588,14 +636,14 @@ export const useDataStore = defineStore('data', {
       };
 
       const response = await this.sendWebSocketRequest(request);
-      
+
       // Create a key based on the config for callback matching
       const key = JSON.stringify({
-        entity_id: config.entityId,
-        entity_type: config.entityType,
-        field: config.field,
+        entity_id: config.entityId !== undefined ? String(config.entityId) : undefined,
+        entity_type: config.entityType !== undefined ? String(config.entityType) : undefined,
+        field: String(config.field),
       });
-      
+
       return key;
     },
 
@@ -618,7 +666,7 @@ export const useDataStore = defineStore('data', {
     // Subscribe to notifications
     async notify(config: NotificationConfig, callback: NotificationCallback): Promise<NotificationSubscription> {
       const token = await this.registerNotification(config);
-      
+
       if (!this.notificationCallbacks[token]) {
         this.notificationCallbacks[token] = [];
       }
@@ -633,7 +681,7 @@ export const useDataStore = defineStore('data', {
             if (index !== -1) {
               callbacks.splice(index, 1);
             }
-            
+
             if (callbacks.length === 0) {
               delete this.notificationCallbacks[token];
               await this.unregisterNotification(config);
