@@ -165,13 +165,30 @@ export const useDataStore = defineStore('data', {
       try {
         const message = JSON.parse(event.data);
         
+        // qweb WebSocket messages can be:
+        // 1. Notifications: {type: "notification", ...}
+        // 2. Responses: {success: bool, data?: any, error?: string, request_id?: string}
+        
         if (message.type === 'notification') {
           this.handleNotification(message);
           return;
         }
         
+        // Handle responses with request_id
+        if (message.request_id && this.pendingRequests[message.request_id]) {
+          const pending = this.pendingRequests[message.request_id];
+          delete this.pendingRequests[message.request_id];
+          
+          if (message.success) {
+            pending.resolve(message.data || message);
+          } else {
+            pending.reject(new Error(message.error || 'Request failed'));
+          }
+          return;
+        }
+        
         if (message.success !== undefined) {
-          console.log('Received response:', message);
+          console.log('Received WebSocket response:', message);
         }
       } catch (error) {
         console.error('Error parsing WebSocket message:', error);
@@ -180,14 +197,28 @@ export const useDataStore = defineStore('data', {
 
     handleNotification(notification: any) {
       console.log('Received notification:', notification);
-      const callbacks = this.notificationCallbacks[notification.token] || [];
-      callbacks.forEach(callback => {
-        try {
-          callback(notification);
-        } catch (error) {
-          console.error('Error in notification callback:', error);
-        }
-      });
+      
+      // qweb notifications have a config field with the notification configuration
+      // We need to match this against registered callbacks
+      if (notification.config) {
+        const config = notification.config;
+        
+        // Create a key to match callbacks
+        const key = JSON.stringify({
+          entity_id: config.entity_id,
+          entity_type: config.entity_type,
+          field: config.field,
+        });
+        
+        const callbacks = this.notificationCallbacks[key] || [];
+        callbacks.forEach(callback => {
+          try {
+            callback(notification);
+          } catch (error) {
+            console.error('Error in notification callback:', error);
+          }
+        });
+      }
     },
 
     async sendWebSocketRequest(request: any): Promise<any> {
@@ -196,10 +227,27 @@ export const useDataStore = defineStore('data', {
       }
 
       return new Promise((resolve, reject) => {
+        // Generate a unique request ID
+        const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        
+        // Store the promise handlers
+        this.pendingRequests[requestId] = { resolve, reject };
+        
+        // Add request_id to the request
+        const requestWithId = { ...request, request_id: requestId };
+        
         try {
-          this.socket!.send(JSON.stringify(request));
-          resolve({ success: true });
+          this.socket!.send(JSON.stringify(requestWithId));
+          
+          // Set a timeout for the request
+          setTimeout(() => {
+            if (this.pendingRequests[requestId]) {
+              delete this.pendingRequests[requestId];
+              reject(new Error('Request timeout'));
+            }
+          }, 30000); // 30 second timeout
         } catch (error) {
+          delete this.pendingRequests[requestId];
           reject(error);
         }
       });
@@ -219,11 +267,13 @@ export const useDataStore = defineStore('data', {
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
       }
 
       const result = await response.json();
       
+      // qweb returns {success: bool, data?: any, error?: string}
       if (!result.success) {
         throw new Error(result.error || 'Request failed');
       }
@@ -248,24 +298,91 @@ export const useDataStore = defineStore('data', {
     },
 
     // Convert qweb field value to Value object
-    parseFieldValue(fieldData: any): Value {
-      const valueType = this.parseValueType(fieldData.value_type || 'String');
-      let rawValue = fieldData.value;
-
-      // Parse timestamp strings to Date objects
-      if (valueType === ValueType.Timestamp && typeof rawValue === 'string') {
-        rawValue = new Date(rawValue);
+    parseFieldValue(value: any): Value {
+      if (value === null || value === undefined) {
+        return ValueFactories.newString('');
       }
-
-      return new Value(valueType, rawValue);
+      
+      // Handle different value types from qweb
+      if (typeof value === 'object') {
+        // qweb uses variant enums like {Bool: true}, {Int: 42}, {String: "hello"}, etc.
+        const keys = Object.keys(value);
+        if (keys.length === 1) {
+          const valueType = keys[0];
+          const innerValue = value[valueType];
+          
+          switch (valueType) {
+            case 'Bool':
+              return ValueFactories.newBool(innerValue);
+            case 'Int':
+              return ValueFactories.newInt(innerValue);
+            case 'Float':
+              return ValueFactories.newFloat(innerValue);
+            case 'String':
+              return ValueFactories.newString(innerValue);
+            case 'EntityReference':
+              return ValueFactories.newEntityReference(innerValue ? innerValue.toString() : null);
+            case 'EntityList':
+              // EntityList is serialized as an array of numbers (u64) from Rust
+              if (Array.isArray(innerValue)) {
+                return ValueFactories.newEntityList(innerValue.map((id: any) => String(id)));
+              }
+              return ValueFactories.newEntityList([]);
+            case 'Timestamp':
+              if (typeof innerValue === 'object' && innerValue.secs !== undefined) {
+                const date = new Date(innerValue.secs * 1000 + (innerValue.nanos || 0) / 1000000);
+                return ValueFactories.newTimestamp(date);
+              }
+              return ValueFactories.newTimestamp(new Date(innerValue));
+            case 'Choice':
+              return ValueFactories.newChoice(innerValue);
+            default:
+              console.warn(`Unknown value type: ${valueType}`);
+              return ValueFactories.newString(JSON.stringify(value));
+          }
+        }
+      }
+      
+      // Fallback for primitive values
+      if (typeof value === 'boolean') return ValueFactories.newBool(value);
+      if (typeof value === 'number') return ValueFactories.newInt(value);
+      if (typeof value === 'string') return ValueFactories.newString(value);
+      
+      return ValueFactories.newString(JSON.stringify(value));
     },
 
     // Convert Value object to qweb JSON format
     serializeValue(value: Value): any {
-      if (value.type === ValueType.Timestamp) {
-        return (value.raw as Date).toISOString();
+      switch (value.type) {
+        case ValueType.Int:
+        case ValueType.Float:
+        case ValueType.Bool:
+        case ValueType.String:
+        case ValueType.Choice:
+          return value.raw;
+          
+        case ValueType.Timestamp:
+          // Convert Date to ISO string for qweb
+          return (value.raw as Date).toISOString();
+          
+        case ValueType.EntityReference:
+          // Convert entity reference to string ID or null
+          return value.raw ? String(value.raw) : null;
+          
+        case ValueType.EntityList:
+          // Convert array of entity IDs to array of string IDs
+          if (Array.isArray(value.raw)) {
+            return value.raw.map((id: any) => String(id));
+          }
+          return [];
+          
+        case ValueType.BinaryFile:
+          // Binary files need special handling
+          return value.raw;
+          
+        default:
+          return value.raw;
       }
-      return value.raw;
     },
 
     // Create entity
@@ -286,42 +403,33 @@ export const useDataStore = defineStore('data', {
 
     // Read fields from entities
     async read(fields: Field[]): Promise<void> {
-      // Group fields by entity ID for batch reading
-      const byEntity: Record<string, Field[]> = {};
-      fields.forEach(field => {
-        if (!byEntity[field.entityId]) {
-          byEntity[field.entityId] = [];
-        }
-        byEntity[field.entityId].push(field);
-      });
+      if (fields.length === 0) return;
 
-      // Read all entities in parallel
-      await Promise.all(Object.keys(byEntity).map(async (entityId) => {
-        const entityFields = byEntity[entityId];
-        const fieldNames = entityFields.map(f => f.fieldType);
-
+      // Read each field individually
+      await Promise.all(fields.map(async (field) => {
         try {
           const data = await this.apiRequest('read', {
-            entity_id: entityId,
-            fields: fieldNames,
+            entity_id: field.entityId,
+            fields: [field.fieldType],
           });
 
-          // Update field values from response
-          entityFields.forEach(field => {
-            const fieldData = data.fields[field.fieldType];
-            if (fieldData) {
-              field.value = this.parseFieldValue(fieldData);
-              
-              if (fieldData.write_time) {
-                field.writeTime = new Date(fieldData.write_time);
-              }
-              if (fieldData.writer_id) {
-                field.writerId = fieldData.writer_id;
+          if (data && data.value !== undefined) {
+            field.value = this.parseFieldValue(data.value);
+            
+            if (data.timestamp) {
+              const ts = data.timestamp;
+              if (typeof ts === 'object' && ts.secs !== undefined) {
+                field.writeTime = new Date(ts.secs * 1000 + ts.nanos / 1000000);
+              } else {
+                field.writeTime = new Date(ts);
               }
             }
-          });
+            if (data.writer_id) {
+              field.writerId = data.writer_id;
+            }
+          }
         } catch (error) {
-          console.error(`Failed to read fields for entity ${entityId}:`, error);
+          console.error(`Failed to read field ${field.fieldType} for entity ${field.entityId}:`, error);
           throw error;
         }
       }));
@@ -353,8 +461,10 @@ export const useDataStore = defineStore('data', {
 
       // Convert entity IDs to Entity objects
       const entities: Entity[] = [];
-      if (data.entity_ids && Array.isArray(data.entity_ids)) {
-        data.entity_ids.forEach((id: string) => {
+      // qweb returns 'entities' not 'entity_ids'
+      const entityIds = data.entities || data.entity_ids || [];
+      if (Array.isArray(entityIds)) {
+        entityIds.forEach((id: string) => {
           const entity = EntityFactories.newEntity(id);
           entity.entityType = entityType;
           entities.push(entity);
@@ -372,19 +482,50 @@ export const useDataStore = defineStore('data', {
       return [];
     },
 
+    // Resolve entity type number to name
+    async resolveEntityType(entityType: number): Promise<string> {
+      try {
+        const data = await this.apiRequest('resolve_entity_type', {
+          entity_type: entityType.toString(),
+        });
+        return data.name || '';
+      } catch (error) {
+        console.error('Failed to resolve entity type:', error);
+        throw error;
+      }
+    },
+
     // Get entity schema
     async getEntitySchema(entityType: string): Promise<EntitySchema> {
+      if (!entityType || entityType.trim() === '') {
+        throw new Error('Entity type cannot be empty');
+      }
+      
       const data = await this.apiRequest('schema', {
         entity_type: entityType,
       });
 
       const schema = new EntitySchema(entityType);
       
+      // qweb returns {entity_type: string, schema: {...}}
+      const schemaData = data.schema || data;
+      
       // Parse fields from schema
-      if (data.fields) {
-        Object.keys(data.fields).forEach(fieldName => {
-          const fieldData = data.fields[fieldName];
-          const valueType = this.parseValueType(fieldData.value_type);
+      if (schemaData.fields) {
+        Object.keys(schemaData.fields).forEach(fieldName => {
+          const fieldData = schemaData.fields[fieldName];
+          
+          // Parse the value type from qweb's format
+          let valueType = ValueType.String;
+          if (fieldData.value_type) {
+            if (typeof fieldData.value_type === 'string') {
+              valueType = this.parseValueType(fieldData.value_type);
+            } else if (typeof fieldData.value_type === 'object') {
+              // Handle variant enum format like {Int: null}
+              const typeKey = Object.keys(fieldData.value_type)[0];
+              valueType = this.parseValueType(typeKey);
+            }
+          }
           
           const fieldSchema = schema.field(fieldName, valueType);
           fieldSchema.rank = fieldData.rank || 0;
@@ -425,7 +566,8 @@ export const useDataStore = defineStore('data', {
         const data = await this.apiRequest('entity_exists', {
           entity_id: entityId,
         });
-        return data.exists;
+        // qweb returns {entity_id: string, exists: bool}
+        return data.exists === true;
       } catch (error) {
         console.error('Failed to check entity existence:', error);
         return false;
@@ -446,7 +588,15 @@ export const useDataStore = defineStore('data', {
       };
 
       const response = await this.sendWebSocketRequest(request);
-      return response.token || '';
+      
+      // Create a key based on the config for callback matching
+      const key = JSON.stringify({
+        entity_id: config.entityId,
+        entity_type: config.entityType,
+        field: config.field,
+      });
+      
+      return key;
     },
 
     // Unregister notification

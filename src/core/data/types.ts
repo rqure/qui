@@ -354,10 +354,17 @@ export const Utils = {
   parseIndirection: (indirection: string): string[] => {
     return indirection.split('->');
   },
-  getEntityTypeFromId: (entityId: string): string => {
-    // In qweb, entity IDs don't encode type info, so we return empty string
-    // Apps will need to query the entity to get its type
-    return '';
+  getEntityTypeFromId: (entityId: string): number => {
+    // In qweb, entity IDs encode type info in upper 32 bits
+    // Extract entity type from the entity ID
+    try {
+      const id = BigInt(entityId);
+      const entityType = Number(id >> 32n);
+      return entityType;
+    } catch (e) {
+      console.error('Failed to extract entity type from ID:', e);
+      return 0;
+    }
   },
 };
 

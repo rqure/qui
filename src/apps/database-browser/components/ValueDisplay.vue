@@ -119,6 +119,9 @@ const valueClass = computed(() => {
 
 // Load choice options when the component mounts or when props change
 async function loadChoiceOptions() {
+  if (!props.entityType || props.entityType.trim() === '') {
+    return;
+  }
   if (props.value?.type !== ValueType.Choice || !props.entityType || !props.fieldType) {
     return;
   }

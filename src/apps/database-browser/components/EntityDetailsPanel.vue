@@ -225,18 +225,37 @@ async function loadEntityDetails() {
       return;
     }
 
-    // Extract entity type from ID - Add null check to prevent 'split' of undefined error
+    // Extract entity type number from the entity ID
+    let entityTypeNumber: number;
     try {
-      entityType.value = Utils.getEntityTypeFromId(props.entityId);
+      entityTypeNumber = Utils.getEntityTypeFromId(props.entityId);
+      if (entityTypeNumber === 0) {
+        throw new Error('Invalid entity type extracted from ID');
+      }
     } catch (err) {
       console.error(`Error extracting entity type from ID ${props.entityId}:`, err);
-      entityType.value = "Unknown";
+      error.value = `Invalid entity ID format: ${props.entityId}`;
+      loading.value = false;
+      return;
     }
     
     // Verify if the entity exists before trying to load its schema
     const exists = await dataStore.entityExists(props.entityId);
     if (!exists) {
       error.value = `Entity ${props.entityId} does not exist`;
+      loading.value = false;
+      return;
+    }
+    
+    // Resolve the entity type number to a name
+    try {
+      entityType.value = await dataStore.resolveEntityType(entityTypeNumber);
+      if (!entityType.value || entityType.value.trim() === '') {
+        throw new Error('Failed to resolve entity type name');
+      }
+    } catch (resolveErr) {
+      console.error(`Error resolving entity type ${entityTypeNumber}:`, resolveErr);
+      error.value = `Failed to resolve entity type for ${props.entityId}`;
       loading.value = false;
       return;
     }

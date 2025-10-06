@@ -120,6 +120,9 @@ function formatDateForInput(date: Date): string {
 
 // Load choice options for Choice type values
 async function loadChoiceOptions() {
+  if (!props.entityType || props.entityType.trim() === '') {
+    return;
+  }
   if (props.value?.type !== ValueType.Choice || !props.entityType || !props.fieldType) {
     return;
   }
