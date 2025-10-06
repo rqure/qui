@@ -1,156 +1,76 @@
 /**
- * Type definitions matching backend exactly
+ * Type definitions matching qlib_rs exactly
  * EntityId: u64, EntityType: u32, FieldType: u64
+ * All serialize as simple numbers via Serde
  */
 
-export class EntityId {
-  constructor(id: string, entity_type: EntityType) {
-    this.id = id;
-    this.entityType = entity_type;
-  }
-
-  id: string;
-  entityType: EntityType;
-};
-
-export class EntityType {
-  constructor(id: string, name: string) {
-    this.id = id;
-    this.name = name;
-  }
-
-  id: string;
-  name: string;
-};
-
-export class FieldType {
-  constructor(id: string, name: string) {
-    this.id = id;
-    this.name = name;
-  }
-
-  id: string;
-  name: string;
-};
-
-export type WriteTime = Date;
-
-export enum ValueType {
-  Int = "Int",
-  Float = "Float",
-  String = "String",
-  Bool = "Bool",
-  Blob = "Blob",
-  EntityReference = "EntityReference",
-  Timestamp = "Timestamp",
-  Choice = "Choice",
-  EntityList = "EntityList"
-}
-
-export enum WriteOpt {
-  WriteNormal = 0,
-  WriteChanges = 1
-}
+export type EntityId = number;
+export type EntityType = number;
+export type FieldType = number;
+export type Timestamp = number;
 
 /**
- * Value implementation for qweb
+ * Value type matching qlib_rs Value enum exactly
+ * Serializes via Serde with tagged enum format: { "type": "Int", "Int": 42 }
  */
-export class Value {
-  type: ValueType;
-  raw: any;
-
-  constructor(type: ValueType, raw: any) {
-    this.type = type;
-    this.raw = raw;
-  }
-
-  getInt(): number { return this.raw as number; }
-  getFloat(): number { return this.raw as number; }
-  getString(): string {
-    if (typeof this.raw === 'string') {
-      return this.raw;
-    } else if (this.raw instanceof Uint8Array) {
-      return new TextDecoder().decode(this.raw);
-    }
-    return String(this.raw);
-  }
-  getBool(): boolean { return this.raw as boolean; }
-  getBinaryFile(): string { return this.raw as string; }
-  getEntityReference(): EntityId | null { return this.raw as EntityId | null; }
-  getTimestamp(): Date { return this.raw as Date; }
-  getChoice(): number { return this.raw as number; }
-  getEntityList(): EntityId[] { return this.raw as EntityId[]; }
-
-  setInt(value: number): void { this.raw = value; }
-  setFloat(value: number): void { this.raw = value; }
-  setString(value: string): void { this.raw = value; }
-  setBool(value: boolean): void { this.raw = value; }
-  setBinaryFile(value: string): void { this.raw = value; }
-  setEntityReference(value: EntityId | null): void { this.raw = value; }
-  setTimestamp(value: Date): void { this.raw = value; }
-  setChoice(value: number): void { this.raw = value; }
-  setEntityList(value: EntityId[]): void { this.raw = value; }
-
-  clone(): Value {
-    return new Value(this.type, this.raw);
-  }
-
-  asString(): string {
-    if (this.type === ValueType.Timestamp) {
-      return (this.raw as Date).toISOString();
-    }
-    return String(this.raw);
-  }
-
-  equals(other: Value): boolean {
-    if (this.type !== other.type) return false;
-    if (this.type === ValueType.EntityList) {
-      const a = this.raw as EntityId[];
-      const b = other.raw as EntityId[];
-      return a.length === b.length && a.every((v, i) => v === b[i]);
-    }
-    return this.raw === other.raw;
-  }
-
-  // Conversion to qweb JSON format
-  toJSON(): any {
-    if (this.type === ValueType.Timestamp) {
-      return (this.raw as Date).toISOString();
-    }
-    return this.raw;
-  }
-
-  // Parse from qweb JSON format
-  static fromJSON(type: ValueType, json: any): Value {
-    if (type === ValueType.Timestamp && typeof json === 'string') {
-      return new Value(type, new Date(json));
-    }
-    return new Value(type, json);
-  }
-}
+export type Value = 
+  | { Bool: boolean }
+  | { Int: number }
+  | { Float: number }
+  | { String: string }
+  | { Blob: number[] }  // Vec<u8> serializes as array of numbers
+  | { EntityReference: EntityId | null }
+  | { EntityList: EntityId[] }
+  | { Choice: number }
+  | { Timestamp: Timestamp };
 
 /**
- * Value factories
+ * Helper functions to create Value types
  */
-export const ValueFactories = {
-  newInt: (value: number): Value => new Value(ValueType.Int, value),
-  newFloat: (value: number): Value => new Value(ValueType.Float, value),
-  newString: (value: string): Value => new Value(ValueType.String, value),
-  newBool: (value: boolean): Value => new Value(ValueType.Bool, value),
-  newBlob: (value: string): Value => new Value(ValueType.Blob, value),
-  newEntityReference: (value: EntityId | null): Value => new Value(ValueType.EntityReference, value),
-  newTimestamp: (value: Date): Value => new Value(ValueType.Timestamp, value),
-  newChoice: (value: number): Value => new Value(ValueType.Choice, value),
-  newEntityList: (value: EntityId[]): Value => new Value(ValueType.EntityList, value),
+export const ValueHelpers = {
+  bool: (value: boolean): Value => ({ Bool: value }),
+  int: (value: number): Value => ({ Int: value }),
+  float: (value: number): Value => ({ Float: value }),
+  string: (value: string): Value => ({ String: value }),
+  blob: (value: number[]): Value => ({ Blob: value }),
+  entityRef: (value: EntityId | null): Value => ({ EntityReference: value }),
+  entityList: (value: EntityId[]): Value => ({ EntityList: value }),
+  choice: (value: number): Value => ({ Choice: value }),
+  timestamp: (value: Timestamp): Value => ({ Timestamp: value }),
+
+  // Type guards
+  isBool: (v: Value): v is { Bool: boolean } => 'Bool' in v,
+  isInt: (v: Value): v is { Int: number } => 'Int' in v,
+  isFloat: (v: Value): v is { Float: number } => 'Float' in v,
+  isString: (v: Value): v is { String: string } => 'String' in v,
+  isBlob: (v: Value): v is { Blob: number[] } => 'Blob' in v,
+  isEntityRef: (v: Value): v is { EntityReference: EntityId | null } => 'EntityReference' in v,
+  isEntityList: (v: Value): v is { EntityList: EntityId[] } => 'EntityList' in v,
+  isChoice: (v: Value): v is { Choice: number } => 'Choice' in v,
+  isTimestamp: (v: Value): v is { Timestamp: Timestamp } => 'Timestamp' in v,
+
+  // Extract value
+  extract: (v: Value): any => {
+    if ('Bool' in v) return v.Bool;
+    if ('Int' in v) return v.Int;
+    if ('Float' in v) return v.Float;
+    if ('String' in v) return v.String;
+    if ('Blob' in v) return v.Blob;
+    if ('EntityReference' in v) return v.EntityReference;
+    if ('EntityList' in v) return v.EntityList;
+    if ('Choice' in v) return v.Choice;
+    if ('Timestamp' in v) return v.Timestamp;
+    throw new Error('Unknown Value type');
+  }
 };
 
 /**
- * Utility functions
+ * Helper to extract EntityType from EntityId
+ * In qlib_rs: EntityId has type embedded in upper 32 bits
  */
-export const Utils = {
-  parseIndirection: (indirection: string): string[] => {
-    return indirection.split('->');
-  },
-};
+export function extractEntityType(entityId: EntityId): EntityType {
+  // Type is in upper 32 bits
+  return Math.floor(entityId / 0x100000000);
+}
 
 export const INDIRECTION_DELIMITER = '->';
