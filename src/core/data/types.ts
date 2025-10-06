@@ -39,7 +39,14 @@ export class Value {
 
   getInt(): number { return this.raw as number; }
   getFloat(): number { return this.raw as number; }
-  getString(): string { return this.raw as string; }
+  getString(): string {
+    if (typeof this.raw === 'string') {
+      return this.raw;
+    } else if (this.raw instanceof Uint8Array) {
+      return new TextDecoder().decode(this.raw);
+    }
+    return String(this.raw);
+  }
   getBool(): boolean { return this.raw as boolean; }
   getBinaryFile(): string { return this.raw as string; }
   getEntityReference(): EntityId { return this.raw as EntityId; }

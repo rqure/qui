@@ -107,9 +107,13 @@ async function loadEntities() {
     if (!props.parentId) {
       const roots = await dataStore.find("Root") as Entity[];
       if (roots.length > 0) {
+        let rootName = roots[0].field("Name").value.getString();
+        // Ensure name is never empty
+        rootName = (rootName && rootName.trim() !== '') ? rootName : 'Root';
+        
         entities.value.push({
           id: roots[0].entityId,
-          name: roots[0].field("Name").value.getString(),
+          name: rootName,
           type: "Root",
           children: roots[0].field("Children").value.getEntityList()
         });
@@ -137,14 +141,15 @@ async function loadEntities() {
         const entityTypeNumber = Utils.getEntityTypeFromId(childId);
         const entityType = await dataStore.resolveEntityType(entityTypeNumber);
         
-        const name = nameField.value.getString();
-        const childrenList = childrenField.value.getEntityList();
+        // Get the name and ensure it's never empty
+        let name = nameField.value.getString();
+        name = (name && name.trim() !== '') ? name : 'Unnamed';
         
         entities.value.push({
           id: childId,
-          name: name || 'Unnamed',
+          name: name,
           type: entityType,
-          children: childrenList
+          children: childrenField.value.getEntityList()
         });
       } catch (err) {
         console.error(`Error loading child entity ${childId}:`, err);

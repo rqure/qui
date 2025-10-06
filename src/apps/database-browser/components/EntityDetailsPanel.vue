@@ -404,7 +404,11 @@ function handleFieldNotification(notification: any) {
     
     // Update write time if available
     if (notification.writeTime) {
-      field.writeTime = new Date(notification.writeTime);
+      const date = new Date(notification.writeTime);
+      // Only set if valid date
+      if (!isNaN(date.getTime())) {
+        field.writeTime = date;
+      }
     }
     
     // Update writer ID if available and load the writer name
@@ -720,8 +724,8 @@ const containerClass = computed(() => {
               </div>
             </td>
             <td class="field-meta">
-              <div class="field-timestamp" :title="field.writeTime ? field.writeTime.toISOString() : 'Unknown'">
-                {{ field.writeTime ? formatTimestampReactive(field.writeTime) : 'N/A' }}
+              <div class="field-timestamp" :title="field.writeTime && !isNaN(field.writeTime.getTime()) ? field.writeTime.toISOString() : 'Unknown'">
+                {{ field.writeTime && !isNaN(field.writeTime.getTime()) ? formatTimestampReactive(field.writeTime) : 'N/A' }}
               </div>
               <div class="field-writer" :title="field.writerId || 'Unknown'">
                 <span class="writer-icon">
