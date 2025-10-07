@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
 import type { Value, FieldType, EntityType } from '@/core/data/types';
-import { ValueHelpers } from '@/core/data/types';
-import { useDataStore, FieldSchemaHelpers } from '@/stores/data';
+import { ValueHelpers, FieldSchemaHelpers } from '@/core/data/types';
+import { useDataStore } from '@/stores/data';
 
 const props = defineProps<{
   value: Value;

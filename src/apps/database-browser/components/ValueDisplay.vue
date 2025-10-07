@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted, watch } from 'vue';
-import { useDataStore, FieldSchemaHelpers } from '@/stores/data';
+import { useDataStore } from '@/stores/data';
 import type { Value, FieldType, EntityType } from '@/core/data/types';
-import { ValueHelpers } from '@/core/data/types';
+import { ValueHelpers, FieldSchemaHelpers } from '@/core/data/types';
 import { useEntityDrag, ENTITY_MIME_TYPE } from '@/core/utils/composables';
 
 const props = defineProps<{

@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted, computed } from 'vue';
 import { useDataStore } from '@/stores/data';
-import type { EntityId, EntityType, FieldType, Value, Timestamp } from '@/core/data/types';
-import type { EntitySchema, FieldSchema, Notification, NotifyConfig } from '@/stores/data';
-import { FieldSchemaHelpers } from '@/stores/data';
+import type { EntityId, EntityType, FieldType, Value, Timestamp, EntitySchema, FieldSchema, Notification, NotifyConfig } from '@/core/data/types';
+import { FieldSchemaHelpers } from '@/core/data/types';
 import { extractEntityType, ValueHelpers } from '@/core/data/types';
 import { formatTimestamp } from '@/apps/database-browser/utils/formatters';
 import ValueDisplay from '@/apps/database-browser/components/ValueDisplay.vue';
