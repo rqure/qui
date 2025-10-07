@@ -6,7 +6,6 @@ import type { SecurityProfile } from '@/core/security/types'
 import type { AuthProvider } from '@/core/security/auth-provider'
 import { CredentialsAuthProvider } from '@/core/security/credentials-provider'
 import databaseBrowserApp from '@/apps/database-browser'
-import schemaEditorApp from '@/apps/schema-editor'
 import modelBuilderApp from '@/apps/model-builder'
 
 // Define auth method type
@@ -156,7 +155,6 @@ export const useAuthStore = defineStore('auth', {
       
       // Register database browser app
       appStore.registerApp(databaseBrowserApp);
-      appStore.registerApp(schemaEditorApp);
       appStore.registerApp(modelBuilderApp);
       
       console.log('Apps registered successfully after login');
