@@ -33,6 +33,7 @@ export const useDataStore = defineStore('data', {
     pendingResponse: null as { resolve: (value: any) => void; reject: (error: any) => void } | null,
     requestQueue: [] as Array<{ request: any; resolve: (value: any) => void; reject: (error: any) => void }>,
     notificationCallbacks: {} as Record<number, NotificationCallback[]>,
+    localToServerHash: {} as Record<number, number>, // Map local hash to server hash
     connectionLostCallbacks: [] as (() => void)[],
     reconnectAttempts: 0,
     maxReconnectAttempts: 10,
@@ -199,7 +200,11 @@ export const useDataStore = defineStore('data', {
 
     handleNotification(notification: any) {
       const configHash = notification.config_hash;
+      console.log('Received notification with config_hash:', configHash);
+      console.log('Registered callbacks:', Object.keys(this.notificationCallbacks));
+      
       if (configHash && this.notificationCallbacks[configHash]) {
+        console.log(`Found ${this.notificationCallbacks[configHash].length} callbacks for hash ${configHash}`);
         this.notificationCallbacks[configHash].forEach(callback => {
           try {
             callback(notification);
@@ -207,6 +212,8 @@ export const useDataStore = defineStore('data', {
             console.error('Error in notification callback:', error);
           }
         });
+      } else {
+        console.warn('No callbacks registered for config_hash:', configHash);
       }
     },
 
@@ -605,34 +612,36 @@ export const useDataStore = defineStore('data', {
         throw new Error('WebSocket must be connected to register notifications');
       }
 
-      // Calculate config hash (simple JSON-based hash)
-      const configHash = this.hashNotifyConfig(config);
+      // Calculate local config hash (simple JSON-based hash for local tracking)
+      const localConfigHash = this.hashNotifyConfig(config);
       
-      // Check if we already have callbacks for this config
-      const isFirstCallback = !this.notificationCallbacks[configHash] || this.notificationCallbacks[configHash].length === 0;
+      // Check if we already have a server hash for this config
+      let serverConfigHash = this.localToServerHash[localConfigHash];
       
-      // Add callback to local registry
-      if (!this.notificationCallbacks[configHash]) {
-        this.notificationCallbacks[configHash] = [];
-      }
-      this.notificationCallbacks[configHash].push(callback);
-      
-      // Only register with server if this is the first callback for this config
-      if (isFirstCallback) {
+      // If we don't have a server hash yet, register with server
+      if (serverConfigHash === undefined) {
         try {
-          await this.sendWebSocketRequest({
+          const response = await this.sendWebSocketRequest({
             type: 'RegisterNotification',
             config: config
           });
+          
+          // Use the config_hash returned by the server (Rust's hash)
+          serverConfigHash = response.config_hash;
+          
+          // Store the mapping from local to server hash
+          this.localToServerHash[localConfigHash] = serverConfigHash;
+          
         } catch (err) {
-          // Remove the callback we just added if registration failed
-          const index = this.notificationCallbacks[configHash].indexOf(callback);
-          if (index > -1) {
-            this.notificationCallbacks[configHash].splice(index, 1);
-          }
           throw err;
         }
       }
+      
+      // Add callback to local registry using the server's hash
+      if (!this.notificationCallbacks[serverConfigHash]) {
+        this.notificationCallbacks[serverConfigHash] = [];
+      }
+      this.notificationCallbacks[serverConfigHash].push(callback);
     },
 
     /**
@@ -642,33 +651,35 @@ export const useDataStore = defineStore('data', {
      * Only unregisters from server when the last callback for a config is removed.
      */
     async unregisterNotification(config: NotifyConfig, callback: NotificationCallback): Promise<void> {
+      const localConfigHash = this.hashNotifyConfig(config);
+      const serverConfigHash = this.localToServerHash[localConfigHash];
+      
       if (!this.isConnected) {
         // If not connected, just remove the callback locally
-        const configHash = this.hashNotifyConfig(config);
-        if (this.notificationCallbacks[configHash]) {
-          const index = this.notificationCallbacks[configHash].indexOf(callback);
+        if (serverConfigHash !== undefined && this.notificationCallbacks[serverConfigHash]) {
+          const index = this.notificationCallbacks[serverConfigHash].indexOf(callback);
           if (index > -1) {
-            this.notificationCallbacks[configHash].splice(index, 1);
+            this.notificationCallbacks[serverConfigHash].splice(index, 1);
           }
-          if (this.notificationCallbacks[configHash].length === 0) {
-            delete this.notificationCallbacks[configHash];
+          if (this.notificationCallbacks[serverConfigHash].length === 0) {
+            delete this.notificationCallbacks[serverConfigHash];
+            delete this.localToServerHash[localConfigHash];
           }
         }
         return;
       }
       
-      const configHash = this.hashNotifyConfig(config);
-      
-      // Remove callback from local registry
-      if (this.notificationCallbacks[configHash]) {
-        const index = this.notificationCallbacks[configHash].indexOf(callback);
+      // Remove callback from local registry using server hash
+      if (serverConfigHash !== undefined && this.notificationCallbacks[serverConfigHash]) {
+        const index = this.notificationCallbacks[serverConfigHash].indexOf(callback);
         if (index > -1) {
-          this.notificationCallbacks[configHash].splice(index, 1);
+          this.notificationCallbacks[serverConfigHash].splice(index, 1);
         }
         
         // If this was the last callback, unregister from server
-        if (this.notificationCallbacks[configHash].length === 0) {
-          delete this.notificationCallbacks[configHash];
+        if (this.notificationCallbacks[serverConfigHash].length === 0) {
+          delete this.notificationCallbacks[serverConfigHash];
+          delete this.localToServerHash[localConfigHash];
           
           try {
             await this.sendWebSocketRequest({
