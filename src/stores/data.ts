@@ -256,11 +256,18 @@ export const useDataStore = defineStore('data', {
       const configHash = notification.config_hash;
       // Convert to string to avoid JavaScript number precision issues
       const configHashStr = String(configHash);
-      console.log('Received notification with config_hash:', configHash);
-      console.log('Registered callbacks:', Object.keys(this.notificationCallbacks));
+      
+      if (import.meta.env.DEV) {
+        console.log('Received notification with config_hash:', configHash, 'type:', typeof configHash);
+        console.log('As string:', configHashStr);
+        console.log('Registered callbacks:', Object.keys(this.notificationCallbacks));
+        console.log('Direct lookup result:', this.notificationCallbacks[configHashStr]);
+      }
       
       if (configHash && this.notificationCallbacks[configHashStr]) {
-        console.log(`Found ${this.notificationCallbacks[configHashStr].length} callbacks for hash ${configHashStr}`);
+        if (import.meta.env.DEV) {
+          console.log(`Found ${this.notificationCallbacks[configHashStr].length} callbacks for hash ${configHashStr}`);
+        }
         this.notificationCallbacks[configHashStr].forEach(callback => {
           try {
             callback(notification);
@@ -270,6 +277,9 @@ export const useDataStore = defineStore('data', {
         });
       } else {
         console.warn('No callbacks registered for config_hash:', configHash, '(as string:', configHashStr, ')');
+        if (import.meta.env.DEV) {
+          console.warn('Available hashes:', Object.keys(this.notificationCallbacks));
+        }
       }
     },
 
@@ -693,6 +703,11 @@ export const useDataStore = defineStore('data', {
           // Use the config_hash returned by the server (Rust's hash)
           // Convert to string to avoid JavaScript number precision issues
           serverConfigHash = String(response.config_hash);
+          
+          if (import.meta.env.DEV) {
+            console.log('Registered notification with config_hash:', response.config_hash, 'type:', typeof response.config_hash);
+            console.log('Stored as string:', serverConfigHash);
+          }
           
           // Store the mapping from local to server hash
           this.localToServerHash[localConfigHash] = serverConfigHash;
