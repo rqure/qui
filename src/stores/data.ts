@@ -119,7 +119,8 @@ export const useDataStore = defineStore('data', {
   state: () => ({
     socket: null as WebSocket | null,
     isConnected: false,
-    pendingRequests: {} as Record<string, { resolve: (value: any) => void; reject: (error: any) => void }>,
+    pendingResponse: null as { resolve: (value: any) => void; reject: (error: any) => void } | null,
+    requestQueue: [] as Array<{ request: any; resolve: (value: any) => void; reject: (error: any) => void }>,
     notificationCallbacks: {} as Record<number, NotificationCallback[]>,
     connectionLostCallbacks: [] as (() => void)[],
     reconnectAttempts: 0,
@@ -197,10 +198,16 @@ export const useDataStore = defineStore('data', {
         const closedSocket = this.socket;
         this.socket = null;
 
-        Object.keys(this.pendingRequests).forEach(id => {
-          this.pendingRequests[id].reject(new Error('WebSocket connection closed'));
-          delete this.pendingRequests[id];
+        if (this.pendingResponse) {
+          this.pendingResponse.reject(new Error('WebSocket connection closed'));
+          this.pendingResponse = null;
+        }
+
+        // Reject all queued requests
+        this.requestQueue.forEach(item => {
+          item.reject(new Error('WebSocket connection closed'));
         });
+        this.requestQueue = [];
 
         if (wasConnected) {
           this.triggerConnectionLostCallbacks();
@@ -241,7 +248,8 @@ export const useDataStore = defineStore('data', {
         this.socket.close(1000, 'Normal closure');
         this.socket = null;
         this.isConnected = false;
-        this.pendingRequests = {};
+        this.pendingResponse = null;
+        this.requestQueue = [];
       }
     },
 
@@ -250,29 +258,28 @@ export const useDataStore = defineStore('data', {
         const message = JSON.parse(event.data);
 
         // qweb WebSocket messages can be:
-        // 1. Notifications: {type: "notification", ...}
-        // 2. Responses: {success: bool, data?: any, error?: string, request_id?: string}
+        // 1. Notifications: {success: true, data: {type: "notification", ...}}
+        // 2. Responses: {success: bool, data?: any, error?: string}
 
-        if (message.type === 'notification') {
-          this.handleNotification(message);
+        // Check if this is a notification
+        if (message.success && message.data && message.data.type === 'notification') {
+          this.handleNotification(message.data.notification);
           return;
         }
 
-        // Handle responses with request_id
-        if (message.request_id && this.pendingRequests[message.request_id]) {
-          const pending = this.pendingRequests[message.request_id];
-          delete this.pendingRequests[message.request_id];
+        // Handle regular response
+        if (this.pendingResponse) {
+          const pending = this.pendingResponse;
+          this.pendingResponse = null;
 
           if (message.success) {
             pending.resolve(message.data || message);
           } else {
             pending.reject(new Error(message.error || 'Request failed'));
           }
-          return;
-        }
 
-        if (message.success !== undefined) {
-          console.log('Received WebSocket response:', message);
+          // Process next request in queue
+          this.processNextRequest();
         }
       } catch (error) {
         console.error('Error parsing WebSocket message:', error);
@@ -298,30 +305,44 @@ export const useDataStore = defineStore('data', {
       }
 
       return new Promise((resolve, reject) => {
-        // Generate a unique request ID
-        const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        // Add to queue
+        this.requestQueue.push({ request, resolve, reject });
 
-        // Store the promise handlers
-        this.pendingRequests[requestId] = { resolve, reject };
-
-        // Add request_id to the request
-        const requestWithId = { ...request, request_id: requestId };
-
-        try {
-          this.socket!.send(JSON.stringify(requestWithId));
-
-          // Set a timeout for the request
-          setTimeout(() => {
-            if (this.pendingRequests[requestId]) {
-              delete this.pendingRequests[requestId];
-              reject(new Error('Request timeout'));
-            }
-          }, 30000); // 30 second timeout
-        } catch (error) {
-          delete this.pendingRequests[requestId];
-          reject(error);
+        // Process queue if no request is currently pending
+        if (!this.pendingResponse) {
+          this.processNextRequest();
         }
       });
+    },
+
+    processNextRequest() {
+      if (this.pendingResponse || this.requestQueue.length === 0 || !this.socket) {
+        return;
+      }
+
+      const { request, resolve, reject } = this.requestQueue.shift()!;
+      this.pendingResponse = { resolve, reject };
+
+      // Set a timeout for the request
+      const timeoutId = setTimeout(() => {
+        if (this.pendingResponse) {
+          const pending = this.pendingResponse;
+          this.pendingResponse = null;
+          pending.reject(new Error('Request timeout'));
+          // Process next request after timeout
+          this.processNextRequest();
+        }
+      }, 30000); // 30 second timeout
+
+      try {
+        this.socket.send(JSON.stringify(request));
+      } catch (error) {
+        clearTimeout(timeoutId);
+        this.pendingResponse = null;
+        reject(error);
+        // Process next request after error
+        this.processNextRequest();
+      }
     },
 
     async apiRequest(endpoint: string, data: any): Promise<any> {
@@ -352,6 +373,39 @@ export const useDataStore = defineStore('data', {
       return result.data;
     },
 
+    async request(wsRequestType: string, data: any): Promise<any> {
+      // Use WebSocket if connected, otherwise fall back to HTTP
+      if (this.isConnected) {
+        return await this.sendWebSocketRequest({ type: wsRequestType, ...data });
+      } else {
+        // Fallback to HTTP - map WebSocket request types to API endpoints
+        const endpointMap: Record<string, string> = {
+          'Read': 'read',
+          'Write': 'write',
+          'Create': 'create',
+          'Delete': 'delete',
+          'Find': 'find',
+          'Schema': 'schema',
+          'CompleteSchema': 'complete_schema',
+          'UpdateSchema': 'update_schema',
+          'GetEntityType': 'get_entity_type',
+          'GetFieldType': 'get_field_type',
+          'ResolveEntityType': 'resolve_entity_type',
+          'ResolveFieldType': 'resolve_field_type',
+          'GetFieldSchema': 'get_field_schema',
+          'EntityExists': 'entity_exists',
+          'FieldExists': 'field_exists',
+          'ResolveIndirection': 'resolve_indirection',
+          'Pipeline': 'pipeline',
+        };
+        const endpoint = endpointMap[wsRequestType];
+        if (!endpoint) {
+          throw new Error(`No HTTP endpoint mapping for ${wsRequestType}`);
+        }
+        return await this.apiRequest(endpoint, data);
+      }
+    },
+
     // ============================================================
     // StoreTrait API - Type Resolution
     // ============================================================
@@ -361,7 +415,7 @@ export const useDataStore = defineStore('data', {
      * Corresponds to: fn get_entity_type(&self, name: &str) -> Result<EntityType>
      */
     async getEntityType(name: string): Promise<EntityType> {
-      const data = await this.apiRequest('schema', { entity_type: name });
+      const data = await this.request('GetEntityType', { name });
       return data.entity_type;
     },
 
@@ -370,7 +424,7 @@ export const useDataStore = defineStore('data', {
      * Corresponds to: fn resolve_entity_type(&self, entity_type: EntityType) -> Result<String>
      */
     async resolveEntityType(entityType: EntityType): Promise<string> {
-      const data = await this.apiRequest('resolve_entity_type', { entity_type: entityType });
+      const data = await this.request('ResolveEntityType', { entity_type: entityType });
       return data.name;
     },
 
@@ -379,7 +433,7 @@ export const useDataStore = defineStore('data', {
      * Corresponds to: fn get_field_type(&self, name: &str) -> Result<FieldType>
      */
     async getFieldType(name: string): Promise<FieldType> {
-      const data = await this.apiRequest('get_field_type', { name });
+      const data = await this.request('GetFieldType', { name });
       return data.field_type;
     },
 
@@ -388,7 +442,7 @@ export const useDataStore = defineStore('data', {
      * Corresponds to: fn resolve_field_type(&self, field_type: FieldType) -> Result<String>
      */
     async resolveFieldType(fieldType: FieldType): Promise<string> {
-      const data = await this.apiRequest('resolve_field_type', { field_type: fieldType });
+      const data = await this.request('ResolveFieldType', { field_type: fieldType });
       return data.name;
     },
 
@@ -401,11 +455,11 @@ export const useDataStore = defineStore('data', {
      * Corresponds to: fn get_entity_schema(&self, entity_type: EntityType) -> Result<EntitySchema<Single>>
      */
     async getEntitySchema(entityType: EntityType): Promise<EntitySchema> {
-      const data = await this.apiRequest('schema', { entity_type: entityType });
+      const data = await this.request('Schema', { entity_type: entityType });
       return {
-        entity_type: data.entity_type,
-        inherit: data.inherit || [],
-        fields: data.fields || {}
+        entity_type: data.schema.entity_type,
+        inherit: data.schema.inherit || [],
+        fields: data.schema.fields || {}
       };
     },
 
@@ -414,11 +468,11 @@ export const useDataStore = defineStore('data', {
      * Corresponds to: fn get_complete_entity_schema(&self, entity_type: EntityType) -> Result<EntitySchema<Complete>>
      */
     async getCompleteEntitySchema(entityType: EntityType): Promise<CompleteEntitySchema> {
-      const data = await this.apiRequest('complete_schema', { entity_type: entityType });
+      const data = await this.request('CompleteSchema', { entity_type: entityType });
       return {
-        entity_type: data.entity_type,
-        inherit: data.inherit || [],
-        fields: data.fields || {}
+        entity_type: data.schema.entity_type,
+        inherit: data.schema.inherit || [],
+        fields: data.schema.fields || {}
       };
     },
 
@@ -427,11 +481,11 @@ export const useDataStore = defineStore('data', {
      * Corresponds to: fn get_field_schema(&self, entity_type: EntityType, field_type: FieldType) -> Result<FieldSchema>
      */
     async getFieldSchema(entityType: EntityType, fieldType: FieldType): Promise<FieldSchema> {
-      const data = await this.apiRequest('get_field_schema', { 
+      const data = await this.request('GetFieldSchema', { 
         entity_type: entityType,
         field_type: fieldType 
       });
-      return data;
+      return data.schema;
     },
 
     /**
@@ -439,7 +493,11 @@ export const useDataStore = defineStore('data', {
      * Corresponds to: fn update_schema(&mut self, schema: EntitySchema<Single, String, String>) -> Result<()>
      */
     async updateSchema(schema: EntitySchema): Promise<void> {
-      await this.apiRequest('update_schema', schema);
+      await this.request('UpdateSchema', {
+        entity_type: schema.entity_type,
+        inherit: schema.inherit,
+        fields: schema.fields
+      });
     },
 
     // ============================================================
@@ -451,7 +509,7 @@ export const useDataStore = defineStore('data', {
      * Corresponds to: fn entity_exists(&self, entity_id: EntityId) -> bool
      */
     async entityExists(entityId: EntityId): Promise<boolean> {
-      const data = await this.apiRequest('entity_exists', { entity_id: entityId });
+      const data = await this.request('EntityExists', { entity_id: entityId });
       return data.exists;
     },
 
@@ -460,7 +518,7 @@ export const useDataStore = defineStore('data', {
      * Corresponds to: fn field_exists(&self, entity_type: EntityType, field_type: FieldType) -> bool
      */
     async fieldExists(entityType: EntityType, fieldType: FieldType): Promise<boolean> {
-      const data = await this.apiRequest('field_exists', { 
+      const data = await this.request('FieldExists', { 
         entity_type: entityType,
         field_type: fieldType 
       });
@@ -476,7 +534,7 @@ export const useDataStore = defineStore('data', {
      * Corresponds to: fn resolve_indirection(&self, entity_id: EntityId, fields: &[FieldType]) -> Result<(EntityId, FieldType)>
      */
     async resolveIndirection(entityId: EntityId, fields: FieldType[]): Promise<[EntityId, FieldType]> {
-      const data = await this.apiRequest('resolve_indirection', { 
+      const data = await this.request('ResolveIndirection', { 
         entity_id: entityId,
         fields: fields 
       });
@@ -488,7 +546,7 @@ export const useDataStore = defineStore('data', {
      * Corresponds to: fn read(&self, entity_id: EntityId, field_path: &[FieldType]) -> Result<(Value, Timestamp, Option<EntityId>)>
      */
     async read(entityId: EntityId, fieldPath: FieldType[]): Promise<[Value, Timestamp, EntityId | null]> {
-      const data = await this.apiRequest('read', { 
+      const data = await this.request('Read', { 
         entity_id: entityId,
         fields: fieldPath 
       });
@@ -510,7 +568,7 @@ export const useDataStore = defineStore('data', {
       pushCondition?: PushCondition | null,
       adjustBehavior?: AdjustBehavior | null
     ): Promise<void> {
-      await this.apiRequest('write', { 
+      await this.request('Write', { 
         entity_id: entityId,
         field: fieldPath[0], // qweb only supports single field writes currently
         value: value,
@@ -526,9 +584,8 @@ export const useDataStore = defineStore('data', {
      * Corresponds to: fn create_entity(&mut self, entity_type: EntityType, parent_id: Option<EntityId>, name: &str) -> Result<EntityId>
      */
     async createEntity(entityType: EntityType, parentId: EntityId | null, name: string): Promise<EntityId> {
-      const data = await this.apiRequest('create', { 
+      const data = await this.request('Create', { 
         entity_type: entityType,
-        parent_id: parentId,
         name: name 
       });
       return data.entity_id;
@@ -539,7 +596,7 @@ export const useDataStore = defineStore('data', {
      * Corresponds to: fn delete_entity(&mut self, entity_id: EntityId) -> Result<()>
      */
     async deleteEntity(entityId: EntityId): Promise<void> {
-      await this.apiRequest('delete', { entity_id: entityId });
+      await this.request('Delete', { entity_id: entityId });
     },
 
     // ============================================================
@@ -551,7 +608,7 @@ export const useDataStore = defineStore('data', {
      * Corresponds to: fn find_entities(&self, entity_type: EntityType, filter: Option<&str>) -> Result<Vec<EntityId>>
      */
     async findEntities(entityType: EntityType, filter?: string | null): Promise<EntityId[]> {
-      const data = await this.apiRequest('find', { 
+      const data = await this.request('Find', { 
         entity_type: entityType,
         filter: filter || null
       });
@@ -567,7 +624,7 @@ export const useDataStore = defineStore('data', {
       pageOpts: PageOpts | null, 
       filter?: string | null
     ): Promise<PageResult<EntityId>> {
-      const data = await this.apiRequest('find', { 
+      const data = await this.request('Find', { 
         entity_type: entityType,
         filter: filter || null,
         page_opts: pageOpts
@@ -619,6 +676,10 @@ export const useDataStore = defineStore('data', {
      * Corresponds to: StoreProxy::register_notification
      */
     async registerNotification(config: NotifyConfig, callback: NotificationCallback): Promise<void> {
+      if (!this.isConnected) {
+        throw new Error('WebSocket must be connected to register notifications');
+      }
+
       const response = await this.sendWebSocketRequest({
         type: 'RegisterNotification',
         config: config
@@ -636,6 +697,10 @@ export const useDataStore = defineStore('data', {
      * Corresponds to: StoreProxy::unregister_notification
      */
     async unregisterNotification(config: NotifyConfig): Promise<void> {
+      if (!this.isConnected) {
+        throw new Error('WebSocket must be connected to unregister notifications');
+      }
+      
       await this.sendWebSocketRequest({
         type: 'UnregisterNotification',
         config: config
@@ -651,7 +716,7 @@ export const useDataStore = defineStore('data', {
      * Corresponds to: StoreProxy::pipeline().execute()
      */
     async executePipeline(commands: any[]): Promise<any[]> {
-      const data = await this.apiRequest('pipeline', { commands });
+      const data = await this.request('Pipeline', { commands });
       return data.results || [];
     },
 
