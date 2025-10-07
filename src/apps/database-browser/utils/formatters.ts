@@ -1,3 +1,41 @@
+import { useDataStore } from '@/stores/data';
+import type { EntityId } from '@/core/data/types';
+import { ValueHelpers } from '@/core/data/types';
+
+/**
+ * Fetch entity name from the data store
+ */
+export async function fetchEntityName(entityId: EntityId): Promise<string> {
+  try {
+    const dataStore = useDataStore();
+    
+    // Get the Name field type
+    const nameFieldType = await dataStore.getFieldType('Name');
+    
+    // Read the Name field
+    const [value] = await dataStore.read(entityId, [nameFieldType]);
+    
+    let name = 'Unknown';
+    if (ValueHelpers.isString(value)) {
+      name = value.String;
+    }
+    
+    return name;
+  } catch (error) {
+    console.warn(`Failed to fetch name for entity ${entityId}:`, error);
+    return 'Unknown';
+  }
+}
+
+/**
+ * Format entity ID with name in parentheses
+ * Example: "30064771073 (QOS)"
+ */
+export async function formatEntityIdWithName(entityId: EntityId): Promise<string> {
+  const name = await fetchEntityName(entityId);
+  return `${entityId} (${name})`;
+}
+
 /**
  * Convert timestamp array format to Date
  * Format: [year, day_of_year, hour, minute, second, nanoseconds, ...]

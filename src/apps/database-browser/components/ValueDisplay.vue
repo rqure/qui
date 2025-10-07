@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted, watch } from 'vue';
 import { useDataStore } from '@/stores/data';
-import type { Value, FieldType, EntityType } from '@/core/data/types';
+import type { Value, FieldType, EntityType, EntityId } from '@/core/data/types';
 import { ValueHelpers, FieldSchemaHelpers } from '@/core/data/types';
 import { useEntityDrag, ENTITY_MIME_TYPE } from '@/core/utils/composables';
+import { fetchEntityName } from '@/apps/database-browser/utils/formatters';
 
 const props = defineProps<{
   value: Value;
@@ -14,6 +15,7 @@ const props = defineProps<{
 const dataStore = useDataStore();
 const choiceOptions = ref<string[]>([]);
 const choiceLabel = ref<string>('');
+const entityNames = ref<Map<EntityId, string>>(new Map());
 // Fix the type declaration for cleanupFunction
 let cleanupFunction: (() => void) | null = null;
 
@@ -54,7 +56,12 @@ const displayValue = computed(() => {
   }
   
   if (ValueHelpers.isEntityRef(props.value)) {
-    return props.value.EntityReference !== null ? String(props.value.EntityReference) : 'None';
+    if (props.value.EntityReference !== null) {
+      const entityId = props.value.EntityReference;
+      const name = entityNames.value.get(entityId);
+      return name ? `${entityId} (${name})` : String(entityId);
+    }
+    return 'None';
   }
   
   if (ValueHelpers.isEntityList(props.value)) {
@@ -149,6 +156,30 @@ async function loadChoiceOptions() {
   }
 }
 
+// Load entity names for EntityReference and EntityList
+async function loadEntityNames() {
+  const idsToLoad: EntityId[] = [];
+  
+  if (ValueHelpers.isEntityRef(props.value) && props.value.EntityReference !== null) {
+    idsToLoad.push(props.value.EntityReference);
+  } else if (ValueHelpers.isEntityList(props.value)) {
+    idsToLoad.push(...props.value.EntityList);
+  }
+  
+  // Clear existing names and reload (names can change)
+  entityNames.value.clear();
+  
+  // Load names for all entity IDs
+  for (const entityId of idsToLoad) {
+    try {
+      const name = await fetchEntityName(entityId);
+      entityNames.value.set(entityId, name);
+    } catch (error) {
+      console.warn(`Failed to load name for entity ${entityId}:`, error);
+    }
+  }
+}
+
 // Watch for changes in relevant props
 watch(
   [() => ValueHelpers.isChoice(props.value), () => props.entityType, () => props.fieldType], 
@@ -160,9 +191,25 @@ watch(
   { immediate: true }
 );
 
+// Watch for changes in value to reload entity names
+watch(
+  () => props.value,
+  async () => {
+    if (ValueHelpers.isEntityRef(props.value) || ValueHelpers.isEntityList(props.value)) {
+      await loadEntityNames();
+    }
+  },
+  { immediate: true, deep: true }
+);
+
 onMounted(async () => {
   if (ValueHelpers.isChoice(props.value) && props.entityType && props.fieldType) {
     await loadChoiceOptions();
+  }
+  
+  // Load entity names if needed
+  if (ValueHelpers.isEntityRef(props.value) || ValueHelpers.isEntityList(props.value)) {
+    await loadEntityNames();
   }
   
   // Store any cleanup function from hooks used inside onMounted
@@ -187,7 +234,13 @@ function handleDragStart(event: DragEvent, entityId: number | string) {
 // Make an EntityId clickable - emitting a navigation event
 function handleEntityClick(entityId: number | string) {
   const idVal = typeof entityId === 'number' ? entityId : (isNaN(Number(entityId)) ? entityId : Number(entityId));
-  navigateToEntity(idVal as any);
+  navigateToEntity(idVal);
+}
+
+// Helper to get formatted entity ID with name
+function getEntityDisplayText(entityId: EntityId): string {
+  const name = entityNames.value.get(entityId);
+  return name ? `${entityId} (${name})` : String(entityId);
 }
 </script>
 
@@ -252,7 +305,7 @@ function handleEntityClick(entityId: number | string) {
               <path fill="currentColor" d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/>
             </svg>
           </span>
-          {{ entityId }}
+          {{ getEntityDisplayText(entityId) }}
         </div>
         <div v-if="value.EntityList.length === 0" class="entity-list-empty">
           No items
