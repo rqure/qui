@@ -5,8 +5,10 @@ import { useAppStore } from './apps'
 import type { SecurityProfile } from '@/core/security/types'
 import type { AuthProvider } from '@/core/security/auth-provider'
 import { CredentialsAuthProvider } from '@/core/security/credentials-provider'
-import databaseBrowserApp from '@/apps/database-browser'
-import schemaEditorApp from '@/apps/schema-editor'
+import databaseBrowserApp from '@/apps/database-browser';
+import schemaEditorApp from '@/apps/schema-editor';
+import faceplateBuilderApp from '@/apps/faceplate-builder';
+import terminalApp from '@/apps/terminal';
 
 // Define auth method type
 type AuthMethod = 'credentials' | '';
@@ -156,6 +158,8 @@ export const useAuthStore = defineStore('auth', {
       // Register database browser app
       appStore.registerApp(databaseBrowserApp);
       appStore.registerApp(schemaEditorApp);
+  appStore.registerApp(faceplateBuilderApp);
+      appStore.registerApp(terminalApp);
       console.log('Apps registered successfully after login');
     },
 

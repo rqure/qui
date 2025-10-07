@@ -1,9 +1,13 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, watch, markRaw } from 'vue';
 import type { EntityId, FieldType, Value } from '@/core/data/types';
 import { extractEntityType, ValueHelpers } from '@/core/data/types';
 import { useDataStore } from '@/stores/data';
 import { useEntityDrag } from '@/core/utils/composables';
+import { useWindowStore } from '@/stores/windows';
+import faceplateBuilderApp from '@/apps/faceplate-builder';
+import FaceplateViewerWindow from '@/apps/faceplate-builder/components/FaceplateViewerWindow.vue';
+import type { MenuItem } from '@/core/menu/types';
 
 // Define EntityItem interface
 interface EntityItem {
@@ -11,6 +15,12 @@ interface EntityItem {
   name: string;
   type: string;
   children: EntityId[];
+  faceplates: EntityFaceplateRef[];
+}
+
+interface EntityFaceplateRef {
+  id: EntityId;
+  name: string;
 }
 
 const props = defineProps<{
@@ -27,10 +37,48 @@ const emit = defineEmits<{
 }>();
 
 const dataStore = useDataStore();
+const windowStore = useWindowStore();
 const loading = ref(true);
 const error = ref<string | null>(null);
 const entities = ref<EntityItem[]>([]);
 const searchQuery = ref('');
+
+const fieldTypeCache = new Map<string, FieldType>();
+const faceplateNameCache = new Map<EntityId, string>();
+
+async function getFieldTypeId(fieldName: string): Promise<FieldType> {
+  if (!fieldTypeCache.has(fieldName)) {
+    const fieldType = await dataStore.getFieldType(fieldName);
+    fieldTypeCache.set(fieldName, fieldType);
+  }
+  return fieldTypeCache.get(fieldName)!;
+}
+
+async function getFaceplateReferences(entityId: EntityId, faceplatesFieldType: FieldType, nameFieldType: FieldType): Promise<EntityFaceplateRef[]> {
+  try {
+    const [faceplatesValue] = await dataStore.read(entityId, [faceplatesFieldType]);
+    if (faceplatesValue && ValueHelpers.isEntityList(faceplatesValue)) {
+      const refs = await Promise.all(faceplatesValue.EntityList.map(async (faceplateId) => {
+        if (!faceplateNameCache.has(faceplateId)) {
+          const [nameValue] = await dataStore.read(faceplateId, [nameFieldType]);
+          let faceplateName = `Faceplate ${faceplateId}`;
+          if (nameValue && ValueHelpers.isString(nameValue)) {
+            faceplateName = nameValue.String || faceplateName;
+          }
+          faceplateNameCache.set(faceplateId, faceplateName);
+        }
+        return {
+          id: faceplateId,
+          name: faceplateNameCache.get(faceplateId) || `Faceplate ${faceplateId}`,
+        } as EntityFaceplateRef;
+      }));
+      return refs;
+    }
+  } catch (error) {
+    console.warn(`Failed to load faceplates for entity ${entityId}`, error);
+  }
+  return [];
+}
 
 // Inline create entity state
 const isCreating = ref(false);
@@ -45,27 +93,80 @@ const showDeleteDialog = ref(false);
 const entityToDelete = ref<EntityItem | null>(null);
 const deletingEntity = ref(false);
 
-// Setup context menu - updated to use emit instead of custom event
-function handleContextMenu(event: MouseEvent, entity: EntityItem) {
+// Setup context menu - updated to include faceplate actions
+async function handleContextMenu(event: MouseEvent, entity: EntityItem) {
   event.preventDefault();
   event.stopPropagation();
+
+  try {
+    // Ensure faceplate references are up to date before building menu
+    const nameFieldType = await getFieldTypeId('Name');
+    const faceplatesFieldType = await getFieldTypeId('Faceplates');
+    entity.faceplates = await getFaceplateReferences(entity.id, faceplatesFieldType, nameFieldType);
+  } catch (error) {
+    console.warn('Failed to refresh faceplate references for context menu', error);
+  }
+
+  const faceplateRefs = entity.faceplates || [];
+
+  const faceplateItems: MenuItem[] = faceplateRefs.map((faceplate) => ({
+    id: `faceplate-open-${faceplate.id}`,
+    label: faceplate.name,
+    action: () => openFaceplateWindow(entity, faceplate)
+  }));
+
+  const builderChildren: MenuItem[] = [
+    {
+      id: 'launch-faceplate-builder',
+      label: 'Launch Builder…',
+      action: () => openFaceplateBuilder(entity)
+    },
+    ...faceplateRefs.map((faceplate) => ({
+      id: `builder-edit-${faceplate.id}`,
+      label: `Edit ${faceplate.name}`,
+      action: () => openFaceplateBuilder(entity, faceplate.id)
+    }))
+  ];
+
+  const items: MenuItem[] = [
+    {
+      id: 'open-in-window',
+      label: 'Open in Window',
+      action: () => openEntityInWindow(entity.id, entity.name)
+    },
+    {
+      id: 'delete-entity',
+      label: 'Delete Entity',
+      action: () => confirmDeleteEntity(entity)
+    }
+  ];
+
+  if (faceplateItems.length) {
+    items.push({ id: 'faceplate-separator', label: '', separator: true });
+    items.push({
+      id: 'open-faceplate-group',
+      label: 'Open Faceplate',
+      children: faceplateItems
+    });
+  } else {
+    items.push({
+      id: 'open-faceplate-disabled',
+      label: 'Open Faceplate',
+      disabled: true
+    });
+  }
+
+  items.push({
+    id: 'faceplate-builder-group',
+    label: 'Faceplate Builder',
+    children: builderChildren
+  });
   
   // Emit the context menu event to parent components
   emit('context-menu', {
     x: event.clientX,
     y: event.clientY,
-    items: [
-      {
-        id: 'open-in-window',
-        label: 'Open in Window',
-        action: () => openEntityInWindow(entity.id, entity.name)
-      },
-      {
-        id: 'delete-entity',
-        label: 'Delete Entity',
-        action: () => confirmDeleteEntity(entity)
-      }
-    ]
+    items
   });
 }
 
@@ -73,6 +174,35 @@ function handleContextMenu(event: MouseEvent, entity: EntityItem) {
 function openEntityInWindow(entityId: EntityId, entityName: string) {
   // Emit a custom event to be handled by parent components
   emit('open-in-window', { entityId, entityName });
+}
+
+function openFaceplateWindow(entity: EntityItem, faceplate: EntityFaceplateRef) {
+  windowStore.createWindow({
+    title: `${faceplate.name} · ${entity.name}`,
+    component: markRaw(FaceplateViewerWindow),
+    icon: faceplateBuilderApp.manifest.icon,
+    width: 960,
+    height: 720,
+    props: {
+      faceplateId: faceplate.id,
+      entityId: entity.id
+    }
+  });
+}
+
+function openFaceplateBuilder(entity: EntityItem, faceplateId?: EntityId) {
+  const defaultSize = faceplateBuilderApp.manifest.defaultWindowSize || { width: 1200, height: 800 };
+  windowStore.createWindow({
+    title: 'Faceplate Builder',
+    component: faceplateBuilderApp.component.default,
+    icon: faceplateBuilderApp.manifest.icon,
+    width: defaultSize.width,
+    height: defaultSize.height,
+    props: {
+      initialEntityId: entity.id,
+      initialFaceplateId: faceplateId ?? null
+    }
+  });
 }
 
 // Group entities by their type
@@ -124,8 +254,9 @@ async function loadEntities() {
   
   try {
     // Get field type IDs
-    const NameFieldType = await dataStore.getFieldType('Name');
-    const ChildrenFieldType = await dataStore.getFieldType('Children');
+  const NameFieldType = await getFieldTypeId('Name');
+  const ChildrenFieldType = await getFieldTypeId('Children');
+  const FaceplatesFieldType = await getFieldTypeId('Faceplates');
 
     if (!props.parentId) {
       // Load root entities
@@ -153,7 +284,8 @@ async function loadEntities() {
           id: rootId,
           name: rootName,
           type: "Root",
-          children: childrenList
+          children: childrenList,
+          faceplates: await getFaceplateReferences(rootId, FaceplatesFieldType, NameFieldType)
         });
       }
       loading.value = false;
@@ -194,7 +326,8 @@ async function loadEntities() {
           id: childId,
           name: name,
           type: entityType,
-          children: childrenList
+          children: childrenList,
+          faceplates: await getFaceplateReferences(childId, FaceplatesFieldType, NameFieldType)
         });
       } catch (err) {
         console.error(`Error loading child entity ${childId}:`, err);
