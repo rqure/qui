@@ -1,13 +1,56 @@
 /**
+ * Convert timestamp array format to Date
+ * Format: [year, day_of_year, hour, minute, second, nanoseconds, ...]
+ */
+function timestampToDate(timestamp: any): Date | null {
+  if (!timestamp) return null;
+  
+  // If it's already a number (milliseconds), use it directly
+  if (typeof timestamp === 'number') {
+    return new Date(timestamp);
+  }
+  
+  // If it's an array (Rust timestamp format)
+  if (Array.isArray(timestamp) && timestamp.length >= 5) {
+    try {
+      const year = timestamp[0];
+      const dayOfYear = timestamp[1];
+      const hour = timestamp[2];
+      const minute = timestamp[3];
+      const second = timestamp[4];
+      const nanoseconds = timestamp[5] || 0;
+      
+      // Convert day of year to month and day
+      const date = new Date(year, 0); // January 1st of the year
+      date.setDate(dayOfYear); // Set to the day of year
+      date.setHours(hour, minute, second, Math.floor(nanoseconds / 1000000));
+      
+      return date;
+    } catch (e) {
+      console.error('Error converting timestamp array to date:', e, timestamp);
+      return null;
+    }
+  }
+  
+  // Try to parse as a date
+  try {
+    const date = new Date(timestamp);
+    return isNaN(date.getTime()) ? null : date;
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
  * Formats a timestamp into a readable string
  */
-export function formatTimestamp(date: Date | string | number): string {
+export function formatTimestamp(date: Date | string | number | any): string {
   if (!date) return 'N/A';
   
-  const dateObj = date instanceof Date ? date : new Date(date);
+  const dateObj = date instanceof Date ? date : timestampToDate(date);
   
   // Check if date is valid
-  if (isNaN(dateObj.getTime())) {
+  if (!dateObj || isNaN(dateObj.getTime())) {
     return 'Invalid Date';
   }
   

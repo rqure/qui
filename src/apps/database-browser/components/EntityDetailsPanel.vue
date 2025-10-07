@@ -81,9 +81,62 @@ watch(() => props.entityId, async (newId, oldId) => {
 
 // Function to format a timestamp with reactivity to currentTimestamp
 const formatTimestampReactive = (date: Date | string | number) => {
-  // The currentTimestamp dependency makes this reactive
+  // Force re-evaluation when currentTimestamp changes
   currentTimestamp.value;
   return formatTimestamp(date);
+};
+
+// Helper function to convert timestamp array format to Date
+// Format: [year, day_of_year, hour, minute, second, nanoseconds, ...]
+const timestampToDate = (timestamp: any): Date | null => {
+  if (!timestamp) return null;
+  
+  // If it's already a number (milliseconds), use it directly
+  if (typeof timestamp === 'number') {
+    return new Date(timestamp);
+  }
+  
+  // If it's an array (Rust timestamp format)
+  if (Array.isArray(timestamp) && timestamp.length >= 5) {
+    try {
+      const year = timestamp[0];
+      const dayOfYear = timestamp[1];
+      const hour = timestamp[2];
+      const minute = timestamp[3];
+      const second = timestamp[4];
+      const nanoseconds = timestamp[5] || 0;
+      
+      // Convert day of year to month and day
+      const date = new Date(year, 0); // January 1st of the year
+      date.setDate(dayOfYear); // Set to the day of year
+      date.setHours(hour, minute, second, Math.floor(nanoseconds / 1000000));
+      
+      return date;
+    } catch (e) {
+      console.error('Error converting timestamp array to date:', e, timestamp);
+      return null;
+    }
+  }
+  
+  // Try to parse as a date
+  try {
+    const date = new Date(timestamp);
+    return isNaN(date.getTime()) ? null : date;
+  } catch (e) {
+    return null;
+  }
+};
+
+// Helper function to safely convert timestamp to ISO string
+const toSafeISOString = (timestamp: any): string => {
+  const date = timestampToDate(timestamp);
+  if (!date || isNaN(date.getTime())) return 'Unknown';
+  
+  try {
+    return date.toISOString();
+  } catch (e) {
+    return 'Invalid Date';
+  }
 };
 
 async function cleanupNotifications() {
@@ -777,7 +830,7 @@ const containerClass = computed(() => {
               </div>
             </td>
             <td class="field-meta">
-              <div class="field-timestamp" :title="field.writeTime ? new Date(field.writeTime).toISOString() : 'Unknown'">
+              <div class="field-timestamp" :title="toSafeISOString(field.writeTime)">
                 {{ field.writeTime ? formatTimestampReactive(field.writeTime) : 'N/A' }}
               </div>
               <div class="field-writer" :title="field.writerId != null ? String(field.writerId) : 'Unknown'">
