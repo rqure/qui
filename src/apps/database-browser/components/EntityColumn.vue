@@ -32,6 +32,18 @@ const error = ref<string | null>(null);
 const entities = ref<EntityItem[]>([]);
 const searchQuery = ref('');
 
+// Create entity dialog state
+const showCreateDialog = ref(false);
+const createEntityName = ref('');
+const createEntityType = ref<string>('');
+const availableEntityTypes = ref<Array<{ id: number, name: string }>>([]);
+const creatingEntity = ref(false);
+
+// Delete entity dialog state
+const showDeleteDialog = ref(false);
+const entityToDelete = ref<EntityItem | null>(null);
+const deletingEntity = ref(false);
+
 // Setup context menu - updated to use emit instead of custom event
 function handleContextMenu(event: MouseEvent, entity: EntityItem) {
   event.preventDefault();
@@ -46,6 +58,11 @@ function handleContextMenu(event: MouseEvent, entity: EntityItem) {
         id: 'open-in-window',
         label: 'Open in Window',
         action: () => openEntityInWindow(entity.id, entity.name)
+      },
+      {
+        id: 'delete-entity',
+        label: 'Delete Entity',
+        action: () => confirmDeleteEntity(entity)
       }
     ]
   });
@@ -205,9 +222,106 @@ function handleScroll(event: Event) {
 const { startEntityDrag } = useEntityDrag();
 
 // Start dragging an entity
+// Start dragging an entity
 function handleDragStart(event: DragEvent, entity: EntityItem) {
-  startEntityDrag(event, entity.id, entity.type, entity.name);
+  startEntityDrag(event, entity.id);
 }
+
+// Load available entity types for creation
+async function loadEntityTypes() {
+  try {
+    const entityTypes = await dataStore.getEntityTypes();
+    const typeNames = await Promise.all(
+      entityTypes.map(async (typeId) => {
+        const name = await dataStore.resolveEntityType(typeId);
+        return { id: typeId, name };
+      })
+    );
+    // Filter out system types that shouldn't be created directly
+    availableEntityTypes.value = typeNames
+      .filter(t => !['Root'].includes(t.name))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  } catch (err) {
+    console.error('Failed to load entity types:', err);
+  }
+}
+
+// Open create entity dialog
+function openCreateDialog() {
+  createEntityName.value = '';
+  createEntityType.value = availableEntityTypes.value.length > 0 ? String(availableEntityTypes.value[0].id) : '';
+  showCreateDialog.value = true;
+}
+
+// Create a new entity
+async function createEntity() {
+  if (!createEntityName.value.trim() || !createEntityType.value) {
+    return;
+  }
+  
+  creatingEntity.value = true;
+  try {
+    const entityTypeId = parseInt(createEntityType.value);
+    const newEntityId = await dataStore.createEntity(
+      entityTypeId,
+      props.parentId || null,
+      createEntityName.value.trim()
+    );
+    
+    // Reload entities to show the new one
+    await loadEntities();
+    
+    // Select the newly created entity
+    selectEntity(newEntityId);
+    
+    // Close the dialog
+    showCreateDialog.value = false;
+  } catch (err) {
+    console.error('Failed to create entity:', err);
+    error.value = err instanceof Error ? err.message : 'Failed to create entity';
+  } finally {
+    creatingEntity.value = false;
+  }
+}
+
+// Confirm delete entity
+function confirmDeleteEntity(entity: EntityItem) {
+  entityToDelete.value = entity;
+  showDeleteDialog.value = true;
+}
+
+// Delete an entity
+async function deleteEntity() {
+  if (!entityToDelete.value) return;
+  
+  deletingEntity.value = true;
+  try {
+    await dataStore.deleteEntity(entityToDelete.value.id);
+    
+    // Reload entities to remove the deleted one
+    await loadEntities();
+    
+    // Close the dialog
+    showDeleteDialog.value = false;
+    entityToDelete.value = null;
+  } catch (err) {
+    console.error('Failed to delete entity:', err);
+    error.value = err instanceof Error ? err.message : 'Failed to delete entity';
+  } finally {
+    deletingEntity.value = false;
+  }
+}
+
+// Cancel delete
+function cancelDelete() {
+  showDeleteDialog.value = false;
+  entityToDelete.value = null;
+}
+
+// Load entity types when component mounts
+onMounted(async () => {
+  await loadEntityTypes();
+});
 </script>
 
 <template>
@@ -217,6 +331,14 @@ function handleDragStart(event: DragEvent, entity: EntityItem) {
     :data-column-id="columnId"
   >
     <div class="column-header">
+      <div class="header-top">
+        <button class="create-entity-btn" @click="openCreateDialog" title="Create new entity">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
+            <path fill="currentColor" d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+          </svg>
+          <span>Create</span>
+        </button>
+      </div>
       <div class="search-container">
         <span class="search-icon" v-if="!searchQuery">
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24">
@@ -294,6 +416,90 @@ function handleDragStart(event: DragEvent, entity: EntityItem) {
         </div>
       </div>
     </div>
+
+    <!-- Create Entity Dialog -->
+    <div v-if="showCreateDialog" class="dialog-overlay" @click="showCreateDialog = false">
+      <div class="dialog-content" @click.stop>
+        <div class="dialog-header">
+          <h3>Create New Entity</h3>
+          <button class="dialog-close" @click="showCreateDialog = false">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24">
+              <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/>
+            </svg>
+          </button>
+        </div>
+        <div class="dialog-body">
+          <div class="form-group">
+            <label for="entity-name">Name:</label>
+            <input 
+              id="entity-name"
+              type="text" 
+              v-model="createEntityName" 
+              placeholder="Enter entity name"
+              class="form-input"
+              @keyup.enter="createEntity"
+              autofocus
+            />
+          </div>
+          <div class="form-group">
+            <label for="entity-type">Type:</label>
+            <select 
+              id="entity-type"
+              v-model="createEntityType" 
+              class="form-select"
+            >
+              <option v-for="type in availableEntityTypes" :key="type.id" :value="type.id">
+                {{ type.name }}
+              </option>
+            </select>
+          </div>
+        </div>
+        <div class="dialog-footer">
+          <button class="dialog-btn dialog-btn-cancel" @click="showCreateDialog = false" :disabled="creatingEntity">
+            Cancel
+          </button>
+          <button 
+            class="dialog-btn dialog-btn-primary" 
+            @click="createEntity" 
+            :disabled="!createEntityName.trim() || !createEntityType || creatingEntity"
+          >
+            <span v-if="creatingEntity" class="spinner-small"></span>
+            <span v-else>Create</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Delete Entity Dialog -->
+    <div v-if="showDeleteDialog" class="dialog-overlay" @click="cancelDelete">
+      <div class="dialog-content" @click.stop>
+        <div class="dialog-header">
+          <h3>Delete Entity</h3>
+          <button class="dialog-close" @click="cancelDelete">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24">
+              <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/>
+            </svg>
+          </button>
+        </div>
+        <div class="dialog-body">
+          <p>Are you sure you want to delete <strong>{{ entityToDelete?.name }}</strong>?</p>
+          <p class="warning-text">This action cannot be undone.</p>
+        </div>
+        <div class="dialog-footer">
+          <button class="dialog-btn dialog-btn-cancel" @click="cancelDelete" :disabled="deletingEntity">
+            Cancel
+          </button>
+          <button 
+            class="dialog-btn dialog-btn-danger" 
+            @click="deleteEntity" 
+            :disabled="deletingEntity"
+          >
+            <span v-if="deletingEntity" class="spinner-small"></span>
+            <span v-else>Delete</span>
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -339,13 +545,43 @@ function handleDragStart(event: DragEvent, entity: EntityItem) {
 
 .column-header {
   padding: 12px;
-  border-bottom: 1px solid var(--qui-hover-border);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   position: sticky;
   top: 0;
   background: var(--qui-bg-secondary);
-  z-index: 5;
-  backdrop-filter: blur(5px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  z-index: 10;
+  backdrop-filter: blur(10px);
+}
+
+.header-top {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+
+.create-entity-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(0, 255, 136, 0.1);
+  color: var(--qui-accent-color);
+  border: 1px solid rgba(0, 255, 136, 0.2);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.create-entity-btn:hover {
+  background: rgba(0, 255, 136, 0.2);
+  border-color: rgba(0, 255, 136, 0.4);
+  transform: translateY(-1px);
+}
+
+.create-entity-btn:active {
+  transform: translateY(0);
 }
 
 .search-container {
@@ -559,5 +795,185 @@ function handleDragStart(event: DragEvent, entity: EntityItem) {
 @keyframes spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
+}
+
+/* Dialog styles */
+.dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  backdrop-filter: blur(4px);
+}
+
+.dialog-content {
+  background: var(--qui-bg-secondary);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  min-width: 400px;
+  max-width: 500px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.dialog-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--qui-text-primary);
+}
+
+.dialog-close {
+  background: none;
+  border: none;
+  color: var(--qui-text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.dialog-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--qui-text-primary);
+}
+
+.dialog-body {
+  padding: 20px;
+}
+
+.dialog-body p {
+  margin: 0 0 12px 0;
+  color: var(--qui-text-primary);
+  line-height: 1.5;
+}
+
+.warning-text {
+  color: var(--qui-text-secondary);
+  font-size: 13px;
+  font-style: italic;
+}
+
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-group:last-child {
+  margin-bottom: 0;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--qui-text-primary);
+}
+
+.form-input,
+.form-select {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--qui-bg-primary);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: var(--qui-text-primary);
+  font-size: 14px;
+  font-family: inherit;
+  transition: all 0.2s ease;
+}
+
+.form-input:focus,
+.form-select:focus {
+  outline: none;
+  border-color: var(--qui-accent-color);
+  box-shadow: 0 0 0 3px rgba(0, 255, 136, 0.1);
+}
+
+.form-select {
+  cursor: pointer;
+}
+
+.dialog-footer {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  padding: 16px 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.dialog-btn {
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+  min-width: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dialog-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.dialog-btn-cancel {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--qui-text-primary);
+}
+
+.dialog-btn-cancel:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.dialog-btn-primary {
+  background: var(--qui-accent-color);
+  color: var(--qui-bg-primary);
+}
+
+.dialog-btn-primary:hover:not(:disabled) {
+  background: var(--qui-accent-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 255, 136, 0.3);
+}
+
+.dialog-btn-danger {
+  background: rgba(255, 59, 48, 0.9);
+  color: white;
+}
+
+.dialog-btn-danger:hover:not(:disabled) {
+  background: rgba(255, 59, 48, 1);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(255, 59, 48, 0.3);
+}
+
+.spinner-small {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
 }
 </style>

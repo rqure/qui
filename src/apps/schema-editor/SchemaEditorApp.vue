@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import type { CompleteEntitySchema, EntitySchema, EntityType, FieldSchema, FieldType } from '@/core/data/types'
 import { useDataStore } from '@/stores/data'
 import SchemaTreeView from './components/SchemaTreeView.vue'
@@ -24,6 +24,13 @@ const fieldNameMap = ref<Map<FieldType, string>>(new Map())
 const treeNodes = ref<SchemaTreeNode[]>([])
 const expandedNodes = ref<Set<EntityType>>(new Set())
 const selectedEntityType = ref<EntityType | null>(null)
+const createFormVisible = ref(false)
+const creatingEntity = ref(false)
+const createError = ref<string | null>(null)
+const newEntity = reactive({
+  name: '',
+  inherit: [] as EntityType[],
+})
 
 type PipelineResult = { type: string; entity_types?: EntityType[] }
 
@@ -85,6 +92,17 @@ const selectedParentNames = computed(() => {
   return selectedSchema.value.inherit.map(parentId => getEntityName(parentId))
 })
 
+const entityOptions = computed(() =>
+  Array.from(entityNameMap.value.entries())
+    .map(([id, name]) => ({ id, name }))
+    .sort((a, b) => a.name.localeCompare(b.name))
+)
+
+watch(entityOptions, options => {
+  const validIds = new Set(options.map(option => option.id))
+  newEntity.inherit = newEntity.inherit.filter(id => validIds.has(id))
+})
+
 onMounted(async () => {
   await loadAll()
 })
@@ -107,6 +125,63 @@ function setStatus(message: string | null) {
       statusMessage.value = null
       statusTimer.value = null
     }, 4000)
+  }
+}
+
+function resetCreateForm() {
+  newEntity.name = ''
+  newEntity.inherit = []
+  createError.value = null
+}
+
+function handleToggleCreateForm() {
+  createFormVisible.value = !createFormVisible.value
+  if (!createFormVisible.value) {
+    resetCreateForm()
+  }
+}
+
+function handleCancelCreate() {
+  resetCreateForm()
+  createFormVisible.value = false
+}
+
+async function handleCreateEntityType() {
+  if (creatingEntity.value) return
+
+  const trimmedName = newEntity.name.trim()
+  if (!trimmedName) {
+    createError.value = 'Entity name is required.'
+    return
+  }
+
+  const duplicate = Array.from(entityNameMap.value.entries()).find(([, value]) => value.toLowerCase() === trimmedName.toLowerCase())
+  if (duplicate) {
+    createError.value = 'An entity type with this name already exists.'
+    return
+  }
+
+  creatingEntity.value = true
+  createError.value = null
+
+  try {
+    const entityTypeId = await dataStore.getEntityType(trimmedName)
+    await dataStore.updateSchema({
+      entity_type: entityTypeId,
+      inherit: newEntity.inherit,
+      fields: {},
+    })
+
+    selectedEntityType.value = entityTypeId
+    await loadAll()
+    setStatus(`Created entity type "${trimmedName}"`)
+    resetCreateForm()
+    createFormVisible.value = false
+  } catch (error) {
+    console.error('Failed to create entity type', error)
+    createError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    creatingEntity.value = false
   }
 }
 
@@ -398,6 +473,10 @@ function handleRefresh() {
           type="search"
           placeholder="Search entity types"
         />
+        <button class="schema-editor__create" type="button" @click="handleToggleCreateForm">
+          <span v-if="createFormVisible">Close</span>
+          <span v-else>New Entity Type</span>
+        </button>
         <button class="schema-editor__refresh" type="button" @click="handleRefresh">
           Refresh
         </button>
@@ -410,6 +489,55 @@ function handleRefresh() {
 
     <div v-if="statusMessage" class="schema-editor__status">
       {{ statusMessage }}
+    </div>
+
+    <div v-if="createFormVisible" class="schema-editor__create-form">
+      <div class="schema-editor__create-row">
+        <label class="schema-editor__create-label" for="schema-editor-create-name">Name</label>
+        <input
+          id="schema-editor-create-name"
+          v-model="newEntity.name"
+          type="text"
+          class="schema-editor__create-input"
+          placeholder="Entity type name"
+          :disabled="creatingEntity"
+        />
+      </div>
+      <div class="schema-editor__create-row schema-editor__create-row--wide">
+        <label class="schema-editor__create-label" for="schema-editor-create-inherit">Inherit From</label>
+        <select
+          id="schema-editor-create-inherit"
+          v-model="newEntity.inherit"
+          multiple
+          size="4"
+          class="schema-editor__create-select"
+          :disabled="creatingEntity || entityOptions.length === 0"
+        >
+          <option v-for="option in entityOptions" :key="option.id" :value="option.id">
+            {{ option.name }}
+          </option>
+        </select>
+      </div>
+      <div class="schema-editor__create-actions">
+        <button
+          type="button"
+          class="schema-editor__create-cancel"
+          :disabled="creatingEntity"
+          @click="handleCancelCreate"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          class="schema-editor__create-submit"
+          :disabled="creatingEntity"
+          @click="handleCreateEntityType"
+        >
+          <span v-if="creatingEntity">Creating…</span>
+          <span v-else>Create</span>
+        </button>
+      </div>
+      <div v-if="createError" class="schema-editor__create-error">{{ createError }}</div>
     </div>
 
     <div class="schema-editor__body">
@@ -517,6 +645,7 @@ function handleRefresh() {
   border-color: var(--qui-accent-color);
 }
 
+.schema-editor__create,
 .schema-editor__refresh {
   padding: 6px 12px;
   border: 1px solid var(--qui-hover-border);
@@ -527,8 +656,18 @@ function handleRefresh() {
   transition: background 0.2s ease;
 }
 
+.schema-editor__create:hover,
 .schema-editor__refresh:hover {
   background: rgba(0, 0, 0, 0.4);
+}
+
+.schema-editor__create {
+  background: rgba(0, 255, 136, 0.12);
+  border-color: rgba(0, 255, 136, 0.4);
+}
+
+.schema-editor__create:hover {
+  background: rgba(0, 255, 136, 0.2);
 }
 
 .schema-editor__error {
@@ -543,6 +682,98 @@ function handleRefresh() {
   border-radius: 6px;
   background: rgba(0, 255, 136, 0.12);
   color: #7dffbe;
+}
+
+.schema-editor__create-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 12px;
+}
+
+.schema-editor__create-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.schema-editor__create-row--wide {
+  grid-column: 1 / -1;
+}
+
+.schema-editor__create-label {
+  font-size: 12px;
+  color: var(--qui-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.schema-editor__create-input,
+.schema-editor__create-select {
+  padding: 6px 10px;
+  border: 1px solid var(--qui-hover-border);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.25);
+  color: inherit;
+}
+
+.schema-editor__create-input:focus,
+.schema-editor__create-select:focus {
+  outline: none;
+  border-color: var(--qui-accent-color);
+}
+
+.schema-editor__create-select {
+  min-height: 120px;
+}
+
+.schema-editor__create-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.schema-editor__create-cancel,
+.schema-editor__create-submit {
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: 1px solid var(--qui-hover-border);
+  background: rgba(0, 0, 0, 0.25);
+  color: inherit;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.schema-editor__create-cancel[disabled],
+.schema-editor__create-submit[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.schema-editor__create-cancel:not([disabled]):hover,
+.schema-editor__create-submit:not([disabled]):hover {
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.schema-editor__create-submit {
+  background: rgba(0, 255, 136, 0.12);
+  border-color: rgba(0, 255, 136, 0.4);
+}
+
+.schema-editor__create-submit:not([disabled]):hover {
+  background: rgba(0, 255, 136, 0.2);
+}
+
+.schema-editor__create-error {
+  grid-column: 1 / -1;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: rgba(255, 69, 58, 0.15);
+  color: #ff8a80;
 }
 
 .schema-editor__body {

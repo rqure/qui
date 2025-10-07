@@ -504,7 +504,8 @@ export const useDataStore = defineStore('data', {
     async createEntity(entityType: EntityType, parentId: EntityId | null, name: string): Promise<EntityId> {
       const data = await this.request('Create', { 
         entity_type: entityType,
-        name: name 
+        name: name,
+        parent_id: parentId
       });
       return data.entity_id;
     },

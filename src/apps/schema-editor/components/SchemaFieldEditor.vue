@@ -55,7 +55,46 @@ const newField = reactive({
   storageScope: 'Runtime' as 'Runtime' | 'Configuration',
   defaultValue: '',
   choices: '',
+  choiceDefaultIndex: 0,
 })
+
+const newFieldChoiceOptions = computed<string[]>(() =>
+  newField.choices
+    .split(',')
+    .map(item => item.trim())
+    .filter(Boolean)
+)
+
+watch(
+  newFieldChoiceOptions,
+  options => {
+    if (options.length === 0) {
+      newField.choiceDefaultIndex = 0
+      return
+    }
+
+    if (newField.choiceDefaultIndex > options.length - 1) {
+      newField.choiceDefaultIndex = options.length - 1
+    }
+
+    if (newField.choiceDefaultIndex < 0) {
+      newField.choiceDefaultIndex = 0
+    }
+  },
+  { immediate: true }
+)
+
+watch(
+  () => newField.kind,
+  kind => {
+    if (kind === 'Choice') {
+      newField.defaultValue = ''
+    } else {
+      newField.choices = ''
+      newField.choiceDefaultIndex = 0
+    }
+  }
+)
 watch(
   () => ({ schema: props.schema, fieldNames: props.fieldNames }),
   ({ schema }) => {
@@ -211,15 +250,12 @@ async function addField() {
 
     let schema: FieldSchema
     if (newField.kind === 'Choice') {
-      const choices = newField.choices
-        .split(',')
-        .map(item => item.trim())
-        .filter(Boolean)
+      const choices = newFieldChoiceOptions.value
       if (choices.length === 0) {
         formError.value = 'Provide at least one choice option.'
         return
       }
-      const defaultIndex = Math.max(0, Math.min(Number(newField.defaultValue) || 0, choices.length - 1))
+      const defaultIndex = Math.max(0, Math.min(newField.choiceDefaultIndex, choices.length - 1))
       schema = {
         Choice: {
           field_type: fieldType,
@@ -243,6 +279,7 @@ async function addField() {
     newField.rank = 0
     newField.defaultValue = ''
     newField.choices = ''
+    newField.choiceDefaultIndex = 0
     newField.kind = 'String'
     newField.storageScope = 'Runtime'
     formError.value = null
@@ -399,6 +436,14 @@ function saveChanges() {
       </div>
       <div v-else class="schema-field-editor__table-wrapper">
         <table class="schema-field-editor__table">
+          <colgroup>
+            <col class="schema-field-editor__col schema-field-editor__col--name" />
+            <col class="schema-field-editor__col schema-field-editor__col--type" />
+            <col class="schema-field-editor__col schema-field-editor__col--rank" />
+            <col class="schema-field-editor__col schema-field-editor__col--scope" />
+            <col class="schema-field-editor__col schema-field-editor__col--default" />
+            <col class="schema-field-editor__col schema-field-editor__col--actions" />
+          </colgroup>
           <thead>
             <tr>
               <th>Name</th>
@@ -520,13 +565,44 @@ function saveChanges() {
             <option v-for="option in storageOptions" :key="option" :value="option">{{ option }}</option>
           </select>
         </div>
-        <div v-if="newField.kind === 'Choice'" class="schema-field-editor__form-row schema-field-editor__form-row--wide">
+        <div
+          v-if="newField.kind === 'Choice'"
+          class="schema-field-editor__form-row schema-field-editor__form-row--wide"
+        >
           <label class="schema-field-editor__label">Choices (comma separated)</label>
-          <input v-model="newField.choices" type="text" class="schema-field-editor__input" placeholder="Option A, Option B" />
+          <input
+            v-model="newField.choices"
+            type="text"
+            class="schema-field-editor__input"
+            placeholder="Option A, Option B"
+          />
         </div>
-        <div class="schema-field-editor__form-row schema-field-editor__form-row--wide">
+        <div
+          v-if="newField.kind === 'Choice'"
+          class="schema-field-editor__form-row schema-field-editor__form-row--half"
+        >
+          <label class="schema-field-editor__label">Default Choice</label>
+          <select
+            v-model.number="newField.choiceDefaultIndex"
+            class="schema-field-editor__select"
+            :disabled="newFieldChoiceOptions.length === 0"
+          >
+            <option v-for="(choice, index) in newFieldChoiceOptions" :key="`choice-${index}`" :value="index">
+              {{ choice }}
+            </option>
+          </select>
+        </div>
+        <div
+          v-if="newField.kind !== 'Choice'"
+          class="schema-field-editor__form-row schema-field-editor__form-row--wide"
+        >
           <label class="schema-field-editor__label">Default Value</label>
-          <input v-model="newField.defaultValue" type="text" class="schema-field-editor__input" placeholder="Depends on type" />
+          <input
+            v-model="newField.defaultValue"
+            type="text"
+            class="schema-field-editor__input"
+            placeholder="Depends on type"
+          />
         </div>
         <div class="schema-field-editor__form-actions">
           <button type="button" class="schema-field-editor__add" @click="addField">Add Field</button>
@@ -586,9 +662,11 @@ function saveChanges() {
   color: var(--qui-text-secondary);
 }
 
+
 .schema-field-editor__table-wrapper {
   width: 100%;
-  overflow-x: auto;
+  max-height: min(420px, 50vh);
+  overflow: auto;
   border-radius: 8px;
   background: rgba(0, 0, 0, 0.15);
 }
@@ -598,6 +676,7 @@ function saveChanges() {
   border-collapse: collapse;
   font-size: 13px;
   min-width: 640px;
+  table-layout: fixed;
 }
 
 .schema-field-editor__table th,
@@ -621,29 +700,28 @@ function saveChanges() {
   white-space: nowrap;
 }
 
-.schema-field-editor__table tbody td:nth-child(1),
-.schema-field-editor__table thead th:nth-child(1) {
+.schema-field-editor__col--name {
   width: 22%;
 }
 
-.schema-field-editor__table tbody td:nth-child(2),
-.schema-field-editor__table thead th:nth-child(2) {
+.schema-field-editor__col--type {
   width: 16%;
 }
 
-.schema-field-editor__table tbody td:nth-child(3),
-.schema-field-editor__table thead th:nth-child(3) {
+.schema-field-editor__col--rank {
   width: 12%;
 }
 
-.schema-field-editor__table tbody td:nth-child(4),
-.schema-field-editor__table thead th:nth-child(4) {
+.schema-field-editor__col--scope {
   width: 16%;
 }
 
-.schema-field-editor__table tbody td:nth-child(5),
-.schema-field-editor__table thead th:nth-child(5) {
+.schema-field-editor__col--default {
   width: 26%;
+}
+
+.schema-field-editor__col--actions {
+  width: 8%;
 }
 
 .schema-field-editor__table tbody tr:hover {
@@ -655,6 +733,7 @@ function saveChanges() {
   padding: 6px 8px;
 }
 
+
 .schema-field-editor__input,
 .schema-field-editor__select {
   width: 100%;
@@ -663,6 +742,7 @@ function saveChanges() {
   border-radius: 6px;
   background: rgba(0, 0, 0, 0.25);
   color: inherit;
+  box-sizing: border-box;
 }
 
 .schema-field-editor__textarea {
@@ -692,11 +772,12 @@ function saveChanges() {
   background: rgba(255, 69, 58, 0.35);
 }
 
+
 .schema-field-editor__form {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(180px, 2fr) repeat(3, minmax(120px, 1fr));
   gap: 12px;
-  align-items: flex-start;
+  align-items: end;
   background: rgba(0, 0, 0, 0.15);
   padding: 16px;
   border-radius: 8px;
@@ -706,12 +787,15 @@ function saveChanges() {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  flex: 1 1 220px;
   min-width: 0;
 }
 
 .schema-field-editor__form-row--wide {
-  flex-basis: 100%;
+  grid-column: 1 / -1;
+}
+
+.schema-field-editor__form-row--half {
+  grid-column: span 2;
 }
 
 .schema-field-editor__label {
@@ -721,10 +805,13 @@ function saveChanges() {
   letter-spacing: 0.4px;
 }
 
+
 .schema-field-editor__form-actions {
+  grid-column: 1 / -1;
   display: flex;
-  align-items: flex-end;
-  flex: 0 0 auto;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
 }
 
 .schema-field-editor__add {
@@ -777,12 +864,13 @@ function saveChanges() {
   color: #ff8a80;
 }
 
+
 .schema-field-editor__form-error {
   padding: 8px 12px;
   border-radius: 6px;
   background: rgba(255, 69, 58, 0.15);
   color: #ff8a80;
-  flex-basis: 100%;
+  grid-column: 1 / -1;
 }
 
 .schema-field-editor__footer {
@@ -820,5 +908,19 @@ function saveChanges() {
 
 .schema-field-editor__save:not([disabled]):hover {
   background: rgba(0, 255, 136, 0.2);
+}
+
+@media (max-width: 980px) {
+  .schema-field-editor__form {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  }
+
+  .schema-field-editor__form-row--half {
+    grid-column: 1 / -1;
+  }
+
+  .schema-field-editor__table {
+    min-width: 540px;
+  }
 }
 </style>
