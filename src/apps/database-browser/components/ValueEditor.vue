@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import type { Value, FieldType, EntityType } from '@/core/data/types';
 import { ValueHelpers } from '@/core/data/types';
-import { useDataStore } from '@/stores/data';
+import { useDataStore, FieldSchemaHelpers } from '@/stores/data';
 
 const props = defineProps<{
   value: Value;
@@ -108,8 +108,10 @@ async function loadChoiceOptions() {
     
     if (schema?.fields && schema.fields[fieldTypeNum]) {
       const fieldSchema = schema.fields[fieldTypeNum];
-      // For now, just show raw choice value since choice_options not in schema yet
-      // TODO: Add choice_options to FieldSchema
+      const choices = FieldSchemaHelpers.getChoices(fieldSchema);
+      if (choices) {
+        choiceOptions.value = choices;
+      }
       currentChoiceIndex.value = props.value.Choice;
     }
   } catch (error) {

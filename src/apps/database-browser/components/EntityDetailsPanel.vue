@@ -3,6 +3,7 @@ import { ref, watch, onMounted, onUnmounted, computed } from 'vue';
 import { useDataStore } from '@/stores/data';
 import type { EntityId, EntityType, FieldType, Value, Timestamp } from '@/core/data/types';
 import type { EntitySchema, FieldSchema, Notification, NotifyConfig } from '@/stores/data';
+import { FieldSchemaHelpers } from '@/stores/data';
 import { extractEntityType, ValueHelpers } from '@/core/data/types';
 import { formatTimestamp } from '@/apps/database-browser/utils/formatters';
 import ValueDisplay from '@/apps/database-browser/components/ValueDisplay.vue';
@@ -405,12 +406,24 @@ async function loadEntityDetails() {
     fields.value.sort((a, b) => {
       const aField = schema.value!.fields[a.fieldType];
       const bField = schema.value!.fields[b.fieldType];
-      if (!aField || !bField) return 0;
-      if (aField.rank === bField.rank) {
-        return a.fieldType - b.fieldType;
+      if (!aField || !bField) {
+        console.warn('Missing field schema:', { a: a.fieldType, aField, b: b.fieldType, bField });
+        return 0;
       }
-      return aField.rank - bField.rank;
+      // Primary sort by rank using helper
+      const aRank = FieldSchemaHelpers.getRank(aField);
+      const bRank = FieldSchemaHelpers.getRank(bField);
+      if (aRank !== bRank) {
+        return aRank - bRank;
+      }
+      // Secondary sort by field type ID when ranks are equal
+      return a.fieldType - b.fieldType;
     });
+    
+    console.log('Fields sorted by rank:', fields.value.map(f => ({
+      fieldType: f.fieldType,
+      rank: schema.value!.fields[f.fieldType] ? FieldSchemaHelpers.getRank(schema.value!.fields[f.fieldType]) : 'N/A'
+    })));
     
     // Get entity name
     const NameFieldType = await dataStore.getFieldType('Name');

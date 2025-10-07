@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted, watch } from 'vue';
-import { useDataStore } from '@/stores/data';
+import { useDataStore, FieldSchemaHelpers } from '@/stores/data';
 import type { Value, FieldType, EntityType } from '@/core/data/types';
 import { ValueHelpers } from '@/core/data/types';
 import { useEntityDrag, ENTITY_MIME_TYPE } from '@/core/utils/composables';
@@ -129,11 +129,15 @@ async function loadChoiceOptions() {
     // Check if we have a field schema for this field
     if (schema?.fields && schema.fields[fieldTypeNum]) {
       const fieldSchema = schema.fields[fieldTypeNum];
-      
-      // For now, just show the raw numeric choice value
-      // TODO: Add choice_options to FieldSchema when available
+      const choices = FieldSchemaHelpers.getChoices(fieldSchema);
       const choiceIndex = props.value.Choice;
-      choiceLabel.value = `Choice ${choiceIndex}`;
+      
+      if (choices && choiceIndex >= 0 && choiceIndex < choices.length) {
+        choiceOptions.value = choices;
+        choiceLabel.value = choices[choiceIndex];
+      } else {
+        choiceLabel.value = `Choice ${choiceIndex}`;
+      }
     } else {
       // Show raw value if schema not found
       const choiceIndex = props.value.Choice;
