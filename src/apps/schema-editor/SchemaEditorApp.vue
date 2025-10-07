@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import type { CompleteEntitySchema, EntitySchema, EntityType, FieldSchema, FieldType } from '@/core/data/types'
 import { useDataStore } from '@/stores/data'
 import SchemaTreeView from './components/SchemaTreeView.vue'
@@ -87,6 +87,13 @@ const selectedParentNames = computed(() => {
 
 onMounted(async () => {
   await loadAll()
+})
+
+onUnmounted(() => {
+  if (statusTimer.value) {
+    clearTimeout(statusTimer.value)
+    statusTimer.value = null
+  }
 })
 
 function setStatus(message: string | null) {
@@ -554,7 +561,15 @@ function handleRefresh() {
   padding: 16px;
   background: rgba(0, 0, 0, 0.25);
   border-radius: 12px;
+  min-height: 0;
+}
+
+.schema-editor__tree {
   overflow: hidden;
+}
+
+.schema-editor__details {
+  overflow: auto;
 }
 
 .schema-editor__panel-title {
@@ -581,7 +596,7 @@ function handleRefresh() {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  overflow: hidden;
+  min-height: 0;
 }
 
 .schema-editor__entity-header {
