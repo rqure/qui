@@ -223,7 +223,7 @@ watch(
           :key="index" 
           :value="index"
         >
-          {{ option }}
+          {{ option }} ({{ index }})
         </option>
       </select>
     </div>

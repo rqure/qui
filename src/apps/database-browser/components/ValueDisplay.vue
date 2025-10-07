@@ -34,7 +34,7 @@ const displayValue = computed(() => {
   if (ValueHelpers.isChoice(props.value)) {
     // If we have a choice label already resolved, use that
     if (choiceLabel.value) {
-      return choiceLabel.value;
+      return `${choiceLabel.value} (${props.value.Choice})`;
     }
     return `Choice ${props.value.Choice}`;
   }
@@ -139,20 +139,24 @@ async function loadChoiceOptions() {
       const choices = FieldSchemaHelpers.getChoices(fieldSchema);
       const choiceIndex = props.value.Choice;
       
-      if (choices && choiceIndex >= 0 && choiceIndex < choices.length) {
+      if (choices && choices.length > 0 && choiceIndex >= 0 && choiceIndex < choices.length) {
         choiceOptions.value = choices;
         choiceLabel.value = choices[choiceIndex];
+      } else if (choices && choices.length > 0) {
+        // Have choices but index out of range
+        choiceOptions.value = choices;
+        choiceLabel.value = `Invalid index ${choiceIndex}`;
       } else {
-        choiceLabel.value = `Choice ${choiceIndex}`;
+        // No choices available
+        choiceLabel.value = '';
       }
     } else {
-      // Show raw value if schema not found
-      const choiceIndex = props.value.Choice;
-      choiceLabel.value = `Choice ${choiceIndex}`;
+      console.warn('Field schema not found for field type:', fieldTypeNum, 'in schema:', schema);
+      choiceLabel.value = '';
     }
   } catch (error) {
     console.error('Error loading choice options:', error);
-    choiceLabel.value = `Error loading choice`;
+    choiceLabel.value = '';
   }
 }
 
