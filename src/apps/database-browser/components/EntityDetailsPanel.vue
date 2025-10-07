@@ -45,6 +45,7 @@ const currentTimestamp = ref(Date.now());
 const fieldDropTargets = ref<Record<number, boolean>>({});
 const schema = ref<EntitySchema | null>(null);
 const fieldTypeNames = ref<Record<number, string>>({});
+const inheritedTypeNames = ref<string[]>([]);
 
 // Register cleanup function at top level before any await
 onUnmounted(async () => {
@@ -342,6 +343,18 @@ async function loadEntityDetails() {
     console.log('Loading schema for entity type:', entityTypeName.value);
     schema.value = await dataStore.getCompleteEntitySchema(entityTypeNumber);
     console.log('Schema loaded:', schema.value);
+    
+    // Load inherited entity type names
+    inheritedTypeNames.value = [];
+    if (schema.value && schema.value.inherit && schema.value.inherit.length > 0) {
+      try {
+        inheritedTypeNames.value = await Promise.all(
+          schema.value.inherit.map(typeId => dataStore.resolveEntityType(typeId))
+        );
+      } catch (err) {
+        console.warn('Error loading inherited type names:', err);
+      }
+    }
     
     if (!schema.value || !schema.value.fields) {
       error.value = `Failed to load schema for ${entityTypeName.value}`;
@@ -750,7 +763,15 @@ const containerClass = computed(() => {
       <div class="header-content">
         <h2 class="entity-title">{{ entityName }}</h2>
         <div class="entity-metadata">
-          <div class="entity-type">{{ entityType }}</div>
+          <div class="entity-type">
+            <span class="type-label">{{ entityTypeName }}</span>
+            <span v-if="inheritedTypeNames.length > 0" class="inherited-types">
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" class="inherit-icon">
+                <path fill="currentColor" d="M9 5v2h6.59L4 18.59 5.41 20 17 8.41V15h2V5z"/>
+              </svg>
+              {{ inheritedTypeNames.join(', ') }}
+            </span>
+          </div>
           <div class="entity-id" :title="String(entityId)">{{ String(entityId) }}</div>
         </div>
       </div>
@@ -874,6 +895,34 @@ const containerClass = computed(() => {
   border-left: none;
   border-radius: var(--qui-window-radius);
   height: 100%;
+}
+
+.entity-type {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.type-label {
+  font-weight: 600;
+  color: var(--qui-accent-color);
+}
+
+.inherited-types {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.85em;
+  color: var(--qui-text-secondary);
+  padding: 2px 8px;
+  background: rgba(0, 255, 136, 0.1);
+  border-radius: 10px;
+  border: 1px solid rgba(0, 255, 136, 0.2);
+}
+
+.inherit-icon {
+  opacity: 0.7;
 }
 
 .details-header {
