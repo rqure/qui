@@ -498,15 +498,7 @@ function cancelDelete() {
 
 // Load entity types when component mounts
 onMounted(async () => {
-  // Wait for data store connection before loading
-  const connected = await dataStore.waitForConnection();
-  if (connected) {
     await loadEntityTypes();
-  } else {
-    console.warn('Failed to connect to database backend. Retrying loadEntityTypes...');
-    // Try anyway - loadEntityTypes has its own retry logic
-    await loadEntityTypes();
-  }
 });
 </script>
 

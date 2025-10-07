@@ -32,8 +32,8 @@ export const useDataStore = defineStore('data', {
     isConnected: false,
     connectionPromise: null as Promise<void> | null,
     connectionResolve: null as (() => void) | null,
-    pendingResponse: null as { resolve: (value: any) => void; reject: (error: any) => void } | null,
-    requestQueue: [] as Array<{ request: any; resolve: (value: any) => void; reject: (error: any) => void }>,
+    pendingRequests: {} as Record<string, { resolve: (value: any) => void; reject: (error: any) => void; timeoutId: number }>,
+    nextRequestId: 1,
     notificationCallbacks: {} as Record<string, NotificationCallback[]>, // Use string keys to avoid precision loss
     localToServerHash: {} as Record<number, string>, // Map local hash to server hash (as string)
     connectionLostCallbacks: [] as (() => void)[],
@@ -127,16 +127,12 @@ export const useDataStore = defineStore('data', {
         const closedSocket = this.socket;
         this.socket = null;
 
-        if (this.pendingResponse) {
-          this.pendingResponse.reject(new Error('WebSocket connection closed'));
-          this.pendingResponse = null;
-        }
-
-        // Reject all queued requests
-        this.requestQueue.forEach(item => {
-          item.reject(new Error('WebSocket connection closed'));
+        // Reject all pending requests
+        Object.values(this.pendingRequests).forEach(pending => {
+          clearTimeout(pending.timeoutId);
+          pending.reject(new Error('WebSocket connection closed'));
         });
-        this.requestQueue = [];
+        this.pendingRequests = {};
 
         if (wasConnected) {
           this.triggerConnectionLostCallbacks();
@@ -177,46 +173,18 @@ export const useDataStore = defineStore('data', {
         this.socket.close(1000, 'Normal closure');
         this.socket = null;
         this.isConnected = false;
-        this.pendingResponse = null;
-        this.requestQueue = [];
+        
+        // Reject all pending requests
+        Object.values(this.pendingRequests).forEach(pending => {
+          clearTimeout(pending.timeoutId);
+          pending.reject(new Error('WebSocket disconnected'));
+        });
+        this.pendingRequests = {};
       }
 
       // Reset connection promise
       this.connectionPromise = null;
       this.connectionResolve = null;
-    },
-
-    /**
-     * Wait for WebSocket connection to be established
-     * Useful for components that need to ensure connection before making requests
-     */
-    async waitForConnection(timeoutMs: number = 10000): Promise<boolean> {
-      if (this.isConnected) {
-        return true;
-      }
-
-      // If not connecting, start connection
-      if (!this.socket || this.socket.readyState === WebSocket.CLOSED) {
-        this.connect();
-      }
-
-      // Wait for connection promise with timeout
-      if (this.connectionPromise) {
-        try {
-          await Promise.race([
-            this.connectionPromise,
-            new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Connection timeout')), timeoutMs)
-            )
-          ]);
-          return true;
-        } catch (err) {
-          console.warn('Failed to establish connection:', err);
-          return false;
-        }
-      }
-
-      return false;
     },
 
     onMessage(event: MessageEvent) {
@@ -225,7 +193,7 @@ export const useDataStore = defineStore('data', {
 
         // qweb WebSocket messages can be:
         // 1. Notifications: {success: true, data: {type: "notification", ...}}
-        // 2. Responses: {success: bool, data?: any, error?: string}
+        // 2. Responses: {success: bool, request_id?: string, data?: any, error?: string}
 
         // Check if this is a notification
         if (message.success && message.data && message.data.type === 'notification') {
@@ -233,19 +201,22 @@ export const useDataStore = defineStore('data', {
           return;
         }
 
-        // Handle regular response
-        if (this.pendingResponse) {
-          const pending = this.pendingResponse;
-          this.pendingResponse = null;
+        // Handle regular response with request_id
+        const requestId = message.request_id;
+        if (requestId && this.pendingRequests[requestId]) {
+          const pending = this.pendingRequests[requestId];
+          clearTimeout(pending.timeoutId);
+          delete this.pendingRequests[requestId];
 
           if (message.success) {
             pending.resolve(message.data || message);
           } else {
             pending.reject(new Error(message.error || 'Request failed'));
           }
-
-          // Process next request in queue
-          this.processNextRequest();
+        } else if (requestId) {
+          console.warn('Received response for unknown request ID:', requestId);
+        } else {
+          console.warn('Received response without request_id:', message);
         }
       } catch (error) {
         console.error('Error parsing WebSocket message:', error);
@@ -254,20 +225,9 @@ export const useDataStore = defineStore('data', {
 
     handleNotification(notification: any) {
       const configHash = notification.config_hash;
-      // Convert to string to avoid JavaScript number precision issues
       const configHashStr = String(configHash);
       
-      if (import.meta.env.DEV) {
-        console.log('Received notification with config_hash:', configHash, 'type:', typeof configHash);
-        console.log('As string:', configHashStr);
-        console.log('Registered callbacks:', Object.keys(this.notificationCallbacks));
-        console.log('Direct lookup result:', this.notificationCallbacks[configHashStr]);
-      }
-      
       if (configHash && this.notificationCallbacks[configHashStr]) {
-        if (import.meta.env.DEV) {
-          console.log(`Found ${this.notificationCallbacks[configHashStr].length} callbacks for hash ${configHashStr}`);
-        }
         this.notificationCallbacks[configHashStr].forEach(callback => {
           try {
             callback(notification);
@@ -293,44 +253,31 @@ export const useDataStore = defineStore('data', {
       }
 
       return new Promise((resolve, reject) => {
-        // Add to queue
-        this.requestQueue.push({ request, resolve, reject });
+        // Generate unique request ID
+        const requestId = `req_${this.nextRequestId++}`;
+        
+        // Set timeout for this request
+        const timeoutId = window.setTimeout(() => {
+          if (this.pendingRequests[requestId]) {
+            delete this.pendingRequests[requestId];
+            reject(new Error('Request timeout'));
+          }
+        }, 30000); // 30 second timeout
 
-        // Process queue if no request is currently pending
-        if (!this.pendingResponse) {
-          this.processNextRequest();
+        // Store pending request
+        this.pendingRequests[requestId] = { resolve, reject, timeoutId };
+
+        // Add request_id to the request
+        const requestWithId = { ...request, request_id: requestId };
+
+        try {
+          this.socket!.send(JSON.stringify(requestWithId));
+        } catch (error) {
+          clearTimeout(timeoutId);
+          delete this.pendingRequests[requestId];
+          reject(error);
         }
       });
-    },
-
-    processNextRequest() {
-      if (this.pendingResponse || this.requestQueue.length === 0 || !this.socket) {
-        return;
-      }
-
-      const { request, resolve, reject } = this.requestQueue.shift()!;
-      this.pendingResponse = { resolve, reject };
-
-      // Set a timeout for the request
-      const timeoutId = setTimeout(() => {
-        if (this.pendingResponse) {
-          const pending = this.pendingResponse;
-          this.pendingResponse = null;
-          pending.reject(new Error('Request timeout'));
-          // Process next request after timeout
-          this.processNextRequest();
-        }
-      }, 30000); // 30 second timeout
-
-      try {
-        this.socket.send(JSON.stringify(request));
-      } catch (error) {
-        clearTimeout(timeoutId);
-        this.pendingResponse = null;
-        reject(error);
-        // Process next request after error
-        this.processNextRequest();
-      }
     },
 
     async apiRequest(endpoint: string, data: any): Promise<any> {
