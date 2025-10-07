@@ -4,7 +4,7 @@ import { useDataStore } from '@/stores/data';
 import ColumnBrowser from './components/ColumnBrowser.vue';
 import EntityDetailsPanel from './components/EntityDetailsPanel.vue';
 import LoadingIndicator from '../../components/common/LoadingIndicator.vue';
-import type { Entity, EntityId } from '@/core/data/types';
+import type { EntityId } from '@/core/data/types';
 import { useEntityDropZone } from '@/core/utils/composables';
 import { useWindowStore } from '@/stores/windows'; // Add windows store import
 import { useMenuStore } from '@/stores/menu'; // Import the menu store
@@ -236,7 +236,7 @@ function handleContextMenu(data: { x: number, y: number, items: any[] }) {
       ></div>
       
       <EntityDetailsPanel 
-        v-if="selectedEntityId && selectedEntityId !== 'root'" 
+        v-if="selectedEntityId" 
         :entityId="selectedEntityId" 
       />
       

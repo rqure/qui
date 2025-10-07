@@ -87,17 +87,22 @@ const formatTimestampReactive = (date: Date | string | number) => {
 };
 
 async function cleanupNotifications() {
-  // Unsubscribe from all active notifications
-  if (notificationSubscriptions.value.length > 0) {    
-    // Unsubscribe from all notifications in parallel
-    await Promise.all(
-      notificationSubscriptions.value.map(sub => sub.unsubscribe().catch(err => {
-        console.error(`Error unsubscribing from notification ${sub.token}:`, err);
-      }))
-    );
+  // Unregister all field notifications
+  for (const field of fields.value) {
+    const notifyConfig: NotifyConfig = {
+      EntityId: {
+        entity_id: props.entityId,
+        field_type: field.fieldType,
+        trigger_on_change: true,
+        context: []
+      }
+    };
     
-    // Clear the subscriptions array
-    notificationSubscriptions.value = [];
+    try {
+      await dataStore.unregisterNotification(notifyConfig);
+    } catch (err) {
+      console.warn(`Error unregistering notification for field ${field.fieldType}:`, err);
+    }
   }
 }
 
@@ -115,28 +120,34 @@ async function processFieldDrop(fieldType: FieldType | string, entityId: EntityI
     const field = fields.value.find(f => f.fieldType === fieldType);
     if (!field) return;
     
-  // First, clear the drop target highlight to prevent flickering
-  const ftNum = toNumericFieldType(fieldType);
-  if (ftNum !== null) fieldDropTargets.value[ftNum] = false;
+    // First, clear the drop target highlight to prevent flickering
+    const ftNum = toNumericFieldType(fieldType);
+    if (ftNum !== null) fieldDropTargets.value[ftNum] = false;
     
     // Check the field's value type to determine handling
-    if (field.value.type === ValueType.EntityReference) {
+    if (ValueHelpers.isEntityRef(field.value)) {
       // For entity reference, set the reference to the dropped entity
-      field.value = ValueFactories.newEntityReference(entityId);
-      await dataStore.write([field]);
-      console.log(`Updated reference field ${fieldType} to ${entityId}`);
+      const newValue = ValueHelpers.entityRef(entityId);
+      field.value = newValue;
+      if (ftNum !== null) {
+        await dataStore.write(props.entityId, [ftNum], newValue);
+        console.log(`Updated reference field ${fieldType} to ${entityId}`);
+      }
     } 
-    else if (field.value.type === ValueType.EntityList) {
+    else if (ValueHelpers.isEntityList(field.value)) {
       // For entity list, append the entity to the list if not already present
-      const currentList = field.value.getEntityList();
+      const currentList = field.value.EntityList;
       
       // Check if the entity is already in the list
       if (!currentList.includes(entityId)) {
         // Create a new list with the added entity
         const newList = [...currentList, entityId];
-        field.value = ValueFactories.newEntityList(newList);
-        await dataStore.write([field]);
-        console.log(`Added ${entityId} to entity list ${fieldType}`);
+        const newValue = ValueHelpers.entityList(newList);
+        field.value = newValue;
+        if (ftNum !== null) {
+          await dataStore.write(props.entityId, [ftNum], newValue);
+          console.log(`Added ${entityId} to entity list ${fieldType}`);
+        }
       } else {
         console.log(`Entity ${entityId} already exists in list ${fieldType}`);
       }
@@ -150,7 +161,7 @@ async function processFieldDrop(fieldType: FieldType | string, entityId: EntityI
 function setupFieldDropZones() {
   // Create drop zones for appropriate field types
   fields.value.forEach(field => {
-    if (field.value.type === ValueType.EntityReference || field.value.type === ValueType.EntityList) {
+    if (ValueHelpers.isEntityRef(field.value) || ValueHelpers.isEntityList(field.value)) {
       // Manual implementation of drop handling
       const isEntityDrag = (event: DragEvent): boolean => {
         if (!event.dataTransfer) return false;
@@ -177,7 +188,7 @@ function setupFieldDropZones() {
           
           // Set drop effect based on field type
             if (event.dataTransfer) {
-            event.dataTransfer.dropEffect = field.value.type === ValueType.EntityReference ? 'link' : 'copy';
+            event.dataTransfer.dropEffect = ValueHelpers.isEntityRef(field.value) ? 'link' : 'copy';
           }
         }
       };
@@ -377,90 +388,70 @@ async function registerFieldNotifications() {
     await cleanupNotifications();
     
     // Register notifications for each field
-    const subscriptionPromises = fields.value.map(async (field) => {
-      // Set up notification config to watch this specific field
-      const notificationConfig = {
-        entityId: props.entityId,
-        field: field.fieldType // let data store stringify if needed
+    for (const field of fields.value) {
+      const notifyConfig: NotifyConfig = {
+        EntityId: {
+          entity_id: props.entityId,
+          field_type: field.fieldType,
+          trigger_on_change: true,
+          context: []
+        }
       };
       
-      // Register the notification and get the subscription
       try {
-        const subscription = await dataStore.notify(
-          notificationConfig,
-          handleFieldNotification
-        );
-        return subscription;
+        await dataStore.registerNotification(notifyConfig, handleFieldNotification);
       } catch (error) {
-        // Return a dummy subscription that does nothing on unsubscribe
-        return {
-          token: `failed-${field.fieldType}`,
-          unsubscribe: async () => {}
-        };
+        console.warn(`Failed to register notification for field ${field.fieldType}:`, error);
       }
-    });
-    
-    // Wait for all notification registrations to complete
-    const subscriptions = await Promise.all(subscriptionPromises);
-    
-    // Store subscriptions for cleanup later
-    notificationSubscriptions.value = subscriptions.filter(sub => !sub.token.startsWith('failed-'));
+    }
   } catch (err) {
-    console.error(`Error registering field notifications:`, err);
+    console.error('Error registering field notifications:', err);
   }
 }
 
-function handleFieldNotification(notification: any) {
+function handleFieldNotification(notification: Notification) {
   try {
-    if (!notification) return;
+    if (!notification || !notification.current) return;
+    
+    // Extract field info from the notification
+    const fieldPath = notification.current.field_path;
+    if (!fieldPath || fieldPath.length === 0) return;
+    
+    const fieldType = fieldPath[0];
     
     // Find the field in our fields array
-    const notifFieldNum = !isNaN(Number(notification.fieldType)) ? Number(notification.fieldType) : null;
-    const fieldIndex = fields.value.findIndex(f => {
-      const fNum = toNumericFieldType(f.fieldType);
-      if (notifFieldNum !== null && fNum !== null) return fNum === notifFieldNum && f.entityId === props.entityId;
-      return String(f.fieldType) === String(notification.fieldType) && f.entityId === props.entityId;
-    });
-    
+    const fieldIndex = fields.value.findIndex(f => f.fieldType === fieldType);
     if (fieldIndex === -1) return;
     
-    // Update the field with the new data
     const field = fields.value[fieldIndex];
     
-    // Update the value from the notification
-    if (notification.value !== undefined) {
-      // Parse the value from the notification
-      const valueType = dataStore.parseValueType(notification.valueType || 'String');
-      field.value = new Value(valueType, notification.value);
+    // Update the field with new data from notification
+    if (notification.current.value) {
+      field.value = notification.current.value;
     }
     
-    // Update write time if available
-    if (notification.writeTime) {
-      const date = new Date(notification.writeTime);
-      // Only set if valid date
-      if (!isNaN(date.getTime())) {
-        field.writeTime = date;
-      }
+    if (notification.current.timestamp) {
+      field.writeTime = notification.current.timestamp;
     }
     
-    // Update writer ID if available and load the writer name
-      if (notification.writerId && notification.writerId !== field.writerId) {
-      field.writerId = notification.writerId;
+    if (notification.current.writer_id !== undefined) {
+      field.writerId = notification.current.writer_id;
       
-      // Load the writer name for this new writer ID
+      // Load the writer name if not already loaded
       if (field.writerId && !writerNames.value[field.writerId]) {
         loadWriterName(field.writerId);
       }
     }
     
     // If this is the Name field, update the entity name
-    if (String(field.fieldType) === 'Name') {
-      entityName.value = field.value.getString();
-    }
+    const NameFieldType = dataStore.getFieldType('Name').then(ft => {
+      if (field.fieldType === ft && ValueHelpers.isString(field.value)) {
+        entityName.value = field.value.String;
+      }
+    });
     
-    // Force a UI update by creating a new array reference
+    // Force a UI update
     fields.value = [...fields.value];
-    
   } catch (err) {
     console.error('Error handling field notification:', err);
   }
@@ -533,14 +524,10 @@ async function loadFieldTypeNames() {
         fieldTypeNames.value[ftNum] = String(ftNum);
       }
     } else {
-      // If the fieldTypeId isn't numeric, try to look up its numeric ID then resolve
-      try {
-        const resolved = await dataStore.getFieldType(fieldTypeId as string);
-        const name = await dataStore.resolveFieldType(resolved as any);
-        fieldTypeNames.value[resolved] = name;
-      } catch (err) {
-        console.warn(`Failed to resolve non-numeric field type ${fieldTypeId}:`, err);
-      }
+      // Field type IDs should always be numeric at this point
+      // If we somehow got here, just use the string representation
+      console.warn(`Non-numeric field type ID encountered: ${fieldTypeId}`);
+      fieldTypeNames.value[fieldTypeId as any] = String(fieldTypeId);
     }
   }));
 }
