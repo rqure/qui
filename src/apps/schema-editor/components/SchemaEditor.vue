@@ -202,11 +202,11 @@
                   placeholder="Add choice options"
                   class="field-tag-input"
                 />
-                <span v-else class="field-default-display">{{ formatValue(field.fieldSchema.default_value) }}</span>
+                <span v-else class="field-default-display">{{ formatValue(FieldSchemaHelpers.getDefaultValue(field.fieldSchema)) }}</span>
               </template>
               <template v-else>
                 <!-- Display default value -->
-                <span class="field-default-display">{{ formatValue(field.fieldSchema.default_value) }}</span>
+                <span class="field-default-display">{{ formatValue(FieldSchemaHelpers.getDefaultValue(field.fieldSchema)) }}</span>
               </template>
             </td>
             <td class="col-actions">
@@ -249,9 +249,8 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, nextTick } from 'vue';
-import type { EntitySchema, FieldSchema } from '@/stores/data';
-import type { FieldType, Value } from '@/core/data/types';
-import { ValueHelpers } from '@/core/data/types';
+import type { EntitySchema, FieldSchema, FieldType, Value } from '@/core/data/types';
+import { ValueHelpers, FieldSchemaHelpers } from '@/core/data/types';
 import { useDataStore } from '@/stores/data';
 import TypeBadge from './TypeBadge.vue';
 import ConfirmDialog from './ConfirmDialog.vue';
@@ -371,9 +370,9 @@ const sortedFields = computed(() => {
       fieldType: Number(fieldType),
       fieldName: fieldNames.value[Number(fieldType)] || `Field_${fieldType}`,
       fieldSchema,
-      valueType: getValueType(fieldSchema.default_value)
+      valueType: getValueType(FieldSchemaHelpers.getDefaultValue(fieldSchema))
     }))
-    .sort((a, b) => a.fieldSchema.rank - b.fieldSchema.rank);
+    .sort((a, b) => FieldSchemaHelpers.getRank(a.fieldSchema) - FieldSchemaHelpers.getRank(b.fieldSchema));
 });
 
 // Field names cache
@@ -472,13 +471,14 @@ async function addNewField() {
     // Get field type ID
     const fieldType = await dataStore.getFieldType(newFieldName.value);
     
-    // Create field schema
-    const fieldSchema: FieldSchema = {
-      field_type: fieldType,
-      rank: Object.keys(workingSchema.value.fields).length,
-      default_value: createDefaultValue(newFieldType.value),
-      storage_scope: 'Runtime'
-    };
+    // Create field schema using helper
+    const defaultValue = createDefaultValue(newFieldType.value);
+    const fieldSchema: FieldSchema = FieldSchemaHelpers.createFromValue(
+      fieldType,
+      defaultValue,
+      Object.keys(workingSchema.value.fields).length,
+      'Runtime'
+    );
     
     // Add to working schema
     workingSchema.value.fields[fieldType] = fieldSchema;
@@ -507,7 +507,7 @@ function startEditField(fieldType: FieldType) {
   
   // Initialize editing defaults
   const fieldSchema = workingSchema.value.fields[fieldType];
-  const value = fieldSchema.default_value;
+  const value = FieldSchemaHelpers.getDefaultValue(fieldSchema);
   const valueType = getValueType(value);
   
   editingDefaults.value[fieldType] = {};
@@ -540,22 +540,26 @@ function cancelEditField(fieldType: FieldType) {
 
 function confirmEdit(fieldType: FieldType) {
   const fieldSchema = workingSchema.value.fields[fieldType];
-  const valueType = getValueType(fieldSchema.default_value);
+  const valueType = getValueType(FieldSchemaHelpers.getDefaultValue(fieldSchema));
   
-  // Update default value from editing defaults
+  // Create new value from editing defaults
+  let newValue: Value;
   if (valueType === 'String') {
-    fieldSchema.default_value = ValueHelpers.string(editingDefaults.value[fieldType].string || '');
+    newValue = ValueHelpers.string(editingDefaults.value[fieldType].string || '');
   } else if (valueType === 'Int') {
-    fieldSchema.default_value = ValueHelpers.int(editingDefaults.value[fieldType].int || 0);
+    newValue = ValueHelpers.int(editingDefaults.value[fieldType].int || 0);
   } else if (valueType === 'Float') {
-    fieldSchema.default_value = ValueHelpers.float(editingDefaults.value[fieldType].float || 0.0);
+    newValue = ValueHelpers.float(editingDefaults.value[fieldType].float || 0.0);
   } else if (valueType === 'Bool') {
-    fieldSchema.default_value = ValueHelpers.bool(editingDefaults.value[fieldType].bool || false);
+    newValue = ValueHelpers.bool(editingDefaults.value[fieldType].bool || false);
   } else if (valueType === 'Choice') {
-    // For choice fields, keep the default choice index
-    // The choices list would need to be stored separately in a full implementation
-    fieldSchema.default_value = ValueHelpers.choice(0);
+    newValue = ValueHelpers.choice(0);
+  } else {
+    newValue = FieldSchemaHelpers.getDefaultValue(fieldSchema);
   }
+  
+  // Update field schema with new default value
+  workingSchema.value.fields[fieldType] = FieldSchemaHelpers.setDefaultValue(fieldSchema, newValue);
   
   // Mark field as modified
   modifiedFields.value.add(fieldType);
@@ -653,18 +657,18 @@ function handleDrop(event: DragEvent, toIndex: number) {
     // Moving down
     for (let i = fromIndex; i < toIndex; i++) {
       const field = fields[i + 1];
-      workingSchema.value.fields[field.fieldType].rank = i;
+      workingSchema.value.fields[field.fieldType] = FieldSchemaHelpers.setRank(workingSchema.value.fields[field.fieldType], i);
       modifiedFields.value.add(field.fieldType);
     }
-    workingSchema.value.fields[fromField.fieldType].rank = toIndex;
+    workingSchema.value.fields[fromField.fieldType] = FieldSchemaHelpers.setRank(workingSchema.value.fields[fromField.fieldType], toIndex);
   } else {
     // Moving up
     for (let i = fromIndex; i > toIndex; i--) {
       const field = fields[i - 1];
-      workingSchema.value.fields[field.fieldType].rank = i;
+      workingSchema.value.fields[field.fieldType] = FieldSchemaHelpers.setRank(workingSchema.value.fields[field.fieldType], i);
       modifiedFields.value.add(field.fieldType);
     }
-    workingSchema.value.fields[fromField.fieldType].rank = toIndex;
+    workingSchema.value.fields[fromField.fieldType] = FieldSchemaHelpers.setRank(workingSchema.value.fields[fromField.fieldType], toIndex);
   }
   
   modifiedFields.value.add(fromField.fieldType);

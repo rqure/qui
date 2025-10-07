@@ -107,6 +107,19 @@ export const FieldSchemaHelpers = {
     return 0;
   },
   
+  setRank: (schema: FieldSchema, rank: number): FieldSchema => {
+    if ('Blob' in schema) return { Blob: { ...schema.Blob, rank } };
+    if ('Bool' in schema) return { Bool: { ...schema.Bool, rank } };
+    if ('Choice' in schema) return { Choice: { ...schema.Choice, rank } };
+    if ('EntityList' in schema) return { EntityList: { ...schema.EntityList, rank } };
+    if ('EntityReference' in schema) return { EntityReference: { ...schema.EntityReference, rank } };
+    if ('Float' in schema) return { Float: { ...schema.Float, rank } };
+    if ('Int' in schema) return { Int: { ...schema.Int, rank } };
+    if ('String' in schema) return { String: { ...schema.String, rank } };
+    if ('Timestamp' in schema) return { Timestamp: { ...schema.Timestamp, rank } };
+    return schema;
+  },
+  
   getFieldType: (schema: FieldSchema): FieldType => {
     if ('Blob' in schema) return schema.Blob.field_type;
     if ('Bool' in schema) return schema.Bool.field_type;
@@ -133,6 +146,19 @@ export const FieldSchemaHelpers = {
     return { String: '' };
   },
   
+  setDefaultValue: (schema: FieldSchema, value: Value): FieldSchema => {
+    if ('Blob' in schema && 'Blob' in value) return { Blob: { ...schema.Blob, default_value: value.Blob } };
+    if ('Bool' in schema && 'Bool' in value) return { Bool: { ...schema.Bool, default_value: value.Bool } };
+    if ('Choice' in schema && 'Choice' in value) return { Choice: { ...schema.Choice, default_value: value.Choice } };
+    if ('EntityList' in schema && 'EntityList' in value) return { EntityList: { ...schema.EntityList, default_value: value.EntityList } };
+    if ('EntityReference' in schema && 'EntityReference' in value) return { EntityReference: { ...schema.EntityReference, default_value: value.EntityReference } };
+    if ('Float' in schema && 'Float' in value) return { Float: { ...schema.Float, default_value: value.Float } };
+    if ('Int' in schema && 'Int' in value) return { Int: { ...schema.Int, default_value: value.Int } };
+    if ('String' in schema && 'String' in value) return { String: { ...schema.String, default_value: value.String } };
+    if ('Timestamp' in schema && 'Timestamp' in value) return { Timestamp: { ...schema.Timestamp, default_value: value.Timestamp } };
+    return schema;
+  },
+  
   getStorageScope: (schema: FieldSchema): 'Runtime' | 'Configuration' => {
     if ('Blob' in schema) return schema.Blob.storage_scope;
     if ('Bool' in schema) return schema.Bool.storage_scope;
@@ -149,6 +175,21 @@ export const FieldSchemaHelpers = {
   getChoices: (schema: FieldSchema): string[] | null => {
     if ('Choice' in schema) return schema.Choice.choices;
     return null;
+  },
+  
+  // Factory functions to create FieldSchema from Value
+  createFromValue: (fieldType: FieldType, value: Value, rank: number, storageScope: 'Runtime' | 'Configuration' = 'Runtime'): FieldSchema => {
+    if ('Blob' in value) return { Blob: { field_type: fieldType, default_value: value.Blob, rank, storage_scope: storageScope } };
+    if ('Bool' in value) return { Bool: { field_type: fieldType, default_value: value.Bool, rank, storage_scope: storageScope } };
+    if ('Choice' in value) return { Choice: { field_type: fieldType, default_value: value.Choice, rank, choices: [], storage_scope: storageScope } };
+    if ('EntityList' in value) return { EntityList: { field_type: fieldType, default_value: value.EntityList, rank, storage_scope: storageScope } };
+    if ('EntityReference' in value) return { EntityReference: { field_type: fieldType, default_value: value.EntityReference, rank, storage_scope: storageScope } };
+    if ('Float' in value) return { Float: { field_type: fieldType, default_value: value.Float, rank, storage_scope: storageScope } };
+    if ('Int' in value) return { Int: { field_type: fieldType, default_value: value.Int, rank, storage_scope: storageScope } };
+    if ('String' in value) return { String: { field_type: fieldType, default_value: value.String, rank, storage_scope: storageScope } };
+    if ('Timestamp' in value) return { Timestamp: { field_type: fieldType, default_value: value.Timestamp, rank, storage_scope: storageScope } };
+    // Default fallback
+    return { String: { field_type: fieldType, default_value: '', rank, storage_scope: storageScope } };
   }
 };
 

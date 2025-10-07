@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue';
 import { useDataStore } from '@/stores/data';
-import type { EntitySchema, FieldSchema } from '@/stores/data';
-import type { EntityType, Value, FieldType } from '@/core/data/types';
-import { ValueHelpers } from '@/core/data/types';
+import type { EntitySchema, FieldSchema, EntityType, Value, FieldType } from '@/core/data/types';
+import { ValueHelpers, FieldSchemaHelpers } from '@/core/data/types';
 import EntityTypeList from './components/EntityTypeList.vue';
 import SchemaEditor from './components/SchemaEditor.vue';
 import LoadingIndicator from '../../components/common/LoadingIndicator.vue';
@@ -131,24 +130,9 @@ async function createNewEntityType() {
         entity_type: entityTypeId,
         inherit: [],
         fields: {
-          [nameFieldType]: {
-            field_type: nameFieldType,
-            rank: 0,
-            default_value: ValueHelpers.string(''),
-            storage_scope: 'Runtime'
-          },
-          [parentFieldType]: {
-            field_type: parentFieldType,
-            rank: 1,
-            default_value: ValueHelpers.entityRef(null),
-            storage_scope: 'Runtime'
-          },
-          [childrenFieldType]: {
-            field_type: childrenFieldType,
-            rank: 2,
-            default_value: ValueHelpers.entityList([]),
-            storage_scope: 'Runtime'
-          }
+          [nameFieldType]: FieldSchemaHelpers.createFromValue(nameFieldType, ValueHelpers.string(''), 0, 'Runtime'),
+          [parentFieldType]: FieldSchemaHelpers.createFromValue(parentFieldType, ValueHelpers.entityRef(null), 1, 'Runtime'),
+          [childrenFieldType]: FieldSchemaHelpers.createFromValue(childrenFieldType, ValueHelpers.entityList([]), 2, 'Runtime')
         }
       };
       
