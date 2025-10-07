@@ -156,13 +156,21 @@ const timestampToDate = (timestamp: number[] | number | string | null): Date | n
   return null;
 };
 
-// Helper function to safely convert timestamp to ISO string
-const toSafeISOString = (timestamp: number[] | number | string | null): string => {
+// Helper function to safely convert timestamp to local date string
+const toLocaleDateString = (timestamp: number[] | number | string | null): string => {
   const date = timestampToDate(timestamp);
   if (!date || isNaN(date.getTime())) return 'Unknown';
   
   try {
-    return date.toISOString();
+    return date.toLocaleString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    });
   } catch (e) {
     return 'Unknown';
   }
@@ -901,7 +909,7 @@ const containerClass = computed(() => {
               </div>
             </td>
             <td class="field-meta">
-              <div class="field-timestamp" :title="toSafeISOString(field.writeTime)">
+              <div class="field-timestamp" :title="toLocaleDateString(field.writeTime)">
                 {{ field.writeTime ? formatTimestampReactive(field.writeTime) : 'N/A' }}
               </div>
               <div class="field-writer" :title="field.writerId != null ? String(field.writerId) : 'Unknown'">
