@@ -38,8 +38,8 @@ const entityTypeName = ref<string>('');
 const editingField = ref<FieldType | null>(null);
 const writerNames = ref<Record<number, string>>({});
 const loadingWriterNames = ref<Record<number, boolean>>({});
-const notificationCallbacks = ref<Map<number, (n: Notification) => void>>(new Map());
-const notificationSubscriptions = ref<Array<{ token: string; unsubscribe: () => Promise<void> }>>([]);
+// Store callbacks by field type so we can unregister them properly
+const notificationCallbacks = ref<Map<FieldType, (n: Notification) => void>>(new Map());
 const refreshTimestampsTimer = ref<number | null>(null);
 const currentTimestamp = ref(Date.now());
 const fieldDropTargets = ref<Record<number, boolean>>({});
@@ -178,22 +178,23 @@ const toLocaleDateString = (timestamp: number[] | number | string | null): strin
 
 async function cleanupNotifications() {
   // Unregister all field notifications
-  for (const field of fields.value) {
+  for (const [fieldType, callback] of notificationCallbacks.value.entries()) {
     const notifyConfig: NotifyConfig = {
       EntityId: {
         entity_id: props.entityId,
-        field_type: field.fieldType,
+        field_type: fieldType,
         trigger_on_change: true,
         context: []
       }
     };
     
     try {
-      await dataStore.unregisterNotification(notifyConfig);
+      await dataStore.unregisterNotification(notifyConfig, callback);
     } catch (err) {
-      console.warn(`Error unregistering notification for field ${field.fieldType}:`, err);
+      console.warn(`Error unregistering notification for field ${fieldType}:`, err);
     }
   }
+  notificationCallbacks.value.clear();
 }
 
 // Helper to coerce fieldType-like values into numeric keys when possible
@@ -507,15 +508,24 @@ async function registerFieldNotifications() {
         EntityId: {
           entity_id: props.entityId,
           field_type: field.fieldType,
-          trigger_on_change: true,
+          trigger_on_change: false,
           context: []
         }
       };
       
+      // Create a callback specific to this field
+      const callback = (notification: Notification) => {
+        handleFieldNotification(notification, field.fieldType);
+      };
+      
+      // Store the callback so we can unregister it later
+      notificationCallbacks.value.set(field.fieldType, callback);
+      
       try {
-        await dataStore.registerNotification(notifyConfig, handleFieldNotification);
+        await dataStore.registerNotification(notifyConfig, callback);
       } catch (error) {
         console.warn(`Failed to register notification for field ${field.fieldType}:`, error);
+        notificationCallbacks.value.delete(field.fieldType);
       }
     }
   } catch (err) {
@@ -523,7 +533,7 @@ async function registerFieldNotifications() {
   }
 }
 
-function handleFieldNotification(notification: Notification) {
+function handleFieldNotification(notification: Notification, expectedFieldType: FieldType) {
   try {
     if (!notification || !notification.current) return;
     
@@ -532,6 +542,12 @@ function handleFieldNotification(notification: Notification) {
     if (!fieldPath || fieldPath.length === 0) return;
     
     const fieldType = fieldPath[0];
+    
+    // Verify this notification is for the expected field
+    if (fieldType !== expectedFieldType) {
+      console.warn(`Received notification for field ${fieldType} but expected ${expectedFieldType}`);
+      return;
+    }
     
     // Find the field in our fields array
     const fieldIndex = fields.value.findIndex(f => f.fieldType === fieldType);

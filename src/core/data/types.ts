@@ -250,9 +250,7 @@ export interface Notification {
   config_hash: number;
 }
 
-export interface NotificationCallback {
-  (notification: Notification): void;
-}
+export type NotificationCallback = (notification: Notification) => void;
 
 /**
  * Page options for pagination

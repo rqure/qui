@@ -565,8 +565,19 @@ export const useDataStore = defineStore('data', {
      * Corresponds to: fn get_entity_types(&self) -> Result<Vec<EntityType>>
      */
     async getEntityTypes(): Promise<EntityType[]> {
-      // qweb doesn't have this endpoint - would need backend support
-      throw new Error('getEntityTypes not implemented in qweb backend');
+      const results = await this.executePipeline([
+        { type: 'GetEntityTypes' }
+      ]);
+
+      const entry = Array.isArray(results)
+        ? results.find((item: any) => item?.type === 'GetEntityTypes')
+        : null;
+
+      if (!entry || !Array.isArray(entry.entity_types)) {
+        throw new Error('Failed to retrieve entity types from pipeline response');
+      }
+
+      return entry.entity_types as EntityType[];
     },
 
     /**
@@ -585,37 +596,105 @@ export const useDataStore = defineStore('data', {
     /**
      * Register for notifications
      * Corresponds to: StoreProxy::register_notification
+     * 
+     * Handles multiple callbacks per config by only registering once with the server,
+     * but maintaining multiple local callbacks.
      */
     async registerNotification(config: NotifyConfig, callback: NotificationCallback): Promise<void> {
       if (!this.isConnected) {
         throw new Error('WebSocket must be connected to register notifications');
       }
 
-      const response = await this.sendWebSocketRequest({
-        type: 'RegisterNotification',
-        config: config
-      });
-
-      const configHash = response.config_hash;
+      // Calculate config hash (simple JSON-based hash)
+      const configHash = this.hashNotifyConfig(config);
+      
+      // Check if we already have callbacks for this config
+      const isFirstCallback = !this.notificationCallbacks[configHash] || this.notificationCallbacks[configHash].length === 0;
+      
+      // Add callback to local registry
       if (!this.notificationCallbacks[configHash]) {
         this.notificationCallbacks[configHash] = [];
       }
       this.notificationCallbacks[configHash].push(callback);
+      
+      // Only register with server if this is the first callback for this config
+      if (isFirstCallback) {
+        try {
+          await this.sendWebSocketRequest({
+            type: 'RegisterNotification',
+            config: config
+          });
+        } catch (err) {
+          // Remove the callback we just added if registration failed
+          const index = this.notificationCallbacks[configHash].indexOf(callback);
+          if (index > -1) {
+            this.notificationCallbacks[configHash].splice(index, 1);
+          }
+          throw err;
+        }
+      }
     },
 
     /**
-     * Unregister from notifications
+     * Unregister a specific callback from notifications
      * Corresponds to: StoreProxy::unregister_notification
+     * 
+     * Only unregisters from server when the last callback for a config is removed.
      */
-    async unregisterNotification(config: NotifyConfig): Promise<void> {
+    async unregisterNotification(config: NotifyConfig, callback: NotificationCallback): Promise<void> {
       if (!this.isConnected) {
-        throw new Error('WebSocket must be connected to unregister notifications');
+        // If not connected, just remove the callback locally
+        const configHash = this.hashNotifyConfig(config);
+        if (this.notificationCallbacks[configHash]) {
+          const index = this.notificationCallbacks[configHash].indexOf(callback);
+          if (index > -1) {
+            this.notificationCallbacks[configHash].splice(index, 1);
+          }
+          if (this.notificationCallbacks[configHash].length === 0) {
+            delete this.notificationCallbacks[configHash];
+          }
+        }
+        return;
       }
       
-      await this.sendWebSocketRequest({
-        type: 'UnregisterNotification',
-        config: config
-      });
+      const configHash = this.hashNotifyConfig(config);
+      
+      // Remove callback from local registry
+      if (this.notificationCallbacks[configHash]) {
+        const index = this.notificationCallbacks[configHash].indexOf(callback);
+        if (index > -1) {
+          this.notificationCallbacks[configHash].splice(index, 1);
+        }
+        
+        // If this was the last callback, unregister from server
+        if (this.notificationCallbacks[configHash].length === 0) {
+          delete this.notificationCallbacks[configHash];
+          
+          try {
+            await this.sendWebSocketRequest({
+              type: 'UnregisterNotification',
+              config: config
+            });
+          } catch (err) {
+            console.warn('Failed to unregister notification from server:', err);
+            // Don't throw - we've already removed the callback locally
+          }
+        }
+      }
+    },
+
+    /**
+     * Simple hash function for NotifyConfig to identify unique configurations
+     */
+    hashNotifyConfig(config: NotifyConfig): number {
+      const str = JSON.stringify(config);
+      let hash = 0;
+      for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; // Convert to 32bit integer
+      }
+      return hash;
     },
 
     // ============================================================
