@@ -46,6 +46,28 @@ const fieldDropTargets = ref<Record<number, boolean>>({});
 const schema = ref<EntitySchema | null>(null);
 const fieldTypeNames = ref<Record<number, string>>({});
 const inheritedTypeNames = ref<string[]>([]);
+const entityIdCopied = ref(false);
+
+// Computed property for entity ID display with name
+const entityIdDisplay = computed(() => {
+  if (entityName.value && entityName.value !== 'Unknown') {
+    return `${props.entityId} (${entityName.value})`;
+  }
+  return String(props.entityId);
+});
+
+// Function to copy entity ID to clipboard
+async function copyEntityId() {
+  try {
+    await navigator.clipboard.writeText(String(props.entityId));
+    entityIdCopied.value = true;
+    setTimeout(() => {
+      entityIdCopied.value = false;
+    }, 2000);
+  } catch (err) {
+    console.error('Failed to copy entity ID:', err);
+  }
+}
 
 // Register cleanup function at top level before any await
 onUnmounted(async () => {
@@ -784,7 +806,17 @@ const containerClass = computed(() => {
               {{ inheritedTypeNames.join(', ') }}
             </span>
           </div>
-          <div class="entity-id" :title="String(entityId)">{{ String(entityId) }}</div>
+          <div 
+            class="entity-id" 
+            :class="{ 'copied': entityIdCopied }"
+            :title="entityIdCopied ? 'Copied!' : 'Click to copy: ' + String(entityId)"
+            @click="copyEntityId"
+          >
+            {{ entityIdDisplay }}
+            <svg v-if="entityIdCopied" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" class="copy-icon">
+              <path fill="currentColor" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
+            </svg>
+          </div>
         </div>
       </div>
     </div>
@@ -987,8 +1019,30 @@ const containerClass = computed(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 200px;
+  max-width: 300px;
   background: var(--qui-overlay-primary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.entity-id:hover {
+  opacity: 1;
+  background: var(--qui-overlay-secondary);
+  transform: translateY(-1px);
+}
+
+.entity-id.copied {
+  background: rgba(0, 255, 136, 0.2);
+  border-color: var(--qui-accent-color);
+  opacity: 1;
+}
+
+.entity-id .copy-icon {
+  color: var(--qui-accent-color);
+  flex-shrink: 0;
 }
 
 .fields-container {
