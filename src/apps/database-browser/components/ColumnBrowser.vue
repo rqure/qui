@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted } from 'vue';
 import { useDataStore } from '@/stores/data';
-import type { Entity, EntityId } from '@/core/data/types';
-import { EntityFactories } from '@/core/data/types';
+import type { EntityId, FieldType, Value } from '@/core/data/types';
+import { ValueHelpers } from '@/core/data/types';
 import EntityColumn from './EntityColumn.vue';
 import { v4 as uuidv4 } from 'uuid';
 import { useEntityDropZone, initCrossWindowEntityHandling } from '@/core/utils/composables';
@@ -240,6 +240,9 @@ async function buildNavigationPath(entityId: EntityId): Promise<EntityId[]> {
   let currentId = entityId;
   
   try {
+    // Get Parent field type
+    const ParentFieldType = await dataStore.getFieldType('Parent');
+    
     // Limit to reasonable number of iterations to prevent infinite loops
     const maxIterations = 20;
     let iterations = 0;
@@ -247,13 +250,14 @@ async function buildNavigationPath(entityId: EntityId): Promise<EntityId[]> {
     while (iterations < maxIterations) {
       iterations++;
       
-      // Create entity and read its Parent field
-      const entity = EntityFactories.newEntity(currentId);
-      const parentField = entity.field("Parent");
-      await dataStore.read([parentField]);
+      // Read Parent field directly
+      const [parentValue] = await dataStore.read(currentId, [ParentFieldType]);
       
-      // Get the parent ID and ensure it's a string or undefined, not null
-      const parentId = parentField.value.getEntityReference?.() || undefined;
+      // Extract parent ID from value
+      let parentId: EntityId | null = null;
+      if (ValueHelpers.isEntityRef(parentValue)) {
+        parentId = parentValue.EntityReference;
+      }
       
       // If parent is empty or the same as current (circular reference), stop
       if (!parentId || parentId === currentId) {

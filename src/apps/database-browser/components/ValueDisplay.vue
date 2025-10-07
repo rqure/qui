@@ -1,21 +1,9 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted, watch } from 'vue';
 import { useDataStore } from '@/stores/data';
-import { ValueType } from '@/core/data/types';
-import type { FieldType } from '@/core/data/types';
+import type { Value, FieldType, EntityType } from '@/core/data/types';
+import { ValueHelpers } from '@/core/data/types';
 import { useEntityDrag, ENTITY_MIME_TYPE } from '@/core/utils/composables';
-
-// Define our own Value interface to avoid type errors
-interface Value {
-  type: string;
-  toString: () => string;
-  asString: () => string; // Add this to support proper value display
-  raw?: any;
-  getChoice?: () => number; // Add optional getChoice method for Choice type values
-  // Add missing method declarations
-  getEntityReference?: () => number | null;
-  getEntityList?: () => number[];
-}
 
 const props = defineProps<{
   value: Value;
@@ -40,82 +28,83 @@ onUnmounted(() => {
 const displayValue = computed(() => {
   if (!props.value) return 'N/A';
   
-  const valueType = props.value.type;
-  
-  // First check for Choice type and use our resolved label if available
-  if (valueType === ValueType.Choice) {
+  // Check type using ValueHelpers
+  if (ValueHelpers.isChoice(props.value)) {
     // If we have a choice label already resolved, use that
     if (choiceLabel.value) {
       return choiceLabel.value;
     }
-    
-    // Otherwise, return a loading indicator
-    return `Loading...`;
+    return `Choice ${props.value.Choice}`;
   }
   
-  // Then try asString() for other types
-  if (typeof props.value.asString === 'function') {
-    return props.value.asString();
+  if (ValueHelpers.isString(props.value)) {
+    return props.value.String || '';
   }
   
-  switch (valueType) {
-    case ValueType.String:
-      return props.value.toString();
-      
-    case ValueType.Int:
-    case ValueType.Float:
-      return props.value.toString();
-      
-    case ValueType.Bool:
-      const boolValue = props.value.toString().toLowerCase();
-      return boolValue === 'true' || boolValue === '1' ? 'True' : 'False';
-      
-    case ValueType.EntityReference:
-      return props.value.toString();
-      
-    case ValueType.Timestamp:
-      try {
-        const date = new Date(props.value.toString());
-        return new Intl.DateTimeFormat('default', {
-          year: 'numeric', month: 'short', day: 'numeric',
-          hour: 'numeric', minute: 'numeric'
-        }).format(date);
-      } catch (e) {
-        return props.value.toString();
-      }
-      
-    default:
-      return props.value.toString();
+  if (ValueHelpers.isInt(props.value)) {
+    return String(props.value.Int);
   }
+  
+  if (ValueHelpers.isFloat(props.value)) {
+    return String(props.value.Float);
+  }
+  
+  if (ValueHelpers.isBool(props.value)) {
+    return props.value.Bool ? 'True' : 'False';
+  }
+  
+  if (ValueHelpers.isEntityRef(props.value)) {
+    return props.value.EntityReference !== null ? String(props.value.EntityReference) : 'None';
+  }
+  
+  if (ValueHelpers.isEntityList(props.value)) {
+    return `[${props.value.EntityList.length} items]`;
+  }
+  
+  if (ValueHelpers.isTimestamp(props.value)) {
+    try {
+      const date = new Date(props.value.Timestamp);
+      return new Intl.DateTimeFormat('default', {
+        year: 'numeric', month: 'short', day: 'numeric',
+        hour: 'numeric', minute: 'numeric'
+      }).format(date);
+    } catch (e) {
+      return String(props.value.Timestamp);
+    }
+  }
+  
+  if (ValueHelpers.isBlob(props.value)) {
+    return `[Binary: ${props.value.Blob.length} bytes]`;
+  }
+  
+  return 'Unknown';
 });
 
 // Determine if we should use special styling based on type
 const valueClass = computed(() => {
   if (!props.value) return '';
   
-  const valueType = props.value.type;
-  
-  switch (valueType) {
-    case ValueType.Bool:
-      const boolValue = props.value.toString().toLowerCase();
-      return boolValue === 'true' || boolValue === '1' ? 'bool-true' : 'bool-false';
-      
-    case ValueType.EntityReference:
-      return 'entity-reference';
-      
-    case ValueType.Timestamp:
-      return 'timestamp';
-      
-    case ValueType.Int:
-    case ValueType.Float:
-      return 'numeric';
-      
-    case ValueType.Choice:
-      return 'choice';
-      
-    default:
-      return '';
+  if (ValueHelpers.isBool(props.value)) {
+    return props.value.Bool ? 'bool-true' : 'bool-false';
   }
+  
+  if (ValueHelpers.isEntityRef(props.value)) {
+    return 'entity-reference';
+  }
+  
+  if (ValueHelpers.isTimestamp(props.value)) {
+    return 'timestamp';
+  }
+  
+  if (ValueHelpers.isInt(props.value) || ValueHelpers.isFloat(props.value)) {
+    return 'numeric';
+  }
+  
+  if (ValueHelpers.isChoice(props.value)) {
+    return 'choice';
+  }
+  
+  return '';
 });
 
 // Load choice options when the component mounts or when props change
@@ -123,42 +112,32 @@ async function loadChoiceOptions() {
   if (!props.entityType || props.entityType.trim() === '') {
     return;
   }
-  if (props.value?.type !== ValueType.Choice || !props.entityType || !props.fieldType) {
+  if (!ValueHelpers.isChoice(props.value) || !props.entityType || !props.fieldType) {
     return;
   }
   
   try {
-    // Get the entity schema
-    const schema = await dataStore.getEntitySchema(props.entityType);
+    // Get the entity type ID
+    const entityTypeId = await dataStore.getEntityType(props.entityType);
+    
+    // Get the complete entity schema (includes inherited fields)
+    const schema = await dataStore.getCompleteEntitySchema(entityTypeId);
+    
+    // Get field type as number
+    const fieldTypeNum = typeof props.fieldType === 'number' ? props.fieldType : Number(props.fieldType);
     
     // Check if we have a field schema for this field
-    if (schema?.fields && schema.fields[props.fieldType?.toString() || '']) {
-      const fieldSchema = schema.fields[props.fieldType!.toString()];
+    if (schema?.fields && schema.fields[fieldTypeNum]) {
+      const fieldSchema = schema.fields[fieldTypeNum];
       
-      // Store the choice options
-      choiceOptions.value = fieldSchema.choices || [];
-      
-      // If we have a getChoice method, get the choice index and resolve the label
-      if (typeof props.value.getChoice === 'function') {
-        const choiceIndex = props.value.getChoice();
-        
-        // Get the choice label based on the index
-        if (choiceIndex >= 0 && choiceIndex < choiceOptions.value.length) {
-          choiceLabel.value = choiceOptions.value[choiceIndex];
-        } else {
-          choiceLabel.value = `Unknown choice (${choiceIndex})`;
-        }
-      } else {
-        // Try to parse the value as a number for the index
-        const index = parseInt(props.value.toString(), 10);
-        if (!isNaN(index) && index >= 0 && index < choiceOptions.value.length) {
-          choiceLabel.value = choiceOptions.value[index];
-        } else {
-          choiceLabel.value = `Invalid choice (${props.value.toString()})`;
-        }
-      }
+      // For now, just show the raw numeric choice value
+      // TODO: Add choice_options to FieldSchema when available
+      const choiceIndex = props.value.Choice;
+      choiceLabel.value = `Choice ${choiceIndex}`;
     } else {
-      choiceLabel.value = 'Unknown choice';
+      // Show raw value if schema not found
+      const choiceIndex = props.value.Choice;
+      choiceLabel.value = `Choice ${choiceIndex}`;
     }
   } catch (error) {
     console.error('Error loading choice options:', error);
@@ -168,9 +147,9 @@ async function loadChoiceOptions() {
 
 // Watch for changes in relevant props
 watch(
-  [() => props.value?.type === ValueType.Choice, () => props.entityType, () => props.fieldType], 
+  [() => ValueHelpers.isChoice(props.value), () => props.entityType, () => props.fieldType], 
   (newVals) => {
-    if (props.value?.type === ValueType.Choice) {
+    if (ValueHelpers.isChoice(props.value)) {
       loadChoiceOptions();
     }
   },
@@ -178,7 +157,7 @@ watch(
 );
 
 onMounted(async () => {
-  if (props.value?.type === ValueType.Choice && props.entityType && props.fieldType) {
+  if (ValueHelpers.isChoice(props.value) && props.entityType && props.fieldType) {
     await loadChoiceOptions();
   }
   
@@ -210,7 +189,7 @@ function handleEntityClick(entityId: number | string) {
 
 <template>
   <div class="value-display" :class="valueClass">
-    <span v-if="value.type === ValueType.Bool" class="bool-indicator">
+    <span v-if="ValueHelpers.isBool(value)" class="bool-indicator">
       <svg v-if="displayValue === 'True'" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
         <path fill="currentColor" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
       </svg>
@@ -221,11 +200,11 @@ function handleEntityClick(entityId: number | string) {
     </span>
     
     <span 
-      v-else-if="value.type === ValueType.EntityReference" 
+      v-else-if="ValueHelpers.isEntityRef(value)" 
       class="reference-container"
       draggable="true"
-      @dragstart="handleDragStart($event, value.getEntityReference?.() || '')"
-      @click="handleEntityClick(value.getEntityReference?.() || '')"
+      @dragstart="handleDragStart($event, value.EntityReference || 0)"
+      @click="handleEntityClick(value.EntityReference || 0)"
     >
       <span class="reference-indicator">
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24">
@@ -235,7 +214,7 @@ function handleEntityClick(entityId: number | string) {
       {{ displayValue }}
     </span>
     
-    <span v-else-if="value.type === ValueType.Timestamp" class="timestamp-container">
+    <span v-else-if="ValueHelpers.isTimestamp(value)" class="timestamp-container">
       <span class="timestamp-icon">
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24">
           <path fill="currentColor" d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.5-13H11v6l5.2 3.2.8-1.3-4.5-2.7V7z"/>
@@ -244,7 +223,7 @@ function handleEntityClick(entityId: number | string) {
       {{ displayValue }}
     </span>
     
-    <span v-else-if="value.type === ValueType.Choice" class="choice-container">
+    <span v-else-if="ValueHelpers.isChoice(value)" class="choice-container">
       <span class="choice-icon">
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24">
           <path fill="currentColor" d="M4 14h4v-4H4v4zm0 5h4v-4H4v4zM4 9h4V5H4v4zm5 5h12v-4H9v4zm0 5h12v-4H9v4zM9 5v4h12V5H9z"/>
@@ -253,11 +232,11 @@ function handleEntityClick(entityId: number | string) {
       {{ displayValue }}
     </span>
     
-    <!-- Add EntityList rendering with draggable items with null check -->
-    <span v-else-if="value.type === ValueType.EntityList" class="entity-list-container">
+    <!-- Add EntityList rendering with draggable items -->
+    <span v-else-if="ValueHelpers.isEntityList(value)" class="entity-list-container">
       <div class="entity-list-value">
         <div 
-          v-for="(entityId, index) in value.getEntityList?.() || []" 
+          v-for="(entityId, index) in value.EntityList" 
           :key="`${entityId}-${index}`"
           class="entity-list-item"
           draggable="true"
@@ -271,14 +250,14 @@ function handleEntityClick(entityId: number | string) {
           </span>
           {{ entityId }}
         </div>
-        <div v-if="(value.getEntityList?.() || []).length === 0" class="entity-list-empty">
+        <div v-if="value.EntityList.length === 0" class="entity-list-empty">
           No items
         </div>
       </div>
     </span>
     
     <!-- Special rendering for String values to preserve line breaks -->
-    <span v-else-if="value.type === ValueType.String" class="string-container">
+    <span v-else-if="ValueHelpers.isString(value)" class="string-container">
       <pre v-if="displayValue.includes('\n')" class="string-multiline">{{ displayValue }}</pre>
       <span v-else>{{ displayValue }}</span>
     </span>

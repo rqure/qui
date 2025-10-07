@@ -1,17 +1,20 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted, computed } from 'vue';
 import { useDataStore } from '@/stores/data';
-import type { EntityId, Field, EntitySchema, Notification, FieldType } from '@/core/data/types';
-import { EntityFactories, Utils, Value } from '@/core/data/types';
+import type { EntityId, EntityType, FieldType, Value, Timestamp } from '@/core/data/types';
+import type { EntitySchema, FieldSchema, Notification, NotifyConfig } from '@/stores/data';
+import { extractEntityType, ValueHelpers } from '@/core/data/types';
 import { formatTimestamp } from '@/apps/database-browser/utils/formatters';
 import ValueDisplay from '@/apps/database-browser/components/ValueDisplay.vue';
 import ValueEditor from '@/apps/database-browser/components/ValueEditor.vue';
 import { useEntityDropZone } from '@/core/utils/composables';
-import { ValueType, ValueFactories } from '@/core/data/types';
 
-// Add drag handlers interface to extend Field
-// This is needed because we're dynamically adding _dragHandlers to fields
-interface FieldWithDragHandlers extends Field {
+// Define our own field interface for display
+interface DisplayField {
+  fieldType: FieldType;
+  value: Value;
+  writeTime: Timestamp;
+  writerId: EntityId | null;
   _dragHandlers?: {
     isEntityDrag: (event: DragEvent) => boolean;
     handleDragOver: (event: DragEvent) => void;
@@ -28,17 +31,19 @@ const props = defineProps<{
 const dataStore = useDataStore();
 const loading = ref(true);
 const error = ref<string | null>(null);
-const fields = ref<FieldWithDragHandlers[]>([]);
+const fields = ref<DisplayField[]>([]);
 const entityName = ref('');
-const entityType = ref<string>('');
-const editingField = ref<string | null>(null);
+const entityType = ref<EntityType>(0);
+const entityTypeName = ref<string>('');
+const editingField = ref<FieldType | null>(null);
 const writerNames = ref<Record<number, string>>({});
 const loadingWriterNames = ref<Record<number, boolean>>({});
-const notificationSubscriptions = ref<{ token: string, unsubscribe: () => Promise<void> }[]>([]);
+const notificationCallbacks = ref<Map<number, (n: Notification) => void>>(new Map());
+const notificationSubscriptions = ref<Array<{ token: string; unsubscribe: () => Promise<void> }>>([]);
 const refreshTimestampsTimer = ref<number | null>(null);
 const currentTimestamp = ref(Date.now());
 const fieldDropTargets = ref<Record<number, boolean>>({});
-const schema = ref<any>(null);
+const schema = ref<EntitySchema | null>(null);
 const fieldTypeNames = ref<Record<number, string>>({});
 
 // Register cleanup function at top level before any await
@@ -245,15 +250,9 @@ async function loadEntityDetails() {
     }
 
     // Extract entity type number from the entity ID
-    let entityTypeNumber: number;
-    try {
-    entityTypeNumber = Utils.getEntityTypeFromId(props.entityId);
-      if (entityTypeNumber === 0) {
-        throw new Error('Invalid entity type extracted from ID');
-      }
-    } catch (err) {
-      console.error(`Error extracting entity type from ID ${props.entityId}:`, err);
-      error.value = `Invalid entity ID format: ${props.entityId}`;
+    const entityTypeNumber = extractEntityType(props.entityId);
+    if (entityTypeNumber === 0) {
+      error.value = 'Invalid entity type extracted from ID';
       loading.value = false;
       return;
     }
@@ -266,106 +265,81 @@ async function loadEntityDetails() {
       return;
     }
     
-    // Resolve the entity type number to a name
-    try {
-      entityType.value = await dataStore.resolveEntityType(entityTypeNumber);
-      if (!entityType.value || entityType.value.trim() === '') {
-        throw new Error('Failed to resolve entity type name');
-      }
-    } catch (resolveErr) {
-      console.error(`Error resolving entity type ${entityTypeNumber}:`, resolveErr);
-      error.value = `Failed to resolve entity type for ${props.entityId}`;
+    // Store the entity type and resolve its name
+    entityType.value = entityTypeNumber;
+    entityTypeName.value = await dataStore.resolveEntityType(entityTypeNumber);
+    if (!entityTypeName.value || entityTypeName.value.trim() === '') {
+      error.value = 'Failed to resolve entity type name';
       loading.value = false;
       return;
     }
     
-    // Get the entity's schema to know what fields it has
-    console.log('Loading schema for entity type:', entityType.value);
-    try {
-      schema.value = await dataStore.getEntitySchema(entityType.value);
-      console.log('Schema loaded:', schema.value);
-    } catch (schemaErr) {
-      console.error(`Error loading schema for ${entityType.value}:`, schemaErr);
-      error.value = `Failed to load schema for ${entityType.value}`;
+    // Get the complete entity schema (includes inherited fields)
+    console.log('Loading schema for entity type:', entityTypeName.value);
+    schema.value = await dataStore.getCompleteEntitySchema(entityTypeNumber);
+    console.log('Schema loaded:', schema.value);
+    
+    if (!schema.value || !schema.value.fields) {
+      error.value = `Failed to load schema for ${entityTypeName.value}`;
       loading.value = false;
       return;
     }
     
-    // Create entity instance
-    const entity = EntityFactories.newEntity(props.entityId);
+    // Get field types from schema
+    const fieldTypes = Object.keys(schema.value.fields).map(ft => Number(ft));
+    console.log('Schema field types:', fieldTypes);
     
-    // Add fields based on schema - check if schema has fields property
-    if (schema.value && schema.value.fields) {
-      const schemaFields = Object.keys(schema.value.fields);
-      console.log('Schema fields:', schemaFields);
-      schemaFields.forEach((field: string) => {
-        entity.field(field);
-      });
-    } else {
-      console.warn(`Schema for ${entityType.value} has no fields property`);
-      // Load basic fields at minimum
-      entity.field("Name");
-      entity.field("Children");
-      entity.field("Parent");
-    }
-    
-    // Read basic entity info
-    const eFields = Object.values(entity.fields);
-    console.log('Entity fields after adding:', eFields, 'Count:', eFields.length);
-    if (eFields.length === 0) {
-      console.error('No fields in entity!', { entity, schema: schema.value });
-      error.value = "Entity has no fields";
+    if (fieldTypes.length === 0) {
+      error.value = "Entity schema has no fields";
       loading.value = false;
       return;
     }
     
-    console.log('Reading fields:', eFields.map(f => f.fieldType));
-    await dataStore.read([...eFields]);
-
-    // Normalize any string-named field types to numeric IDs by resolving
-    // them via the data store. This centralizes conversion and ensures
-    // component-local maps can consistently use numeric keys.
-    for (const f of eFields) {
-      if (typeof f.fieldType === 'string' && isNaN(Number(f.fieldType))) {
-        try {
-          const resolved = await dataStore.getFieldType(f.fieldType as string);
-          // Replace the key in the entity.fields map
-          const oldKey = f.fieldType as string;
-          delete entity.fields[oldKey];
-          entity.fields[String(resolved)] = f;
-          f.fieldType = resolved as any;
-        } catch (err) {
-          // If resolution fails, keep the string name as-is
-          console.warn(`Failed to resolve field type name ${f.fieldType}:`, err);
-        }
-      }
-    }
-    console.log('Fields read successfully');
-
-    // Use conditional check before sorting fields
-    if (schema.value && schema.value.fields) {
-      fields.value = [...eFields].sort((a, b) => {
-        const aField = schema.value.fields[a.fieldType];
-        const bField = schema.value.fields[b.fieldType];
-        if (!aField || !bField) return 0;
-        if (aField.rank === bField.rank) {
-          return aField.fieldType.localeCompare(bField.fieldType);
-        }
-        return (aField.rank || 0) - (bField.rank || 0);
-      });
-    } else {
-      fields.value = [...eFields];
-    }
+    // Read all fields for this entity (one at a time, as read() takes a field path)
+    console.log('Reading fields for entity:', props.entityId);
+    const fieldData: { value: Value; timestamp: Timestamp; writerId: EntityId | null }[] = [];
     
-    // Safely get entity name
-    const nameField = entity.field("Name");
-    if (nameField && nameField.value) {
+    for (const ft of fieldTypes) {
       try {
-        entityName.value = nameField.value.getString();
-      } catch (nameErr) {
-        console.error("Error getting entity name:", nameErr);
-        entityName.value = String(props.entityId);
+        const [value, timestamp, writerId] = await dataStore.read(props.entityId, [ft]);
+        fieldData.push({ value, timestamp, writerId });
+      } catch (err) {
+        console.warn(`Error reading field ${ft}:`, err);
+        // Use default values for failed reads
+        fieldData.push({ 
+          value: ValueHelpers.string(''), 
+          timestamp: Date.now(), 
+          writerId: null 
+        });
       }
+    }
+    
+    console.log('Fields read successfully:', fieldData.length);
+    
+    // Create DisplayField objects
+    fields.value = fieldTypes.map((ft, index) => ({
+      fieldType: ft,
+      value: fieldData[index].value,
+      writeTime: fieldData[index].timestamp,
+      writerId: fieldData[index].writerId
+    }));
+    
+    // Sort fields by rank from schema
+    fields.value.sort((a, b) => {
+      const aField = schema.value!.fields[a.fieldType];
+      const bField = schema.value!.fields[b.fieldType];
+      if (!aField || !bField) return 0;
+      if (aField.rank === bField.rank) {
+        return a.fieldType - b.fieldType;
+      }
+      return aField.rank - bField.rank;
+    });
+    
+    // Get entity name
+    const NameFieldType = await dataStore.getFieldType('Name');
+    const nameField = fields.value.find(f => f.fieldType === NameFieldType);
+    if (nameField && ValueHelpers.isString(nameField.value)) {
+      entityName.value = nameField.value.String || String(props.entityId);
     } else {
       entityName.value = String(props.entityId);
     }
@@ -493,7 +467,8 @@ function handleFieldNotification(notification: any) {
 }
 
 async function startEditing(fieldType: FieldType | string) {
-  editingField.value = String(fieldType);
+  const ftNum = toNumericFieldType(fieldType);
+  editingField.value = ftNum !== null ? ftNum : (typeof fieldType === 'number' ? fieldType : 0);
 }
 
 async function saveField(fieldType: FieldType | string, newValue: any) {
@@ -509,15 +484,19 @@ async function saveField(fieldType: FieldType | string, newValue: any) {
     // Set the new value - assuming newValue is a properly created Value object
     field.value = newValue;
     
-    // Write to the database
-    await dataStore.write([field]);
+    // Write to the database using new API
+    await dataStore.write(props.entityId, [field.fieldType], newValue);
+    
+    // Update timestamp
+    field.writeTime = Date.now();
     
     // Close editor
     editingField.value = null;
     
     // If we edited the Name field, update the display name
-    if (String(fieldType) === 'Name') {
-      entityName.value = field.value.getString();
+    const NameFieldType = await dataStore.getFieldType('Name');
+    if (field.fieldType === NameFieldType && ValueHelpers.isString(newValue)) {
+      entityName.value = newValue.String;
     }
   } catch (err) {
     console.error(`Error saving field ${fieldType}:`, err);
@@ -573,21 +552,23 @@ async function loadWriterName(writerId: EntityId) {
   loadingWriterNames.value[writerId] = true;
   
   try {
-    const writerEntity = EntityFactories.newEntity(writerId);
-    const nameField = writerEntity.field("Name");
-    
     // Check if entity exists before trying to read it
-        const exists = await dataStore.entityExists(writerId);
+    const exists = await dataStore.entityExists(writerId);
     if (!exists) {
       writerNames.value[writerId] = "Unknown User";
       loadingWriterNames.value[writerId] = false;
       return;
     }
     
-    await dataStore.read([nameField]);
+    // Get Name field type and read it
+    const NameFieldType = await dataStore.getFieldType('Name');
+    const [nameValue] = await dataStore.read(writerId, [NameFieldType]);
     
-    const writerName = nameField.value.getString();
-    writerNames.value[writerId] = writerName || String(writerId);
+    let writerName = String(writerId);
+    if (ValueHelpers.isString(nameValue)) {
+      writerName = nameValue.String || String(writerId);
+    }
+    writerNames.value[writerId] = writerName;
   } catch (err) {
     console.error(`Error loading writer name for ${writerId}:`, err);
     writerNames.value[writerId] = String(writerId); // Fallback to ID on error
@@ -604,26 +585,26 @@ onMounted(() => {
 });
 
 // Check if a field is droppable (entity reference or entity list)
-function isFieldDroppable(field: Field): boolean {
-  return field.value.type === ValueType.EntityReference || field.value.type === ValueType.EntityList;
+function isFieldDroppable(field: DisplayField): boolean {
+  return ValueHelpers.isEntityRef(field.value) || ValueHelpers.isEntityList(field.value);
 }
 
 // Helper to indicate whether a given field currently has drop highlight
-function isDropTarget(field: Field): boolean {
+function isDropTarget(field: DisplayField): boolean {
   const n = toNumericFieldType(field.fieldType);
   return n !== null ? !!fieldDropTargets.value[n] : false;
 }
 
 // Helper to get a human label for a field type (resolve via cache)
-function getFieldTypeLabel(field: Field): string {
+function getFieldTypeLabel(field: DisplayField): string {
   const n = toNumericFieldType(field.fieldType);
   if (n !== null && fieldTypeNames.value[n]) return fieldTypeNames.value[n];
   return String(field.fieldType);
 }
 
 // Get appropriate drop message based on field type
-function getDropMessage(field: Field): string {
-  return field.value.type === ValueType.EntityReference 
+function getDropMessage(field: DisplayField): string {
+  return ValueHelpers.isEntityRef(field.value)
     ? 'Drop to set reference' 
     : 'Drop to add to list';
 }
@@ -650,66 +631,48 @@ async function updateFieldWithEntityId(fieldType: FieldType | string, entityId: 
   if (ftNum !== null) fieldDropTargets.value[ftNum] = false;
 
     // Double check the current value before changing
-    console.log('Current field value before update:', {
-      type: field.value.type,
-      raw: field.value.raw,
-      asString: field.value.asString()
-    });
+    console.log('Current field value before update:', field.value);
     
     try {
+      const ftNum = toNumericFieldType(fieldType);
+      if (ftNum === null) {
+        console.error('Could not resolve field type to numeric ID');
+        return;
+      }
+      
       // Check the field's value type to determine handling
-      if (field.value.type === ValueType.EntityReference) {
-        // For entity reference, create a new field for writing
-  const newField = EntityFactories.newField(props.entityId, (typeof fieldType === 'string' && !isNaN(Number(fieldType))) ? Number(fieldType) : (fieldType as FieldType), ValueFactories.newEntityReference(entityId));
+      if (ValueHelpers.isEntityRef(field.value)) {
+        // For entity reference, set the new value
+        const newValue = ValueHelpers.entityRef(entityId);
         
-        console.log('Prepared field for write:', {
-          entityId: newField.entityId,
-          fieldType: newField.fieldType,
-          valueType: newField.value.type,
-          valueRaw: newField.value.raw
-        });
+        console.log('Writing entity reference:', { entityId: props.entityId, fieldType: ftNum, value: newValue });
         
-        // Force UI update before write request to clear visual feedback
-  field.value = ValueFactories.newEntityReference(entityId);
+        // Update local state first
+        field.value = newValue;
         fields.value = [...fields.value]; // Force reactivity
         
-        // Perform direct write operation with minimal processing
-        const result = await dataStore.write([newField]);
-        console.log('Write result:', result);
-        
+        // Perform write operation
+        await dataStore.write(props.entityId, [ftNum], newValue);
         console.log(`Updated reference field ${fieldType} to ${entityId}`);
       } 
-      else if (field.value.type === ValueType.EntityList) {
+      else if (ValueHelpers.isEntityList(field.value)) {
         // For entity list, append the entity to the list if not already present
-        const currentList = field.value.getEntityList();
+        const currentList = field.value.EntityList;
         
         // Check if the entity is already in the list
         if (!currentList.includes(entityId)) {
           // Create a new list with the added entity
           const newList = [...currentList, entityId];
+          const newValue = ValueHelpers.entityList(newList);
           
-          // Create a new field for writing
-          const newField = EntityFactories.newField(
-            props.entityId, 
-            (typeof fieldType === 'string' && !isNaN(Number(fieldType))) ? Number(fieldType) : (fieldType as FieldType), 
-            ValueFactories.newEntityList(newList)
-          );
+          console.log('Writing entity list:', { entityId: props.entityId, fieldType: ftNum, value: newValue });
           
-          console.log('Prepared field for write:', {
-            entityId: newField.entityId,
-            fieldType: newField.fieldType,
-            valueType: newField.value.type,
-            valueRaw: newField.value.raw
-          });
-          
-          // Force UI update before write request to clear visual feedback
-          field.value = ValueFactories.newEntityList(newList);
+          // Update local state first
+          field.value = newValue;
           fields.value = [...fields.value]; // Force reactivity
           
-          // Perform direct write operation
-          const result = await dataStore.write([newField]);
-          console.log('Write result:', result);
-          
+          // Perform write operation
+          await dataStore.write(props.entityId, [ftNum], newValue);
           console.log(`Added ${entityId} to entity list ${fieldType}`);
         } else {
           console.log(`Entity ${entityId} already exists in list ${fieldType}`);
@@ -779,7 +742,6 @@ const containerClass = computed(() => {
           <tr v-for="field in fields" :key="String(field.fieldType)" class="field-row">
             <td class="field-name">
               {{ getFieldTypeLabel(field) }}
-              <div class="field-schema-editor-type-badge">{{ field.value.type }}</div>
               <div v-if="isFieldDroppable(field)" class="droppable-indicator">
                 <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24">
                   <path fill="currentColor" d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
@@ -788,10 +750,10 @@ const containerClass = computed(() => {
             </td>
             <td class="field-value">
               <ValueEditor
-                v-if="editingField === String(field.fieldType)"
+                v-if="editingField === field.fieldType"
                 :value="field.value"
                 :field-type="field.fieldType"
-                :entity-type="entityType"
+                :entity-type="entityTypeName"
                 @save="saveField(field.fieldType, $event)"
                 @cancel="cancelEditing"
               />
@@ -810,7 +772,7 @@ const containerClass = computed(() => {
                 <ValueDisplay 
                   :value="field.value"
                   :field-type="field.fieldType"
-                  :entity-type="entityType"
+                  :entity-type="entityTypeName"
                 />
                 
                 <!-- Drop zone overlay for droppable fields - improved for less flickering -->
@@ -828,8 +790,8 @@ const containerClass = computed(() => {
               </div>
             </td>
             <td class="field-meta">
-              <div class="field-timestamp" :title="field.writeTime && !isNaN(field.writeTime.getTime()) ? field.writeTime.toISOString() : 'Unknown'">
-                {{ field.writeTime && !isNaN(field.writeTime.getTime()) ? formatTimestampReactive(field.writeTime) : 'N/A' }}
+              <div class="field-timestamp" :title="field.writeTime ? new Date(field.writeTime).toISOString() : 'Unknown'">
+                {{ field.writeTime ? formatTimestampReactive(field.writeTime) : 'N/A' }}
               </div>
               <div class="field-writer" :title="field.writerId != null ? String(field.writerId) : 'Unknown'">
                 <span class="writer-icon">

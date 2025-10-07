@@ -1,14 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
-import type { EntityId } from '@/core/data/types';
-import { Entity, Utils } from '@/core/data/types';
-import { EntityFactories } from '@/core/data/types';
+import type { EntityId, FieldType, Value } from '@/core/data/types';
+import { extractEntityType, ValueHelpers } from '@/core/data/types';
 import { useDataStore } from '@/stores/data';
-
-// Field type IDs will be resolved at runtime using the data store
-let NameFieldType: number | null = null;
-let ChildrenFieldType: number | null = null;
-let ParentFieldType: number | null = null;
 import { useEntityDrag } from '@/core/utils/composables';
 
 // Define EntityItem interface
@@ -111,60 +105,78 @@ async function loadEntities() {
   entities.value = [];
   
   try {
-    // Ensure field type IDs are resolved
-    if (NameFieldType === null) NameFieldType = await dataStore.getFieldType('Name');
-    if (ChildrenFieldType === null) ChildrenFieldType = await dataStore.getFieldType('Children');
-    if (ParentFieldType === null) ParentFieldType = await dataStore.getFieldType('Parent');
+    // Get field type IDs
+    const NameFieldType = await dataStore.getFieldType('Name');
+    const ChildrenFieldType = await dataStore.getFieldType('Children');
 
     if (!props.parentId) {
-      const roots = await dataStore.find("Root") as Entity[];
-      if (roots.length > 0) {
-        const rootNameField = roots[0].field(NameFieldType as number);
-        await dataStore.read([rootNameField]);
-        let rootName = rootNameField.value.getString();
-        // Ensure name is never empty
-        rootName = (rootName && rootName.trim() !== '') ? rootName : 'Root';
-        const rootChildrenField = roots[0].field(ChildrenFieldType as number);
-        await dataStore.read([rootChildrenField]);
+      // Load root entities
+      const rootEntityType = await dataStore.getEntityType("Root");
+      const rootIds = await dataStore.findEntities(rootEntityType);
+      
+      if (rootIds.length > 0) {
+        const rootId = rootIds[0];
+        
+        // Read name and children
+        const [nameValue] = await dataStore.read(rootId, [NameFieldType]);
+        const [childrenValue] = await dataStore.read(rootId, [ChildrenFieldType]);
+        
+        let rootName = 'Root';
+        if (ValueHelpers.isString(nameValue)) {
+          rootName = nameValue.String.trim() || 'Root';
+        }
+        
+        let childrenList: EntityId[] = [];
+        if (ValueHelpers.isEntityList(childrenValue)) {
+          childrenList = childrenValue.EntityList;
+        }
+        
         entities.value.push({
-          id: roots[0].entityId,
+          id: rootId,
           name: rootName,
           type: "Root",
-          children: rootChildrenField.value.getEntityList()
+          children: childrenList
         });
       }
       loading.value = false;
       return;
     }
 
-    const parentEntity = EntityFactories.newEntity(props.parentId);
-  const children = parentEntity.field(ChildrenFieldType as number);
-    await dataStore.read([children]);
+    // Read the Children field from the parent entity
+    const [childrenValue] = await dataStore.read(props.parentId, [ChildrenFieldType]);
     
-    const childrenIds = children.value.getEntityList();
+    let childrenIds: EntityId[] = [];
+    if (ValueHelpers.isEntityList(childrenValue)) {
+      childrenIds = childrenValue.EntityList;
+    }
     
     // Load all children entities with their basic info
     await Promise.all(childrenIds.map(async (childId: EntityId) => {
       try {
-        const childEntity = EntityFactories.newEntity(childId);
-  const nameField = childEntity.field(NameFieldType as number);
-  const childrenField = childEntity.field(ChildrenFieldType as number);
-        
-        await dataStore.read([nameField, childrenField]);
+        // Read name and children fields
+        const [nameValue] = await dataStore.read(childId, [NameFieldType]);
+        const [childrenFieldValue] = await dataStore.read(childId, [ChildrenFieldType]);
         
         // Get entity type from ID and resolve it to a name
-  const entityTypeNumber = Utils.getEntityTypeFromId(childId);
+        const entityTypeNumber = extractEntityType(childId);
         const entityType = await dataStore.resolveEntityType(entityTypeNumber);
         
         // Get the name and ensure it's never empty
-        let name = nameField.value.getString();
-        name = (name && name.trim() !== '') ? name : 'Unnamed';
+        let name = 'Unnamed';
+        if (ValueHelpers.isString(nameValue)) {
+          name = nameValue.String.trim() || 'Unnamed';
+        }
+        
+        let childrenList: EntityId[] = [];
+        if (ValueHelpers.isEntityList(childrenFieldValue)) {
+          childrenList = childrenFieldValue.EntityList;
+        }
         
         entities.value.push({
           id: childId,
           name: name,
           type: entityType,
-          children: childrenField.value.getEntityList()
+          children: childrenList
         });
       } catch (err) {
         console.error(`Error loading child entity ${childId}:`, err);
