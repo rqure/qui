@@ -37,18 +37,24 @@ export async function formatEntityIdWithName(entityId: EntityId): Promise<string
 }
 
 /**
- * Convert timestamp array format to Date
- * Format: [year, day_of_year, hour, minute, second, nanoseconds, ...]
+ * Rust timestamp array type
+ * Format: [year, day_of_year, hour, minute, second, nanoseconds]
  */
-function timestampToDate(timestamp: any): Date | null {
+type RustTimestampArray = [number, number, number, number, number, number];
+
+/**
+ * Convert timestamp (array or number) to Date
+ * The Rust backend sends timestamps as arrays in UTC time
+ */
+function timestampToDate(timestamp: RustTimestampArray | number | string | null | undefined): Date | null {
   if (!timestamp) return null;
   
-  // If it's already a number (milliseconds), use it directly
+  // If it's a number (milliseconds since epoch), use it directly
   if (typeof timestamp === 'number') {
     return new Date(timestamp);
   }
   
-  // If it's an array (Rust timestamp format)
+  // If it's an array (Rust timestamp format in UTC)
   if (Array.isArray(timestamp) && timestamp.length >= 5) {
     try {
       const year = timestamp[0];
@@ -57,11 +63,12 @@ function timestampToDate(timestamp: any): Date | null {
       const minute = timestamp[3];
       const second = timestamp[4];
       const nanoseconds = timestamp[5] || 0;
+      const milliseconds = Math.floor(nanoseconds / 1000000);
       
-      // Convert day of year to month and day
-      const date = new Date(year, 0); // January 1st of the year
-      date.setDate(dayOfYear); // Set to the day of year
-      date.setHours(hour, minute, second, Math.floor(nanoseconds / 1000000));
+      // Convert day of year to month and day using UTC methods
+      const date = new Date(Date.UTC(year, 0, 1)); // January 1st of the year in UTC
+      date.setUTCDate(dayOfYear); // Set to the day of year in UTC
+      date.setUTCHours(hour, minute, second, milliseconds);
       
       return date;
     } catch (e) {
@@ -70,19 +77,23 @@ function timestampToDate(timestamp: any): Date | null {
     }
   }
   
-  // Try to parse as a date
-  try {
-    const date = new Date(timestamp);
-    return isNaN(date.getTime()) ? null : date;
-  } catch (e) {
-    return null;
+  // Try to parse as a date string
+  if (typeof timestamp === 'string') {
+    try {
+      const date = new Date(timestamp);
+      return isNaN(date.getTime()) ? null : date;
+    } catch (e) {
+      return null;
+    }
   }
+  
+  return null;
 }
 
 /**
  * Formats a timestamp into a readable string
  */
-export function formatTimestamp(date: Date | string | number | any): string {
+export function formatTimestamp(date: Date | string | number | RustTimestampArray | null | undefined): string {
   if (!date) return 'N/A';
   
   const dateObj = date instanceof Date ? date : timestampToDate(date);

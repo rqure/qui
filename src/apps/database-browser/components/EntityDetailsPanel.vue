@@ -111,7 +111,8 @@ const formatTimestampReactive = (date: Date | string | number) => {
 
 // Helper function to convert timestamp array format to Date
 // Format: [year, day_of_year, hour, minute, second, nanoseconds, ...]
-const timestampToDate = (timestamp: any): Date | null => {
+// The timestamp is in UTC
+const timestampToDate = (timestamp: number[] | number | string | null): Date | null => {
   if (!timestamp) return null;
   
   // If it's already a number (milliseconds), use it directly
@@ -119,7 +120,7 @@ const timestampToDate = (timestamp: any): Date | null => {
     return new Date(timestamp);
   }
   
-  // If it's an array (Rust timestamp format)
+  // If it's an array (Rust timestamp format in UTC)
   if (Array.isArray(timestamp) && timestamp.length >= 5) {
     try {
       const year = timestamp[0];
@@ -128,11 +129,12 @@ const timestampToDate = (timestamp: any): Date | null => {
       const minute = timestamp[3];
       const second = timestamp[4];
       const nanoseconds = timestamp[5] || 0;
+      const milliseconds = Math.floor(nanoseconds / 1000000);
       
-      // Convert day of year to month and day
-      const date = new Date(year, 0); // January 1st of the year
-      date.setDate(dayOfYear); // Set to the day of year
-      date.setHours(hour, minute, second, Math.floor(nanoseconds / 1000000));
+      // Convert day of year to month and day using UTC
+      const date = new Date(Date.UTC(year, 0, 1)); // January 1st of the year in UTC
+      date.setUTCDate(dayOfYear); // Set to the day of year in UTC
+      date.setUTCHours(hour, minute, second, milliseconds);
       
       return date;
     } catch (e) {
@@ -141,24 +143,28 @@ const timestampToDate = (timestamp: any): Date | null => {
     }
   }
   
-  // Try to parse as a date
-  try {
-    const date = new Date(timestamp);
-    return isNaN(date.getTime()) ? null : date;
-  } catch (e) {
-    return null;
+  // Try to parse as a date string
+  if (typeof timestamp === 'string') {
+    try {
+      const date = new Date(timestamp);
+      return isNaN(date.getTime()) ? null : date;
+    } catch (e) {
+      return null;
+    }
   }
+  
+  return null;
 };
 
 // Helper function to safely convert timestamp to ISO string
-const toSafeISOString = (timestamp: any): string => {
+const toSafeISOString = (timestamp: number[] | number | string | null): string => {
   const date = timestampToDate(timestamp);
   if (!date || isNaN(date.getTime())) return 'Unknown';
   
   try {
     return date.toISOString();
   } catch (e) {
-    return 'Invalid Date';
+    return 'Unknown';
   }
 };
 
