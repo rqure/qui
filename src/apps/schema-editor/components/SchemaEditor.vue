@@ -1,7 +1,7 @@
 <template>
   <div class="schema-editor schema-editor-panel">
     <div class="schema-header schema-editor-panel-header">
-      <h2 class="schema-title">{{ workingSchema.entityType }}</h2>
+      <h2 class="schema-title">{{ entityTypeName }}</h2>
       
       <div class="schema-actions">
         <button 
@@ -44,7 +44,7 @@
             <th class="col-drag"></th>
             <th class="col-name">Field Name</th>
             <th class="col-type">Type</th>
-            <th class="col-info">Properties</th>
+            <th class="col-info">Default Value</th>
             <th class="col-actions"></th>
           </tr>
         </thead>
@@ -73,84 +73,54 @@
                 class="schema-editor-form-control"
                 @keyup.enter="addNewField"
               >
-                <option v-for="type in Object.values(ValueType)" :key="type" :value="type">
-                  {{ type }}
-                </option>
+                <option value="String">String</option>
+                <option value="Int">Int</option>
+                <option value="Float">Float</option>
+                <option value="Bool">Bool</option>
+                <option value="EntityReference">EntityReference</option>
+                <option value="EntityList">EntityList</option>
+                <option value="Timestamp">Timestamp</option>
+                <option value="Blob">Blob</option>
+                <option value="Choice">Choice</option>
               </select>
             </td>
             <td class="properties-cell">
-              <div v-if="newFieldType === ValueType.Choice" class="schema-editor-form-group">
-                <label>Choices:</label>
-                <TagInput
-                  v-model="newFieldChoicesList"
-                  placeholder="Add an option and press Enter"
-                  class="field-tag-input"
-                  @keyup.esc="cancelAddField"
-                />
-              </div>
-              <div class="schema-editor-form-group">
-                <label>Permissions</label>
-                <div class="permissions-row">
-                  <span>Read:</span>
-                  <div class="permission-input-container">
-                    <div class="schema-editor-select">
-                      <input
-                        type="text"
-                        :value="newFieldPermState.searchText.value.read"
-                        @input="e => filterNewFieldPermissions('read', (e.target as HTMLInputElement).value)"
-                        class="schema-editor-form-control"
-                        placeholder="Type to search permissions..."
-                        @focus="newFieldPermState.showDropdown.value.read = true"
-                        @blur="handleNewFieldSearchBlur('read')"
-                        @keydown="handleNewFieldSearchKeydown($event, 'read')"
-                      />
-                      <div v-if="newFieldPermState.showDropdown.value.read" class="schema-editor-dropdown">
-                        <div v-if="filteredPermissions.add.read.length === 0" class="no-results">No permissions found</div>
-                        <div
-                          v-for="(perm, idx) in filteredPermissions.add.read"
-                          :key="perm.entityId"
-                          class="schema-editor-dropdown-item"
-                          :class="{ 'active': newFieldPermState.activeSuggestionIndex.value.read === idx }"
-                          @mousedown.prevent="selectNewFieldPermission('read', perm.entityId)"
-                          @mouseover="newFieldPermState.activeSuggestionIndex.value.read = idx"
-                        >
-                          {{ perm.field('Name').value.getString() }}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div class="permissions-row">
-                  <span>Write:</span>
-                  <div class="permission-input-container">
-                    <div class="schema-editor-select">
-                      <input
-                        type="text"
-                        :value="newFieldPermState.searchText.value.write"
-                        @input="e => filterNewFieldPermissions('write', (e.target as HTMLInputElement).value)"
-                        class="schema-editor-form-control"
-                        placeholder="Type to search permissions..."
-                        @focus="newFieldPermState.showDropdown.value.write = true"
-                        @blur="handleNewFieldSearchBlur('write')"
-                        @keydown="handleNewFieldSearchKeydown($event, 'write')"
-                      />
-                      <div v-if="newFieldPermState.showDropdown.value.write" class="schema-editor-dropdown">
-                        <div v-if="filteredPermissions.add.write.length === 0" class="no-results">No permissions found</div>
-                        <div
-                          v-for="(perm, idx) in filteredPermissions.add.write"
-                          :key="perm.entityId"
-                          class="schema-editor-dropdown-item"
-                          :class="{ 'active': newFieldPermState.activeSuggestionIndex.value.write === idx }"
-                          @mousedown.prevent="selectNewFieldPermission('write', perm.entityId)"
-                          @mouseover="newFieldPermState.activeSuggestionIndex.value.write = idx"
-                        >
-                          {{ perm.field('Name').value.getString() }}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <input 
+                v-if="newFieldType === 'String'"
+                v-model="newFieldDefaultString"
+                placeholder="Default string value"
+                class="schema-editor-form-control"
+              />
+              <input 
+                v-else-if="newFieldType === 'Int'"
+                v-model.number="newFieldDefaultInt"
+                type="number"
+                placeholder="Default number"
+                class="schema-editor-form-control"
+              />
+              <input 
+                v-else-if="newFieldType === 'Float'"
+                v-model.number="newFieldDefaultFloat"
+                type="number"
+                step="0.01"
+                placeholder="Default float"
+                class="schema-editor-form-control"
+              />
+              <select 
+                v-else-if="newFieldType === 'Bool'"
+                v-model="newFieldDefaultBool"
+                class="schema-editor-form-control"
+              >
+                <option :value="true">True</option>
+                <option :value="false">False</option>
+              </select>
+              <TagInput
+                v-else-if="newFieldType === 'Choice'"
+                v-model="newFieldChoicesList"
+                placeholder="Add choice options"
+                class="field-tag-input"
+              />
+              <span v-else class="field-default-display">{{ getDefaultValueDisplay(newFieldType) }}</span>
             </td>
             <td>
               <div class="action-buttons">
@@ -188,127 +158,62 @@
               </div>
             </td>
             <td class="col-name">
-              {{ field.fieldType }}
+              {{ field.fieldName }}
               <span v-if="isFieldModified(field.fieldType)" class="schema-editor-badge modified-badge" title="Field has unsaved changes">*</span>
             </td>
             <td class="col-type">
-              <TypeBadge :type="field.fieldSchema.valueType" />
+              <TypeBadge :type="field.valueType" />
             </td>
             <td class="col-info">
               <template v-if="editingField === field.fieldType">
-                <!-- Inline editing mode -->
-                <div v-if="field.fieldSchema.valueType === ValueType.Choice" class="schema-editor-form-group">
-                  <label>Choices:</label>
-                  <TagInput
-                    v-model="fieldChoicesMap[field.fieldType]"
-                    placeholder="Add an option and press Enter"
-                    class="field-tag-input"
-                  />
-                </div>
-                <div class="schema-editor-form-group">
-                  <label>Permissions:</label>
-                  <div class="permissions-row">
-                    <span>Read:</span>
-                    <div class="permission-input-container">
-                      <div class="schema-editor-select">
-                        <input
-                          type="text"
-                          :value="editFieldPermState.searchText.value.read"
-                          @input="e => filterEditFieldPermissions('read', (e.target as HTMLInputElement).value)"
-                          class="schema-editor-form-control"
-                          placeholder="Type to search permissions..."
-                          @focus="editFieldPermState.showDropdown.value.read = true"
-                          @blur="handleEditFieldSearchBlur('read')"
-                          @keydown="handleEditFieldSearchKeydown($event, 'read')"
-                        />
-                        <div v-if="editFieldPermState.showDropdown.value.read" class="schema-editor-dropdown">
-                          <div v-if="filteredPermissions.edit.read.length === 0" class="no-results">No permissions found</div>
-                          <div
-                            v-for="(perm, idx) in filteredPermissions.edit.read"
-                            :key="perm.entityId"
-                            class="schema-editor-dropdown-item"
-                            :class="{ 'active': editFieldPermState.activeSuggestionIndex.value.read === idx }"
-                            @mousedown.prevent="selectEditFieldPermission('read', perm.entityId)"
-                            @mouseover="editFieldPermState.activeSuggestionIndex.value.read = idx"
-                          >
-                            {{ perm.field('Name').value.getString() }}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="permissions-row">
-                    <span>Write:</span>
-                    <div class="permission-input-container">
-                      <div class="schema-editor-select">
-                        <input
-                          type="text"
-                          :value="editFieldPermState.searchText.value.write"
-                          @input="e => filterEditFieldPermissions('write', (e.target as HTMLInputElement).value)"
-                          class="schema-editor-form-control"
-                          placeholder="Type to search permissions..."
-                          @focus="editFieldPermState.showDropdown.value.write = true"
-                          @blur="handleEditFieldSearchBlur('write')"
-                          @keydown="handleEditFieldSearchKeydown($event, 'write')"
-                        />
-                        <div v-if="editFieldPermState.showDropdown.value.write" class="schema-editor-dropdown">
-                          <div v-if="filteredPermissions.edit.write.length === 0" class="no-results">No permissions found</div>
-                          <div
-                            v-for="(perm, idx) in filteredPermissions.edit.write"
-                            :key="perm.entityId"
-                            class="schema-editor-dropdown-item"
-                            :class="{ 'active': editFieldPermState.activeSuggestionIndex.value.write === idx }"
-                            @mousedown.prevent="selectEditFieldPermission('write', perm.entityId)"
-                            @mouseover="editFieldPermState.activeSuggestionIndex.value.write = idx"
-                          >
-                            {{ perm.field('Name').value.getString() }}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <!-- Editing default value -->
+                <input 
+                  v-if="field.valueType === 'String'"
+                  v-model="editingDefaults[field.fieldType].string"
+                  placeholder="Default string value"
+                  class="schema-editor-form-control"
+                />
+                <input 
+                  v-else-if="field.valueType === 'Int'"
+                  v-model.number="editingDefaults[field.fieldType].int"
+                  type="number"
+                  placeholder="Default number"
+                  class="schema-editor-form-control"
+                />
+                <input 
+                  v-else-if="field.valueType === 'Float'"
+                  v-model.number="editingDefaults[field.fieldType].float"
+                  type="number"
+                  step="0.01"
+                  placeholder="Default float"
+                  class="schema-editor-form-control"
+                />
+                <select 
+                  v-else-if="field.valueType === 'Bool'"
+                  v-model="editingDefaults[field.fieldType].bool"
+                  class="schema-editor-form-control"
+                >
+                  <option :value="true">True</option>
+                  <option :value="false">False</option>
+                </select>
+                <TagInput
+                  v-else-if="field.valueType === 'Choice'"
+                  v-model="editingDefaults[field.fieldType].choices"
+                  placeholder="Add choice options"
+                  class="field-tag-input"
+                />
+                <span v-else class="field-default-display">{{ formatValue(field.fieldSchema.default_value) }}</span>
               </template>
               <template v-else>
-                <!-- Display mode -->
-                <div class="field-properties">
-                  <span v-if="field.fieldSchema.valueType === ValueType.Choice" class="schema-editor-badge">
-                    <span class="property-label">Options:</span>
-                    <span class="property-value">{{ field.fieldSchema.choices.length }}</span>
-                  </span>
-                  
-                  <span v-if="field.fieldSchema.readPermissions.length > 0" class="schema-editor-badge">
-                    <span class="property-label">Read:</span>
-                    <span class="property-value permission-chip">
-                      {{ getPermissionName(field.fieldSchema.readPermissions[0]) }}
-                    </span>
-                  </span>
-                  
-                  <span v-if="field.fieldSchema.writePermissions.length > 0" class="schema-editor-badge">
-                    <span class="property-label">Write:</span>
-                    <span class="property-value permission-chip">
-                      {{ getPermissionName(field.fieldSchema.writePermissions[0]) }}
-                    </span>
-                  </span>
-                  
-                  <span v-if="field.fieldSchema.valueType === ValueType.Choice && field.fieldSchema.choices.length > 0" class="choices-preview">
-                    <span class="options-list">
-                      <span v-for="(choice, index) in field.fieldSchema.choices.slice(0, 3)" :key="index" class="schema-editor-tag option-chip">
-                        {{ choice }}
-                      </span>
-                      <span v-if="field.fieldSchema.choices.length > 3" class="option-more">
-                        +{{ field.fieldSchema.choices.length - 3 }} more
-                      </span>
-                    </span>
-                  </span>
-                </div>
+                <!-- Display default value -->
+                <span class="field-default-display">{{ formatValue(field.fieldSchema.default_value) }}</span>
               </template>
             </td>
             <td class="col-actions">
               <div class="action-buttons">
                 <template v-if="editingField === field.fieldType">
                   <button class="schema-editor-btn schema-editor-btn-secondary" @click="cancelEditField(field.fieldType)">Cancel</button>
-                  <button class="schema-editor-btn schema-editor-btn-primary" @click="confirmEdit(field.fieldType, field.fieldSchema)">Apply</button>
+                  <button class="schema-editor-btn schema-editor-btn-primary" @click="confirmEdit(field.fieldType)">Apply</button>
                 </template>
                 <template v-else>
                   <button class="schema-editor-btn schema-editor-btn-icon" @click="startEditField(field.fieldType)" title="Edit field">
@@ -344,8 +249,9 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, nextTick } from 'vue';
-import type { EntitySchema, FieldSchema, Entity, EntityId } from '@/core/data/types';
-import { ValueType, ValueFactories } from '@/core/data/types';
+import type { EntitySchema, FieldSchema } from '@/stores/data';
+import type { FieldType, Value } from '@/core/data/types';
+import { ValueHelpers } from '@/core/data/types';
 import { useDataStore } from '@/stores/data';
 import TypeBadge from './TypeBadge.vue';
 import ConfirmDialog from './ConfirmDialog.vue';
@@ -359,30 +265,36 @@ const emit = defineEmits<{
   (e: 'update:schema', schema: EntitySchema): void;
 }>();
 
+const dataStore = useDataStore();
+
 // Original schema from props
-const originalSchema = ref<EntitySchema>(props.schema.clone());
+const originalSchema = ref<EntitySchema>(JSON.parse(JSON.stringify(props.schema)));
 // Working schema with modifications
-const workingSchema = ref<EntitySchema>(props.schema.clone());
+const workingSchema = ref<EntitySchema>(JSON.parse(JSON.stringify(props.schema)));
 // Track modified fields
-const modifiedFields = ref<Set<string>>(new Set());
+const modifiedFields = ref<Set<FieldType>>(new Set());
+
+// Entity type name
+const entityTypeName = ref<string>('');
 
 // Track if the schema has any changes
 const hasChanges = computed(() => modifiedFields.value.size > 0);
 
 // Editing state
-const editingField = ref<string | null>(null);
+const editingField = ref<FieldType | null>(null);
 const showAddField = ref(false);
 
 // New field state
 const newFieldName = ref('');
-const newFieldType = ref<ValueType>(ValueType.String);
-const newFieldRank = ref(0);
+const newFieldType = ref<string>('String');
+const newFieldDefaultString = ref('');
+const newFieldDefaultInt = ref(0);
+const newFieldDefaultFloat = ref(0.0);
+const newFieldDefaultBool = ref(false);
 const newFieldChoicesList = ref<string[]>([]);
-const newFieldReadPermsList = ref<string[]>([]);
-const newFieldWritePermsList = ref<string[]>([]);
 
-// Add a map to store field choices during editing
-const fieldChoicesMap = ref<Record<string, string[]>>({});
+// Editing defaults storage
+const editingDefaults = ref<Record<FieldType, any>>({});
 
 // Validation and references
 const nameError = ref<string | null>(null);
@@ -393,126 +305,111 @@ const confirmDialog = ref({
   show: false,
   title: '',
   message: '',
-  fieldToDelete: '',
+  fieldToDelete: 0 as FieldType,
   type: 'danger' as 'info' | 'warning' | 'danger'
 });
 
 // Drag-n-drop state
 const draggedIndex = ref<number | null>(null);
 
-// Interface definitions for type safety
-interface SuggestionState {
-  read: Entity[];
-  write: Entity[];
-  [key: string]: Entity[];
+// Field type helpers
+function getValueType(value: Value): string {
+  if (ValueHelpers.isString(value)) return 'String';
+  if (ValueHelpers.isInt(value)) return 'Int';
+  if (ValueHelpers.isFloat(value)) return 'Float';
+  if (ValueHelpers.isBool(value)) return 'Bool';
+  if (ValueHelpers.isEntityRef(value)) return 'EntityReference';
+  if (ValueHelpers.isEntityList(value)) return 'EntityList';
+  if (ValueHelpers.isTimestamp(value)) return 'Timestamp';
+  if (ValueHelpers.isBlob(value)) return 'Blob';
+  if (ValueHelpers.isChoice(value)) return 'Choice';
+  return 'Unknown';
 }
 
-interface IndexState {
-  read: number;
-  write: number;
-  [key: string]: number;
+function createDefaultValue(type: string): Value {
+  switch (type) {
+    case 'String': return ValueHelpers.string(newFieldDefaultString.value);
+    case 'Int': return ValueHelpers.int(newFieldDefaultInt.value);
+    case 'Float': return ValueHelpers.float(newFieldDefaultFloat.value);
+    case 'Bool': return ValueHelpers.bool(newFieldDefaultBool.value);
+    case 'EntityReference': return ValueHelpers.entityRef(null);
+    case 'EntityList': return ValueHelpers.entityList([]);
+    case 'Timestamp': return ValueHelpers.timestamp(Date.now());
+    case 'Blob': return ValueHelpers.blob([]);
+    case 'Choice': return ValueHelpers.choice(0);
+    default: return ValueHelpers.string('');
+  }
 }
 
-interface BooleanState {
-  read: boolean;
-  write: boolean;
-  [key: string]: boolean;
+function formatValue(value: Value): string {
+  if (ValueHelpers.isString(value)) return `"${value.String}"`;
+  if (ValueHelpers.isInt(value)) return String(value.Int);
+  if (ValueHelpers.isFloat(value)) return String(value.Float);
+  if (ValueHelpers.isBool(value)) return value.Bool ? 'true' : 'false';
+  if (ValueHelpers.isEntityRef(value)) return value.EntityReference === null ? 'null' : `Ref(${value.EntityReference})`;
+  if (ValueHelpers.isEntityList(value)) return `List[${value.EntityList.length}]`;
+  if (ValueHelpers.isTimestamp(value)) return new Date(value.Timestamp).toLocaleString();
+  if (ValueHelpers.isBlob(value)) return `Blob[${value.Blob.length} bytes]`;
+  if (ValueHelpers.isChoice(value)) return `Choice(${value.Choice})`;
+  return 'Unknown';
 }
 
-interface StringState {
-  read: string;
-  write: string;
-  [key: string]: string;
+function getDefaultValueDisplay(type: string): string {
+  switch (type) {
+    case 'EntityReference': return 'null';
+    case 'EntityList': return 'List[]';
+    case 'Timestamp': return 'Now';
+    case 'Blob': return 'Blob[]';
+    default: return '';
+  }
 }
-
-// Permission-related state
-// Existing fields permissions
-const permissionInputsList = ref<Record<string, { read: string[], write: string[] }>>({});
-
-// Separate state for editing vs adding
-// For adding new fields
-const newFieldPermState = {
-  searchText: ref<StringState>({ read: '', write: '' }),
-  showDropdown: ref<BooleanState>({ read: false, write: false }),
-  activeSuggestionIndex: ref<IndexState>({ read: -1, write: -1 }),
-};
-
-// For editing existing fields
-const editFieldPermState = {
-  searchText: ref<StringState>({ read: '', write: '' }),
-  showDropdown: ref<BooleanState>({ read: false, write: false }),
-  activeSuggestionIndex: ref<IndexState>({ read: -1, write: -1 }),
-  currentField: ref<string | null>(null), // Track which field is being edited
-};
-
-// Shared filtered permissions state
-const filteredPermissions = ref<{
-  add: SuggestionState;
-  edit: SuggestionState;
-}>({
-  add: { read: [], write: [] },
-  edit: { read: [], write: [] }
-});
-
-const availablePermissions = ref<Entity[]>([]);
-
-// Get datastore for permission search
-const dataStore = useDataStore();
 
 // Sort fields by rank
 const sortedFields = computed(() => {
-  const result = Object.entries(workingSchema.value.fields).map(([fieldType, fieldSchema]) => {
-    return { fieldType, fieldSchema };
-  });
-  
-  return result.sort((a, b) => {
-    const rankA = a.fieldSchema.rank || 0;
-    const rankB = b.fieldSchema.rank || 0;
-    return rankA - rankB;
-  });
+  return Object.entries(workingSchema.value.fields)
+    .map(([fieldType, fieldSchema]) => ({
+      fieldType: Number(fieldType),
+      fieldName: fieldNames.value[Number(fieldType)] || `Field_${fieldType}`,
+      fieldSchema,
+      valueType: getValueType(fieldSchema.default_value)
+    }))
+    .sort((a, b) => a.fieldSchema.rank - b.fieldSchema.rank);
 });
 
-// Initialize permission inputs when fields change
-watch(() => workingSchema.value.fields, (newFields) => {
-  Object.entries(newFields).forEach(([fieldType, fieldSchema]) => {
-    if (!permissionInputsList.value[fieldType]) {
-      permissionInputsList.value[fieldType] = {
-        read: fieldSchema.readPermissions.length > 0 ? [fieldSchema.readPermissions[0]] : [],
-        write: fieldSchema.writePermissions.length > 0 ? [fieldSchema.writePermissions[0]] : []
-      };
+// Field names cache
+const fieldNames = ref<Record<FieldType, string>>({});
+
+// Load field names
+async function loadFieldNames() {
+  const types = Object.keys(workingSchema.value.fields).map(Number);
+  for (const fieldType of types) {
+    try {
+      fieldNames.value[fieldType] = await dataStore.resolveFieldType(fieldType);
+    } catch (err) {
+      console.error(`Failed to resolve field type ${fieldType}:`, err);
+      fieldNames.value[fieldType] = `Field_${fieldType}`;
     }
-  });
-}, { immediate: true, deep: true });
+  }
+}
+
+// Load entity type name
+async function loadEntityTypeName() {
+  try {
+    entityTypeName.value = await dataStore.resolveEntityType(workingSchema.value.entity_type);
+  } catch (err) {
+    console.error('Failed to resolve entity type:', err);
+    entityTypeName.value = `Type_${workingSchema.value.entity_type}`;
+  }
+}
 
 // Initialize on mount
 onMounted(async () => {
-  // Load all available permissions
-  try {
-    const result = await dataStore.find('Permission');
-    // Read the Name field for each permission
-    const nameFields = result.map(entity => entity.field('Name', ValueFactories.newString('')));
-    await dataStore.read(nameFields);
-    
-    availablePermissions.value = result.sort((a, b) => {
-      const nameA = a.field('Name').value.getString();
-      const nameB = b.field('Name').value.getString();
-      return nameA.localeCompare(nameB);
-    });
-  } catch (err) {
-    console.error('Failed to load permissions:', err);
-  }
+  await loadFieldNames();
+  await loadEntityTypeName();
 });
 
-// Set initial filtered permissions to all available permissions
-watch(() => availablePermissions.value, (perms) => {
-  filteredPermissions.value.add.read = [...perms];
-  filteredPermissions.value.add.write = [...perms];
-  filteredPermissions.value.edit.read = [...perms];
-  filteredPermissions.value.edit.write = [...perms];
-}, { immediate: true });
-
 // Check if a field has been modified
-function isFieldModified(fieldType: string): boolean {
+function isFieldModified(fieldType: FieldType): boolean {
   return modifiedFields.value.has(fieldType);
 }
 
@@ -531,7 +428,8 @@ function validateFieldName() {
   }
   
   // Check if field name already exists
-  if (workingSchema.value.fields[newFieldName.value]) {
+  const existingNames = Object.values(fieldNames.value);
+  if (existingNames.includes(newFieldName.value)) {
     nameError.value = "Field name already exists";
     return;
   }
@@ -542,17 +440,13 @@ function validateFieldName() {
 function openAddField() {
   showAddField.value = true;
   newFieldName.value = '';
-  newFieldType.value = ValueType.String;
-  newFieldRank.value = sortedFields.value.length;
+  newFieldType.value = 'String';
+  newFieldDefaultString.value = '';
+  newFieldDefaultInt.value = 0;
+  newFieldDefaultFloat.value = 0.0;
+  newFieldDefaultBool.value = false;
   newFieldChoicesList.value = [];
-  newFieldReadPermsList.value = [];
-  newFieldWritePermsList.value = [];
   nameError.value = null;
-  
-  // Reset add field permission state
-  newFieldPermState.searchText.value = { read: '', write: '' };
-  newFieldPermState.showDropdown.value = { read: false, write: false };
-  newFieldPermState.activeSuggestionIndex.value = { read: -1, write: -1 };
   
   // Focus on the field name input after DOM update
   nextTick(() => {
@@ -564,122 +458,103 @@ function cancelAddField() {
   showAddField.value = false;
 }
 
-function addNewField() {
+async function addNewField() {
   if (!newFieldName.value.trim()) {
     nameError.value = "Field name is required";
     return;
   }
   
   if (nameError.value) {
-    return; // Don't proceed if there are validation errors
+    return;
   }
   
-  // Create field options
-  let newFieldSchema = workingSchema.value.fields[newFieldName.value]?.clone() || {
-    fieldType: newFieldName.value,
-    valueType: newFieldType.value,
-    rank: sortedFields.value.length,
-    choices: [],
-    readPermissions: [],
-    writePermissions: [],
-    clone() { return { ...this }; }
-  };
-  
-  // Set choices if it's a choice type
-  if (newFieldType.value === ValueType.Choice) {
-    newFieldSchema.choices = newFieldChoicesList.value;
+  try {
+    // Get field type ID
+    const fieldType = await dataStore.getFieldType(newFieldName.value);
+    
+    // Create field schema
+    const fieldSchema: FieldSchema = {
+      field_type: fieldType,
+      rank: Object.keys(workingSchema.value.fields).length,
+      default_value: createDefaultValue(newFieldType.value),
+      storage_scope: 'Runtime'
+    };
+    
+    // Add to working schema
+    workingSchema.value.fields[fieldType] = fieldSchema;
+    
+    // Add to field names cache
+    fieldNames.value[fieldType] = newFieldName.value;
+    
+    // Mark as modified
+    modifiedFields.value.add(fieldType);
+    
+    // Close add form
+    showAddField.value = false;
+  } catch (err) {
+    console.error('Failed to add field:', err);
+    nameError.value = 'Failed to create field';
   }
-  
-  // Set permissions
-  newFieldSchema.readPermissions = newFieldReadPermsList.value;
-  newFieldSchema.writePermissions = newFieldWritePermsList.value;
-  
-  workingSchema.value.fields[newFieldName.value] = newFieldSchema;
-  
-  // Add to permission inputs map using the array format
-  permissionInputsList.value[newFieldName.value] = {
-    read: [...newFieldSchema.readPermissions],
-    write: [...newFieldSchema.writePermissions]
-  };
-  
-  // Mark as modified
-  modifiedFields.value.add(newFieldName.value);
-  
-  // Close add form
-  showAddField.value = false;
 }
 
-function startEditField(fieldType: string) {
+function startEditField(fieldType: FieldType) {
   // Cancel any existing editing
   if (editingField.value && editingField.value !== fieldType) {
     cancelEditField(editingField.value);
   }
   
   editingField.value = fieldType;
-  editFieldPermState.currentField.value = fieldType;
   
-  // Initialize choices for the field being edited
-  fieldChoicesMap.value[fieldType] = [...workingSchema.value.fields[fieldType].choices || []];
+  // Initialize editing defaults
+  const fieldSchema = workingSchema.value.fields[fieldType];
+  const value = fieldSchema.default_value;
+  const valueType = getValueType(value);
   
-  // Reset edit field permission state
-  editFieldPermState.searchText.value = { read: '', write: '' };
-  editFieldPermState.showDropdown.value = { read: false, write: false };
-  editFieldPermState.activeSuggestionIndex.value = { read: -1, write: -1 };
+  editingDefaults.value[fieldType] = {};
   
-  // Set initial values for read/write permissions in search fields
-  const permissions = permissionInputsList.value[fieldType];
-  if (permissions) {
-    // Populate search text with current permission names for better UX
-    if (permissions.read.length > 0) {
-      const readPermId = permissions.read[0];
-      const readPerm = availablePermissions.value.find(p => p.entityId === readPermId);
-      if (readPerm) {
-        editFieldPermState.searchText.value.read = readPerm.field('Name').value.getString();
-      }
-    }
-    
-    if (permissions.write.length > 0) {
-      const writePermId = permissions.write[0];
-      const writePerm = availablePermissions.value.find(p => p.entityId === writePermId);
-      if (writePerm) {
-        editFieldPermState.searchText.value.write = writePerm.field('Name').value.getString();
-      }
-    }
+  if (ValueHelpers.isString(value)) {
+    editingDefaults.value[fieldType].string = value.String;
+  } else if (ValueHelpers.isInt(value)) {
+    editingDefaults.value[fieldType].int = value.Int;
+  } else if (ValueHelpers.isFloat(value)) {
+    editingDefaults.value[fieldType].float = value.Float;
+  } else if (ValueHelpers.isBool(value)) {
+    editingDefaults.value[fieldType].bool = value.Bool;
+  } else if (ValueHelpers.isChoice(value)) {
+    // For choice, we'd need to store the options somewhere
+    // For now, just initialize empty
+    editingDefaults.value[fieldType].choices = [];
   }
 }
 
-function cancelEditField(fieldType: string) {
+function cancelEditField(fieldType: FieldType) {
   // If this is a modified field, restore from original schema
   if (modifiedFields.value.has(fieldType) && originalSchema.value.fields[fieldType]) {
-    workingSchema.value.fields[fieldType] = originalSchema.value.fields[fieldType].clone();
+    workingSchema.value.fields[fieldType] = JSON.parse(JSON.stringify(originalSchema.value.fields[fieldType]));
     modifiedFields.value.delete(fieldType);
   }
   
   editingField.value = null;
+  delete editingDefaults.value[fieldType];
 }
 
-function confirmEdit(fieldType: string, fieldSchema: FieldSchema) {
-  // Update permissions - limit to first permission only
-  if (permissionInputsList.value[fieldType].read.length > 0) {
-    fieldSchema.readPermissions = [permissionInputsList.value[fieldType].read[0]];
-  } else {
-    fieldSchema.readPermissions = [];
-  }
+function confirmEdit(fieldType: FieldType) {
+  const fieldSchema = workingSchema.value.fields[fieldType];
+  const valueType = getValueType(fieldSchema.default_value);
   
-  if (permissionInputsList.value[fieldType].write.length > 0) {
-    fieldSchema.writePermissions = [permissionInputsList.value[fieldType].write[0]];
-  } else {
-    fieldSchema.writePermissions = [];
-  }
-  
-  // Update choices from the map
-  if (fieldSchema.valueType === ValueType.Choice && fieldChoicesMap.value[fieldType]) {
-    fieldSchema.choices = [...fieldChoicesMap.value[fieldType]];
-  }
-  
-  // Ensure rank is a number
-  if (typeof fieldSchema.rank === 'string') {
-    fieldSchema.rank = parseInt(fieldSchema.rank as any, 10) || 0;
+  // Update default value from editing defaults
+  if (valueType === 'String') {
+    fieldSchema.default_value = ValueHelpers.string(editingDefaults.value[fieldType].string || '');
+  } else if (valueType === 'Int') {
+    fieldSchema.default_value = ValueHelpers.int(editingDefaults.value[fieldType].int || 0);
+  } else if (valueType === 'Float') {
+    fieldSchema.default_value = ValueHelpers.float(editingDefaults.value[fieldType].float || 0.0);
+  } else if (valueType === 'Bool') {
+    fieldSchema.default_value = ValueHelpers.bool(editingDefaults.value[fieldType].bool || false);
+  } else if (valueType === 'Choice') {
+    // For choice fields, keep the default choice index
+    // The choices list would need to be stored separately in a full implementation
+    fieldSchema.default_value = ValueHelpers.choice(0);
   }
   
   // Mark field as modified
@@ -687,26 +562,24 @@ function confirmEdit(fieldType: string, fieldSchema: FieldSchema) {
   
   // Close editing mode
   editingField.value = null;
+  delete editingDefaults.value[fieldType];
 }
 
-// Modified delete field function to show confirmation dialog
-function deleteField(fieldType: string) {
+function deleteField(fieldType: FieldType) {
   confirmDialog.value = {
     show: true,
     title: 'Delete Field',
-    message: `Are you sure you want to delete the field "${fieldType}"? This cannot be undone.`,
+    message: `Are you sure you want to delete the field "${fieldNames.value[fieldType]}"? This cannot be undone.`,
     fieldToDelete: fieldType,
     type: 'danger'
   };
 }
 
-// Handle confirmation dialog response
 function confirmDeleteField() {
   const fieldType = confirmDialog.value.fieldToDelete;
   delete workingSchema.value.fields[fieldType];
-  delete permissionInputsList.value[fieldType];
   
-  // Mark as modified even if deleted
+  // Mark as modified
   modifiedFields.value.add(fieldType);
   
   confirmDialog.value.show = false;
@@ -721,7 +594,7 @@ function saveAllChanges() {
   emit('update:schema', workingSchema.value);
   
   // Update originalSchema to match current working schema
-  originalSchema.value = workingSchema.value.clone();
+  originalSchema.value = JSON.parse(JSON.stringify(workingSchema.value));
   
   // Clear modified fields
   modifiedFields.value.clear();
@@ -730,25 +603,28 @@ function saveAllChanges() {
 // Discard all changes
 function discardChanges() {
   // Reset working schema to original
-  workingSchema.value = originalSchema.value.clone();
+  workingSchema.value = JSON.parse(JSON.stringify(originalSchema.value));
   
   // Clear modified fields
   modifiedFields.value.clear();
   
   // Exit edit mode if active
   editingField.value = null;
+  editingDefaults.value = {};
 }
 
-// Native HTML5 Drag and Drop handlers
+// Drag and drop handlers
 function handleDragStart(event: DragEvent, index: number) {
   draggedIndex.value = index;
-  event.dataTransfer?.setData('text/plain', String(index));
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', String(index));
+  }
 }
 
 function handleDragEnter(event: DragEvent, index: number) {
   if (draggedIndex.value === null) return;
   
-  // Highlight the target row
   const rows = document.querySelectorAll('.field-row');
   rows.forEach((row, i) => {
     if (i === index) {
@@ -759,166 +635,54 @@ function handleDragEnter(event: DragEvent, index: number) {
   });
 }
 
-function handleDrop(event: DragEvent, index: number) {
+function handleDrop(event: DragEvent, toIndex: number) {
   event.preventDefault();
   
   const fromIndex = draggedIndex.value;
-  const toIndex = index;
   
-  if (fromIndex === null || fromIndex === toIndex) return; // Fixed missing parenthesis
+  if (fromIndex === null || fromIndex === toIndex) return;
   
-  // Reorder fields array
-  const fieldsArray = sortedFields.value.map(field => field.fieldType);
-  const [movedField] = fieldsArray.splice(fromIndex, 1);
-  fieldsArray.splice(toIndex, 0, movedField);
+  // Get the sorted fields array
+  const fields = sortedFields.value;
   
-  // Update ranks based on new order
-  fieldsArray.forEach((fieldType, index) => {
-    const field = workingSchema.value.fields[fieldType];
-    if (field) {
-      field.rank = index;
+  // Update ranks
+  const fromField = fields[fromIndex];
+  const toField = fields[toIndex];
+  
+  if (fromIndex < toIndex) {
+    // Moving down
+    for (let i = fromIndex; i < toIndex; i++) {
+      const field = fields[i + 1];
+      workingSchema.value.fields[field.fieldType].rank = i;
+      modifiedFields.value.add(field.fieldType);
     }
-  });
+    workingSchema.value.fields[fromField.fieldType].rank = toIndex;
+  } else {
+    // Moving up
+    for (let i = fromIndex; i > toIndex; i--) {
+      const field = fields[i - 1];
+      workingSchema.value.fields[field.fieldType].rank = i;
+      modifiedFields.value.add(field.fieldType);
+    }
+    workingSchema.value.fields[fromField.fieldType].rank = toIndex;
+  }
   
-  // Mark as modified
-  modifiedFields.value.add(fieldsArray[toIndex]);
+  modifiedFields.value.add(fromField.fieldType);
   
   draggedIndex.value = null;
 }
 
 function handleDragEnd() {
+  draggedIndex.value = null;
   const rows = document.querySelectorAll('.field-row');
   rows.forEach(row => {
     row.classList.remove('drag-over');
   });
 }
-
-// Methods for searchable dropdowns - for adding new fields
-function filterNewFieldPermissions(type: 'read' | 'write', searchText: string) {
-  newFieldPermState.searchText.value[type] = searchText;
-  
-  if (!searchText.trim()) {
-    filteredPermissions.value.add[type] = [...availablePermissions.value];
-  } else {
-    const lowerSearch = searchText.toLowerCase();
-    filteredPermissions.value.add[type] = availablePermissions.value.filter(perm => {
-      const name = perm.field('Name').value.getString().toLowerCase();
-      return name.includes(lowerSearch);
-    });
-  }
-  
-  // Reset active suggestion index when filtering
-  newFieldPermState.activeSuggestionIndex.value[type] = -1;
-}
-
-function selectNewFieldPermission(type: 'read' | 'write', permId: string) {
-  if (type === 'read') {
-    newFieldReadPermsList.value = [permId];
-    newFieldPermState.searchText.value.read = availablePermissions.value.find(p => p.entityId === permId)?.field('Name').value.getString() || '';
-  } else {
-    newFieldWritePermsList.value = [permId];
-    newFieldPermState.searchText.value.write = availablePermissions.value.find(p => p.entityId === permId)?.field('Name').value.getString() || '';
-  }
-  
-  // Hide dropdown after selection
-  newFieldPermState.showDropdown.value[type] = false;
-}
-
-function handleNewFieldSearchBlur(type: 'read' | 'write') {
-  // Use timeout to allow click events on dropdown items to complete
-  setTimeout(() => {
-    newFieldPermState.showDropdown.value[type] = false;
-  }, 200);
-}
-
-function handleNewFieldSearchKeydown(event: KeyboardEvent, type: 'read' | 'write') {
-  const currentIndex = newFieldPermState.activeSuggestionIndex.value[type];
-  const items = filteredPermissions.value.add[type];
-  
-  if (event.key === 'ArrowDown') {
-    event.preventDefault();
-    newFieldPermState.activeSuggestionIndex.value[type] = Math.min(currentIndex + 1, items.length - 1);
-  } else if (event.key === 'ArrowUp') {
-    event.preventDefault();
-    newFieldPermState.activeSuggestionIndex.value[type] = Math.max(currentIndex - 1, 0);
-  } else if (event.key === 'Enter' && currentIndex >= 0 && items[currentIndex]) {
-    event.preventDefault();
-    selectNewFieldPermission(type, items[currentIndex].entityId);
-  } else if (event.key === 'Escape') {
-    event.preventDefault();
-    newFieldPermState.showDropdown.value[type] = false;
-  }
-}
-
-// Methods for searchable dropdowns - for editing fields
-function filterEditFieldPermissions(type: 'read' | 'write', searchText: string) {
-  editFieldPermState.searchText.value[type] = searchText;
-  
-  if (!searchText.trim()) {
-    filteredPermissions.value.edit[type] = [...availablePermissions.value];
-  } else {
-    const lowerSearch = searchText.toLowerCase();
-    filteredPermissions.value.edit[type] = availablePermissions.value.filter(perm => {
-      const name = perm.field('Name').value.getString().toLowerCase();
-      return name.includes(lowerSearch);
-    });
-  }
-  
-  // Reset active suggestion index when filtering
-  editFieldPermState.activeSuggestionIndex.value[type] = -1;
-}
-
-function selectEditFieldPermission(type: 'read' | 'write', permId: string) {
-  const fieldType = editFieldPermState.currentField.value;
-  if (fieldType && permissionInputsList.value[fieldType]) {
-    if (type === 'read') {
-      permissionInputsList.value[fieldType].read = [permId];
-      editFieldPermState.searchText.value.read = availablePermissions.value.find(p => p.entityId === permId)?.field('Name').value.getString() || '';
-    } else {
-      permissionInputsList.value[fieldType].write = [permId];
-      editFieldPermState.searchText.value.write = availablePermissions.value.find(p => p.entityId === permId)?.field('Name').value.getString() || '';
-    }
-    
-    // Hide dropdown after selection
-    editFieldPermState.showDropdown.value[type] = false;
-  }
-}
-
-function handleEditFieldSearchBlur(type: 'read' | 'write') {
-  // Use timeout to allow click events on dropdown items to complete
-  setTimeout(() => {
-    editFieldPermState.showDropdown.value[type] = false;
-  }, 200);
-}
-
-function handleEditFieldSearchKeydown(event: KeyboardEvent, type: 'read' | 'write') {
-  const currentIndex = editFieldPermState.activeSuggestionIndex.value[type];
-  const items = filteredPermissions.value.edit[type];
-  
-  if (event.key === 'ArrowDown') {
-    event.preventDefault();
-    editFieldPermState.activeSuggestionIndex.value[type] = Math.min(currentIndex + 1, items.length - 1);
-  } else if (event.key === 'ArrowUp') {
-    event.preventDefault();
-    editFieldPermState.activeSuggestionIndex.value[type] = Math.max(currentIndex - 1, 0);
-  } else if (event.key === 'Enter' && currentIndex >= 0 && items[currentIndex]) {
-    event.preventDefault();
-    selectEditFieldPermission(type, items[currentIndex].entityId);
-  } else if (event.key === 'Escape') {
-    event.preventDefault();
-    editFieldPermState.showDropdown.value[type] = false;
-  }
-}
-
-// Helper function to get permission name from ID
-function getPermissionName(permId: string): string {
-  const perm = availablePermissions.value.find(p => p.entityId === permId);
-  return perm ? perm.field('Name').value.getString() : permId;
-}
 </script>
 
 <style scoped>
-/* Component-specific styles - global shared styles are in global.css */
+/* Component-specific styles */
 .schema-editor {
   height: 100%;
   display: flex;
@@ -931,16 +695,57 @@ function getPermissionName(permId: string): string {
 .schema-header {
   padding: 20px;
   margin-bottom: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--qui-hover-border);
+  background: var(--qui-titlebar-bg);
 }
 
 .schema-title {
   font-size: 24px;
   margin: 0;
+  font-weight: var(--qui-font-weight-medium);
+  color: var(--qui-text-primary);
 }
 
 .schema-actions {
   display: flex;
   gap: 8px;
+}
+
+.schema-editor-table-container {
+  flex: 1;
+  overflow: auto;
+  padding: 20px;
+}
+
+.schema-editor-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--qui-bg-secondary);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.schema-editor-table thead {
+  background: var(--qui-overlay-primary);
+}
+
+.schema-editor-table th {
+  padding: 12px;
+  text-align: left;
+  font-weight: var(--qui-font-weight-medium);
+  color: var(--qui-text-secondary);
+  font-size: var(--qui-font-size-small);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.schema-editor-table td {
+  padding: 12px;
+  border-top: 1px solid var(--qui-hover-border);
+  vertical-align: middle;
 }
 
 .col-drag {
@@ -952,11 +757,11 @@ function getPermissionName(permId: string): string {
 }
 
 .col-type {
-  width: 100px;
+  width: 120px;
 }
 
 .col-actions {
-  width: 90px;
+  width: 100px;
 }
 
 .drag-handle {
@@ -967,135 +772,44 @@ function getPermissionName(permId: string): string {
   height: 24px;
   cursor: move;
   color: var(--qui-text-secondary);
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.drag-handle:hover {
+  background: var(--qui-overlay-primary);
+  color: var(--qui-text-primary);
+}
+
+.field-row {
+  transition: background-color 0.2s ease;
+}
+
+.field-row:hover {
+  background-color: var(--qui-overlay-primary);
 }
 
 .field-row.drag-over {
   background-color: var(--qui-overlay-accent);
+  border-top: 2px solid var(--qui-accent-color);
 }
 
 .field-row.modified {
-  background-color: var(--qui-overlay-light);
+  background-color: rgba(255, 152, 0, 0.05);
 }
 
 .field-row.editing {
-  background-color: var(--qui-bg-secondary);
+  background-color: var(--qui-overlay-secondary);
 }
 
-.permissions-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
+.new-field-row {
+  background-color: var(--qui-overlay-primary);
 }
 
-.permissions-row span {
-  width: 50px;
+.field-default-display {
+  font-family: 'Courier New', monospace;
   color: var(--qui-text-secondary);
   font-size: var(--qui-font-size-small);
-}
-
-.permission-input-container {
-  flex: 1;
-  position: relative;
-}
-
-.no-results {
-  padding: 10px;
-  text-align: center;
-  color: var(--qui-text-secondary);
-  font-style: italic;
-}
-
-.choices-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 8px;
-  align-items: center;
-}
-
-.choice-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  background: var(--qui-overlay-accent);
-  color: var(--qui-accent-color);
-  border: 1px solid var(--qui-hover-border);
-}
-
-.delete-choice-btn {
-  background: none;
-  border: none;
-  color: inherit;
-  cursor: pointer;
-  font-size: 14px;
-  padding: 0;
-  width: 16px;
-  height: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  transition: all 0.2s ease;
-}
-
-.choice-tag:hover .delete-choice-btn {
-  background: rgba(255, 255, 255, 0.2);
-}
-
-.delete-choice-btn:hover {
-  background: rgba(0, 0, 0, 0.1);
-  transform: scale(1.1);
-}
-
-.field-properties {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.property-label {
-  color: var(--qui-text-secondary);
-  font-size: var(--qui-font-size-small);
-  margin-right: 4px;
-  font-weight: var(--qui-font-weight-normal);
-}
-
-.property-value {
-  font-weight: var(--qui-font-weight-medium);
-}
-
-.permission-chip {
-  background-color: var(--qui-bg-secondary);
-  color: var(--qui-text-primary);
-  padding: 2px 6px;
-  border-radius: 3px;
-  font-size: 11px;
-  border: 1px solid var(--qui-hover-border);
-}
-
-.options-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  align-items: center;
-}
-
-.option-chip {
-  background: var(--qui-overlay-primary);
-  color: var(--qui-text-primary);
-  border: 1px solid var(--qui-hover-border);
-  font-weight: var(--qui-font-weight-medium);
-}
-
-.option-chip:hover {
-  background: var(--qui-overlay-secondary);
-  color: var(--qui-bg-primary);
-}
-
-.option-more {
-  color: var(--qui-text-secondary);
-  font-size: 10px;
 }
 
 .action-buttons {
@@ -1107,87 +821,53 @@ function getPermissionName(permId: string): string {
 .modified-badge {
   background-color: var(--qui-overlay-secondary);
   color: var(--qui-accent-secondary);
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  margin-left: 6px;
 }
 
-/* Form control consistency improvements */
-.schema-editor-form-control {
-  height: 32px !important; /* Enforce consistent height */
-  line-height: 32px;
-  padding: 0 10px;
-  box-sizing: border-box;
-  width: 100%;
-}
-
-/* Better dropdown styling */
-.schema-editor-dropdown {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  z-index: 100;
-  margin-top: 4px;
-  background-color: var(--qui-bg-primary);
-  border: 1px solid var(--qui-hover-border);
-  border-radius: 4px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  max-height: 200px;
-  overflow-y: auto;
-  animation: schema-editor-fade-in-dropdown 0.2s ease;
-}
-
-.schema-editor-dropdown-item {
-  padding: 8px 12px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  font-size: var(--qui-font-size-small);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-.schema-editor-dropdown-item:last-child {
-  border-bottom: none;
-}
-
-.schema-editor-dropdown-item:hover, 
-.schema-editor-dropdown-item.active {
-  background: var(--qui-overlay-primary);
-  color: var(--qui-accent-color);
-}
-
-/* Style select dropdown to match our custom dropdowns */
-select.schema-editor-form-control {
-  appearance: none;
-  padding-right: 28px; /* Space for the dropdown icon */
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.5)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 6px center;
-  background-size: 16px;
-  cursor: pointer;
-}
-
-/* Improve new field row styling */
-.new-field-row td {
-  padding: 12px;
-  vertical-align: top;
-}
-
-.new-field-row .schema-editor-form-group {
+.schema-editor-form-group {
   margin-bottom: 0;
 }
 
-/* Consistent table cell alignment */
-.schema-editor-table td {
-  vertical-align: middle;
-}
-
-/* Animation for dropdown */
-@keyframes schema-editor-fade-in-dropdown {
-  from { opacity: 0; transform: translateY(-5px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-/* Ensure dropdown container maintains position context */
-.schema-editor-select {
-  position: relative;
+.schema-editor-form-control {
   width: 100%;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--qui-hover-border);
+  border-radius: 4px;
+  background: var(--qui-bg-primary);
+  color: var(--qui-text-primary);
+  font-size: var(--qui-font-size-base);
+  transition: all 0.2s ease;
+}
+
+.schema-editor-form-control:focus {
+  outline: none;
+  border-color: var(--qui-accent-color);
+  box-shadow: 0 0 0 3px var(--qui-overlay-accent);
+}
+
+.schema-editor-form-control.schema-editor-input-invalid {
+  border-color: var(--qui-danger-color);
+}
+
+.schema-editor-form-error {
+  color: var(--qui-danger-color);
+  font-size: var(--qui-font-size-small);
+  margin-top: 4px;
+}
+
+select.schema-editor-form-control {
+  cursor: pointer;
+}
+
+.field-tag-input {
+  width: 100%;
+}
+
+.properties-cell {
+  min-width: 200px;
 }
 </style>

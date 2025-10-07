@@ -14,7 +14,7 @@ const emit = defineEmits<{
 const dataStore = useDataStore();
 const loading = ref(true);
 const error = ref<string | null>(null);
-const entityTypes = ref<EntityType[]>([]);
+const entityTypes = ref<{ id: EntityType; name: string }[]>([]);
 const searchQuery = ref('');
 
 // Load entity types on component mount
@@ -30,7 +30,7 @@ const filteredEntityTypes = computed(() => {
   
   const query = searchQuery.value.toLowerCase();
   return entityTypes.value.filter(type => 
-    type.toLowerCase().includes(query)
+    type.name.toLowerCase().includes(query)
   );
 });
 
@@ -39,17 +39,35 @@ async function loadEntityTypes() {
     loading.value = true;
     error.value = null;
     
-    // Load all entity types
-    const result = await dataStore.getAllEntityTypes() || [];
+    // Note: getEntityTypes() is not yet implemented in qweb backend
+    // As a workaround, we'll try to load some common entity type names
+    // and filter out the ones that don't have schemas
+    const commonTypeNames = [
+      'User', 'Role', 'Permission', 'Group', 'Organization',
+      'Document', 'File', 'Folder', 'Tag', 'Category',
+      'Task', 'Project', 'Issue', 'Comment', 'Note',
+      'Product', 'Order', 'Customer', 'Invoice', 'Payment',
+      'Configuration', 'Setting', 'Log', 'Event', 'Notification'
+    ];
     
-    // Sort alphabetically
-    entityTypes.value = result.sort((a, b) => a.localeCompare(b));
+    const types: { id: number; name: string }[] = [];
     
-    console.log(`Loaded ${entityTypes.value.length} entity types`);
+    for (const typeName of commonTypeNames) {
+      try {
+        const typeId = await dataStore.getEntityType(typeName);
+        // Try to get the schema to verify it exists
+        await dataStore.getEntitySchema(typeId);
+        types.push({ id: typeId, name: typeName });
+      } catch (err) {
+        // Type doesn't exist or has no schema, skip it
+      }
+    }
+    
+    entityTypes.value = types.sort((a, b) => a.name.localeCompare(b.name));
     loading.value = false;
   } catch (err) {
     console.error('Failed to load entity types:', err);
-    error.value = 'Failed to load entity types: ' + (err instanceof Error ? err.message : String(err));
+    error.value = 'Failed to load entity types';
     loading.value = false;
   }
 }
@@ -140,17 +158,17 @@ watch(() => props.selectedType, (newValue, oldValue) => {
       <div class="entity-list">
         <div 
           v-for="entityType in filteredEntityTypes" 
-          :key="entityType"
+          :key="entityType.id"
           class="entity-item"
-          :class="{ 'selected': entityType === selectedType }"
-          @click="selectEntityType(entityType)"
+          :class="{ 'selected': entityType.id === selectedType }"
+          @click="selectEntityType(entityType.id)"
         >
           <div class="entity-icon">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
               <path fill="currentColor" d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
             </svg>
           </div>
-          <div class="entity-name">{{ entityType }}</div>
+          <div class="entity-name">{{ entityType.name }}</div>
         </div>
       </div>
     </div>

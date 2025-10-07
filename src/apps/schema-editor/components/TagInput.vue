@@ -53,22 +53,26 @@
         :class="{ 'active': activeSuggestionIndex === index }"
         @click.stop="selectSuggestion(suggestion)"
       >
-        {{ suggestion.field('Name').value.getString() }}
+        {{ suggestion.name }}
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import type { Entity } from '@/core/data/types';
 import { ref, computed, nextTick, watch } from 'vue';
+
+interface Suggestion {
+  id: string | number;
+  name: string;
+}
 
 const props = defineProps<{
   modelValue: string[] | string;
   placeholder?: string;
   limit?: number;
   allowDuplicates?: boolean;
-  suggestions?: Entity[];
+  suggestions?: Suggestion[];
   autocomplete?: boolean;
 }>();
 
@@ -179,8 +183,8 @@ function onKeydown(event: KeyboardEvent) {
   }
 }
 
-function selectSuggestion(suggestion: Entity) {
-  inputValue.value = suggestion.field('Name').value.getString();
+function selectSuggestion(suggestion: Suggestion) {
+  inputValue.value = suggestion.name;
   addTag();
   showSuggestions.value = false;
   activeSuggestionIndex.value = -1;

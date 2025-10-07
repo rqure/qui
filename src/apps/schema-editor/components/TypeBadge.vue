@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { ValueType } from '@/core/data/types';
 
 const props = defineProps<{
-  type: ValueType;
+  type: string;
   size?: 'sm' | 'md' | 'lg';
 }>();
 

@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue';
 import { useDataStore } from '@/stores/data';
-import type { EntityType, EntitySchema } from '@/core/data/types';
-import { ValueType, EntityFactories, FieldSchemaOptions } from '@/core/data/types';
+import type { EntitySchema, FieldSchema } from '@/stores/data';
+import type { EntityType, Value, FieldType } from '@/core/data/types';
+import { ValueHelpers } from '@/core/data/types';
 import EntityTypeList from './components/EntityTypeList.vue';
-import SchemaEditor from './components/SchemaEditor.vue'; // Fixed import - without default
+import SchemaEditor from './components/SchemaEditor.vue';
 import LoadingIndicator from '../../components/common/LoadingIndicator.vue';
 
 const dataStore = useDataStore();
@@ -81,8 +82,8 @@ async function handleEntityTypeSelect(entityType: EntityType) {
       loadingSchema.value = false;
     }, 50);
   } catch (err) {
-    console.error(`Error loading schema for ${entityType}:`, err);
-    error.value = `Failed to load schema for ${entityType}`;
+    console.error(`Error loading schema for entity type ${entityType}:`, err);
+    error.value = `Failed to load schema for entity type ${entityType}`;
     loadingSchema.value = false;
   }
 }
@@ -111,36 +112,53 @@ async function createNewEntityType() {
     loading.value = true;
     error.value = null;
     
-    // Create a new empty schema 
-    let schema;
+    // Get the entity type ID for the new type name
+    const entityTypeId = await dataStore.getEntityType(newEntityType.value);
+    
+    // Check if schema already exists
     try {
-      // Try to get existing schema
-      schema = await dataStore.getEntitySchema(newEntityType.value);
+      await dataStore.getEntitySchema(entityTypeId);
       error.value = `Entity type "${newEntityType.value}" already exists`;
       loading.value = false;
       return;
     } catch (e) {
-      // If schema doesn't exist, create a new empty one
-      schema = EntityFactories.newEntitySchema(newEntityType.value);
+      // Schema doesn't exist, create a new empty one
+      const nameFieldType = await dataStore.getFieldType('Name');
+      const parentFieldType = await dataStore.getFieldType('Parent');
+      const childrenFieldType = await dataStore.getFieldType('Children');
       
-      // Add a name field by default for all entities
-      const nameField = schema.field('Name', ValueType.String);
-      nameField.rank = 0;
+      const schema: EntitySchema = {
+        entity_type: entityTypeId,
+        inherit: [],
+        fields: {
+          [nameFieldType]: {
+            field_type: nameFieldType,
+            rank: 0,
+            default_value: ValueHelpers.string(''),
+            storage_scope: 'Runtime'
+          },
+          [parentFieldType]: {
+            field_type: parentFieldType,
+            rank: 1,
+            default_value: ValueHelpers.entityRef(null),
+            storage_scope: 'Runtime'
+          },
+          [childrenFieldType]: {
+            field_type: childrenFieldType,
+            rank: 2,
+            default_value: ValueHelpers.entityList([]),
+            storage_scope: 'Runtime'
+          }
+        }
+      };
       
-      // Add parent and children fields by default for navigation
-      const parentField = schema.field('Parent', ValueType.EntityReference);
-      parentField.rank = 1;
+      // Set the schema
+      await dataStore.updateSchema(schema);
       
-      const childrenField = schema.field('Children', ValueType.EntityList);
-      childrenField.rank = 2;
+      // Load the newly created schema
+      handleEntityTypeSelect(entityTypeId);
+      showCreateNewForm.value = false;
     }
-    
-    // Set the schema
-    await dataStore.setEntitySchema(schema);
-    
-    // Load the newly created schema
-    handleEntityTypeSelect(newEntityType.value);
-    showCreateNewForm.value = false;
   } catch (err) {
     console.error(`Error creating schema for ${newEntityType.value}:`, err);
     error.value = `Failed to create schema for ${newEntityType.value}`;
@@ -154,19 +172,19 @@ async function handleSchemaUpdate(schema: EntitySchema) {
     error.value = null;
     
     // Update the schema
-    await dataStore.setEntitySchema(schema);
+    await dataStore.updateSchema(schema);
     
     // Refresh the schema - first null it to force re-render
     currentSchema.value = null;
     
     // Then set the new value
     setTimeout(async () => {
-      currentSchema.value = await dataStore.getEntitySchema(schema.entityType);
+      currentSchema.value = await dataStore.getEntitySchema(schema.entity_type);
       loadingSchema.value = false;
     }, 50);
   } catch (err) {
-    console.error(`Error updating schema for ${schema.entityType}:`, err);
-    error.value = `Failed to update schema for ${schema.entityType}`;
+    console.error(`Error updating schema for entity type ${schema.entity_type}:`, err);
+    error.value = `Failed to update schema for entity type ${schema.entity_type}`;
     loadingSchema.value = false;
   }
 }
