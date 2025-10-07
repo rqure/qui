@@ -296,7 +296,7 @@ async function loadEntities() {
     const [childrenValue] = await dataStore.read(props.parentId, [ChildrenFieldType]);
     
     let childrenIds: EntityId[] = [];
-    if (ValueHelpers.isEntityList(childrenValue)) {
+    if (childrenValue != null && ValueHelpers.isEntityList(childrenValue)) {
       childrenIds = childrenValue.EntityList;
     }
     
@@ -313,12 +313,12 @@ async function loadEntities() {
         
         // Get the name and ensure it's never empty
         let name = 'Unnamed';
-        if (ValueHelpers.isString(nameValue)) {
+        if (nameValue != null && ValueHelpers.isString(nameValue)) {
           name = nameValue.String.trim() || 'Unnamed';
         }
         
         let childrenList: EntityId[] = [];
-        if (ValueHelpers.isEntityList(childrenFieldValue)) {
+        if (childrenFieldValue != null && ValueHelpers.isEntityList(childrenFieldValue)) {
           childrenList = childrenFieldValue.EntityList;
         }
         
@@ -330,7 +330,12 @@ async function loadEntities() {
           faceplates: await getFaceplateReferences(childId, FaceplatesFieldType, NameFieldType)
         });
       } catch (err) {
-        console.error(`Error loading child entity ${childId}:`, err);
+        // Only log detailed errors in development
+        if (import.meta.env.DEV && err instanceof Error && 
+            !err.message.includes('timeout') && 
+            !err.message.includes('not connected')) {
+          console.error(`Error loading child entity ${childId}:`, err);
+        }
       }
     }));
     
@@ -493,7 +498,15 @@ function cancelDelete() {
 
 // Load entity types when component mounts
 onMounted(async () => {
-  await loadEntityTypes();
+  // Wait for data store connection before loading
+  const connected = await dataStore.waitForConnection();
+  if (connected) {
+    await loadEntityTypes();
+  } else {
+    console.warn('Failed to connect to database backend. Retrying loadEntityTypes...');
+    // Try anyway - loadEntityTypes has its own retry logic
+    await loadEntityTypes();
+  }
 });
 </script>
 

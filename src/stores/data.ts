@@ -34,8 +34,8 @@ export const useDataStore = defineStore('data', {
     connectionResolve: null as (() => void) | null,
     pendingResponse: null as { resolve: (value: any) => void; reject: (error: any) => void } | null,
     requestQueue: [] as Array<{ request: any; resolve: (value: any) => void; reject: (error: any) => void }>,
-    notificationCallbacks: {} as Record<number, NotificationCallback[]>,
-    localToServerHash: {} as Record<number, number>, // Map local hash to server hash
+    notificationCallbacks: {} as Record<string, NotificationCallback[]>, // Use string keys to avoid precision loss
+    localToServerHash: {} as Record<number, string>, // Map local hash to server hash (as string)
     connectionLostCallbacks: [] as (() => void)[],
     reconnectAttempts: 0,
     maxReconnectAttempts: 10,
@@ -254,12 +254,14 @@ export const useDataStore = defineStore('data', {
 
     handleNotification(notification: any) {
       const configHash = notification.config_hash;
+      // Convert to string to avoid JavaScript number precision issues
+      const configHashStr = String(configHash);
       console.log('Received notification with config_hash:', configHash);
       console.log('Registered callbacks:', Object.keys(this.notificationCallbacks));
       
-      if (configHash && this.notificationCallbacks[configHash]) {
-        console.log(`Found ${this.notificationCallbacks[configHash].length} callbacks for hash ${configHash}`);
-        this.notificationCallbacks[configHash].forEach(callback => {
+      if (configHash && this.notificationCallbacks[configHashStr]) {
+        console.log(`Found ${this.notificationCallbacks[configHashStr].length} callbacks for hash ${configHashStr}`);
+        this.notificationCallbacks[configHashStr].forEach(callback => {
           try {
             callback(notification);
           } catch (error) {
@@ -267,7 +269,7 @@ export const useDataStore = defineStore('data', {
           }
         });
       } else {
-        console.warn('No callbacks registered for config_hash:', configHash);
+        console.warn('No callbacks registered for config_hash:', configHash, '(as string:', configHashStr, ')');
       }
     },
 
@@ -689,7 +691,8 @@ export const useDataStore = defineStore('data', {
           });
           
           // Use the config_hash returned by the server (Rust's hash)
-          serverConfigHash = response.config_hash;
+          // Convert to string to avoid JavaScript number precision issues
+          serverConfigHash = String(response.config_hash);
           
           // Store the mapping from local to server hash
           this.localToServerHash[localConfigHash] = serverConfigHash;
