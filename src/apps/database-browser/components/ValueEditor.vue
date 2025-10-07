@@ -115,7 +115,9 @@ async function loadChoiceOptions() {
       currentChoiceIndex.value = props.value.Choice;
     }
   } catch (error) {
-    console.error('Error loading choice options:', error);
+    if (import.meta.env.DEV) {
+      console.error('Error loading choice options:', error);
+    }
   }
 }
 
@@ -147,7 +149,9 @@ function handleSave() {
       newValue = ValueHelpers.string(editValue.value);
     }
   } catch (e) {
-    console.error('Error creating value:', e);
+    if (import.meta.env.DEV) {
+      console.error('Error creating value:', e);
+    }
     newValue = props.value; // Keep original on error
   }
   

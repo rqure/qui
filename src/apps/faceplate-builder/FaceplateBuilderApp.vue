@@ -1,506 +1,304 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue';
-import type { EntityId, EntityType } from '@/core/data/types';
-import { ValueHelpers } from '@/core/data/types';
-import { useDataStore } from '@/stores/data';
-import FaceplateRuntime from './components/FaceplateRuntime.vue';
-import { FaceplateDataService, type FaceplateComponentRecord, type FaceplateRecord, type FaceplateBindingLibraryRecord, type FaceplateBindingDefinition, type FaceplateConfiguration } from '@/apps/faceplate-builder/utils/faceplate-data';
+import { computed, reactive, ref } from 'vue';
+import BuilderCanvas from './components/BuilderCanvas.vue';
+import ComponentPalette from './components/ComponentPalette.vue';
+import InspectorPanel from './components/InspectorPanel.vue';
+import BindingsPanel from './components/BindingsPanel.vue';
+import FaceplatePreview from './components/FaceplatePreview.vue';
+import BuilderToolbar from './components/BuilderToolbar.vue';
 
-interface FaceplateFolders {
-  root: EntityId | null;
-  components: EntityId | null;
-  bindings: EntityId | null;
-  faceplates: EntityId | null;
+type Vector2 = { x: number; y: number };
+
+type PaletteTemplate = {
+  id: string;
+  label: string;
+  description: string;
+  icon: string;
+  defaults: {
+    size: Vector2;
+    props: Record<string, unknown>;
+  };
+};
+
+type CanvasNode = {
+  id: string;
+  componentId: string;
+  name: string;
+  position: Vector2;
+  size: Vector2;
+  props: Record<string, unknown>;
+};
+
+type Binding = {
+  id: string;
+  componentId: string;
+  componentName: string;
+  property: string;
+  expression: string;
+};
+
+const paletteTemplates: PaletteTemplate[] = [
+  {
+    id: 'value-indicator',
+    label: 'Value Indicator',
+    description: 'Show a single numeric or text value.',
+    icon: '🔢',
+    defaults: {
+      size: { x: 200, y: 140 },
+      props: { label: 'Indicator', precision: 2 },
+    },
+  },
+  {
+    id: 'status-tile',
+    label: 'Status Tile',
+    description: 'Display a boolean state with contextual styling.',
+    icon: '🟢',
+    defaults: {
+      size: { x: 200, y: 160 },
+      props: { label: 'Status', trueLabel: 'Running', falseLabel: 'Stopped' },
+    },
+  },
+  {
+    id: 'trend-chart',
+    label: 'Trend Chart',
+    description: 'Time series sparkline for numeric values.',
+    icon: '📈',
+    defaults: {
+      size: { x: 320, y: 220 },
+      props: { label: 'Trend', window: '15m' },
+    },
+  },
+  {
+    id: 'text-label',
+    label: 'Text Label',
+    description: 'Static or data bound text field.',
+    icon: '🔖',
+    defaults: {
+      size: { x: 180, y: 100 },
+      props: { label: 'Label', text: 'Double-click to edit' },
+    },
+  },
+];
+
+const nodes = ref<CanvasNode[]>([]);
+const bindings = ref<Binding[]>([]);
+const selectedNodeId = ref<string | null>(null);
+
+const history = reactive<{ stack: Array<{ nodes: CanvasNode[]; bindings: Binding[] }>; index: number }>({
+  stack: [],
+  index: -1,
+});
+const savedIndex = ref(-1);
+
+const selectedNode = computed(() => nodes.value.find((node) => node.id === selectedNodeId.value) ?? null);
+const canUndo = computed(() => history.index > 0);
+const canRedo = computed(() => history.index < history.stack.length - 1);
+const dirty = computed(() => history.index !== savedIndex.value);
+
+function generateId(prefix: string) {
+  return `${prefix}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-const props = defineProps<{
-  initialFaceplateId?: EntityId | null;
-  initialEntityId?: EntityId | null;
-}>();
-
-const dataStore = useDataStore();
-const service = new FaceplateDataService(dataStore);
-
-const faceplateEntityTypeId = ref<EntityType | null>(null);
-const componentEntityTypeId = ref<EntityType | null>(null);
-const bindingEntityTypeId = ref<EntityType | null>(null);
-const folderEntityTypeId = ref<EntityType | null>(null);
-
-const folders = reactive<FaceplateFolders>({
-  root: null,
-  components: null,
-  bindings: null,
-  faceplates: null,
-});
-
-const faceplates = ref<FaceplateRecord[]>([]);
-const componentsLibrary = ref<FaceplateComponentRecord[]>([]);
-const bindingsLibrary = ref<FaceplateBindingLibraryRecord[]>([]);
-const availableEntityTypes = ref<string[]>([]);
-
-const selectedFaceplateId = ref<EntityId | null>(props.initialFaceplateId ?? null);
-const editingFaceplate = ref<FaceplateRecord | null>(null);
-const componentSelection = ref<EntityId[]>([]);
-const previewEntityId = ref<EntityId | null>(props.initialEntityId ?? null);
-const associationTargetEntityId = ref<EntityId | null>(props.initialEntityId ?? null);
-
-const configurationEditor = ref<string>('{}');
-const bindingsEditor = ref<string>('[]');
-const notificationEditor = ref<string>('[]');
-
-const configurationError = ref<string | null>(null);
-const bindingsError = ref<string | null>(null);
-const notificationError = ref<string | null>(null);
-
-const parsedConfiguration = ref<FaceplateConfiguration>({ layout: [], bindings: [] });
-const parsedBindings = ref<FaceplateBindingDefinition[]>([]);
-const parsedNotifications = ref<any[]>([]);
-
-const loading = ref(true);
-const saving = ref(false);
-const message = ref<string>('');
-const errorMessage = ref<string>('');
-
-const previewFaceplate = computed<FaceplateRecord | null>(() => {
-  if (!editingFaceplate.value) return null;
+function cloneState(): { nodes: CanvasNode[]; bindings: Binding[] } {
   return {
-    ...editingFaceplate.value,
-    components: [...componentSelection.value],
-    configurationRaw: configurationEditor.value,
-    configuration: parsedConfiguration.value,
-    bindingsRaw: bindingsEditor.value,
-    bindings: parsedBindings.value,
-    notificationChannelsRaw: notificationEditor.value,
-    notificationChannels: parsedNotifications.value,
-  };
-});
-
-watch(configurationEditor, (text) => {
-  try {
-    const parsed = JSON.parse(text || '{}');
-    parsedConfiguration.value = normalizeConfiguration(parsed);
-    configurationError.value = null;
-  } catch (err) {
-    configurationError.value = err instanceof Error ? err.message : 'Invalid JSON';
-  }
-}, { immediate: true });
-
-watch(bindingsEditor, (text) => {
-  try {
-    const parsed = JSON.parse(text || '[]');
-    parsedBindings.value = Array.isArray(parsed) ? parsed : [];
-    bindingsError.value = null;
-  } catch (err) {
-    bindingsError.value = err instanceof Error ? err.message : 'Invalid bindings JSON';
-  }
-}, { immediate: true });
-
-watch(notificationEditor, (text) => {
-  try {
-    const parsed = JSON.parse(text || '[]');
-    parsedNotifications.value = Array.isArray(parsed) ? parsed : [];
-    notificationError.value = null;
-  } catch (err) {
-    notificationError.value = err instanceof Error ? err.message : 'Invalid notification JSON';
-  }
-}, { immediate: true });
-
-async function initialize() {
-  loading.value = true;
-  errorMessage.value = '';
-
-  try {
-    await resolveEntityTypeIds();
-    await resolveFolders();
-    await loadEntityTypes();
-    await loadComponentLibrary();
-    await loadBindingLibrary();
-    await loadFaceplates();
-
-    if (selectedFaceplateId.value && faceplates.value.some((fp) => fp.id === selectedFaceplateId.value)) {
-      await selectFaceplate(selectedFaceplateId.value);
-    } else if (faceplates.value.length > 0) {
-      await selectFaceplate(faceplates.value[0].id);
-    }
-  } catch (err) {
-    console.error('Failed to initialize faceplate builder', err);
-    errorMessage.value = err instanceof Error ? err.message : 'Initialization failed';
-  } finally {
-    loading.value = false;
-  }
-}
-
-async function resolveEntityTypeIds() {
-  faceplateEntityTypeId.value = await service.getEntityType('Faceplate');
-  componentEntityTypeId.value = await service.getEntityType('FaceplateComponent');
-  bindingEntityTypeId.value = await service.getEntityType('FaceplateBinding');
-  folderEntityTypeId.value = await service.getEntityType('Folder');
-}
-
-async function resolveFolders() {
-  if (!folderEntityTypeId.value) return;
-
-  const folderIds = await dataStore.findEntities(folderEntityTypeId.value, 'Name == "Faceplate Builder"');
-  folders.root = folderIds[0] ?? null;
-
-  if (folders.root) {
-    const componentFolders = await dataStore.findEntities(folderEntityTypeId.value, `Name == "Component Library" && Parent == ${folders.root}`);
-    folders.components = componentFolders[0] ?? null;
-
-    const bindingFolders = await dataStore.findEntities(folderEntityTypeId.value, `Name == "Bindings" && Parent == ${folders.root}`);
-    folders.bindings = bindingFolders[0] ?? null;
-
-    const faceplateFolders = await dataStore.findEntities(folderEntityTypeId.value, `Name == "Faceplates" && Parent == ${folders.root}`);
-    folders.faceplates = faceplateFolders[0] ?? null;
-  }
-}
-
-async function loadEntityTypes() {
-  const typeIds = await dataStore.getEntityTypes();
-  const names = await Promise.all(typeIds.map((id) => dataStore.resolveEntityType(id).catch(() => null)));
-  availableEntityTypes.value = names.filter((name): name is string => Boolean(name)).sort((a, b) => a.localeCompare(b));
-}
-
-async function loadFaceplates() {
-  if (!faceplateEntityTypeId.value) return;
-  const ids = await dataStore.findEntities(faceplateEntityTypeId.value, folders.faceplates ? `Parent == ${folders.faceplates}` : undefined);
-  faceplates.value = (await service.readFaceplates(ids)).sort((a, b) => a.name.localeCompare(b.name));
-}
-
-async function loadComponentLibrary() {
-  if (!componentEntityTypeId.value) return;
-  const ids = await dataStore.findEntities(componentEntityTypeId.value, folders.components ? `Parent == ${folders.components}` : undefined);
-  componentsLibrary.value = (await Promise.all(ids.map((id) => service.readComponent(id)))).sort((a, b) => a.name.localeCompare(b.name));
-}
-
-async function loadBindingLibrary() {
-  if (!bindingEntityTypeId.value) return;
-  const ids = await dataStore.findEntities(bindingEntityTypeId.value, folders.bindings ? `Parent == ${folders.bindings}` : undefined);
-  bindingsLibrary.value = (await Promise.all(ids.map((id) => service.readBinding(id)))).sort((a, b) => a.name.localeCompare(b.name));
-}
-
-async function selectFaceplate(faceplateId: EntityId) {
-  const record = faceplates.value.find((fp) => fp.id === faceplateId) ?? await service.readFaceplate(faceplateId);
-  editingFaceplate.value = {
-    ...record,
-    configuration: normalizeConfiguration(record.configuration),
-  };
-  selectedFaceplateId.value = faceplateId;
-  componentSelection.value = [...record.components];
-  configurationEditor.value = JSON.stringify(record.configuration, null, 2);
-  bindingsEditor.value = JSON.stringify(record.bindings, null, 2);
-  notificationEditor.value = JSON.stringify(record.notificationChannels, null, 2);
-  message.value = '';
-}
-
-function normalizeConfiguration(config: any): FaceplateConfiguration {
-  const layout = Array.isArray(config?.layout) ? config.layout : [];
-  const bindings = Array.isArray(config?.bindings) ? config.bindings : [];
-  return {
-    layout,
-    bindings,
-    metadata: typeof config?.metadata === 'object' && config.metadata ? config.metadata : {},
+    nodes: nodes.value.map((node) => ({
+      ...node,
+      position: { ...node.position },
+      size: { ...node.size },
+      props: { ...node.props },
+    })),
+    bindings: bindings.value.map((binding) => ({ ...binding })),
   };
 }
 
-async function createFaceplate() {
-  if (!faceplateEntityTypeId.value) return;
-  saving.value = true;
-  errorMessage.value = '';
-  message.value = '';
+function pushHistory() {
+  history.stack.splice(history.index + 1);
+  history.stack.push(cloneState());
+  history.index = history.stack.length - 1;
+}
 
-  try {
-    const name = `Faceplate ${faceplates.value.length + 1}`;
-    const newId = await dataStore.createEntity(faceplateEntityTypeId.value, folders.faceplates, name);
-
-    const defaultConfig = {
-      layout: [],
-      bindings: [],
-    };
-
-    await service.writeString(newId, 'Configuration', JSON.stringify(defaultConfig, null, 2));
-    await service.writeString(newId, 'Bindings', '[]');
-    await service.writeString(newId, 'NotificationChannels', '[]');
-    await service.writeString(newId, 'TargetEntityType', '');
-
-    await loadFaceplates();
-    await selectFaceplate(newId);
-    message.value = 'Faceplate created successfully.';
-  } catch (err) {
-    errorMessage.value = err instanceof Error ? err.message : 'Failed to create faceplate';
-  } finally {
-    saving.value = false;
+function applyState(snapshot: { nodes: CanvasNode[]; bindings: Binding[] }) {
+  nodes.value = snapshot.nodes.map((node) => ({
+    ...node,
+    position: { ...node.position },
+    size: { ...node.size },
+    props: { ...node.props },
+  }));
+  bindings.value = snapshot.bindings.map((binding) => ({ ...binding }));
+  if (selectedNodeId.value && !nodes.value.some((node) => node.id === selectedNodeId.value)) {
+    selectedNodeId.value = null;
   }
 }
 
-async function saveFaceplate() {
-  if (!editingFaceplate.value || !selectedFaceplateId.value) return;
+function handleNodeRequest(payload: { componentId: string; position: Vector2 }) {
+  const template = paletteTemplates.find((item) => item.id === payload.componentId);
+  if (!template) return;
 
-  if (configurationError.value || bindingsError.value || notificationError.value) {
-    errorMessage.value = 'Please resolve configuration errors before saving.';
-    return;
-  }
-
-  saving.value = true;
-  errorMessage.value = '';
-  message.value = '';
-
-  try {
-    const faceplateId = selectedFaceplateId.value;
-    const targetEntityType = editingFaceplate.value.targetEntityType || '';
-
-    await service.writeString(faceplateId, 'Name', editingFaceplate.value.name || `Faceplate ${faceplateId}`);
-    await service.writeString(faceplateId, 'TargetEntityType', targetEntityType);
-    await service.writeString(faceplateId, 'Configuration', JSON.stringify(parsedConfiguration.value, null, 2));
-    await service.writeString(faceplateId, 'Bindings', JSON.stringify(parsedBindings.value, null, 2));
-    await service.writeString(faceplateId, 'NotificationChannels', JSON.stringify(parsedNotifications.value, null, 2));
-    await service.writeEntityList(faceplateId, 'Components', [...componentSelection.value]);
-
-    await loadFaceplates();
-    await selectFaceplate(faceplateId);
-    message.value = 'Faceplate saved successfully.';
-  } catch (err) {
-    errorMessage.value = err instanceof Error ? err.message : 'Failed to save faceplate';
-  } finally {
-    saving.value = false;
-  }
+  const nodeId = generateId('node');
+  nodes.value = [
+    ...nodes.value,
+    {
+      id: nodeId,
+      componentId: template.id,
+      name: template.label,
+      position: { ...payload.position },
+      size: { ...template.defaults.size },
+      props: { ...template.defaults.props },
+    },
+  ];
+  selectedNodeId.value = nodeId;
+  pushHistory();
 }
 
-async function attachFaceplateToEntity() {
-  if (!selectedFaceplateId.value || !associationTargetEntityId.value) {
-    errorMessage.value = 'Select a faceplate and target entity before attaching.';
-    return;
-  }
-
-  try {
-    const faceplatesFieldType = await service.getFieldType('Faceplates');
-    const [value] = await dataStore.read(associationTargetEntityId.value, [faceplatesFieldType]);
-    let current: EntityId[] = [];
-    if (value && ValueHelpers.isEntityList(value)) {
-      current = value.EntityList;
-    }
-
-    if (!current.includes(selectedFaceplateId.value)) {
-      current = [...current, selectedFaceplateId.value];
-      await dataStore.write(associationTargetEntityId.value, [faceplatesFieldType], ValueHelpers.entityList(current));
-      message.value = 'Faceplate attached to entity.';
-    } else {
-      message.value = 'Entity already references this faceplate.';
-    }
-  } catch (err) {
-    errorMessage.value = err instanceof Error ? err.message : 'Failed to attach faceplate';
-  }
+function handleNodeUpdate(payload: { nodeId: string; position: Vector2 }) {
+  nodes.value = nodes.value.map((node) =>
+    node.id === payload.nodeId ? { ...node, position: { ...payload.position } } : node,
+  );
 }
 
-async function detachFaceplateFromEntity() {
-  if (!selectedFaceplateId.value || !associationTargetEntityId.value) {
-    errorMessage.value = 'Select a faceplate and target entity before detaching.';
-    return;
-  }
-
-  try {
-    const faceplatesFieldType = await service.getFieldType('Faceplates');
-    const [value] = await dataStore.read(associationTargetEntityId.value, [faceplatesFieldType]);
-    let current: EntityId[] = [];
-    if (value && ValueHelpers.isEntityList(value)) {
-      current = value.EntityList;
-    }
-
-    if (current.includes(selectedFaceplateId.value)) {
-      const updated = current.filter((id) => id !== selectedFaceplateId.value);
-      await dataStore.write(associationTargetEntityId.value, [faceplatesFieldType], ValueHelpers.entityList(updated));
-      message.value = 'Faceplate detached from entity.';
-    } else {
-      message.value = 'Entity was not associated with this faceplate.';
-    }
-  } catch (err) {
-    errorMessage.value = err instanceof Error ? err.message : 'Failed to detach faceplate';
-  }
+function handleNodeMoveEnd(payload: { nodeId: string; position: Vector2 }) {
+  handleNodeUpdate(payload);
+  pushHistory();
 }
 
-async function addBindingFromLibrary(binding: FaceplateBindingLibraryRecord) {
-  try {
-    const bindingsArray = JSON.parse(bindingsEditor.value || '[]');
-    if (!Array.isArray(bindingsArray)) {
-      throw new Error('Bindings JSON must be an array.');
-    }
-    const componentName = binding.targetComponent
-      ? componentsLibrary.value.find((component) => component.id === binding.targetComponent)?.name
-      : null;
-    if (!componentName) {
-      throw new Error('Binding library entry does not reference a loaded component.');
-    }
-    bindingsArray.push({
-      component: componentName,
-      property: binding.targetProperty || 'value',
-      expression: binding.expression,
-      transform: binding.valueTransform || undefined,
-    });
-    bindingsEditor.value = JSON.stringify(bindingsArray, null, 2);
-    message.value = 'Binding added from library.';
-  } catch (err) {
-    errorMessage.value = err instanceof Error ? err.message : 'Failed to apply binding';
-  }
+function handleNodeSelected(nodeId: string) {
+  selectedNodeId.value = nodeId;
 }
 
-onMounted(async () => {
-  await initialize();
-});
+function handleRename(payload: { nodeId: string; name: string }) {
+  nodes.value = nodes.value.map((node) =>
+    node.id === payload.nodeId ? { ...node, name: payload.name } : node,
+  );
+  pushHistory();
+}
+
+function handleResize(payload: { nodeId: string; size: Vector2 }) {
+  nodes.value = nodes.value.map((node) =>
+    node.id === payload.nodeId ? { ...node, size: { x: Math.max(80, payload.size.x), y: Math.max(80, payload.size.y) } } : node,
+  );
+  pushHistory();
+}
+
+function handlePropUpdated(payload: { nodeId: string; key: string; value: unknown }) {
+  nodes.value = nodes.value.map((node) =>
+    node.id === payload.nodeId ? { ...node, props: { ...node.props, [payload.key]: payload.value } } : node,
+  );
+  pushHistory();
+}
+
+function handleBindingCreate() {
+  if (!selectedNode.value) return;
+  const bindingId = generateId('binding');
+  bindings.value = [
+    ...bindings.value,
+    {
+      id: bindingId,
+      componentId: selectedNode.value.id,
+      componentName: selectedNode.value.name,
+      property: 'value',
+      expression: 'Parent->Name',
+    },
+  ];
+  pushHistory();
+}
+
+function handleBindingEdit(bindingId: string) {
+  const binding = bindings.value.find((item) => item.id === bindingId);
+  if (!binding) return;
+  // For scaffolding, cycle sample expressions quickly.
+  const samples = ['Parent->Name', 'Parent->Parent->Status', 'Temperature', 'CustomLiteral'];
+  const currentIndex = samples.indexOf(binding.expression);
+  const nextExpression = samples[(currentIndex + 1) % samples.length];
+  bindings.value = bindings.value.map((item) =>
+    item.id === bindingId ? { ...item, expression: nextExpression } : item,
+  );
+  pushHistory();
+}
+
+function handleBindingRemove(bindingId: string) {
+  bindings.value = bindings.value.filter((item) => item.id !== bindingId);
+  pushHistory();
+}
+
+function undo() {
+  if (!canUndo.value) return;
+  history.index -= 1;
+  applyState(history.stack[history.index]);
+}
+
+function redo() {
+  if (!canRedo.value) return;
+  history.index += 1;
+  applyState(history.stack[history.index]);
+}
+
+function markSaved() {
+  savedIndex.value = history.index;
+}
+
+function resetWorkspace() {
+  nodes.value = [];
+  bindings.value = [];
+  selectedNodeId.value = null;
+  pushHistory();
+  markSaved();
+}
+
+function saveWorkspace() {
+  // Placeholder save routine - integrate with store API later.
+  markSaved();
+}
+
+// Initialize with an empty baseline state.
+if (!history.stack.length) {
+  pushHistory();
+  markSaved();
+}
 </script>
 
 <template>
   <div class="faceplate-builder">
-    <div v-if="loading" class="builder-state">Loading Faceplate Builder…</div>
-    <div v-else class="builder-grid">
-      <aside class="panel faceplate-list">
-        <header>
-          <h2>Faceplates</h2>
-          <button type="button" class="primary" @click="createFaceplate" :disabled="saving">New Faceplate</button>
-        </header>
-        <ul>
-          <li
-            v-for="faceplate in faceplates"
-            :key="faceplate.id"
-            :class="{ active: faceplate.id === selectedFaceplateId }"
-            @click="selectFaceplate(faceplate.id)"
-          >
-            <strong>{{ faceplate.name }}</strong>
-            <span>{{ faceplate.targetEntityType || 'Unbound' }}</span>
-          </li>
-        </ul>
-      </aside>
+    <BuilderToolbar
+      :can-undo="canUndo"
+      :can-redo="canRedo"
+      :dirty="dirty"
+      @undo="undo"
+      @redo="redo"
+      @reset="resetWorkspace"
+      @save="saveWorkspace"
+    />
 
-      <section class="panel editor" v-if="editingFaceplate">
-        <header class="editor-header">
-          <div>
-            <h2>{{ editingFaceplate.name }}</h2>
-            <p>Faceplate ID {{ editingFaceplate.id }}</p>
-          </div>
-          <div class="actions">
-            <button type="button" class="secondary" @click="saveFaceplate" :disabled="saving || !!configurationError || !!bindingsError || !!notificationError">
-              {{ saving ? 'Saving…' : 'Save Changes' }}
-            </button>
-          </div>
-        </header>
+    <div class="faceplate-builder__body">
+      <ComponentPalette :components="paletteTemplates" @create-request="(id) => handleNodeRequest({ componentId: id, position: { x: 40, y: 40 } })" />
 
-        <div class="editor-body">
-          <div class="field-group">
-            <label>Name</label>
-            <input v-model="editingFaceplate.name" type="text" />
-          </div>
+      <main class="workspace">
+        <BuilderCanvas
+          :nodes="nodes"
+          :selected-node-id="selectedNodeId"
+          @node-requested="handleNodeRequest"
+          @node-selected="handleNodeSelected"
+          @node-updated="handleNodeUpdate"
+          @node-move-end="handleNodeMoveEnd"
+        />
 
-          <div class="field-group">
-            <label>Target Entity Type</label>
-            <input list="entity-types" v-model="editingFaceplate.targetEntityType" placeholder="PerfTestEntity" />
-            <datalist id="entity-types">
-              <option v-for="type in availableEntityTypes" :key="type" :value="type"></option>
-            </datalist>
-          </div>
+        <BindingsPanel
+          class="workspace__bindings"
+          :items="bindings"
+          @create="handleBindingCreate"
+          @edit="handleBindingEdit"
+          @remove="handleBindingRemove"
+        />
 
-          <div class="field-group">
-            <label>Components</label>
-            <div class="component-picker">
-              <label v-for="component in componentsLibrary" :key="component.id">
-                <input type="checkbox" :value="component.id" v-model="componentSelection" />
-                <span>{{ component.name }}</span>
-              </label>
-            </div>
-          </div>
+        <FaceplatePreview class="workspace__preview" :nodes="nodes" />
+      </main>
 
-          <div class="field-group column">
-            <label>Layout &amp; Visual Configuration</label>
-            <textarea v-model="configurationEditor" rows="10"></textarea>
-            <span v-if="configurationError" class="field-error">{{ configurationError }}</span>
-          </div>
-
-          <div class="field-group column">
-            <label>Bindings</label>
-            <textarea v-model="bindingsEditor" rows="8"></textarea>
-            <span v-if="bindingsError" class="field-error">{{ bindingsError }}</span>
-          </div>
-
-          <div class="field-group column">
-            <label>Notification Channels</label>
-            <textarea v-model="notificationEditor" rows="6"></textarea>
-            <span v-if="notificationError" class="field-error">{{ notificationError }}</span>
-          </div>
-
-          <div class="field-group attach">
-            <label>Entity Association</label>
-            <div class="attach-controls">
-              <input type="number" v-model.number="associationTargetEntityId" placeholder="Entity ID" />
-              <button type="button" @click="attachFaceplateToEntity">Attach</button>
-              <button type="button" class="secondary" @click="detachFaceplateFromEntity">Detach</button>
-            </div>
-            <small>Attached faceplates appear in the Database Browser context menu.</small>
-          </div>
-        </div>
-      </section>
-
-      <aside class="panel library">
-        <div class="library-section">
-          <header>
-            <h3>Component Library</h3>
-          </header>
-          <ul>
-            <li v-for="component in componentsLibrary" :key="component.id">
-              <div class="library-card">
-                <div>
-                  <strong>{{ component.name }}</strong>
-                  <span>{{ component.configuration.type || component.componentType }}</span>
-                </div>
-                <button type="button" @click="componentSelection = componentSelection.includes(component.id) ? componentSelection.filter(id => id !== component.id) : [...componentSelection, component.id]">
-                  {{ componentSelection.includes(component.id) ? 'Remove' : 'Add' }}
-                </button>
-              </div>
-            </li>
-          </ul>
-        </div>
-
-        <div class="library-section">
-          <header>
-            <h3>Binding Library</h3>
-          </header>
-          <ul>
-            <li v-for="binding in bindingsLibrary" :key="binding.id">
-              <div class="library-card">
-                <div>
-                  <strong>{{ binding.name }}</strong>
-                  <span>{{ binding.expression }}</span>
-                </div>
-                <button type="button" @click="addBindingFromLibrary(binding)">Apply</button>
-              </div>
-            </li>
-          </ul>
-        </div>
-      </aside>
-
-      <section class="panel preview">
-        <header>
-          <h2>Live Preview</h2>
-          <div class="preview-controls">
-            <label>
-              Entity ID
-              <input type="number" v-model.number="previewEntityId" placeholder="Entity ID" />
-            </label>
-          </div>
-        </header>
-        <div class="preview-body">
-          <FaceplateRuntime
-            v-if="previewFaceplate"
-            :faceplate-data="previewFaceplate"
-            :entity-id="previewEntityId"
-            :live="true"
-          />
-          <div v-else class="preview-placeholder">Select or create a faceplate to preview.</div>
-        </div>
-      </section>
+      <InspectorPanel
+        :node="selectedNode"
+        @rename="handleRename"
+        @resize="handleResize"
+        @prop-updated="handlePropUpdated"
+      />
     </div>
-
-    <footer class="builder-footer">
-      <span v-if="message" class="message">{{ message }}</span>
-      <span v-if="errorMessage" class="error">{{ errorMessage }}</span>
-    </footer>
   </div>
 </template>
 
@@ -509,278 +307,34 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: radial-gradient(circle at top, rgba(0, 12, 18, 0.7), rgba(0, 0, 0, 0.82));
+  background: radial-gradient(circle at top, rgba(0, 16, 24, 0.78), rgba(0, 0, 0, 0.9));
   color: var(--qui-text-primary);
 }
 
-.builder-state {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-  letter-spacing: 0.06em;
-  opacity: 0.75;
-}
-
-.builder-grid {
-  flex: 1;
+.faceplate-builder__body {
   display: grid;
-  grid-template-columns: 260px 1.2fr 0.8fr;
-  grid-template-rows: 100%;
-  gap: 16px;
-  padding: 18px;
-  overflow: hidden;
-}
-
-.panel {
-  background: rgba(0, 0, 0, 0.45);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.panel header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(0, 0, 0, 0.4);
-}
-
-.faceplate-list ul,
-.library ul {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  overflow: auto;
-}
-
-.faceplate-list li {
-  padding: 12px 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  transition: background 0.2s ease;
-}
-
-.faceplate-list li.active,
-.faceplate-list li:hover {
-  background: rgba(0, 200, 160, 0.18);
-}
-
-.faceplate-list li span {
-  font-size: 12px;
-  opacity: 0.7;
-}
-
-.editor {
-  overflow: auto;
-}
-
-.editor-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.editor-header h2 {
-  margin: 0;
-  font-size: 20px;
-  letter-spacing: 0.06em;
-}
-
-.editor-header p {
-  margin: 4px 0 0;
-  font-size: 12px;
-  opacity: 0.7;
-}
-
-.actions {
-  display: flex;
-  gap: 10px;
-}
-
-.editor-body {
-  padding: 16px;
-  display: grid;
-  gap: 16px;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-}
-
-.field-group {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.field-group.column textarea {
-  width: 100%;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(0, 0, 0, 0.35);
-  color: inherit;
-  padding: 10px;
-  font-family: 'Fira Code', monospace;
-  font-size: 13px;
-}
-
-.field-group input {
-  padding: 8px 10px;
-  border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(0, 0, 0, 0.35);
-  color: inherit;
-}
-
-.field-group label {
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  opacity: 0.75;
-}
-
-.field-error {
-  color: var(--qui-danger-color);
-  font-size: 12px;
-}
-
-.component-picker {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  max-height: 160px;
-  overflow: auto;
-  padding: 8px;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.component-picker label {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  cursor: pointer;
-}
-
-.attach-controls {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-}
-
-.attach-controls button {
-  padding: 6px 12px;
-  border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(0, 0, 0, 0.45);
-  color: inherit;
-  cursor: pointer;
-}
-
-.attach-controls button.secondary {
-  background: rgba(180, 60, 60, 0.3);
-}
-
-.library {
-  overflow: hidden;
-}
-
-.library-section {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-
-.library-section + .library-section {
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.library-section ul {
-  padding: 0 0 12px 0;
-  overflow: auto;
-}
-
-.library-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.library-card strong {
-  display: block;
-  margin-bottom: 3px;
-}
-
-.library-card span {
-  font-size: 12px;
-  opacity: 0.7;
-}
-
-.library-card button {
-  padding: 6px 12px;
-  border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(0, 255, 170, 0.2);
-  color: inherit;
-  cursor: pointer;
-}
-
-.preview {
-  overflow: hidden;
-}
-
-.preview .preview-body {
+  grid-template-columns: 240px 1fr 320px;
+  gap: 0;
   flex: 1;
   overflow: hidden;
+}
+
+.workspace {
   display: flex;
+  flex-direction: column;
+  padding: 24px;
+  gap: 24px;
+  overflow: auto;
 }
 
-.preview-body .preview-placeholder {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 15px;
-  opacity: 0.7;
+.workspace__bindings,
+.workspace__preview {
+  flex: none;
 }
 
-.primary {
-  padding: 6px 12px;
-  border-radius: 6px;
-  border: none;
-  background: var(--qui-accent-color);
-  color: #061017;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.secondary {
-  background: rgba(0, 0, 0, 0.45);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: inherit;
-}
-
-.builder-footer {
-  padding: 10px 18px;
-  display: flex;
-  justify-content: space-between;
-  font-size: 13px;
-}
-
-.builder-footer .message {
-  color: var(--qui-accent-color);
-}
-
-.builder-footer .error {
-  color: var(--qui-danger-color);
+@media (max-width: 1480px) {
+  .faceplate-builder__body {
+    grid-template-columns: 220px 1fr 300px;
+  }
 }
 </style>

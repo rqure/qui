@@ -70,8 +70,8 @@ async function copyEntityId() {
 }
 
 // Register cleanup function at top level before any await
-onUnmounted(async () => {
-  await cleanupNotifications();
+onUnmounted(() => {
+  cleanupNotifications();
   
   // Clear the refresh timestamps timer
   if (refreshTimestampsTimer.value !== null) {
@@ -95,11 +95,9 @@ onMounted(() => {
 
 // Load entity details when component mounts or entity ID changes
 watch(() => props.entityId, async (newId, oldId) => {
-  console.log('EntityId changed:', { newId, oldId, loading: loading.value });
   // Clean up previous notification subscriptions when entity changes
-  await cleanupNotifications();
+  cleanupNotifications();
   await loadEntityDetails();
-  console.log('After loadEntityDetails, loading:', loading.value);
 }, { immediate: true });
 
 // Function to format a timestamp with reactivity to currentTimestamp
@@ -176,23 +174,25 @@ const toLocaleDateString = (timestamp: number[] | number | string | null): strin
   }
 };
 
-async function cleanupNotifications() {
-  // Unregister all field notifications
+function cleanupNotifications() {
+  // Unregister all field notifications synchronously
   for (const [fieldType, callback] of notificationCallbacks.value.entries()) {
     const notifyConfig: NotifyConfig = {
       EntityId: {
         entity_id: props.entityId,
         field_type: fieldType,
-        trigger_on_change: true,
+        trigger_on_change: false,
         context: []
       }
     };
     
-    try {
-      await dataStore.unregisterNotification(notifyConfig, callback);
-    } catch (err) {
-      console.warn(`Error unregistering notification for field ${fieldType}:`, err);
-    }
+    // Fire and forget - don't await to ensure cleanup happens immediately
+    dataStore.unregisterNotification(notifyConfig, callback).catch(err => {
+      // Only log errors in development
+      if (import.meta.env.DEV) {
+        console.warn(`Error unregistering notification for field ${fieldType}:`, err);
+      }
+    });
   }
   notificationCallbacks.value.clear();
 }
@@ -222,7 +222,6 @@ async function processFieldDrop(fieldType: FieldType | string, entityId: EntityI
       field.value = newValue;
       if (ftNum !== null) {
         await dataStore.write(props.entityId, [ftNum], newValue);
-        console.log(`Updated reference field ${fieldType} to ${entityId}`);
       }
     } 
     else if (ValueHelpers.isEntityList(field.value)) {
@@ -237,10 +236,7 @@ async function processFieldDrop(fieldType: FieldType | string, entityId: EntityI
         field.value = newValue;
         if (ftNum !== null) {
           await dataStore.write(props.entityId, [ftNum], newValue);
-          console.log(`Added ${entityId} to entity list ${fieldType}`);
         }
-      } else {
-        console.log(`Entity ${entityId} already exists in list ${fieldType}`);
       }
     }
   } catch (error) {
@@ -377,9 +373,17 @@ async function loadEntityDetails() {
     }
     
     // Get the complete entity schema (includes inherited fields)
-    console.log('Loading schema for entity type:', entityTypeName.value);
-    schema.value = await dataStore.getCompleteEntitySchema(entityTypeNumber);
-    console.log('Schema loaded:', schema.value);
+    try {
+      schema.value = await dataStore.getCompleteEntitySchema(entityTypeNumber);
+    } catch (err) {
+      if (err instanceof Error && (err.message.includes('not initialized') || err.message.includes('Invalid schema'))) {
+        error.value = 'Database backend is still initializing. Please wait a moment and try again.';
+      } else {
+        error.value = `Failed to load schema for ${entityTypeName.value}: ${err instanceof Error ? err.message : 'Unknown error'}`;
+      }
+      loading.value = false;
+      return;
+    }
     
     // Load inherited entity type names
     inheritedTypeNames.value = [];
@@ -389,19 +393,20 @@ async function loadEntityDetails() {
           schema.value.inherit.map(typeId => dataStore.resolveEntityType(typeId))
         );
       } catch (err) {
-        console.warn('Error loading inherited type names:', err);
+        if (import.meta.env.DEV) {
+          console.warn('Error loading inherited type names:', err);
+        }
       }
     }
     
     if (!schema.value || !schema.value.fields) {
-      error.value = `Failed to load schema for ${entityTypeName.value}`;
+      error.value = `Failed to load schema for ${entityTypeName.value}: Schema data is incomplete`;
       loading.value = false;
       return;
     }
     
     // Get field types from schema
     const fieldTypes = Object.keys(schema.value.fields).map(ft => Number(ft));
-    console.log('Schema field types:', fieldTypes);
     
     if (fieldTypes.length === 0) {
       error.value = "Entity schema has no fields";
@@ -410,7 +415,6 @@ async function loadEntityDetails() {
     }
     
     // Read all fields for this entity (one at a time, as read() takes a field path)
-    console.log('Reading fields for entity:', props.entityId);
     const fieldData: { value: Value; timestamp: Timestamp; writerId: EntityId | null }[] = [];
     
     for (const ft of fieldTypes) {
@@ -418,7 +422,9 @@ async function loadEntityDetails() {
         const [value, timestamp, writerId] = await dataStore.read(props.entityId, [ft]);
         fieldData.push({ value, timestamp, writerId });
       } catch (err) {
-        console.warn(`Error reading field ${ft}:`, err);
+        if (import.meta.env.DEV) {
+          console.warn(`Error reading field ${ft}:`, err);
+        }
         // Use default values for failed reads
         fieldData.push({ 
           value: ValueHelpers.string(''), 
@@ -427,8 +433,6 @@ async function loadEntityDetails() {
         });
       }
     }
-    
-    console.log('Fields read successfully:', fieldData.length);
     
     // Create DisplayField objects
     fields.value = fieldTypes.map((ft, index) => ({
@@ -443,7 +447,9 @@ async function loadEntityDetails() {
       const aField = schema.value!.fields[a.fieldType];
       const bField = schema.value!.fields[b.fieldType];
       if (!aField || !bField) {
-        console.warn('Missing field schema:', { a: a.fieldType, aField, b: b.fieldType, bField });
+        if (import.meta.env.DEV) {
+          console.warn('Missing field schema:', { a: a.fieldType, aField, b: b.fieldType, bField });
+        }
         return 0;
       }
       // Primary sort by rank using helper
@@ -455,11 +461,6 @@ async function loadEntityDetails() {
       // Secondary sort by field type ID when ranks are equal
       return a.fieldType - b.fieldType;
     });
-    
-    console.log('Fields sorted by rank:', fields.value.map(f => ({
-      fieldType: f.fieldType,
-      rank: schema.value!.fields[f.fieldType] ? FieldSchemaHelpers.getRank(schema.value!.fields[f.fieldType]) : 'N/A'
-    })));
     
     // Get entity name
     const NameFieldType = await dataStore.getFieldType('Name');
@@ -474,34 +475,22 @@ async function loadEntityDetails() {
     setupFieldDropZones();
     
     // Load writer names and field type names after loading fields
-    console.log('Loading writer names...');
     await loadWriterNames();
-    console.log('Writer names loaded');
-    
-    console.log('Loading field type names...');
     await loadFieldTypeNames();
-    console.log('Field type names loaded');
     
     // Register for notifications on all fields
-    console.log('Registering field notifications...');
     await registerFieldNotifications();
-    console.log('Field notifications registered');
 
     loading.value = false;
-    console.log('Entity details loaded successfully, loading.value:', loading.value);
   } catch (err) {
-    console.error(`Error in loadEntityDetails: ${err}`);
+    console.error('Error loading entity details:', err);
     error.value = `Error: ${err}`;
     loading.value = false;
-    console.log('Error in loadEntityDetails, loading.value:', loading.value);
   }
 }
 
 async function registerFieldNotifications() {
   try {
-    // Clear existing notification subscriptions first
-    await cleanupNotifications();
-    
     // Register notifications for each field
     for (const field of fields.value) {
       const notifyConfig: NotifyConfig = {
@@ -524,7 +513,9 @@ async function registerFieldNotifications() {
       try {
         await dataStore.registerNotification(notifyConfig, callback);
       } catch (error) {
-        console.warn(`Failed to register notification for field ${field.fieldType}:`, error);
+        if (import.meta.env.DEV) {
+          console.warn(`Failed to register notification for field ${field.fieldType}:`, error);
+        }
         notificationCallbacks.value.delete(field.fieldType);
       }
     }
@@ -545,7 +536,9 @@ function handleFieldNotification(notification: Notification, expectedFieldType: 
     
     // Verify this notification is for the expected field
     if (fieldType !== expectedFieldType) {
-      console.warn(`Received notification for field ${fieldType} but expected ${expectedFieldType}`);
+      if (import.meta.env.DEV) {
+        console.warn(`Received notification for field ${fieldType} but expected ${expectedFieldType}`);
+      }
       return;
     }
     
@@ -650,13 +643,16 @@ async function loadFieldTypeNames() {
         const name = await dataStore.resolveFieldType(ftNum as any);
         fieldTypeNames.value[ftNum] = name;
       } catch (err) {
-        console.warn(`Failed to resolve field type ${ftNum}:`, err);
+        if (import.meta.env.DEV) {
+          console.warn(`Failed to resolve field type ${ftNum}:`, err);
+        }
         fieldTypeNames.value[ftNum] = String(ftNum);
       }
     } else {
       // Field type IDs should always be numeric at this point
-      // If we somehow got here, just use the string representation
-      console.warn(`Non-numeric field type ID encountered: ${fieldTypeId}`);
+      if (import.meta.env.DEV) {
+        console.warn(`Non-numeric field type ID encountered: ${fieldTypeId}`);
+      }
       fieldTypeNames.value[fieldTypeId as any] = String(fieldTypeId);
     }
   }));
@@ -729,8 +725,6 @@ function getDropMessage(field: DisplayField): string {
 // Process drop on a specific field - renamed to avoid naming conflict
 async function updateFieldWithEntityId(fieldType: FieldType | string, entityId: EntityId) {
   try {
-    console.log(`Updating field ${fieldType} with entity ${entityId}`);
-    
     // Find the field in our fields array (numeric-safe)
     const field = fields.value.find(f => {
       const a = toNumericFieldType(f.fieldType);
@@ -739,16 +733,15 @@ async function updateFieldWithEntityId(fieldType: FieldType | string, entityId: 
       return String(f.fieldType) === String(fieldType);
     });
     if (!field) {
-      console.error(`Field ${fieldType} not found`);
+      if (import.meta.env.DEV) {
+        console.error(`Field ${fieldType} not found`);
+      }
       return;
     }
 
     // Important: Immediately clear the drop target highlight 
   const ftNum = toNumericFieldType(fieldType);
   if (ftNum !== null) fieldDropTargets.value[ftNum] = false;
-
-    // Double check the current value before changing
-    console.log('Current field value before update:', field.value);
     
     try {
       const ftNum = toNumericFieldType(fieldType);
@@ -762,15 +755,12 @@ async function updateFieldWithEntityId(fieldType: FieldType | string, entityId: 
         // For entity reference, set the new value
         const newValue = ValueHelpers.entityRef(entityId);
         
-        console.log('Writing entity reference:', { entityId: props.entityId, fieldType: ftNum, value: newValue });
-        
         // Update local state first
         field.value = newValue;
         fields.value = [...fields.value]; // Force reactivity
         
         // Perform write operation
         await dataStore.write(props.entityId, [ftNum], newValue);
-        console.log(`Updated reference field ${fieldType} to ${entityId}`);
       } 
       else if (ValueHelpers.isEntityList(field.value)) {
         // For entity list, append the entity to the list if not already present
@@ -782,17 +772,12 @@ async function updateFieldWithEntityId(fieldType: FieldType | string, entityId: 
           const newList = [...currentList, entityId];
           const newValue = ValueHelpers.entityList(newList);
           
-          console.log('Writing entity list:', { entityId: props.entityId, fieldType: ftNum, value: newValue });
-          
           // Update local state first
           field.value = newValue;
           fields.value = [...fields.value]; // Force reactivity
           
           // Perform write operation
           await dataStore.write(props.entityId, [ftNum], newValue);
-          console.log(`Added ${entityId} to entity list ${fieldType}`);
-        } else {
-          console.log(`Entity ${entityId} already exists in list ${fieldType}`);
         }
       }
     } catch (writeError) {

@@ -39,15 +39,15 @@ export const ValueHelpers = {
   timestamp: (value: Timestamp): Value => ({ Timestamp: value }),
 
   // Type guards
-  isBool: (v: Value): v is { Bool: boolean } => 'Bool' in v,
-  isInt: (v: Value): v is { Int: number } => 'Int' in v,
-  isFloat: (v: Value): v is { Float: number } => 'Float' in v,
-  isString: (v: Value): v is { String: string } => 'String' in v,
-  isBlob: (v: Value): v is { Blob: number[] } => 'Blob' in v,
-  isEntityRef: (v: Value): v is { EntityReference: EntityId | null } => 'EntityReference' in v,
-  isEntityList: (v: Value): v is { EntityList: EntityId[] } => 'EntityList' in v,
-  isChoice: (v: Value): v is { Choice: number } => 'Choice' in v,
-  isTimestamp: (v: Value): v is { Timestamp: Timestamp } => 'Timestamp' in v,
+  isBool: (v: Value): v is { Bool: boolean } => v != null && typeof v === 'object' && 'Bool' in v,
+  isInt: (v: Value): v is { Int: number } => v != null && typeof v === 'object' && 'Int' in v,
+  isFloat: (v: Value): v is { Float: number } => v != null && typeof v === 'object' && 'Float' in v,
+  isString: (v: Value): v is { String: string } => v != null && typeof v === 'object' && 'String' in v,
+  isBlob: (v: Value): v is { Blob: number[] } => v != null && typeof v === 'object' && 'Blob' in v,
+  isEntityRef: (v: Value): v is { EntityReference: EntityId | null } => v != null && typeof v === 'object' && 'EntityReference' in v,
+  isEntityList: (v: Value): v is { EntityList: EntityId[] } => v != null && typeof v === 'object' && 'EntityList' in v,
+  isChoice: (v: Value): v is { Choice: number } => v != null && typeof v === 'object' && 'Choice' in v,
+  isTimestamp: (v: Value): v is { Timestamp: Timestamp } => v != null && typeof v === 'object' && 'Timestamp' in v,
 
   // Extract value
   extract: (v: Value): any => {

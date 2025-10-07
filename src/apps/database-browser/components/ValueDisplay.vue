@@ -151,11 +151,15 @@ async function loadChoiceOptions() {
         choiceLabel.value = '';
       }
     } else {
-      console.warn('Field schema not found for field type:', fieldTypeNum, 'in schema:', schema);
+      if (import.meta.env.DEV) {
+        console.warn('Field schema not found for field type:', fieldTypeNum, 'in schema:', schema);
+      }
       choiceLabel.value = '';
     }
   } catch (error) {
-    console.error('Error loading choice options:', error);
+    if (import.meta.env.DEV) {
+      console.error('Error loading choice options:', error);
+    }
     choiceLabel.value = '';
   }
 }
@@ -179,7 +183,10 @@ async function loadEntityNames() {
       const name = await fetchEntityName(entityId);
       entityNames.value.set(entityId, name);
     } catch (error) {
-      console.warn(`Failed to load name for entity ${entityId}:`, error);
+      if (import.meta.env.DEV) {
+        console.warn(`Failed to load name for entity ${entityId}:`, error);
+      }
+      entityNames.value.set(entityId, String(entityId));
     }
   }
 }

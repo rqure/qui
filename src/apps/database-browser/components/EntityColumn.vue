@@ -362,7 +362,10 @@ function handleDragStart(event: DragEvent, entity: EntityItem) {
 }
 
 // Load available entity types for creation
-async function loadEntityTypes() {
+async function loadEntityTypes(retryCount = 0) {
+  const maxRetries = 3;
+  const retryDelay = 1000; // 1 second
+  
   try {
     const entityTypes = await dataStore.getEntityTypes();
     const typeNames = await Promise.all(
@@ -377,6 +380,17 @@ async function loadEntityTypes() {
       .sort((a, b) => a.name.localeCompare(b.name));
   } catch (err) {
     console.error('Failed to load entity types:', err);
+    
+    // Retry if it's a connection/timeout error and we haven't exceeded max retries
+    if (retryCount < maxRetries && 
+        (err instanceof Error && 
+         (err.message.includes('not connected') || 
+          err.message.includes('timeout') || 
+          err.message.includes('not ready')))) {
+      console.log(`Retrying loadEntityTypes (${retryCount + 1}/${maxRetries})...`);
+      await new Promise(resolve => setTimeout(resolve, retryDelay * (retryCount + 1)));
+      return loadEntityTypes(retryCount + 1);
+    }
   }
 }
 

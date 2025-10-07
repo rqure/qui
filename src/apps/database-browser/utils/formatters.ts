@@ -9,20 +9,36 @@ export async function fetchEntityName(entityId: EntityId): Promise<string> {
   try {
     const dataStore = useDataStore();
     
+    // Check if data store is connected
+    if (!dataStore.isConnected) {
+      if (import.meta.env.DEV) {
+        console.warn(`Cannot fetch name for entity ${entityId}: WebSocket not connected`);
+      }
+      return 'Loading...';
+    }
+    
     // Get the Name field type
     const nameFieldType = await dataStore.getFieldType('Name');
     
     // Read the Name field
     const [value] = await dataStore.read(entityId, [nameFieldType]);
     
-    let name = 'Unknown';
-    if (ValueHelpers.isString(value)) {
-      name = value.String;
+    // Safely check if value is a string
+    if (value != null && ValueHelpers.isString(value)) {
+      return value.String || 'Unknown';
     }
     
-    return name;
+    return 'Unknown';
   } catch (error) {
-    console.warn(`Failed to fetch name for entity ${entityId}:`, error);
+    // Only log in development mode to reduce console noise
+    if (import.meta.env.DEV && error instanceof Error) {
+      // Don't log connection/timeout errors during startup
+      if (!error.message.includes('timeout') && 
+          !error.message.includes('not connected') && 
+          !error.message.includes('not ready')) {
+        console.warn(`Failed to fetch name for entity ${entityId}:`, error);
+      }
+    }
     return 'Unknown';
   }
 }

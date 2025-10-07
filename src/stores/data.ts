@@ -30,6 +30,8 @@ export const useDataStore = defineStore('data', {
   state: () => ({
     socket: null as WebSocket | null,
     isConnected: false,
+    connectionPromise: null as Promise<void> | null,
+    connectionResolve: null as (() => void) | null,
     pendingResponse: null as { resolve: (value: any) => void; reject: (error: any) => void } | null,
     requestQueue: [] as Array<{ request: any; resolve: (value: any) => void; reject: (error: any) => void }>,
     notificationCallbacks: {} as Record<number, NotificationCallback[]>,
@@ -61,6 +63,13 @@ export const useDataStore = defineStore('data', {
         return;
       }
 
+      // Create a new connection promise if one doesn't exist
+      if (!this.connectionPromise) {
+        this.connectionPromise = new Promise<void>((resolve) => {
+          this.connectionResolve = resolve;
+        });
+      }
+
       // Clear any existing connection timeout
       if (this.connectionTimeout !== null) {
         clearTimeout(this.connectionTimeout);
@@ -84,6 +93,9 @@ export const useDataStore = defineStore('data', {
         if (this.socket && this.socket.readyState === WebSocket.CONNECTING) {
           console.warn('WebSocket connection timeout');
           this.socket.close();
+          // Reset connection promise for retry
+          this.connectionPromise = null;
+          this.connectionResolve = null;
         }
       }, this.connectionTimeoutMs);
 
@@ -96,6 +108,11 @@ export const useDataStore = defineStore('data', {
         if (this.connectionTimeout !== null) {
           clearTimeout(this.connectionTimeout);
           this.connectionTimeout = null;
+        }
+
+        // Resolve connection promise
+        if (this.connectionResolve) {
+          this.connectionResolve();
         }
       };
 
@@ -163,6 +180,43 @@ export const useDataStore = defineStore('data', {
         this.pendingResponse = null;
         this.requestQueue = [];
       }
+
+      // Reset connection promise
+      this.connectionPromise = null;
+      this.connectionResolve = null;
+    },
+
+    /**
+     * Wait for WebSocket connection to be established
+     * Useful for components that need to ensure connection before making requests
+     */
+    async waitForConnection(timeoutMs: number = 10000): Promise<boolean> {
+      if (this.isConnected) {
+        return true;
+      }
+
+      // If not connecting, start connection
+      if (!this.socket || this.socket.readyState === WebSocket.CLOSED) {
+        this.connect();
+      }
+
+      // Wait for connection promise with timeout
+      if (this.connectionPromise) {
+        try {
+          await Promise.race([
+            this.connectionPromise,
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Connection timeout')), timeoutMs)
+            )
+          ]);
+          return true;
+        } catch (err) {
+          console.warn('Failed to establish connection:', err);
+          return false;
+        }
+      }
+
+      return false;
     },
 
     onMessage(event: MessageEvent) {
@@ -219,7 +273,11 @@ export const useDataStore = defineStore('data', {
 
     async sendWebSocketRequest(request: any): Promise<any> {
       if (!this.isConnected || !this.socket) {
-        throw new Error('WebSocket is not connected');
+        throw new Error('WebSocket is not connected. Backend may still be initializing.');
+      }
+
+      if (this.socket.readyState !== WebSocket.OPEN) {
+        throw new Error('WebSocket connection is not ready. Please wait and try again.');
       }
 
       return new Promise((resolve, reject) => {
@@ -387,6 +445,9 @@ export const useDataStore = defineStore('data', {
      */
     async getCompleteEntitySchema(entityType: EntityType): Promise<CompleteEntitySchema> {
       const data = await this.request('CompleteSchema', { entity_type: entityType });
+      if (!data || !data.schema) {
+        throw new Error('Invalid schema response from server. Backend may not be fully initialized.');
+      }
       return {
         entity_type: data.schema.entity_type,
         inherit: data.schema.inherit || [],
