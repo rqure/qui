@@ -32,12 +32,13 @@ const error = ref<string | null>(null);
 const entities = ref<EntityItem[]>([]);
 const searchQuery = ref('');
 
-// Create entity dialog state
-const showCreateDialog = ref(false);
+// Inline create entity state
+const isCreating = ref(false);
 const createEntityName = ref('');
 const createEntityType = ref<string>('');
 const availableEntityTypes = ref<Array<{ id: number, name: string }>>([]);
 const creatingEntity = ref(false);
+const createInputRef = ref<HTMLInputElement | null>(null);
 
 // Delete entity dialog state
 const showDeleteDialog = ref(false);
@@ -246,11 +247,24 @@ async function loadEntityTypes() {
   }
 }
 
-// Open create entity dialog
-function openCreateDialog() {
+// Toggle inline create mode
+function toggleCreateMode() {
+  isCreating.value = !isCreating.value;
+  if (isCreating.value) {
+    createEntityName.value = '';
+    createEntityType.value = availableEntityTypes.value.length > 0 ? String(availableEntityTypes.value[0].id) : '';
+    // Focus the input after the DOM updates
+    setTimeout(() => {
+      createInputRef.value?.focus();
+    }, 50);
+  }
+}
+
+// Cancel creating entity
+function cancelCreate() {
+  isCreating.value = false;
   createEntityName.value = '';
-  createEntityType.value = availableEntityTypes.value.length > 0 ? String(availableEntityTypes.value[0].id) : '';
-  showCreateDialog.value = true;
+  creatingEntity.value = false;
 }
 
 // Create a new entity
@@ -274,13 +288,25 @@ async function createEntity() {
     // Select the newly created entity
     selectEntity(newEntityId);
     
-    // Close the dialog
-    showCreateDialog.value = false;
+    // Exit create mode
+    isCreating.value = false;
+    createEntityName.value = '';
   } catch (err) {
     console.error('Failed to create entity:', err);
     error.value = err instanceof Error ? err.message : 'Failed to create entity';
   } finally {
     creatingEntity.value = false;
+  }
+}
+
+// Handle keyboard events in create mode
+function handleCreateKeydown(event: KeyboardEvent) {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    createEntity();
+  } else if (event.key === 'Escape') {
+    event.preventDefault();
+    cancelCreate();
   }
 }
 
@@ -331,14 +357,6 @@ onMounted(async () => {
     :data-column-id="columnId"
   >
     <div class="column-header">
-      <div class="header-top">
-        <button class="create-entity-btn" @click="openCreateDialog" title="Create new entity">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
-            <path fill="currentColor" d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
-          </svg>
-          <span>Create</span>
-        </button>
-      </div>
       <div class="search-container">
         <span class="search-icon" v-if="!searchQuery">
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24">
@@ -356,6 +374,51 @@ onMounted(async () => {
             <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/>
           </svg>
         </span>
+      </div>
+      
+      <!-- Inline Create Entity Form -->
+      <div v-if="isCreating" class="inline-create-form">
+        <input 
+          ref="createInputRef"
+          type="text" 
+          v-model="createEntityName" 
+          placeholder="Entity name..."
+          class="create-name-input"
+          @keydown="handleCreateKeydown"
+          :disabled="creatingEntity"
+        />
+        <select 
+          v-model="createEntityType" 
+          class="create-type-select"
+          :disabled="creatingEntity"
+        >
+          <option v-for="type in availableEntityTypes" :key="type.id" :value="type.id">
+            {{ type.name }}
+          </option>
+        </select>
+        <div class="create-actions">
+          <button 
+            class="create-action-btn create-submit" 
+            @click="createEntity"
+            :disabled="!createEntityName.trim() || !createEntityType || creatingEntity"
+            title="Create (Enter)"
+          >
+            <svg v-if="!creatingEntity" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24">
+              <path fill="currentColor" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
+            </svg>
+            <span v-else class="spinner-tiny"></span>
+          </button>
+          <button 
+            class="create-action-btn create-cancel" 
+            @click="cancelCreate"
+            :disabled="creatingEntity"
+            title="Cancel (Esc)"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24">
+              <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/>
+            </svg>
+          </button>
+        </div>
       </div>
     </div>
     
@@ -415,59 +478,19 @@ onMounted(async () => {
           </span>
         </div>
       </div>
-    </div>
-
-    <!-- Create Entity Dialog -->
-    <div v-if="showCreateDialog" class="dialog-overlay" @click="showCreateDialog = false">
-      <div class="dialog-content" @click.stop>
-        <div class="dialog-header">
-          <h3>Create New Entity</h3>
-          <button class="dialog-close" @click="showCreateDialog = false">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24">
-              <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/>
-            </svg>
-          </button>
-        </div>
-        <div class="dialog-body">
-          <div class="form-group">
-            <label for="entity-name">Name:</label>
-            <input 
-              id="entity-name"
-              type="text" 
-              v-model="createEntityName" 
-              placeholder="Enter entity name"
-              class="form-input"
-              @keyup.enter="createEntity"
-              autofocus
-            />
-          </div>
-          <div class="form-group">
-            <label for="entity-type">Type:</label>
-            <select 
-              id="entity-type"
-              v-model="createEntityType" 
-              class="form-select"
-            >
-              <option v-for="type in availableEntityTypes" :key="type.id" :value="type.id">
-                {{ type.name }}
-              </option>
-            </select>
-          </div>
-        </div>
-        <div class="dialog-footer">
-          <button class="dialog-btn dialog-btn-cancel" @click="showCreateDialog = false" :disabled="creatingEntity">
-            Cancel
-          </button>
-          <button 
-            class="dialog-btn dialog-btn-primary" 
-            @click="createEntity" 
-            :disabled="!createEntityName.trim() || !createEntityType || creatingEntity"
-          >
-            <span v-if="creatingEntity" class="spinner-small"></span>
-            <span v-else>Create</span>
-          </button>
-        </div>
-      </div>
+      
+      <!-- Create Entity Button at bottom -->
+      <button 
+        v-if="!isCreating" 
+        class="list-create-btn" 
+        @click="toggleCreateMode"
+        title="Create new entity"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24">
+          <path fill="currentColor" d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+        </svg>
+        <span>Create Entity</span>
+      </button>
     </div>
 
     <!-- Delete Entity Dialog -->
@@ -553,35 +576,162 @@ onMounted(async () => {
   backdrop-filter: blur(10px);
 }
 
-.header-top {
+/* Inline create form */
+.inline-create-form {
   display: flex;
-  justify-content: flex-end;
-  margin-bottom: 8px;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 0;
+  margin-top: 8px;
+  border-top: 1px solid rgba(0, 255, 136, 0.2);
+  background: rgba(0, 255, 136, 0.03);
+  animation: slideDown 0.2s ease;
 }
 
-.create-entity-btn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  background: rgba(0, 255, 136, 0.1);
-  color: var(--qui-accent-color);
-  border: 1px solid rgba(0, 255, 136, 0.2);
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.create-name-input {
+  padding: 8px 10px;
+  background: var(--qui-bg-primary);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 6px;
+  color: var(--qui-text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  transition: all 0.2s ease;
+}
+
+.create-name-input:focus {
+  outline: none;
+  border-color: var(--qui-accent-color);
+  box-shadow: 0 0 0 2px rgba(0, 255, 136, 0.1);
+}
+
+.create-name-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.create-type-select {
+  padding: 8px 10px;
+  background: var(--qui-bg-primary);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: var(--qui-text-primary);
   font-size: 12px;
-  font-weight: 500;
+  font-family: inherit;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
-.create-entity-btn:hover {
-  background: rgba(0, 255, 136, 0.2);
-  border-color: rgba(0, 255, 136, 0.4);
-  transform: translateY(-1px);
+.create-type-select:focus {
+  outline: none;
+  border-color: var(--qui-accent-color);
+  box-shadow: 0 0 0 2px rgba(0, 255, 136, 0.1);
 }
 
-.create-entity-btn:active {
-  transform: translateY(0);
+.create-type-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.create-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.create-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: none;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 32px;
+}
+
+.create-action-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.create-submit {
+  background: var(--qui-accent-color);
+  color: var(--qui-bg-primary);
+}
+
+.create-submit:hover:not(:disabled) {
+  background: var(--qui-accent-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 255, 136, 0.3);
+}
+
+.create-cancel {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--qui-text-secondary);
+}
+
+.create-cancel:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--qui-text-primary);
+}
+
+.spinner-tiny {
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(0, 0, 0, 0.3);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+/* Create button in entity list */
+.list-create-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: calc(100% - 16px);
+  margin: 6px 8px;
+  padding: 6px 8px;
+  background: transparent;
+  color: var(--qui-text-secondary);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  opacity: 0.7;
+}
+
+.list-create-btn:hover {
+  background: rgba(0, 255, 136, 0.08);
+  color: var(--qui-accent-color);
+  border-color: rgba(0, 255, 136, 0.3);
+  opacity: 1;
+}
+
+.list-create-btn:active {
+  transform: scale(0.98);
+}
+
+.list-create-btn svg {
+  opacity: 0.8;
 }
 
 .search-container {
@@ -870,46 +1020,6 @@ onMounted(async () => {
   font-style: italic;
 }
 
-.form-group {
-  margin-bottom: 16px;
-}
-
-.form-group:last-child {
-  margin-bottom: 0;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 6px;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--qui-text-primary);
-}
-
-.form-input,
-.form-select {
-  width: 100%;
-  padding: 10px 12px;
-  background: var(--qui-bg-primary);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 6px;
-  color: var(--qui-text-primary);
-  font-size: 14px;
-  font-family: inherit;
-  transition: all 0.2s ease;
-}
-
-.form-input:focus,
-.form-select:focus {
-  outline: none;
-  border-color: var(--qui-accent-color);
-  box-shadow: 0 0 0 3px rgba(0, 255, 136, 0.1);
-}
-
-.form-select {
-  cursor: pointer;
-}
-
 .dialog-footer {
   display: flex;
   gap: 8px;
@@ -944,17 +1054,6 @@ onMounted(async () => {
 
 .dialog-btn-cancel:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.1);
-}
-
-.dialog-btn-primary {
-  background: var(--qui-accent-color);
-  color: var(--qui-bg-primary);
-}
-
-.dialog-btn-primary:hover:not(:disabled) {
-  background: var(--qui-accent-hover);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 255, 136, 0.3);
 }
 
 .dialog-btn-danger {
