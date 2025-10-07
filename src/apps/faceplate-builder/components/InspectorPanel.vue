@@ -1,16 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-
-type InspectorNode = {
-  id: string;
-  name: string;
-  componentId: string;
-  props: Record<string, unknown>;
-  size: { x: number; y: number };
-};
+import type { CanvasNode, PaletteTemplate, PrimitivePropertyDefinition } from '../types';
 
 const props = defineProps<{
-  node: InspectorNode | null;
+  node: CanvasNode | null;
+  template: PaletteTemplate | null;
 }>();
 
 const emit = defineEmits<{
@@ -19,9 +13,16 @@ const emit = defineEmits<{
   (event: 'prop-updated', payload: { nodeId: string; key: string; value: unknown }): void;
 }>();
 
-const localProps = computed(() => {
-  if (!props.node) return [] as Array<{ key: string; value: unknown }>;
-  return Object.entries(props.node.props ?? {}).map(([key, value]) => ({ key, value }));
+const propertySchema = computed<PrimitivePropertyDefinition[]>(() => {
+  if (props.template?.propertySchema?.length) {
+    return props.template.propertySchema;
+  }
+  if (!props.node) return [];
+  return Object.keys(props.node.props ?? {}).map((key) => ({
+    key,
+    label: key,
+    type: 'string',
+  }));
 });
 
 function handleRename(event: Event) {
@@ -40,10 +41,18 @@ function handleSizeChange(axis: 'x' | 'y', event: Event) {
   emit('resize', { nodeId: props.node.id, size: next });
 }
 
-function handlePropInput(key: string, event: Event) {
+function handlePropInput(definition: PrimitivePropertyDefinition, event: Event) {
   if (!props.node) return;
-  const value = (event.target as HTMLInputElement | HTMLTextAreaElement | null)?.value ?? '';
-  emit('prop-updated', { nodeId: props.node.id, key, value });
+  let value: unknown;
+  if (definition.type === 'boolean') {
+    value = (event.target as HTMLInputElement | null)?.checked ?? false;
+  } else if (definition.type === 'number') {
+    const raw = (event.target as HTMLInputElement | null)?.value ?? '0';
+    value = Number(raw);
+  } else {
+    value = (event.target as HTMLInputElement | HTMLTextAreaElement | null)?.value ?? '';
+  }
+  emit('prop-updated', { nodeId: props.node.id, key: definition.key, value });
 }
 </script>
 
@@ -52,7 +61,9 @@ function handlePropInput(key: string, event: Event) {
     <header class="inspector__header">
       <div>
         <h2>Inspector</h2>
-        <p v-if="node">{{ node.componentId }}</p>
+        <p v-if="node">
+          {{ template?.label ?? node.componentId }}<span v-if="template?.source === 'custom'" class="inspector__badge">custom</span>
+        </p>
       </div>
     </header>
 
@@ -79,11 +90,41 @@ function handlePropInput(key: string, event: Event) {
 
       <section class="inspector__section">
         <header><h3>Properties</h3></header>
-        <p v-if="!localProps.length" class="inspector__hint">This component has no configurable properties yet.</p>
+        <p v-if="!propertySchema.length" class="inspector__hint">This component has no configurable properties yet.</p>
         <div v-else class="inspector__list">
-          <label v-for="item in localProps" :key="item.key" class="inspector__field">
-            <span>{{ item.key }}</span>
-            <input type="text" :value="String(item.value ?? '')" @input="handlePropInput(item.key, $event)" />
+          <label v-for="item in propertySchema" :key="item.key" class="inspector__field">
+            <span>{{ item.label }}</span>
+            <template v-if="item.type === 'boolean'">
+              <input
+                type="checkbox"
+                :checked="Boolean(node?.props?.[item.key])"
+                @change="handlePropInput(item, $event)"
+              />
+            </template>
+            <template v-else-if="item.type === 'number'">
+              <input
+                type="number"
+                :value="Number(node?.props?.[item.key] ?? item.default ?? 0)"
+                @input="handlePropInput(item, $event)"
+              />
+            </template>
+            <template v-else-if="item.type === 'option'">
+              <select
+                :value="String(node?.props?.[item.key] ?? item.default ?? '')"
+                @change="handlePropInput(item, $event)"
+              >
+                <option v-for="option in item.options || []" :key="option.value" :value="option.value">
+                  {{ option.label }}
+                </option>
+              </select>
+            </template>
+            <template v-else>
+              <input
+                type="text"
+                :value="String(node?.props?.[item.key] ?? '')"
+                @input="handlePropInput(item, $event)"
+              />
+            </template>
           </label>
         </div>
       </section>
@@ -117,6 +158,20 @@ function handlePropInput(key: string, event: Event) {
   margin: 6px 0 0;
   font-size: 12px;
   opacity: 0.65;
+}
+
+.inspector__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  background: rgba(0, 255, 194, 0.2);
+  color: rgba(0, 255, 194, 0.85);
 }
 
 .inspector__content {
@@ -156,6 +211,7 @@ function handlePropInput(key: string, event: Event) {
 }
 
 .inspector__field input,
+.inspector__field select,
 .inspector__field textarea {
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.1);

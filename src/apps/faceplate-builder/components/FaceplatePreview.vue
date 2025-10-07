@@ -1,21 +1,15 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-
-type PreviewNode = {
-  id: string;
-  name: string;
-  componentId: string;
-  position: { x: number; y: number };
-  size: { x: number; y: number };
-  props: Record<string, unknown>;
-};
+import ComponentSampleRenderer from './ComponentSampleRenderer.vue';
+import type { CanvasNode, PaletteTemplate } from '../types';
 
 const props = defineProps<{
-  nodes: PreviewNode[];
+  nodes: CanvasNode[];
+  templates: Record<string, PaletteTemplate>;
 }>();
 
 const previewStyle = computed(() => ({
-  minHeight: `${Math.max(360, Math.max(...props.nodes.map((node) => node.position.y + node.size.y), 0) + 80)}px`,
+  minHeight: `${Math.max(360, Math.max(...props.nodes.map((node) => node.position.y + node.size.y), 0) + 120)}px`,
 }));
 </script>
 
@@ -23,7 +17,7 @@ const previewStyle = computed(() => ({
   <section class="preview">
     <header class="preview__header">
       <h2>Preview</h2>
-      <p>Layout rendered with sample data. Live bindings will update once configured.</p>
+      <p>Arrange components on the canvas; this preview mirrors their layout with sample styling.</p>
     </header>
     <div class="preview__stage" :style="previewStyle">
       <div v-if="!props.nodes.length" class="preview__placeholder">
@@ -40,13 +34,12 @@ const previewStyle = computed(() => ({
           height: `${node.size.y}px`,
         }"
       >
-        <header>
-          <strong>{{ node.name }}</strong>
-          <span>{{ node.componentId }}</span>
-        </header>
-        <div class="preview__body">
-          <pre>{{ JSON.stringify(node.props, null, 2) }}</pre>
-        </div>
+        <ComponentSampleRenderer
+          :component-id="node.componentId"
+          :name="node.name"
+          :props="node.props"
+          :template="props.templates[node.componentId]"
+        />
       </article>
     </div>
   </section>
@@ -95,40 +88,6 @@ const previewStyle = computed(() => ({
 .preview__widget {
   position: absolute;
   display: flex;
-  flex-direction: column;
   border-radius: 12px;
-  background: rgba(0, 22, 32, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  box-shadow: 0 18px 28px rgba(0, 0, 0, 0.24);
-  overflow: hidden;
-}
-
-.preview__widget header {
-  padding: 10px 14px;
-  background: rgba(255, 255, 255, 0.04);
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.preview__widget header strong {
-  font-size: 14px;
-}
-
-.preview__widget header span {
-  font-size: 12px;
-  opacity: 0.65;
-}
-
-.preview__body {
-  flex: 1;
-  padding: 12px 14px;
-  font-size: 12px;
-  opacity: 0.75;
-}
-
-.preview__body pre {
-  margin: 0;
-  font: 500 12px/1.4 "Fira Code", monospace;
 }
 </style>

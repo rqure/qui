@@ -4,6 +4,7 @@ interface PaletteComponent {
   label: string;
   description: string;
   icon: string;
+  badge?: string;
 }
 
 const props = defineProps<{
@@ -39,7 +40,10 @@ function handleDragStart(event: DragEvent, componentId: string) {
       >
         <span class="palette__icon" aria-hidden="true">{{ item.icon }}</span>
         <span class="palette__body">
-          <strong>{{ item.label }}</strong>
+          <strong>
+            {{ item.label }}
+            <span v-if="item.badge" class="palette__badge">{{ item.badge }}</span>
+          </strong>
           <small>{{ item.description }}</small>
         </span>
       </button>
@@ -114,6 +118,20 @@ function handleDragStart(event: DragEvent, componentId: string) {
 .palette__body strong {
   display: block;
   font-size: 14px;
+}
+
+.palette__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 8px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: rgba(0, 255, 194, 0.16);
+  color: rgba(0, 255, 194, 0.92);
 }
 
 .palette__body small {

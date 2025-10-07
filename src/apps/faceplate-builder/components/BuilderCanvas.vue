@@ -1,16 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, reactive, ref } from 'vue';
-
-type Vector2 = { x: number; y: number };
-
-type CanvasNode = {
-  id: string;
-  componentId: string;
-  name: string;
-  position: Vector2;
-  size: Vector2;
-  props: Record<string, unknown>;
-};
+import ComponentSampleRenderer from './ComponentSampleRenderer.vue';
+import type { CanvasNode, PaletteTemplate, Vector2 } from '../types';
 
 type CanvasDropPayload = {
   componentId: string;
@@ -22,6 +13,7 @@ const GRID_SIZE = 120;
 const props = defineProps<{
   nodes: CanvasNode[];
   selectedNodeId: string | null;
+  templates: Record<string, PaletteTemplate>;
 }>();
 
 const emit = defineEmits<{
@@ -136,10 +128,18 @@ onBeforeUnmount(teardownListeners);
       @pointerdown="handleNodePointerDown($event, node.id)"
       @click.stop="emit('node-selected', node.id)"
     >
-      <span class="canvas__node-title">{{ node.name }}</span>
-      <span class="canvas__node-subtitle">{{ node.componentId }}</span>
+      <div class="canvas__node-header">
+        <span class="canvas__node-title">{{ node.name }}</span>
+        <span class="canvas__node-subtitle">{{ node.componentId }}</span>
+      </div>
+      <ComponentSampleRenderer
+        :component-id="node.componentId"
+        :name="node.name"
+        :props="node.props"
+        :template="props.templates[node.componentId]"
+      />
     </button>
-    <div class="canvas__hint">
+    <div v-if="!props.nodes.length" class="canvas__hint">
       Drag components here or drop them from the palette.
     </div>
   </section>
@@ -168,14 +168,12 @@ onBeforeUnmount(teardownListeners);
   position: absolute;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
-  gap: 4px;
+  gap: 12px;
   border-radius: 12px;
   border: 1px solid rgba(0, 255, 194, 0.2);
   background: rgba(0, 18, 32, 0.78);
   color: inherit;
-  padding: 18px;
+  padding: 16px;
   cursor: grab;
   box-shadow: 0 12px 20px rgba(0, 0, 0, 0.24);
   transition: border 0.18s ease, box-shadow 0.18s ease;
@@ -188,6 +186,12 @@ onBeforeUnmount(teardownListeners);
 .canvas__node--selected {
   border-color: rgba(0, 255, 194, 0.6);
   box-shadow: 0 18px 28px rgba(0, 255, 194, 0.18);
+}
+
+.canvas__node-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .canvas__node-title {
