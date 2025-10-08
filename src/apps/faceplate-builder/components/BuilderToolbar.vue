@@ -5,6 +5,7 @@ const props = defineProps<{
   dirty: boolean;
   faceplateId?: string | null;
   faceplateName?: string;
+  targetEntityType?: string;
   viewportWidth?: number;
   viewportHeight?: number;
 }>();
@@ -32,8 +33,12 @@ function handleViewportInput(axis: 'width' | 'height', event: Event) {
 <template>
   <header class="toolbar">
     <div class="toolbar__left">
-      <span v-if="props.faceplateName" class="toolbar__badge toolbar__badge--name">{{ props.faceplateName }}</span>
-      <span v-if="props.dirty" class="toolbar__badge">Unsaved changes</span>
+      <div v-if="props.faceplateId" class="toolbar__faceplate-info">
+        <span class="toolbar__badge toolbar__badge--name">{{ props.faceplateName || 'Untitled' }}</span>
+        <span v-if="props.targetEntityType" class="toolbar__badge toolbar__badge--type">{{ props.targetEntityType }}</span>
+      </div>
+      <span v-else class="toolbar__badge toolbar__badge--warning">No faceplate selected</span>
+      <span v-if="props.dirty" class="toolbar__badge">Unsaved</span>
       <div class="toolbar__viewport">
         <label>
           <span>W:</span>
@@ -85,6 +90,23 @@ function handleViewportInput(axis: 'width' | 'height', event: Event) {
 .toolbar__badge--name {
   background: rgba(100, 150, 255, 0.16);
   border-color: rgba(100, 150, 255, 0.32);
+}
+
+.toolbar__badge--type {
+  background: rgba(150, 100, 255, 0.16);
+  border-color: rgba(150, 100, 255, 0.32);
+  font-family: monospace;
+}
+
+.toolbar__badge--warning {
+  background: rgba(255, 150, 0, 0.16);
+  border-color: rgba(255, 150, 0, 0.32);
+}
+
+.toolbar__faceplate-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .toolbar__viewport {

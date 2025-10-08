@@ -398,11 +398,26 @@ onBeforeUnmount(teardownListeners);
 .canvas__grid {
   position: absolute;
   inset: 0;
-  background-image: linear-gradient(to right, rgba(255,255,255,0.05) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255,255,255,0.05) 1px, transparent 1px);
+  background-image: linear-gradient(
+      to right,
+      rgba(255, 255, 255, 0.04) 1px,
+      transparent 1px
+    ),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
   background-size: 120px 120px;
   pointer-events: none;
-  border-radius: inherit;
+  z-index: 0;
+}
+
+.canvas__viewport-boundary {
+  position: absolute;
+  top: 0;
+  left: 0;
+  border: 2px dashed rgba(0, 255, 194, 0.4);
+  background: rgba(0, 255, 194, 0.02);
+  pointer-events: none;
+  z-index: 1;
+  box-shadow: inset 0 0 0 1px rgba(0, 255, 194, 0.2);
 }
 
 .canvas__select-box {

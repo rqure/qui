@@ -4,8 +4,7 @@ import BuilderCanvas from './components/BuilderCanvas.vue';
 import ComponentPalette from './components/ComponentPalette.vue';
 import InspectorPanel from './components/InspectorPanel.vue';
 import BuilderToolbar from './components/BuilderToolbar.vue';
-import FaceplatePickerDialog from './components/FaceplatePickerDialog.vue';
-import CreateFaceplateDialog from './components/CreateFaceplateDialog.vue';
+import FaceplateSelector from './components/FaceplateSelector.vue';
 import { useDataStore } from '@/stores/data';
 import { FaceplateDataService } from './utils/faceplate-data';
 import type { FaceplateNotificationChannel, FaceplateScriptModule } from './utils/faceplate-data';
@@ -553,8 +552,7 @@ const currentTargetEntityType = ref<string>('');
 const isSaving = ref(false);
 const viewportSize = ref<Vector2>({ ...DEFAULT_VIEWPORT });
 const faceplateMetadata = ref<Record<string, unknown>>({});
-const showPickerDialog = ref(false);
-const showCreateDialog = ref(false);
+const showFaceplateSelector = ref(false);
 const currentScriptModules = ref<FaceplateScriptModule[]>([]);
 const currentNotificationChannels = ref<FaceplateNotificationChannel[]>([]);
 
@@ -581,6 +579,7 @@ const hasMultipleSelected = computed(() => selectedNodeIds.value.size > 1);
 const canUndo = computed(() => history.index > 0);
 const canRedo = computed(() => history.index < history.stack.length - 1);
 const dirty = computed(() => history.index !== savedIndex.value);
+const hasFaceplateSelected = computed(() => currentFaceplateId.value !== null);
 
 function generateId(prefix: string) {
   return `${prefix}-${Math.random().toString(36).slice(2, 8)}`;
@@ -1047,9 +1046,9 @@ async function saveWorkspace() {
   try {
     isSaving.value = true;
     
-    // Show create dialog if new faceplate
+    // Show selector with new form if new faceplate
     if (!currentFaceplateId.value) {
-      showCreateDialog.value = true;
+      showFaceplateSelector.value = true;
       isSaving.value = false;
       return;
     }
@@ -1143,11 +1142,11 @@ async function saveWorkspace() {
 }
 
 async function loadWorkspace() {
-  showPickerDialog.value = true;
+  showFaceplateSelector.value = true;
 }
 
-async function handlePickerSelect(faceplateId: EntityId) {
-  showPickerDialog.value = false;
+async function handleSelectorSelect(faceplateId: EntityId) {
+  showFaceplateSelector.value = false;
   
   try {
     const faceplate = await faceplateService.readFaceplate(faceplateId);
@@ -1212,49 +1211,20 @@ function findTemplateForPrimitive(primitiveId: string): string {
 
 function newWorkspace() {
   if (dirty.value) {
-    if (!confirm('You have unsaved changes. Create a new faceplate anyway?')) {
-      return;
-    }
+    console.log('Warning: You have unsaved changes.');
   }
+  // Reset to blank state but keep selector closed
+  // User must explicitly save to create a new faceplate
   resetWorkspace();
 }
 
-function handlePickerCancel() {
-  showPickerDialog.value = false;
+function handleSelectorClose() {
+  showFaceplateSelector.value = false;
 }
 
-function handlePickerCreate() {
-  showPickerDialog.value = false;
-  showCreateDialog.value = true;
-}
-
-async function handleCreateFaceplate(data: { name: string; targetEntityType: string }) {
-  showCreateDialog.value = false;
-  
-  try {
-    // Create faceplate entity - use root as parent for now
-    const rootId = 1; // QOS root entity ID
-    const faceplateId = await faceplateService.createFaceplate(rootId, data.name, data.targetEntityType);
-    
-    currentFaceplateId.value = faceplateId;
-    currentFaceplateName.value = data.name;
-    currentTargetEntityType.value = data.targetEntityType;
-  currentScriptModules.value = [];
-  currentNotificationChannels.value = [];
-  viewportSize.value = { ...DEFAULT_VIEWPORT };
-  faceplateMetadata.value = {};
-    
-    // Mark as dirty since we've set metadata but haven't saved components yet
-    pushHistory();
-    
-    console.log(`Faceplate "${data.name}" created! Add components and save to persist.`);
-  } catch (error) {
-    console.error('Failed to create faceplate:', error);
-  }
-}
-
-function handleCreateCancel() {
-  showCreateDialog.value = false;
+async function handleSelectorNew(faceplateId: EntityId) {
+  // The selector component handles creation, we just need to load it
+  await handleSelectorSelect(faceplateId);
 }
 
 // Custom components have been removed from this implementation
@@ -1335,6 +1305,7 @@ onMounted(async () => {
       :dirty="dirty"
       :faceplate-id="currentFaceplateId ? String(currentFaceplateId) : null"
       :faceplate-name="currentFaceplateName"
+      :target-entity-type="currentTargetEntityType"
       :viewport-width="viewportSize.x"
       :viewport-height="viewportSize.y"
       @undo="undo"
@@ -1368,6 +1339,17 @@ onMounted(async () => {
             @canvas-clicked="handleCanvasClick"
             @drag-select-complete="handleDragSelectComplete"
           />
+          <div v-if="!hasFaceplateSelected" class="workspace__overlay">
+            <div class="workspace__overlay-content">
+              <div class="workspace__overlay-icon">📋</div>
+              <h3>No Faceplate Selected</h3>
+              <p>Create a new faceplate or load an existing one to start editing</p>
+              <div class="workspace__overlay-actions">
+                <button type="button" class="workspace__overlay-button" @click="newWorkspace">Create New</button>
+                <button type="button" class="workspace__overlay-button workspace__overlay-button--primary" @click="loadWorkspace">Load Existing</button>
+              </div>
+            </div>
+          </div>
         </div>
       </main>
 
@@ -1386,18 +1368,11 @@ onMounted(async () => {
       />
     </div>
 
-    <FaceplatePickerDialog
-      v-if="showPickerDialog"
-      mode="load"
-      @select="handlePickerSelect"
-      @cancel="handlePickerCancel"
-      @create="handlePickerCreate"
-    />
-
-    <CreateFaceplateDialog
-      v-if="showCreateDialog"
-      @create="handleCreateFaceplate"
-      @cancel="handleCreateCancel"
+    <FaceplateSelector
+      :show="showFaceplateSelector"
+      @select="handleSelectorSelect"
+      @new="handleSelectorNew"
+      @close="handleSelectorClose"
     />
   </div>
 </template>
@@ -1452,6 +1427,80 @@ onMounted(async () => {
   min-height: 0;
   height: 100%;
   overflow: hidden;
+}
+
+.workspace__canvas {
+  position: relative;
+}
+
+.workspace__overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 6, 10, 0.92);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.workspace__overlay-content {
+  text-align: center;
+  max-width: 420px;
+  padding: 48px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+}
+
+.workspace__overlay-icon {
+  font-size: 64px;
+  margin-bottom: 20px;
+  opacity: 0.6;
+}
+
+.workspace__overlay-content h3 {
+  margin: 0 0 12px 0;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.workspace__overlay-content p {
+  margin: 0 0 32px 0;
+  font-size: 15px;
+  opacity: 0.7;
+  line-height: 1.5;
+}
+
+.workspace__overlay-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.workspace__overlay-button {
+  padding: 12px 24px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  color: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.workspace__overlay-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: translateY(-1px);
+}
+
+.workspace__overlay-button--primary {
+  background: rgba(0, 255, 194, 0.18);
+  border-color: rgba(0, 255, 194, 0.34);
+}
+
+.workspace__overlay-button--primary:hover {
+  background: rgba(0, 255, 194, 0.28);
 }
 
 @media (max-width: 1480px) {
