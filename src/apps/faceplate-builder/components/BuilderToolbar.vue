@@ -19,6 +19,7 @@ const emit = defineEmits<{
   (event: 'new'): void;
   (event: 'load'): void;
   (event: 'create-custom'): void;
+  (event: 'manage-custom'): void;
 }>();
 </script>
 
@@ -35,6 +36,9 @@ const emit = defineEmits<{
       <span class="toolbar__divider" aria-hidden="true"></span>
       <button type="button" :disabled="!props2.hasMultipleSelected" @click="emit('create-custom')" title="Create custom component from selected">
         <span class="toolbar__icon">✨</span> Create Custom
+      </button>
+      <button type="button" @click="emit('manage-custom')" title="Manage custom component library">
+        <span class="toolbar__icon">📚</span> Library
       </button>
       <span class="toolbar__divider" aria-hidden="true"></span>
       <button type="button" :disabled="!props.canUndo" @click="emit('undo')">Undo</button>

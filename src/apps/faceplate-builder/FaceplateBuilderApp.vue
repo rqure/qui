@@ -10,6 +10,7 @@ import BuilderToolbar from './components/BuilderToolbar.vue';
 import FaceplatePickerDialog from './components/FaceplatePickerDialog.vue';
 import CreateFaceplateDialog from './components/CreateFaceplateDialog.vue';
 import CreateCustomComponentDialog from './components/CreateCustomComponentDialog.vue';
+import CustomComponentManagerDialog from './components/CustomComponentManagerDialog.vue';
 import { useDataStore } from '@/stores/data';
 import { FaceplateDataService } from './utils/faceplate-data';
 import type { EntityId } from '@/core/data/types';
@@ -478,6 +479,7 @@ const isSaving = ref(false);
 const showPickerDialog = ref(false);
 const showCreateDialog = ref(false);
 const showCreateCustomComponentDialog = ref(false);
+const showCustomComponentManager = ref(false);
 
 const history = reactive<{ stack: Array<{ nodes: CanvasNode[]; bindings: Binding[] }>; index: number }>({
   stack: [],
@@ -551,9 +553,15 @@ function applyState(snapshot: { nodes: CanvasNode[]; bindings: Binding[] }) {
   }
 }
 
-function handleNodeRequest(payload: { componentId: string; position: Vector2 }) {
+async function handleNodeRequest(payload: { componentId: string; position: Vector2 }) {
   const template = templateMap.value[payload.componentId];
   if (!template) return;
+
+  // Check if this is a custom component
+  if (template.source === 'custom' && template.customComponentId) {
+    await instantiateCustomComponent(template.customComponentId, payload.position);
+    return;
+  }
 
   const nodeId = generateId('node');
   const defaultProps = { ...template.defaults.props };
@@ -574,6 +582,64 @@ function handleNodeRequest(payload: { componentId: string; position: Vector2 }) 
   ];
   selectedNodeId.value = nodeId;
   pushHistory();
+}
+
+async function instantiateCustomComponent(customComponentId: string, position: Vector2) {
+  try {
+    const entityId = parseInt(customComponentId) as EntityId;
+    const defString = await faceplateService.readCustomComponent(entityId);
+    const def = JSON.parse(defString) as import('./types').CustomComponentDefinition;
+    
+    const newNodeIds: string[] = [];
+    
+    // Create nodes for each child component
+    for (const child of def.children) {
+      const primitiveTemplate = templateMap.value[child.primitiveId];
+      if (!primitiveTemplate) continue;
+      
+      const nodeId = generateId('node');
+      const childPosition = {
+        x: position.x + child.position.x,
+        y: position.y + child.position.y,
+      };
+      
+      nodes.value.push({
+        id: nodeId,
+        componentId: child.primitiveId,
+        name: primitiveTemplate.label,
+        position: childPosition,
+        size: { ...child.size },
+        props: { ...child.props },
+      });
+      
+      newNodeIds.push(nodeId);
+    }
+    
+    // Restore bindings for the instantiated children
+    for (let i = 0; i < def.bindings.length; i++) {
+      const binding = def.bindings[i];
+      if (binding.childIndex < newNodeIds.length) {
+        const bindingId = generateId('binding');
+        bindings.value.push({
+          id: bindingId,
+          componentId: newNodeIds[binding.childIndex],
+          componentName: nodes.value.find(n => n.id === newNodeIds[binding.childIndex])?.name || '',
+          property: binding.property,
+          expression: binding.expression,
+        });
+      }
+    }
+    
+    // Select all newly created nodes
+    selectedNodeIds.value.clear();
+    newNodeIds.forEach(id => selectedNodeIds.value.add(id));
+    selectedNodeId.value = newNodeIds[0] || null;
+    
+    pushHistory();
+  } catch (error) {
+    console.error('Failed to instantiate custom component:', error);
+    alert('Failed to instantiate custom component. Please try again.');
+  }
 }
 
 function handleNodeUpdate(payload: { nodeId: string; position: Vector2 }) {
@@ -609,6 +675,13 @@ function handleCanvasClick() {
   // Clear all selections when clicking on empty canvas
   selectedNodeId.value = null;
   selectedNodeIds.value.clear();
+}
+
+function handleDragSelectComplete(selectedIds: string[]) {
+  // Replace current selection with drag-selected nodes
+  selectedNodeIds.value.clear();
+  selectedIds.forEach(id => selectedNodeIds.value.add(id));
+  selectedNodeId.value = selectedIds[0] || null;
 }
 
 function handleRename(payload: { nodeId: string; name: string }) {
@@ -1060,6 +1133,51 @@ function handleCancelCustomComponent() {
   showCreateCustomComponentDialog.value = false;
 }
 
+function handleOpenCustomComponentManager() {
+  showCustomComponentManager.value = true;
+}
+
+function handleCloseCustomComponentManager() {
+  showCustomComponentManager.value = false;
+}
+
+async function handleDeleteCustomComponent(componentId: EntityId) {
+  try {
+    await faceplateService.deleteCustomComponent(componentId);
+    
+    // Remove from component library
+    const index = componentLibrary.value.findIndex((t) => t.customComponentId === componentId.toString());
+    if (index >= 0) {
+      componentLibrary.value.splice(index, 1);
+    }
+    
+    // Refresh the custom components list
+    await loadCustomComponents();
+    
+    alert('Custom component deleted successfully!');
+  } catch (error) {
+    console.error('Failed to delete custom component:', error);
+    alert(`Failed to delete custom component: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+async function handleEditCustomComponent(componentId: EntityId) {
+  // For now, show an alert that edit is not yet implemented
+  // In a full implementation, this would open an edit dialog with the component definition
+  alert('Edit functionality coming soon! For now, you can delete and recreate the component.');
+}
+
+const customComponentsList = computed(() => {
+  return componentLibrary.value
+    .filter(t => t.source === 'custom')
+    .map(t => ({
+      id: parseInt(t.customComponentId || '0') as EntityId,
+      name: t.label,
+      description: t.description,
+      icon: t.icon,
+    }));
+});
+
 // Initialize with an empty baseline state.
 onMounted(async () => {
   // Load custom components from data store
@@ -1131,6 +1249,7 @@ onMounted(async () => {
       @new="newWorkspace"
       @load="loadWorkspace"
       @create-custom="handleCreateCustomComponent"
+      @manage-custom="handleOpenCustomComponentManager"
     />
 
     <div class="faceplate-builder__body">
@@ -1156,6 +1275,7 @@ onMounted(async () => {
           @node-updated="handleNodeUpdate"
           @node-move-end="handleNodeMoveEnd"
           @canvas-clicked="handleCanvasClick"
+          @drag-select-complete="handleDragSelectComplete"
         />
 
         <BindingsPanel
@@ -1196,6 +1316,14 @@ onMounted(async () => {
       v-if="showCreateCustomComponentDialog"
       @create="handleSaveCustomComponent"
       @cancel="handleCancelCustomComponent"
+    />
+
+    <CustomComponentManagerDialog
+      :show="showCustomComponentManager"
+      :components="customComponentsList"
+      @close="handleCloseCustomComponentManager"
+      @delete="handleDeleteCustomComponent"
+      @edit="handleEditCustomComponent"
     />
   </div>
 </template>

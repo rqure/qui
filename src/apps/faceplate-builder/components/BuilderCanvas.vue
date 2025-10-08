@@ -23,6 +23,7 @@ const emit = defineEmits<{
   (event: 'node-updated', payload: { nodeId: string; position: Vector2 }): void;
   (event: 'node-move-end', payload: { nodeId: string; position: Vector2 }): void;
   (event: 'canvas-clicked'): void;
+  (event: 'drag-select-complete', selectedIds: string[]): void;
 }>();
 
 type DragState = {
@@ -32,7 +33,14 @@ type DragState = {
   element: HTMLElement;
 };
 
+type SelectBoxState = {
+  start: Vector2;
+  current: Vector2;
+  isActive: boolean;
+};
+
 const dragState = reactive<{ current: DragState | null }>({ current: null });
+const selectBoxState = reactive<SelectBoxState>({ start: { x: 0, y: 0 }, current: { x: 0, y: 0 }, isActive: false });
 const canvasRef = ref<HTMLDivElement | null>(null);
 
 function handleDragOver(event: DragEvent) {
@@ -81,6 +89,21 @@ function handleNodePointerDown(event: PointerEvent, nodeId: string) {
   target.setPointerCapture(event.pointerId);
 }
 
+function handleCanvasPointerDown(event: PointerEvent) {
+  // Only start drag-select if clicking on canvas background (not a node)
+  if (event.target !== canvasRef.value || !canvasRef.value) return;
+  
+  const rect = canvasRef.value.getBoundingClientRect();
+  const point = {
+    x: event.clientX - rect.left,
+    y: event.clientY - rect.top,
+  };
+  
+  selectBoxState.start = point;
+  selectBoxState.current = point;
+  selectBoxState.isActive = true;
+}
+
 function handleCanvasClick(event: MouseEvent) {
   // If clicking on the canvas background (not a node), clear selection
   if (event.target === canvasRef.value) {
@@ -89,6 +112,17 @@ function handleCanvasClick(event: MouseEvent) {
 }
 
 function handlePointerMove(event: PointerEvent) {
+  // Handle drag-select box
+  if (selectBoxState.isActive && canvasRef.value) {
+    const rect = canvasRef.value.getBoundingClientRect();
+    selectBoxState.current = {
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top,
+    };
+    return;
+  }
+  
+  // Handle node dragging
   if (!dragState.current) return;
 
   const deltaX = event.clientX - dragState.current.pointerStart.x;
@@ -102,6 +136,35 @@ function handlePointerMove(event: PointerEvent) {
 }
 
 function handlePointerUp(event: PointerEvent) {
+  // Handle drag-select completion
+  if (selectBoxState.isActive) {
+    const box = getSelectBox();
+    const selectedIds: string[] = [];
+    
+    // Check which nodes intersect with the selection box
+    for (const node of props.nodes) {
+      const nodeBox = {
+        x: node.position.x,
+        y: node.position.y,
+        width: node.size.x,
+        height: node.size.y,
+      };
+      
+      if (boxesIntersect(box, nodeBox)) {
+        selectedIds.push(node.id);
+      }
+    }
+    
+    // Emit selection event with multiple nodes
+    if (selectedIds.length > 0) {
+      emit('drag-select-complete', selectedIds);
+    }
+    
+    selectBoxState.isActive = false;
+    return;
+  }
+  
+  // Handle node drag completion
   if (!dragState.current) return;
   const { element, nodeId, origin, pointerStart } = dragState.current;
   element.releasePointerCapture(event.pointerId);
@@ -111,6 +174,32 @@ function handlePointerUp(event: PointerEvent) {
   });
   emit('node-move-end', { nodeId, position: snapped });
   dragState.current = null;
+}
+
+function getSelectBox() {
+  const minX = Math.min(selectBoxState.start.x, selectBoxState.current.x);
+  const minY = Math.min(selectBoxState.start.y, selectBoxState.current.y);
+  const maxX = Math.max(selectBoxState.start.x, selectBoxState.current.x);
+  const maxY = Math.max(selectBoxState.start.y, selectBoxState.current.y);
+  
+  return {
+    x: minX,
+    y: minY,
+    width: maxX - minX,
+    height: maxY - minY,
+  };
+}
+
+function boxesIntersect(
+  box1: { x: number; y: number; width: number; height: number },
+  box2: { x: number; y: number; width: number; height: number }
+): boolean {
+  return !(
+    box1.x + box1.width < box2.x ||
+    box2.x + box2.width < box1.x ||
+    box1.y + box1.height < box2.y ||
+    box2.y + box2.height < box1.y
+  );
 }
 
 function setupListeners() {
@@ -128,8 +217,20 @@ onBeforeUnmount(teardownListeners);
 </script>
 
 <template>
-  <section class="canvas" ref="canvasRef" @dragover="handleDragOver" @drop="handleDrop" @click="handleCanvasClick">
+  <section class="canvas" ref="canvasRef" @dragover="handleDragOver" @drop="handleDrop" @click="handleCanvasClick" @pointerdown="handleCanvasPointerDown">
     <div class="canvas__grid"></div>
+    
+    <!-- Drag-select box -->
+    <div 
+      v-if="selectBoxState.isActive" 
+      class="canvas__select-box"
+      :style="{
+        left: `${Math.min(selectBoxState.start.x, selectBoxState.current.x)}px`,
+        top: `${Math.min(selectBoxState.start.y, selectBoxState.current.y)}px`,
+        width: `${Math.abs(selectBoxState.current.x - selectBoxState.start.x)}px`,
+        height: `${Math.abs(selectBoxState.current.y - selectBoxState.start.y)}px`,
+      }"
+    ></div>
     <button
       v-for="node in props.nodes"
       :key="node.id"
@@ -177,6 +278,14 @@ onBeforeUnmount(teardownListeners);
     linear-gradient(to bottom, rgba(255,255,255,0.05) 1px, transparent 1px);
   background-size: 120px 120px;
   pointer-events: none;
+}
+
+.canvas__select-box {
+  position: absolute;
+  border: 2px dashed rgba(100, 150, 255, 0.8);
+  background: rgba(100, 150, 255, 0.15);
+  pointer-events: none;
+  z-index: 1000;
 }
 
 .canvas__node {
