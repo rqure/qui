@@ -56,30 +56,85 @@ Click **Save** in the toolbar to persist the faceplate to the data store.
 
 ### Primitives
 
-#### Arc Gauge
+#### Indicators
+
+**Arc Gauge**
 Circular gauge with dial indicator and numeric readout.
 - **Bindings**: `value` (number)
 - **Properties**: `label`, `min`, `max`, `unit`, `precision`
 
-#### Status Pill
+**Status Pill**
 Boolean indicator with customizable labels.
 - **Bindings**: `status` (boolean)
 - **Properties**: `label`, `trueLabel`, `falseLabel`
 
-#### Trend Sparkline
+**Trend Sparkline**
 Compact trend visualization.
 - **Bindings**: `data` (array)
 - **Properties**: `label`, `window`, `showThreshold`
 
-#### Text Block
+#### Shapes
+
+**Rectangle**
+Basic rectangle shape with configurable appearance.
+- **Bindings**: `fillColor`, `visible`
+- **Properties**: `fillColor`, `borderColor`, `borderWidth`, `opacity`, `rotation`, `visible`
+
+**Circle**
+Circular shape for indicators or decorative elements.
+- **Bindings**: `fillColor`, `visible`
+- **Properties**: `fillColor`, `borderColor`, `borderWidth`, `opacity`, `rotation`, `visible`
+
+**Line**
+Straight line for dividers or connections.
+- **Bindings**: `strokeColor`, `visible`
+- **Properties**: `strokeColor`, `strokeWidth`, `opacity`, `rotation`, `visible`
+
+**Polygon**
+Multi-sided polygon (default hexagon).
+- **Bindings**: `fillColor`, `sides`, `visible`
+- **Properties**: `fillColor`, `borderColor`, `borderWidth`, `sides`, `opacity`, `rotation`, `visible`
+
+#### Text Elements
+
+**Text Block**
 Static or data-bound text.
 - **Bindings**: `text` (string)
 - **Properties**: `text`, `align`
 
-#### Form Field
-Input field for operator interaction.
+#### Form Controls
+
+**Form Field**
+Text input field for operator interaction.
 - **Bindings**: `value` (any)
-- **Properties**: `label`, `placeholder`, `required`
+- **Properties**: `label`, `placeholder`, `required`, `visible`
+
+**Dropdown**
+Select from multiple options.
+- **Bindings**: `selectedIndex` (number)
+- **Properties**: `label`, `options`, `selectedIndex`, `visible`
+
+**Toggle Switch**
+On/off toggle for boolean values.
+- **Bindings**: `checked` (boolean)
+- **Properties**: `label`, `checked`, `trueLabel`, `falseLabel`, `visible`
+
+**Button**
+Clickable button for triggering actions.
+- **Bindings**: `disabled` (boolean)
+- **Properties**: `label`, `color`, `textColor`, `disabled`, `visible`
+
+#### Media & Layout
+
+**Image**
+Display image or icon from URL.
+- **Bindings**: `src` (string), `visible`
+- **Properties**: `src`, `alt`, `fit`, `opacity`, `rotation`, `visible`
+
+**Container**
+Layout container for grouping components.
+- **Bindings**: `visible`
+- **Properties**: `backgroundColor`, `borderColor`, `borderWidth`, `padding`, `opacity`, `visible`
 
 ## Binding Expressions
 
