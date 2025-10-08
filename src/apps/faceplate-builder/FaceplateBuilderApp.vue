@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue';
+import { computed, reactive, ref, onMounted } from 'vue';
 import BuilderCanvas from './components/BuilderCanvas.vue';
 import ComponentPalette from './components/ComponentPalette.vue';
 import ComponentComposerPanel from './components/ComponentComposerPanel.vue';
@@ -7,6 +7,9 @@ import InspectorPanel from './components/InspectorPanel.vue';
 import BindingsPanel from './components/BindingsPanel.vue';
 import FaceplatePreview from './components/FaceplatePreview.vue';
 import BuilderToolbar from './components/BuilderToolbar.vue';
+import { useDataStore } from '@/stores/data';
+import { FaceplateDataService } from './utils/faceplate-data';
+import type { EntityId } from '@/core/data/types';
 import type {
   Binding,
   CanvasNode,
@@ -15,6 +18,15 @@ import type {
   PrimitivePropertyDefinition,
   Vector2,
 } from './types';
+
+// Props for optional pre-loaded faceplate
+const props = defineProps<{
+  faceplateId?: EntityId | null;
+  entityId?: EntityId | null;
+}>();
+
+const dataStore = useDataStore();
+const faceplateService = new FaceplateDataService(dataStore);
 
 const primitiveCatalog: PrimitiveDefinition[] = [
   {
@@ -234,6 +246,10 @@ const paletteItems = computed(() =>
 const nodes = ref<CanvasNode[]>([]);
 const bindings = ref<Binding[]>([]);
 const selectedNodeId = ref<string | null>(null);
+const currentFaceplateId = ref<EntityId | null>(props.faceplateId ?? null);
+const currentFaceplateName = ref<string>('');
+const currentTargetEntityType = ref<string>('');
+const isSaving = ref(false);
 
 const history = reactive<{ stack: Array<{ nodes: CanvasNode[]; bindings: Binding[] }>; index: number }>({
   stack: [],
@@ -457,19 +473,238 @@ function resetWorkspace() {
   nodes.value = [];
   bindings.value = [];
   selectedNodeId.value = null;
+  currentFaceplateId.value = null;
+  currentFaceplateName.value = '';
+  currentTargetEntityType.value = '';
   pushHistory();
   markSaved();
 }
 
-function saveWorkspace() {
-  markSaved();
+async function saveWorkspace() {
+  if (isSaving.value) return;
+  
+  try {
+    isSaving.value = true;
+    
+    // Prompt for name if new faceplate
+    if (!currentFaceplateId.value) {
+      const name = prompt('Enter faceplate name:', currentFaceplateName.value || 'New Faceplate');
+      if (!name) {
+        isSaving.value = false;
+        return;
+      }
+      currentFaceplateName.value = name;
+      
+      const targetType = prompt('Enter target entity type (e.g., Machine, Service):', currentTargetEntityType.value || 'Object');
+      if (!targetType) {
+        isSaving.value = false;
+        return;
+      }
+      currentTargetEntityType.value = targetType;
+      
+      // Create faceplate entity - use root as parent for now
+      // In a real app, would show a folder picker
+      const rootId = 1; // QOS root entity ID
+      currentFaceplateId.value = await faceplateService.createFaceplate(rootId, currentFaceplateName.value, currentTargetEntityType.value);
+    }
+    
+    // Build component entities
+    const componentIds: EntityId[] = [];
+    for (const node of nodes.value) {
+      const template = templateMap.value[node.componentId];
+      if (!template) continue;
+      
+      // Create or update component
+      const componentId = await faceplateService.createComponent(
+        currentFaceplateId.value,
+        node.name,
+        template.primitiveId
+      );
+      componentIds.push(componentId);
+      
+      // Find bindings for this node
+      const nodeBindings = bindings.value.filter((b) => b.componentId === node.id);
+      const bindingsData = nodeBindings.map((b) => ({
+        component: node.id,
+        property: b.property,
+        expression: b.expression,
+      }));
+      
+      // Update component data
+      await faceplateService.writeComponent({
+        id: componentId,
+        name: node.name,
+        componentType: template.primitiveId,
+        configuration: node.props,
+        configurationRaw: JSON.stringify(node.props),
+        bindings: bindingsData,
+        bindingsRaw: JSON.stringify(bindingsData),
+        animationRules: [],
+        animationRulesRaw: '[]',
+      });
+    }
+    
+    // Build layout configuration
+    const layout = nodes.value.map((node) => ({
+      component: node.id,
+      x: node.position.x,
+      y: node.position.y,
+      w: node.size.x,
+      h: node.size.y,
+    }));
+    
+    const bindingsData = bindings.value.map((b) => ({
+      component: b.componentId,
+      property: b.property,
+      expression: b.expression,
+    }));
+    
+    // Save faceplate configuration
+    await faceplateService.writeFaceplate({
+      id: currentFaceplateId.value,
+      name: currentFaceplateName.value,
+      targetEntityType: currentTargetEntityType.value,
+      configuration: { layout, bindings: bindingsData },
+      configurationRaw: JSON.stringify({ layout, bindings: bindingsData }),
+      bindings: bindingsData,
+      bindingsRaw: JSON.stringify(bindingsData),
+      components: componentIds,
+      notificationChannels: [],
+      notificationChannelsRaw: '[]',
+    });
+    
+    markSaved();
+    alert(`Faceplate "${currentFaceplateName.value}" saved successfully!`);
+  } catch (error) {
+    console.error('Failed to save faceplate:', error);
+    alert(`Failed to save faceplate: ${error instanceof Error ? error.message : String(error)}`);
+  } finally {
+    isSaving.value = false;
+  }
+}
+
+async function loadWorkspace() {
+  const faceplateIdStr = prompt('Enter faceplate entity ID to load:');
+  if (!faceplateIdStr) return;
+  
+  const faceplateId = Number(faceplateIdStr);
+  if (isNaN(faceplateId)) {
+    alert('Invalid entity ID');
+    return;
+  }
+  
+  try {
+    const faceplate = await faceplateService.readFaceplate(faceplateId);
+    currentFaceplateId.value = faceplateId;
+    currentFaceplateName.value = faceplate.name;
+    currentTargetEntityType.value = faceplate.targetEntityType;
+    
+    // Load components
+    const components = await faceplateService.readComponents(faceplate.components);
+    
+    // Convert to canvas nodes
+    nodes.value = faceplate.configuration.layout.map((layoutItem) => {
+      const component = components.find((c) => c.id.toString() === layoutItem.component);
+      if (!component) return null;
+      
+      return {
+        id: layoutItem.component,
+        componentId: findTemplateForPrimitive(component.componentType),
+        name: component.name,
+        position: { x: layoutItem.x, y: layoutItem.y },
+        size: { x: layoutItem.w || 4, y: layoutItem.h || 3 },
+        props: component.configuration,
+      };
+    }).filter((n): n is CanvasNode => n !== null);
+    
+    // Convert bindings
+    bindings.value = faceplate.configuration.bindings.map((b, idx) => ({
+      id: `binding-${idx}`,
+      componentId: b.component,
+      componentName: nodes.value.find((n) => n.id === b.component)?.name || 'Unknown',
+      property: b.property,
+      expression: b.expression,
+    }));
+    
+    pushHistory();
+    markSaved();
+    alert(`Faceplate "${faceplate.name}" loaded successfully!`);
+  } catch (error) {
+    console.error('Failed to load faceplate:', error);
+    alert(`Failed to load faceplate: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+function findTemplateForPrimitive(primitiveId: string): string {
+  // Find a template that uses this primitive
+  for (const template of componentLibrary.value) {
+    if (template.primitiveId === primitiveId) {
+      return template.id;
+    }
+  }
+  // Return first template as fallback
+  return componentLibrary.value[0]?.id || 'component-gauge-default';
+}
+
+function newWorkspace() {
+  if (dirty.value) {
+    if (!confirm('You have unsaved changes. Create a new faceplate anyway?')) {
+      return;
+    }
+  }
+  resetWorkspace();
 }
 
 // Initialize with an empty baseline state.
-if (!history.stack.length) {
-  pushHistory();
-  markSaved();
-}
+onMounted(async () => {
+  if (!history.stack.length) {
+    pushHistory();
+    markSaved();
+  }
+  
+  // If a faceplate ID was provided, load it
+  if (props.faceplateId) {
+    try {
+      const faceplate = await faceplateService.readFaceplate(props.faceplateId);
+      currentFaceplateId.value = props.faceplateId;
+      currentFaceplateName.value = faceplate.name;
+      currentTargetEntityType.value = faceplate.targetEntityType;
+      
+      // Load components
+      const components = await faceplateService.readComponents(faceplate.components);
+      
+      // Convert to canvas nodes
+      nodes.value = faceplate.configuration.layout.map((layoutItem) => {
+        const component = components.find((c) => c.id.toString() === layoutItem.component);
+        if (!component) return null;
+        
+        return {
+          id: layoutItem.component,
+          componentId: findTemplateForPrimitive(component.componentType),
+          name: component.name,
+          position: { x: layoutItem.x, y: layoutItem.y },
+          size: { x: layoutItem.w || 4, y: layoutItem.h || 3 },
+          props: component.configuration,
+        };
+      }).filter((n): n is CanvasNode => n !== null);
+      
+      // Convert bindings
+      bindings.value = faceplate.configuration.bindings.map((b, idx) => ({
+        id: `binding-${idx}`,
+        componentId: b.component,
+        componentName: nodes.value.find((n) => n.id === b.component)?.name || 'Unknown',
+        property: b.property,
+        expression: b.expression,
+      }));
+      
+      pushHistory();
+      markSaved();
+    } catch (error) {
+      console.error('Failed to load faceplate on mount:', error);
+      alert(`Failed to load faceplate: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+});
 </script>
 
 <template>
@@ -478,10 +713,14 @@ if (!history.stack.length) {
       :can-undo="canUndo"
       :can-redo="canRedo"
       :dirty="dirty"
+      :faceplate-id="currentFaceplateId ? String(currentFaceplateId) : null"
+      :faceplate-name="currentFaceplateName"
       @undo="undo"
       @redo="redo"
       @reset="resetWorkspace"
       @save="saveWorkspace"
+      @new="newWorkspace"
+      @load="loadWorkspace"
     />
 
     <div class="faceplate-builder__body">

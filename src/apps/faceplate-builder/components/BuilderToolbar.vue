@@ -3,6 +3,8 @@ const props = defineProps<{
   canUndo: boolean;
   canRedo: boolean;
   dirty: boolean;
+  faceplateId?: string | null;
+  faceplateName?: string;
 }>();
 
 const emit = defineEmits<{
@@ -10,6 +12,8 @@ const emit = defineEmits<{
   (event: 'redo'): void;
   (event: 'save'): void;
   (event: 'reset'): void;
+  (event: 'new'): void;
+  (event: 'load'): void;
 }>();
 </script>
 
@@ -17,14 +21,18 @@ const emit = defineEmits<{
   <header class="toolbar">
     <div class="toolbar__left">
       <h1>Faceplate Builder</h1>
+      <span v-if="props.faceplateName" class="toolbar__badge toolbar__badge--name">{{ props.faceplateName }}</span>
       <span v-if="props.dirty" class="toolbar__badge">Unsaved changes</span>
     </div>
     <div class="toolbar__actions">
+      <button type="button" @click="emit('new')">New</button>
+      <button type="button" @click="emit('load')">Load</button>
+      <span class="toolbar__divider" aria-hidden="true"></span>
       <button type="button" :disabled="!props.canUndo" @click="emit('undo')">Undo</button>
       <button type="button" :disabled="!props.canRedo" @click="emit('redo')">Redo</button>
       <span class="toolbar__divider" aria-hidden="true"></span>
       <button type="button" class="toolbar__ghost" @click="emit('reset')">Reset</button>
-      <button type="button" class="toolbar__primary" @click="emit('save')">Save</button>
+      <button type="button" class="toolbar__primary" :disabled="!props.dirty && props.faceplateId != null" @click="emit('save')">Save</button>
     </div>
   </header>
 </template>
@@ -59,6 +67,11 @@ const emit = defineEmits<{
   font-size: 12px;
   background: rgba(0, 255, 194, 0.16);
   border: 1px solid rgba(0, 255, 194, 0.32);
+}
+
+.toolbar__badge--name {
+  background: rgba(100, 150, 255, 0.16);
+  border-color: rgba(100, 150, 255, 0.32);
 }
 
 .toolbar__actions {

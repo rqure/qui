@@ -255,6 +255,118 @@ export class FaceplateDataService {
     await this.dataStore.write(entityId, [fieldType], ValueHelpers.entityList(items));
   }
 
+  async writeFaceplate(faceplate: FaceplateRecord): Promise<void> {
+    await Promise.all([
+      this.writeString(faceplate.id, 'Name', faceplate.name),
+      this.writeString(faceplate.id, 'TargetEntityType', faceplate.targetEntityType),
+      this.writeString(faceplate.id, 'Configuration', JSON.stringify(faceplate.configuration)),
+      this.writeEntityList(faceplate.id, 'Components', faceplate.components),
+      this.writeString(faceplate.id, 'NotificationChannels', JSON.stringify(faceplate.notificationChannels)),
+    ]);
+  }
+
+  async writeComponent(component: FaceplateComponentRecord): Promise<void> {
+    await Promise.all([
+      this.writeString(component.id, 'Name', component.name),
+      this.writeString(component.id, 'ComponentType', component.componentType),
+      this.writeString(component.id, 'Configuration', JSON.stringify(component.configuration)),
+      this.writeString(component.id, 'Bindings', JSON.stringify(component.bindings)),
+      this.writeString(component.id, 'AnimationRules', JSON.stringify(component.animationRules)),
+    ]);
+  }
+
+  async writeBinding(binding: FaceplateBindingLibraryRecord): Promise<void> {
+    const targetComponentValue = binding.targetComponent 
+      ? ValueHelpers.entityRef(binding.targetComponent)
+      : ValueHelpers.entityRef(null);
+    
+    const targetComponentFieldType = await this.getFieldType('TargetComponent');
+    
+    await Promise.all([
+      this.writeString(binding.id, 'Name', binding.name),
+      this.writeString(binding.id, 'Expression', binding.expression),
+      this.dataStore.write(binding.id, [targetComponentFieldType], targetComponentValue),
+      this.writeString(binding.id, 'TargetProperty', binding.targetProperty),
+      this.writeString(binding.id, 'ValueTransform', binding.valueTransform),
+      this.writeString(binding.id, 'SubscriptionConfig', JSON.stringify(binding.subscriptionConfig)),
+    ]);
+  }
+
+  async createFaceplate(parentId: EntityId, name: string, targetEntityType: string): Promise<EntityId> {
+    const faceplateEntityType = await this.getEntityType('Faceplate');
+    const faceplateId = await this.dataStore.createEntity(faceplateEntityType, parentId, name);
+    
+    await Promise.all([
+      this.writeString(faceplateId, 'TargetEntityType', targetEntityType),
+      this.writeString(faceplateId, 'Configuration', JSON.stringify({ layout: [], bindings: [], metadata: {} })),
+      this.writeEntityList(faceplateId, 'Components', []),
+      this.writeString(faceplateId, 'NotificationChannels', JSON.stringify([])),
+    ]);
+    
+    return faceplateId;
+  }
+
+  async createComponent(parentId: EntityId, name: string, componentType: string): Promise<EntityId> {
+    const componentEntityType = await this.getEntityType('FaceplateComponent');
+    const componentId = await this.dataStore.createEntity(componentEntityType, parentId, name);
+    
+    await Promise.all([
+      this.writeString(componentId, 'ComponentType', componentType),
+      this.writeString(componentId, 'Configuration', JSON.stringify({})),
+      this.writeString(componentId, 'Bindings', JSON.stringify([])),
+      this.writeString(componentId, 'AnimationRules', JSON.stringify([])),
+    ]);
+    
+    return componentId;
+  }
+
+  async createBinding(parentId: EntityId, name: string, expression: string): Promise<EntityId> {
+    const bindingEntityType = await this.getEntityType('FaceplateBindingLibrary');
+    const bindingId = await this.dataStore.createEntity(bindingEntityType, parentId, name);
+    
+    const targetComponentFieldType = await this.getFieldType('TargetComponent');
+    
+    await Promise.all([
+      this.writeString(bindingId, 'Expression', expression),
+      this.dataStore.write(bindingId, [targetComponentFieldType], ValueHelpers.entityRef(null)),
+      this.writeString(bindingId, 'TargetProperty', ''),
+      this.writeString(bindingId, 'ValueTransform', ''),
+      this.writeString(bindingId, 'SubscriptionConfig', JSON.stringify([])),
+    ]);
+    
+    return bindingId;
+  }
+
+  async deleteFaceplate(faceplateId: EntityId): Promise<void> {
+    await this.dataStore.deleteEntity(faceplateId);
+  }
+
+  async deleteComponent(componentId: EntityId): Promise<void> {
+    await this.dataStore.deleteEntity(componentId);
+  }
+
+  async deleteBinding(bindingId: EntityId): Promise<void> {
+    await this.dataStore.deleteEntity(bindingId);
+  }
+
+  async associateFaceplateWithEntity(entityId: EntityId, faceplateId: EntityId): Promise<void> {
+    const currentFaceplates = await this.readEntityList(entityId, 'Faceplates');
+    if (!currentFaceplates.includes(faceplateId)) {
+      await this.writeEntityList(entityId, 'Faceplates', [...currentFaceplates, faceplateId]);
+    }
+  }
+
+  async dissociateFaceplateFromEntity(entityId: EntityId, faceplateId: EntityId): Promise<void> {
+    const currentFaceplates = await this.readEntityList(entityId, 'Faceplates');
+    const updated = currentFaceplates.filter((id) => id !== faceplateId);
+    await this.writeEntityList(entityId, 'Faceplates', updated);
+  }
+
+  async getFaceplatesForEntity(entityId: EntityId): Promise<FaceplateRecord[]> {
+    const faceplateIds = await this.readEntityList(entityId, 'Faceplates');
+    return this.readFaceplates(faceplateIds);
+  }
+
   async getChoiceLabelForField(entityId: EntityId, fieldName: string, index: number): Promise<string | null> {
     // Cache choices per field name to avoid repeated schema fetches
     if (!this.choiceLabelCache.has(fieldName)) {
