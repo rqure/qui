@@ -32,56 +32,6 @@ const faceplateService = new FaceplateDataService(dataStore);
 
 const primitiveCatalog: PrimitiveDefinition[] = [
   {
-    id: 'primitive.gauge.arc',
-    label: 'Arc Gauge',
-    description: 'Circular gauge with dial indicator and numeric readout.',
-    icon: '🧭',
-    category: 'Indicators',
-    defaultSize: { x: 260, y: 200 },
-    defaultProps: { label: 'Gauge', value: 58, min: 0, max: 100, unit: '%', precision: 1, suffix: '' },
-    propertySchema: [
-      { key: 'label', label: 'Label', type: 'string', default: 'Gauge Label' },
-      { key: 'value', label: 'Value', type: 'number', default: 58, description: 'Bind this field to live data.' },
-      { key: 'min', label: 'Minimum', type: 'number', default: 0 },
-      { key: 'max', label: 'Maximum', type: 'number', default: 100 },
-      { key: 'unit', label: 'Unit', type: 'string', default: '%' },
-      { key: 'precision', label: 'Precision', type: 'number', default: 1 },
-      { key: 'suffix', label: 'Suffix', type: 'string', default: '' },
-    ],
-    previewProps: { label: 'Arc Gauge', value: 72, unit: '%' },
-  },
-  {
-    id: 'primitive.status.pill',
-    label: 'Status Pill',
-    description: 'Boolean indicator pill with customizable labels.',
-    icon: '🟢',
-    category: 'Indicators',
-    defaultSize: { x: 240, y: 160 },
-    defaultProps: { label: 'Status', status: true, trueLabel: 'Running', falseLabel: 'Stopped' },
-    propertySchema: [
-      { key: 'label', label: 'Label', type: 'string', default: 'Status Indicator' },
-      { key: 'status', label: 'State', type: 'boolean', default: true, description: 'Bind to a boolean or alarm status.' },
-      { key: 'trueLabel', label: 'True Label', type: 'string', default: 'Running' },
-      { key: 'falseLabel', label: 'False Label', type: 'string', default: 'Stopped' },
-    ],
-    previewProps: { label: 'System', status: true, trueLabel: 'Online', falseLabel: 'Offline' },
-  },
-  {
-    id: 'primitive.trend.sparkline',
-    label: 'Trend Sparkline',
-    description: 'Compact trend visualization with window controls.',
-    icon: '📈',
-    category: 'Analytics',
-    defaultSize: { x: 360, y: 220 },
-    defaultProps: { label: 'Trend', window: '15m', showThreshold: false },
-    propertySchema: [
-      { key: 'label', label: 'Label', type: 'string', default: 'Trend' },
-      { key: 'window', label: 'Window', type: 'string', default: '15m' },
-      { key: 'showThreshold', label: 'Show Threshold', type: 'boolean', default: false },
-    ],
-    previewProps: { label: 'Trend', window: '15m' },
-  },
-  {
     id: 'primitive.text.block',
     label: 'Text Block',
     description: 'Static or data-bound text with alignment options.',
@@ -379,36 +329,6 @@ function buildTemplate(options: {
 }
 
 const componentLibrary = ref<PaletteTemplate[]>([
-  buildTemplate({
-    id: 'component-gauge-default',
-    primitiveId: 'primitive.gauge.arc',
-    label: 'Process Gauge',
-    description: 'Dial gauge tuned for live process values.',
-    icon: '🧭',
-    props: { label: 'Process Value', unit: '%', precision: 1, suffix: '' },
-    size: { x: 280, y: 200 },
-    source: 'built-in',
-  }),
-  buildTemplate({
-    id: 'component-status-default',
-    primitiveId: 'primitive.status.pill',
-    label: 'Status Tile',
-    description: 'Boolean status pill with customizable labels.',
-    icon: '🟢',
-    props: { label: 'System Status', trueLabel: 'Active', falseLabel: 'Inactive' },
-    size: { x: 240, y: 160 },
-    source: 'built-in',
-  }),
-  buildTemplate({
-    id: 'component-trend-default',
-    primitiveId: 'primitive.trend.sparkline',
-    label: 'Trend Card',
-    description: 'Sparkline preview for rolling metrics.',
-    icon: '📈',
-    props: { label: 'Throughput', window: '30m' },
-    size: { x: 360, y: 220 },
-    source: 'built-in',
-  }),
   buildTemplate({
     id: 'component-label-default',
     primitiveId: 'primitive.text.block',
