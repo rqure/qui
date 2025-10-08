@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref, onMounted } from 'vue';
+import { computed, reactive, ref, onMounted, onBeforeUnmount } from 'vue';
 import BuilderCanvas from './components/BuilderCanvas.vue';
 import ComponentPalette from './components/ComponentPalette.vue';
 import ComponentComposerPanel from './components/ComponentComposerPanel.vue';
@@ -709,16 +709,6 @@ function handleDragSelectComplete(selectedIds: string[]) {
   selectedNodeId.value = selectedIds[0] || null;
 }
 
-function handleRename(payload: { nodeId: string; name: string }) {
-  nodes.value = nodes.value.map((node) =>
-    node.id === payload.nodeId ? { ...node, name: payload.name } : node,
-  );
-  bindings.value = bindings.value.map((binding) =>
-    binding.componentId === payload.nodeId ? { ...binding, componentName: payload.name } : binding,
-  );
-  pushHistory();
-}
-
 function handleResize(payload: { nodeId: string; size: Vector2 }) {
   nodes.value = nodes.value.map((node) =>
     node.id === payload.nodeId
@@ -747,6 +737,46 @@ function handlePropUpdated(payload: { nodeId: string; key: string; value: unknow
       : node,
   );
   pushHistory();
+}
+
+function deleteNodesByIds(ids: string[]) {
+  if (!ids.length) {
+    return;
+  }
+
+  const idSet = new Set(ids);
+  const beforeNodeCount = nodes.value.length;
+  nodes.value = nodes.value.filter((node) => !idSet.has(node.id));
+
+  const beforeBindingCount = bindings.value.length;
+  bindings.value = bindings.value.filter((binding) => !idSet.has(binding.componentId));
+
+  idSet.forEach((id) => {
+    selectedNodeIds.value.delete(id);
+  });
+
+  const activeSelectionChanged = selectedNodeId.value && idSet.has(selectedNodeId.value);
+  if (activeSelectionChanged) {
+    selectedNodeId.value = null;
+  }
+
+  if (!selectedNodeIds.value.size) {
+    selectedNodeId.value = null;
+  } else if (!selectedNodeId.value) {
+    const [firstRemaining] = Array.from(selectedNodeIds.value.values());
+    selectedNodeId.value = firstRemaining ?? null;
+  }
+
+  if (beforeNodeCount !== nodes.value.length || beforeBindingCount !== bindings.value.length) {
+    pushHistory();
+  }
+}
+
+function handleDeleteSelectedNodes() {
+  if (!selectedNodeIds.value.size) {
+    return;
+  }
+  deleteNodesByIds(Array.from(selectedNodeIds.value.values()));
 }
 
 function handleInspectorBindingCreate(payload: InspectorBindingPayload) {
@@ -832,6 +862,34 @@ function handleInspectorBindingRemove(payload: { nodeId: string; property: strin
   if (bindings.value.length !== before) {
     pushHistory();
   }
+}
+
+function handleInspectorNodeDelete(payload: { nodeId: string }) {
+  deleteNodesByIds([payload.nodeId]);
+}
+
+function handleKeyDown(event: KeyboardEvent) {
+  if (!selectedNodeIds.value.size) {
+    return;
+  }
+
+  const target = event.target as HTMLElement | null;
+  if (target) {
+    const tag = target.tagName;
+    const isFormField = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+    if (isFormField || target.isContentEditable) {
+      return;
+    }
+  }
+
+  const isDeleteKey = event.key === 'Delete';
+  const isBackspace = event.key === 'Backspace' && !event.metaKey && !event.ctrlKey && !event.altKey;
+  if (!isDeleteKey && !isBackspace) {
+    return;
+  }
+
+  event.preventDefault();
+  handleDeleteSelectedNodes();
 }
 
 
@@ -1277,6 +1335,14 @@ const customComponentsList = computed(() => {
     }));
 });
 
+onMounted(() => {
+  window.addEventListener('keydown', handleKeyDown);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleKeyDown);
+});
+
 // Initialize with an empty baseline state.
 onMounted(async () => {
   // Load custom components from data store
@@ -1389,12 +1455,12 @@ onMounted(async () => {
         :node="selectedNode"
         :template="selectedTemplate"
         :bindings="selectedNodeBindings"
-        @rename="handleRename"
         @resize="handleResize"
         @prop-updated="handlePropUpdated"
         @binding-create="handleInspectorBindingCreate"
         @binding-update="handleInspectorBindingUpdate"
         @binding-remove="handleInspectorBindingRemove"
+        @delete-node="handleInspectorNodeDelete"
       />
     </div>
 

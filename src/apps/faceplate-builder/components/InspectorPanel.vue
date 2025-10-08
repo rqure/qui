@@ -25,12 +25,12 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (event: 'rename', payload: { nodeId: string; name: string }): void;
   (event: 'resize', payload: { nodeId: string; size: { x: number; y: number } }): void;
   (event: 'prop-updated', payload: { nodeId: string; key: string; value: unknown }): void;
   (event: 'binding-create', payload: BindingDraftPayload): void;
   (event: 'binding-update', payload: BindingDraftPayload): void;
   (event: 'binding-remove', payload: { nodeId: string; property: string }): void;
+  (event: 'delete-node', payload: { nodeId: string }): void;
 }>();
 
 const propertySchema = computed<PrimitivePropertyDefinition[]>(() => {
@@ -213,12 +213,6 @@ function handleBindingRemove(propertyKey: string) {
   emit('binding-remove', { nodeId: props.node.id, property: propertyKey });
 }
 
-function handleRename(event: Event) {
-  if (!props.node) return;
-  const value = (event.target as HTMLInputElement | null)?.value ?? '';
-  emit('rename', { nodeId: props.node.id, name: value });
-}
-
 function handleSizeChange(axis: 'x' | 'y', event: Event) {
   if (!props.node) return;
   const value = Number((event.target as HTMLInputElement | null)?.value ?? 0);
@@ -245,6 +239,11 @@ function handlePropInput(definition: PrimitivePropertyDefinition, event: Event) 
   }
   emit('prop-updated', { nodeId: props.node.id, key: definition.key, value });
 }
+
+function handleDeleteClick() {
+  if (!props.node) return;
+  emit('delete-node', { nodeId: props.node.id });
+}
 </script>
 
 <template>
@@ -263,10 +262,6 @@ function handlePropInput(definition: PrimitivePropertyDefinition, event: Event) 
     <form v-else class="inspector__content" @submit.prevent>
       <section class="inspector__section">
         <header><h3>General</h3></header>
-        <label class="inspector__field">
-          <span>Display Name</span>
-          <input type="text" :value="node.name" @input="handleRename" />
-        </label>
         <div class="inspector__grid">
           <label class="inspector__field">
             <span>Width (px)</span>
@@ -277,6 +272,7 @@ function handlePropInput(definition: PrimitivePropertyDefinition, event: Event) 
             <input type="number" min="60" step="20" :value="node.size.y" @input="handleSizeChange('y', $event)" />
           </label>
         </div>
+        <button type="button" class="inspector__danger" @click="handleDeleteClick">Delete Component</button>
       </section>
 
       <section class="inspector__section">
@@ -514,6 +510,25 @@ function handlePropInput(definition: PrimitivePropertyDefinition, event: Event) 
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.inspector__danger {
+  align-self: flex-start;
+  border-radius: 10px;
+  padding: 8px 14px;
+  border: 1px solid rgba(240, 120, 120, 0.4);
+  background: rgba(240, 80, 80, 0.15);
+  color: rgba(255, 190, 190, 0.95);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.18s ease, border 0.18s ease;
+}
+
+.inspector__danger:hover {
+  background: rgba(240, 80, 80, 0.25);
+  border-color: rgba(240, 120, 120, 0.6);
 }
 
 .inspector__hint {
