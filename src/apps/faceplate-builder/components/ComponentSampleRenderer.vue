@@ -641,8 +641,10 @@ const imageStyle = computed<CSSProperties>(() => {
   justify-content: center;
   min-width: 64px;
   min-height: 64px;
-  max-width: 90%;
-  max-height: 90%;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
   border-style: solid;
   border-radius: 12px;
   box-sizing: border-box;

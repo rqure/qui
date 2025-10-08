@@ -2,9 +2,7 @@
 import { computed, reactive, ref, onMounted, onBeforeUnmount } from 'vue';
 import BuilderCanvas from './components/BuilderCanvas.vue';
 import ComponentPalette from './components/ComponentPalette.vue';
-import ComponentComposerPanel from './components/ComponentComposerPanel.vue';
 import InspectorPanel from './components/InspectorPanel.vue';
-import FaceplatePreview from './components/FaceplatePreview.vue';
 import BuilderToolbar from './components/BuilderToolbar.vue';
 import FaceplatePickerDialog from './components/FaceplatePickerDialog.vue';
 import CreateFaceplateDialog from './components/CreateFaceplateDialog.vue';
@@ -341,121 +339,20 @@ function buildTemplate(options: {
   };
 }
 
-const componentLibrary = ref<PaletteTemplate[]>([
-  buildTemplate({
-    id: 'component-label-default',
-    primitiveId: 'primitive.text.block',
-    label: 'Hierarchy Label',
-    description: 'Text block for contextual labeling.',
-    icon: '🔖',
-    props: { text: 'Line A / Cell 4', align: 'left' },
-    size: { x: 240, y: 120 },
-    source: 'built-in',
-  }),
-  buildTemplate({
-    id: 'component-form-default',
-    primitiveId: 'primitive.form.field',
-    label: 'Setpoint Field',
-    description: 'Operator input for targets with validation flag.',
-    icon: '📝',
-    props: { label: 'Setpoint', placeholder: 'Enter target' },
-    size: { x: 260, y: 160 },
-    source: 'built-in',
-  }),
-  // Shapes
-  buildTemplate({
-    id: 'component-rect-default',
-    primitiveId: 'primitive.shape.rectangle',
-    label: 'Rectangle',
-    description: 'Basic rectangle shape for visual structure.',
-    icon: '▭',
-    props: { fillColor: '#00ffaa', borderColor: '#ffffff', borderWidth: 2 },
-    size: { x: 200, y: 150 },
-    source: 'built-in',
-  }),
-  buildTemplate({
-    id: 'component-circle-default',
-    primitiveId: 'primitive.shape.circle',
-    label: 'Circle',
-    description: 'Circular shape for indicators or decorative elements.',
-    icon: '○',
-    props: { fillColor: '#0088ff', borderColor: '#ffffff', borderWidth: 2 },
-    size: { x: 150, y: 150 },
-    source: 'built-in',
-  }),
-  buildTemplate({
-    id: 'component-line-default',
-    primitiveId: 'primitive.shape.line',
-    label: 'Line',
-    description: 'Horizontal or vertical divider line.',
-    icon: '─',
-    props: { strokeColor: '#00ffaa', strokeWidth: 3 },
-    size: { x: 200, y: 50 },
-    source: 'built-in',
-  }),
-  buildTemplate({
-    id: 'component-polygon-default',
-    primitiveId: 'primitive.shape.polygon',
-    label: 'Polygon',
-    description: 'Multi-sided polygon shape (hexagon by default).',
-    icon: '⬡',
-    props: { fillColor: '#ff8800', borderColor: '#ffffff', borderWidth: 2, sides: 6 },
-    size: { x: 180, y: 180 },
-    source: 'built-in',
-  }),
-  // Form Controls
-  buildTemplate({
-    id: 'component-dropdown-default',
-    primitiveId: 'primitive.form.dropdown',
-    label: 'Dropdown Menu',
-    description: 'Select from multiple options.',
-    icon: '▼',
-    props: { label: 'Mode Select', options: 'Auto,Manual,Off', selectedIndex: 0 },
-    size: { x: 240, y: 120 },
-    source: 'built-in',
-  }),
-  buildTemplate({
-    id: 'component-toggle-default',
-    primitiveId: 'primitive.form.toggle',
-    label: 'Toggle Switch',
-    description: 'On/off toggle for boolean control.',
-    icon: '⏻',
-    props: { label: 'Enable', checked: false, trueLabel: 'On', falseLabel: 'Off' },
-    size: { x: 200, y: 100 },
-    source: 'built-in',
-  }),
-  buildTemplate({
-    id: 'component-button-default',
-    primitiveId: 'primitive.form.button',
-    label: 'Action Button',
-    description: 'Clickable button for operator actions.',
-    icon: '🔘',
-    props: { label: 'Execute', color: '#00ffaa', textColor: '#000000' },
-    size: { x: 180, y: 80 },
-    source: 'built-in',
-  }),
-  // Media and Layout
-  buildTemplate({
-    id: 'component-image-default',
-    primitiveId: 'primitive.image',
-    label: 'Image',
-    description: 'Display image or icon from URL.',
-    icon: '🖼️',
-    props: { src: '', alt: 'Image', fit: 'contain' },
-    size: { x: 200, y: 200 },
-    source: 'built-in',
-  }),
-  buildTemplate({
-    id: 'component-container-default',
-    primitiveId: 'primitive.container',
-    label: 'Container',
-    description: 'Group and organize other components.',
-    icon: '□',
-    props: { backgroundColor: 'rgba(0, 255, 170, 0.1)', borderColor: '#00ffaa', borderWidth: 2 },
-    size: { x: 400, y: 300 },
-    source: 'built-in',
-  }),
-]);
+const componentLibrary = ref<PaletteTemplate[]>(
+  primitiveCatalog.map((primitive) =>
+    buildTemplate({
+      id: primitive.id,
+      primitiveId: primitive.id,
+      label: primitive.label,
+      description: primitive.description,
+      icon: primitive.icon,
+      props: primitive.defaultProps,
+      size: primitive.defaultSize,
+      source: 'built-in',
+    }),
+  ),
+);
 
 const templateMap = computed(() => {
   const map: Record<string, PaletteTemplate> = {};
@@ -517,27 +414,6 @@ const dirty = computed(() => history.index !== savedIndex.value);
 
 function generateId(prefix: string) {
   return `${prefix}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function slugify(value: string): string {
-  const slug = value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .replace(/-{2,}/g, '-');
-  return slug.length ? slug : 'component';
-}
-
-function ensureTemplateId(label: string): string {
-  const slug = slugify(label);
-  const existing = new Set(componentLibrary.value.map((item) => item.id));
-  let candidate = `component-${slug}`;
-  let index = 2;
-  while (existing.has(candidate)) {
-    candidate = `component-${slug}-${index}`;
-    index += 1;
-  }
-  return candidate;
 }
 
 function getComponentName(componentId: string): string {
@@ -892,28 +768,6 @@ function handleKeyDown(event: KeyboardEvent) {
   handleDeleteSelectedNodes();
 }
 
-
-function handleComponentCreated(payload: {
-  label: string;
-  description: string;
-  icon: string;
-  primitiveId: string;
-  size: Vector2;
-  props: Record<string, unknown>;
-}) {
-  const id = ensureTemplateId(payload.label || 'component');
-  const template = buildTemplate({
-    id,
-    primitiveId: payload.primitiveId,
-    label: payload.label,
-    description: payload.description,
-    icon: payload.icon,
-    size: payload.size,
-    props: payload.props,
-    source: 'custom',
-  });
-  componentLibrary.value = [...componentLibrary.value, template];
-}
 
 function undo() {
   if (!canUndo.value) return;
@@ -1429,10 +1283,6 @@ onMounted(async () => {
           :components="paletteItems"
           @create-request="(id) => handleNodeRequest({ componentId: id, position: { x: 40, y: 40 } })"
         />
-        <ComponentComposerPanel
-          :primitives="primitiveCatalog"
-          @create-component="handleComponentCreated"
-        />
       </aside>
 
       <main class="workspace">
@@ -1448,7 +1298,6 @@ onMounted(async () => {
           @canvas-clicked="handleCanvasClick"
           @drag-select-complete="handleDragSelectComplete"
         />
-        <FaceplatePreview class="workspace__preview" :nodes="nodes" :templates="templateMap" />
       </main>
 
       <InspectorPanel
@@ -1498,16 +1347,21 @@ onMounted(async () => {
 .faceplate-builder {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  width: 100%;
+  min-height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
   background: radial-gradient(circle at top, rgba(0, 16, 24, 0.78), rgba(0, 0, 0, 0.9));
   color: var(--qui-text-primary);
 }
 
 .faceplate-builder__body {
   display: grid;
-  grid-template-columns: 300px 1fr 320px;
+  grid-template-columns: 300px minmax(0, 1fr) 320px;
   gap: 0;
   flex: 1;
+  min-height: 0;
+  height: 100%;
   overflow: hidden;
 }
 
@@ -1517,6 +1371,8 @@ onMounted(async () => {
   background: rgba(4, 12, 18, 0.72);
   border-right: 1px solid rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(18px);
+  overflow-y: auto;
+  min-height: 0;
 }
 
 .faceplate-builder__sidebar :deep(.palette) {
@@ -1534,17 +1390,52 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   padding: 24px;
-  gap: 24px;
-  overflow: auto;
-}
-
-.workspace__preview {
-  flex: none;
+  gap: 16px;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
 }
 
 @media (max-width: 1480px) {
   .faceplate-builder__body {
     grid-template-columns: 260px 1fr 300px;
+  }
+}
+
+@media (max-width: 1280px) {
+  .faceplate-builder__body {
+    grid-template-columns: 240px minmax(0, 1fr) 280px;
+  }
+
+  .workspace {
+    padding: 20px;
+  }
+}
+
+@media (max-width: 1080px) {
+  .faceplate-builder__body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-auto-rows: minmax(0, auto);
+    overflow: auto;
+  }
+
+  .faceplate-builder__sidebar {
+    grid-column: 1 / -1;
+    max-height: 320px;
+    border-right: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .workspace {
+    grid-column: 1 / -1;
+    padding: 18px;
+  }
+
+  :deep(.inspector) {
+    grid-column: 1 / -1;
+    width: 100%;
+    border-left: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
   }
 }
 </style>

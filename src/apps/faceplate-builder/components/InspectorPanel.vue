@@ -417,9 +417,13 @@ function handleDeleteClick() {
   display: flex;
   flex-direction: column;
   width: 320px;
+  height: 100%;
+  max-height: 100%;
+  min-height: 0;
   background: rgba(2, 12, 18, 0.72);
   border-left: 1px solid rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(18px);
+  overflow: hidden;
 }
 
 .inspector__header {
@@ -461,6 +465,7 @@ function handleDeleteClick() {
   display: flex;
   flex-direction: column;
   gap: 18px;
+  min-height: 0;
 }
 
 .inspector__section {
@@ -529,6 +534,21 @@ function handleDeleteClick() {
 .inspector__danger:hover {
   background: rgba(240, 80, 80, 0.25);
   border-color: rgba(240, 120, 120, 0.6);
+}
+
+@media (max-width: 1080px) {
+  .inspector {
+    width: 100%;
+    max-width: none;
+    max-height: none;
+    height: auto;
+    border-left: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .inspector__content {
+    padding: 16px 18px 22px;
+  }
 }
 
 .inspector__hint {
