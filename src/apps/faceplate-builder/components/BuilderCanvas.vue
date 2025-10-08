@@ -263,30 +263,27 @@ onBeforeUnmount(teardownListeners);
         height: `${Math.abs(selectBoxState.current.y - selectBoxState.start.y)}px`,
       }"
     ></div>
-    <button
-      v-for="node in props.nodes"
-      :key="node.id"
-      class="canvas__node"
-      type="button"
-      :class="{ 
-        'canvas__node--selected': node.id === props.selectedNodeId,
-        'canvas__node--multi-selected': props.selectedNodeIds?.has(node.id)
-      }"
-      :style="{ left: `${node.position.x}px`, top: `${node.position.y}px`, width: `${Math.max(node.size.x, GRID_SIZE)}px`, height: `${Math.max(node.size.y, GRID_SIZE)}px` }"
-      @pointerdown="handleNodePointerDown($event, node.id)"
-      @click.stop
-    >
-      <div class="canvas__node-header">
-        <span class="canvas__node-title">{{ node.name }}</span>
-        <span class="canvas__node-subtitle">{{ node.componentId }}</span>
-      </div>
-      <ComponentSampleRenderer
-        :component-id="node.componentId"
-        :name="node.name"
-        :props="node.props"
-        :template="props.templates[node.componentId]"
-      />
-    </button>
+      <button
+        v-for="node in props.nodes"
+        :key="node.id"
+        class="canvas__node"
+        type="button"
+        :class="{ 
+          'canvas__node--selected': node.id === props.selectedNodeId,
+          'canvas__node--multi-selected': props.selectedNodeIds?.has(node.id)
+        }"
+  :style="{ left: `${node.position.x}px`, top: `${node.position.y}px`, width: `${node.size.x}px`, height: `${node.size.y}px` }"
+        @pointerdown="handleNodePointerDown($event, node.id)"
+        @click.stop
+      >
+        <ComponentSampleRenderer
+          class="canvas__node-preview"
+          :component-id="node.componentId"
+          :name="node.name"
+          :props="node.props"
+          :template="props.templates[node.componentId]"
+        />
+      </button>
     <div v-if="!props.nodes.length" class="canvas__hint">
       Drag components here or drop them from the palette.
     </div>
@@ -333,16 +330,19 @@ onBeforeUnmount(teardownListeners);
 .canvas__node {
   position: absolute;
   display: flex;
-  flex-direction: column;
-  gap: 12px;
+  align-items: stretch;
+  justify-content: stretch;
+  padding: 0;
   border-radius: 12px;
-  border: 1px solid rgba(0, 255, 194, 0.2);
-  background: rgba(0, 18, 32, 0.78);
-  color: inherit;
-  padding: 16px;
+  border: 1px solid transparent;
+  background: transparent;
   cursor: grab;
-  box-shadow: 0 12px 20px rgba(0, 0, 0, 0.24);
   transition: border 0.18s ease, box-shadow 0.18s ease;
+}
+
+.canvas__node:focus-visible {
+  outline: none;
+  border-color: rgba(0, 200, 255, 0.7);
 }
 
 .canvas__node:active {
@@ -351,29 +351,19 @@ onBeforeUnmount(teardownListeners);
 
 .canvas__node--selected {
   border-color: rgba(0, 255, 194, 0.6);
-  box-shadow: 0 18px 28px rgba(0, 255, 194, 0.18);
+  box-shadow: 0 0 0 3px rgba(0, 255, 194, 0.18);
 }
 
 .canvas__node--multi-selected {
   border-color: rgba(100, 150, 255, 0.6);
-  box-shadow: 0 12px 20px rgba(100, 150, 255, 0.15);
-  background: rgba(100, 150, 255, 0.08);
+  box-shadow: 0 0 0 3px rgba(100, 150, 255, 0.18);
 }
 
-.canvas__node-header {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.canvas__node-title {
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.canvas__node-subtitle {
-  font-size: 12px;
-  opacity: 0.65;
+.canvas__node-preview {
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  border-radius: inherit;
 }
 
 .canvas__hint {

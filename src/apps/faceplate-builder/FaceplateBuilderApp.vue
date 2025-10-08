@@ -4,8 +4,6 @@ import BuilderCanvas from './components/BuilderCanvas.vue';
 import ComponentPalette from './components/ComponentPalette.vue';
 import ComponentComposerPanel from './components/ComponentComposerPanel.vue';
 import InspectorPanel from './components/InspectorPanel.vue';
-import BindingsPanel from './components/BindingsPanel.vue';
-import BindingEditorDialog from './components/BindingEditorDialog.vue';
 import FaceplatePreview from './components/FaceplatePreview.vue';
 import BuilderToolbar from './components/BuilderToolbar.vue';
 import FaceplatePickerDialog from './components/FaceplatePickerDialog.vue';
@@ -25,6 +23,16 @@ import type {
   PrimitivePropertyDefinition,
   Vector2,
 } from './types';
+
+type InspectorBindingPayload = {
+  nodeId: string;
+  property: string;
+  mode: BindingMode;
+  expression: string;
+  transform: string | null;
+  dependencies: string[];
+  description?: string;
+};
 
 // Props for optional pre-loaded faceplate
 const props = defineProps<{
@@ -485,10 +493,6 @@ const showCreateCustomComponentDialog = ref(false);
 const showCustomComponentManager = ref(false);
 const currentScriptModules = ref<FaceplateScriptModule[]>([]);
 const currentNotificationChannels = ref<FaceplateNotificationChannel[]>([]);
-const bindingEditorVisible = ref(false);
-const bindingEditorMode = ref<'create' | 'edit'>('create');
-const bindingEditorTargetId = ref<string | null>(null);
-const bindingEditorInitial = ref<Binding | null>(null);
 
 const history = reactive<{ stack: Array<{ nodes: CanvasNode[]; bindings: Binding[] }>; index: number }>({
   stack: [],
@@ -501,6 +505,11 @@ const selectedTemplate = computed(() =>
   selectedNode.value ? templateMap.value[selectedNode.value.componentId] ?? null : null,
 );
 const selectedNodes = computed(() => nodes.value.filter((node) => selectedNodeIds.value.has(node.id)));
+const selectedNodeBindings = computed(() =>
+  selectedNodeId.value
+    ? bindings.value.filter((binding) => binding.componentId === selectedNodeId.value)
+    : [],
+);
 const hasMultipleSelected = computed(() => selectedNodeIds.value.size > 1);
 const canUndo = computed(() => history.index > 0);
 const canRedo = computed(() => history.index < history.stack.length - 1);
@@ -529,21 +538,6 @@ function ensureTemplateId(label: string): string {
     index += 1;
   }
   return candidate;
-}
-
-function getDefaultPropertyKeyForNode(node: CanvasNode): string {
-  const template = templateMap.value[node.componentId];
-  const propertySchema = template?.propertySchema ?? [];
-  if (propertySchema.length) {
-    const preferredOrder = ['value', 'text', 'status', 'label'];
-    const preferred = propertySchema.find((item) => preferredOrder.includes(item.key.toLowerCase()));
-    if (preferred) {
-      return preferred.key;
-    }
-    return propertySchema[0].key;
-  }
-  const propKeys = Object.keys(node.props ?? {});
-  return propKeys[0] ?? 'value';
 }
 
 function getComponentName(componentId: string): string {
@@ -755,98 +749,91 @@ function handlePropUpdated(payload: { nodeId: string; key: string; value: unknow
   pushHistory();
 }
 
-function openBindingEditorForCreate() {
-  const targetNode = selectedNode.value ?? nodes.value[0];
-  if (!targetNode) {
-    alert('Add a component to the canvas before creating bindings.');
+function handleInspectorBindingCreate(payload: InspectorBindingPayload) {
+  const node = nodes.value.find((item) => item.id === payload.nodeId);
+  if (!node) return;
+
+  const existing = bindings.value.find(
+    (binding) => binding.componentId === payload.nodeId && binding.property === payload.property,
+  );
+  if (existing) {
+    handleInspectorBindingUpdate(payload);
     return;
   }
 
-  const draft: Binding = {
-    id: '',
-    componentId: targetNode.id,
-    componentName: targetNode.name,
-    property: getDefaultPropertyKeyForNode(targetNode),
-    expression: 'Parent->Name',
-    mode: 'field',
-    transform: null,
-    dependencies: [],
-  };
+  const dependencies = payload.dependencies.filter(Boolean);
+  const description = payload.description?.trim() ? payload.description.trim() : undefined;
+  const transform = payload.transform ?? null;
 
-  bindingEditorMode.value = 'create';
-  bindingEditorTargetId.value = null;
-  bindingEditorInitial.value = draft;
-  bindingEditorVisible.value = true;
-}
-
-function openBindingEditorForEdit(bindingId: string) {
-  const binding = bindings.value.find((item) => item.id === bindingId);
-  if (!binding) return;
-  bindingEditorMode.value = 'edit';
-  bindingEditorTargetId.value = bindingId;
-  bindingEditorInitial.value = {
-    ...binding,
-    dependencies: [...(binding.dependencies ?? [])],
-  };
-  bindingEditorVisible.value = true;
-}
-
-function handleBindingCreate() {
-  openBindingEditorForCreate();
-}
-
-function handleBindingEdit(bindingId: string) {
-  openBindingEditorForEdit(bindingId);
-}
-
-function handleBindingRemove(bindingId: string) {
-  bindings.value = bindings.value.filter((item) => item.id !== bindingId);
-  pushHistory();
-}
-
-function closeBindingEditor() {
-  bindingEditorVisible.value = false;
-  bindingEditorTargetId.value = null;
-  bindingEditorInitial.value = null;
-}
-
-function handleBindingEditorSave(payload: Omit<Binding, 'id' | 'componentName'> & { componentName?: string }) {
-  const resolvedMode: BindingMode = payload.mode ?? 'field';
-  const dependencies = payload.dependencies?.filter(Boolean) ?? [];
-  const componentId = payload.componentId;
-  const componentName = payload.componentName ?? getComponentName(componentId);
-
-  if (!componentId || !componentName) {
-    alert('Component reference not found for binding.');
-    return;
-  }
-
-  const baseBinding: Binding = {
-    id:
-      bindingEditorMode.value === 'edit' && bindingEditorTargetId.value
-        ? bindingEditorTargetId.value
-        : generateId('binding'),
-    componentId,
-    componentName,
+  const binding: Binding = {
+    id: generateId('binding'),
+    componentId: payload.nodeId,
+    componentName: node.name,
     property: payload.property,
     expression: payload.expression,
-    mode: resolvedMode,
-    transform: payload.transform ?? null,
+    mode: payload.mode ?? 'field',
+    transform,
     dependencies: dependencies.length ? dependencies : undefined,
-    description: payload.description,
+    description,
   };
 
-  if (bindingEditorMode.value === 'edit' && bindingEditorTargetId.value) {
-    bindings.value = bindings.value.map((binding) =>
-      binding.id === bindingEditorTargetId.value ? { ...baseBinding } : binding,
-    );
-  } else {
-    bindings.value = [...bindings.value, baseBinding];
-  }
-
+  bindings.value = [...bindings.value, binding];
   pushHistory();
-  closeBindingEditor();
 }
+
+function handleInspectorBindingUpdate(payload: InspectorBindingPayload) {
+  const dependencies = payload.dependencies.filter(Boolean);
+  const normalizedDependencies = dependencies.length ? dependencies : undefined;
+  const normalizedDescription = payload.description?.trim() ? payload.description.trim() : undefined;
+  const transform = payload.transform ?? null;
+  const componentName = getComponentName(payload.nodeId);
+
+  let updated = false;
+  bindings.value = bindings.value.map((binding) => {
+    if (binding.componentId !== payload.nodeId || binding.property !== payload.property) {
+      return binding;
+    }
+
+    const mode = payload.mode ?? 'field';
+    const next: Binding = {
+      ...binding,
+      componentName,
+      mode,
+      expression: payload.expression,
+      transform,
+      dependencies: normalizedDependencies,
+      description: normalizedDescription,
+    };
+
+    if (
+      (binding.mode ?? 'field') !== (next.mode ?? 'field') ||
+      binding.expression !== next.expression ||
+      (binding.transform ?? null) !== (next.transform ?? null) ||
+      JSON.stringify(binding.dependencies ?? []) !== JSON.stringify(next.dependencies ?? []) ||
+      binding.description !== next.description ||
+      binding.componentName !== next.componentName
+    ) {
+      updated = true;
+    }
+
+    return next;
+  });
+
+  if (updated) {
+    pushHistory();
+  }
+}
+
+function handleInspectorBindingRemove(payload: { nodeId: string; property: string }) {
+  const before = bindings.value.length;
+  bindings.value = bindings.value.filter(
+    (binding) => !(binding.componentId === payload.nodeId && binding.property === payload.property),
+  );
+  if (bindings.value.length !== before) {
+    pushHistory();
+  }
+}
+
 
 function handleComponentCreated(payload: {
   label: string;
@@ -1395,24 +1382,19 @@ onMounted(async () => {
           @canvas-clicked="handleCanvasClick"
           @drag-select-complete="handleDragSelectComplete"
         />
-
-        <BindingsPanel
-          class="workspace__bindings"
-          :items="bindings"
-          @create="handleBindingCreate"
-          @edit="handleBindingEdit"
-          @remove="handleBindingRemove"
-        />
-
         <FaceplatePreview class="workspace__preview" :nodes="nodes" :templates="templateMap" />
       </main>
 
       <InspectorPanel
         :node="selectedNode"
         :template="selectedTemplate"
+        :bindings="selectedNodeBindings"
         @rename="handleRename"
         @resize="handleResize"
         @prop-updated="handlePropUpdated"
+        @binding-create="handleInspectorBindingCreate"
+        @binding-update="handleInspectorBindingUpdate"
+        @binding-remove="handleInspectorBindingRemove"
       />
     </div>
 
@@ -1442,16 +1424,6 @@ onMounted(async () => {
       @close="handleCloseCustomComponentManager"
       @delete="handleDeleteCustomComponent"
       @edit="handleEditCustomComponent"
-    />
-
-    <BindingEditorDialog
-      v-if="bindingEditorVisible"
-      :show="bindingEditorVisible"
-      :nodes="nodes"
-      :templates="templateMap"
-      :binding="bindingEditorInitial"
-      @cancel="closeBindingEditor"
-      @save="handleBindingEditorSave"
     />
   </div>
 </template>
@@ -1500,7 +1472,6 @@ onMounted(async () => {
   overflow: auto;
 }
 
-.workspace__bindings,
 .workspace__preview {
   flex: none;
 }
