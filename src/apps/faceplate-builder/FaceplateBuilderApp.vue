@@ -1033,6 +1033,28 @@ function handleInspectorNodeDelete(payload: { nodeId: string }) {
   deleteNodesByIds([payload.nodeId]);
 }
 
+function handleBringForward(payload: { nodeId: string }) {
+  const index = nodes.value.findIndex((node) => node.id === payload.nodeId);
+  if (index < 0 || index >= nodes.value.length - 1) return;
+  
+  const updated = [...nodes.value];
+  const [node] = updated.splice(index, 1);
+  updated.splice(index + 1, 0, node);
+  nodes.value = updated;
+  pushHistory();
+}
+
+function handleSendBackward(payload: { nodeId: string }) {
+  const index = nodes.value.findIndex((node) => node.id === payload.nodeId);
+  if (index <= 0) return;
+  
+  const updated = [...nodes.value];
+  const [node] = updated.splice(index, 1);
+  updated.splice(index - 1, 0, node);
+  nodes.value = updated;
+  pushHistory();
+}
+
 function handleKeyDown(event: KeyboardEvent) {
   if (!selectedNodeIds.value.size) {
     return;
@@ -1571,17 +1593,13 @@ onMounted(async () => {
       :can-undo="canUndo"
       :can-redo="canRedo"
       :dirty="dirty"
-      :has-multiple-selected="hasMultipleSelected"
       :faceplate-id="currentFaceplateId ? String(currentFaceplateId) : null"
       :faceplate-name="currentFaceplateName"
       @undo="undo"
       @redo="redo"
-      @reset="resetWorkspace"
       @save="saveWorkspace"
       @new="newWorkspace"
       @load="loadWorkspace"
-      @create-custom="handleCreateCustomComponent"
-      @manage-custom="handleOpenCustomComponentManager"
     />
 
     <div class="faceplate-builder__body">
@@ -1596,37 +1614,6 @@ onMounted(async () => {
       </aside>
 
       <main class="workspace">
-        <section class="workspace__chrome">
-          <div class="workspace__panel">
-            <header>Viewport</header>
-            <div class="workspace__viewport-inputs">
-              <label>
-                <span>Width</span>
-                <input
-                  type="number"
-                  min="320"
-                  step="20"
-                  :value="viewportSize.x"
-                  @change="(event) => handleViewportInput('x', event)"
-                />
-              </label>
-              <label>
-                <span>Height</span>
-                <input
-                  type="number"
-                  min="240"
-                  step="20"
-                  :value="viewportSize.y"
-                  @change="(event) => handleViewportInput('y', event)"
-                />
-              </label>
-              <button type="button" class="workspace__reset" @click="resetViewportDimensions">
-                Reset
-              </button>
-            </div>
-          </div>
-        </section>
-
         <div class="workspace__canvas">
           <BuilderCanvas
             :nodes="nodes"
@@ -1654,6 +1641,8 @@ onMounted(async () => {
         @binding-update="handleInspectorBindingUpdate"
         @binding-remove="handleInspectorBindingRemove"
         @delete-node="handleInspectorNodeDelete"
+        @bring-forward="handleBringForward"
+        @send-backward="handleSendBackward"
       />
     </div>
 
@@ -1733,8 +1722,8 @@ onMounted(async () => {
 .workspace {
   display: flex;
   flex-direction: column;
-  padding: 24px;
-  gap: 16px;
+  padding: 0;
+  gap: 0;
   min-height: 0;
   height: 100%;
   overflow: hidden;

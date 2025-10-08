@@ -31,6 +31,8 @@ const emit = defineEmits<{
   (event: 'binding-update', payload: BindingDraftPayload): void;
   (event: 'binding-remove', payload: { nodeId: string; property: string }): void;
   (event: 'delete-node', payload: { nodeId: string }): void;
+  (event: 'bring-forward', payload: { nodeId: string }): void;
+  (event: 'send-backward', payload: { nodeId: string }): void;
 }>();
 
 const propertySchema = computed<PrimitivePropertyDefinition[]>(() => {
@@ -244,6 +246,16 @@ function handleDeleteClick() {
   if (!props.node) return;
   emit('delete-node', { nodeId: props.node.id });
 }
+
+function handleBringForward() {
+  if (!props.node) return;
+  emit('bring-forward', { nodeId: props.node.id });
+}
+
+function handleSendBackward() {
+  if (!props.node) return;
+  emit('send-backward', { nodeId: props.node.id });
+}
 </script>
 
 <template>
@@ -271,6 +283,10 @@ function handleDeleteClick() {
             <span>Height (px)</span>
             <input type="number" min="60" step="20" :value="node.size.y" @input="handleSizeChange('y', $event)" />
           </label>
+        </div>
+        <div class="inspector__actions">
+          <button type="button" class="inspector__secondary" @click="handleBringForward">Bring Forward</button>
+          <button type="button" class="inspector__secondary" @click="handleSendBackward">Send Backward</button>
         </div>
         <button type="button" class="inspector__danger" @click="handleDeleteClick">Delete Component</button>
       </section>
@@ -515,6 +531,30 @@ function handleDeleteClick() {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.inspector__actions {
+  display: flex;
+  gap: 10px;
+}
+
+.inspector__secondary {
+  flex: 1;
+  border-radius: 10px;
+  padding: 8px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.05);
+  color: inherit;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.18s ease, border 0.18s ease;
+}
+
+.inspector__secondary:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.28);
 }
 
 .inspector__danger {

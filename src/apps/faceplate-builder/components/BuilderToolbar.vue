@@ -19,7 +19,6 @@ const emit = defineEmits<{
 <template>
   <header class="toolbar">
     <div class="toolbar__left">
-      <h1>Faceplate Builder</h1>
       <span v-if="props.faceplateName" class="toolbar__badge toolbar__badge--name">{{ props.faceplateName }}</span>
       <span v-if="props.dirty" class="toolbar__badge">Unsaved changes</span>
     </div>
@@ -50,13 +49,6 @@ const emit = defineEmits<{
   display: flex;
   align-items: center;
   gap: 12px;
-}
-
-.toolbar h1 {
-  margin: 0;
-  font-size: 18px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
 }
 
 .toolbar__badge {
