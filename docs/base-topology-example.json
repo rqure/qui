@@ -1,0 +1,190 @@
+{
+  "schemas": [
+    {
+      "entityType": "Object",
+      "inheritsFrom": [],
+      "fields": [
+        {
+          "name": "Name",
+          "dataType": "String",
+          "default": "",
+          "storageScope": "Configuration"
+        },
+        {
+          "name": "Parent",
+          "dataType": "EntityReference",
+          "default": null,
+          "storageScope": "Configuration"
+        },
+        {
+          "name": "Description",
+          "dataType": "String",
+          "default": "",
+          "storageScope": "Configuration"
+        },
+        {
+          "name": "Children",
+          "dataType": "EntityList",
+          "default": [],
+          "storageScope": "Configuration"
+        },
+        {
+          "name": "Faceplates",
+          "dataType": "EntityList",
+          "default": [],
+          "storageScope": "Configuration",
+          "comment": "NEW: List of faceplate entity references associated with this entity"
+        }
+      ]
+    },
+    {
+      "entityType": "Faceplate",
+      "inheritsFrom": ["Object"],
+      "fields": [
+        {
+          "name": "TargetEntityType",
+          "dataType": "String",
+          "default": "",
+          "storageScope": "Configuration",
+          "comment": "Entity type this faceplate is designed for (e.g., 'Machine', 'Service')"
+        },
+        {
+          "name": "Configuration",
+          "dataType": "String",
+          "default": "{}",
+          "storageScope": "Configuration",
+          "comment": "JSON string containing layout and metadata"
+        },
+        {
+          "name": "Components",
+          "dataType": "EntityList",
+          "default": [],
+          "storageScope": "Configuration",
+          "comment": "List of FaceplateComponent entity references"
+        },
+        {
+          "name": "NotificationChannels",
+          "dataType": "String",
+          "default": "[]",
+          "storageScope": "Configuration",
+          "comment": "JSON array of field subscriptions for real-time updates"
+        }
+      ]
+    },
+    {
+      "entityType": "FaceplateComponent",
+      "inheritsFrom": ["Object"],
+      "fields": [
+        {
+          "name": "ComponentType",
+          "dataType": "String",
+          "default": "",
+          "storageScope": "Configuration",
+          "comment": "Type of primitive (e.g., 'primitive.gauge.arc', 'primitive.status.pill')"
+        },
+        {
+          "name": "Configuration",
+          "dataType": "String",
+          "default": "{}",
+          "storageScope": "Configuration",
+          "comment": "JSON string containing component-specific properties"
+        },
+        {
+          "name": "Bindings",
+          "dataType": "String",
+          "default": "[]",
+          "storageScope": "Configuration",
+          "comment": "JSON array of data bindings to entity fields"
+        },
+        {
+          "name": "AnimationRules",
+          "dataType": "String",
+          "default": "[]",
+          "storageScope": "Configuration",
+          "comment": "JSON array defining conditional animations"
+        }
+      ]
+    },
+    {
+      "entityType": "FaceplateBindingLibrary",
+      "inheritsFrom": ["Object"],
+      "fields": [
+        {
+          "name": "Expression",
+          "dataType": "String",
+          "default": "",
+          "storageScope": "Configuration",
+          "comment": "Field path or JavaScript expression (e.g., 'Parent->Name')"
+        },
+        {
+          "name": "TargetComponent",
+          "dataType": "EntityReference",
+          "default": null,
+          "storageScope": "Configuration",
+          "comment": "Optional reference to specific component instance"
+        },
+        {
+          "name": "TargetProperty",
+          "dataType": "String",
+          "default": "",
+          "storageScope": "Configuration",
+          "comment": "Property name to bind to (e.g., 'value', 'color', 'visible')"
+        },
+        {
+          "name": "ValueTransform",
+          "dataType": "String",
+          "default": "",
+          "storageScope": "Configuration",
+          "comment": "Optional JavaScript transformation applied to the value"
+        },
+        {
+          "name": "SubscriptionConfig",
+          "dataType": "String",
+          "default": "[]",
+          "storageScope": "Configuration",
+          "comment": "JSON array of notification channel configurations"
+        }
+      ]
+    }
+  ],
+  "tree": {
+    "entityType": "Root",
+    "Name": "QOS",
+    "Children": [
+      {
+        "entityType": "Folder",
+        "Name": "Faceplates",
+        "Description": "Faceplate library for SCADA visualization",
+        "Children": [
+          {
+            "entityType": "Faceplate",
+            "Name": "Machine Status Dashboard",
+            "Description": "Overview dashboard for machine monitoring",
+            "TargetEntityType": "Machine",
+            "Configuration": "{\"layout\":[{\"component\":\"gauge-1\",\"x\":0,\"y\":0,\"w\":4,\"h\":3},{\"component\":\"status-1\",\"x\":4,\"y\":0,\"w\":4,\"h\":3}],\"metadata\":{\"gridColumns\":12,\"gridRows\":8}}",
+            "Components": [],
+            "NotificationChannels": "[]",
+            "Children": [
+              {
+                "entityType": "FaceplateComponent",
+                "Name": "CPU Gauge",
+                "ComponentType": "primitive.gauge.arc",
+                "Configuration": "{\"label\":\"CPU Usage\",\"min\":0,\"max\":100,\"unit\":\"%\",\"precision\":1}",
+                "Bindings": "[{\"component\":\"gauge-1\",\"property\":\"value\",\"expression\":\"CpuUsage\"}]",
+                "AnimationRules": "[]"
+              },
+              {
+                "entityType": "FaceplateComponent",
+                "Name": "Status Indicator",
+                "ComponentType": "primitive.status.pill",
+                "Configuration": "{\"label\":\"Machine Status\",\"trueLabel\":\"Online\",\"falseLabel\":\"Offline\"}",
+                "Bindings": "[{\"component\":\"status-1\",\"property\":\"status\",\"expression\":\"Status\"}]",
+                "AnimationRules": "[{\"expression\":\"Status\",\"activeValue\":\"Online\",\"animation\":\"pulse-green\"}]"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
