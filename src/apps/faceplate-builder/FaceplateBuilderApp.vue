@@ -93,14 +93,12 @@ const primitiveCatalog: PrimitiveDefinition[] = [
   {
     id: 'primitive.form.field',
     label: 'Text Input',
-    description: 'Basic text entry field suited for custom labeling and bindings.',
+    description: 'Simple text input field for data entry.',
     icon: '⌨️',
     category: 'Controls',
-    defaultSize: { x: 260, y: 120 },
+    defaultSize: { x: 260, y: 80 },
     defaultProps: {
-      label: '',
       placeholder: 'Enter text',
-      required: false,
       textColor: '#ffffff',
       backgroundColor: 'rgba(0, 0, 0, 0.35)',
       fontSize: 16,
@@ -109,9 +107,7 @@ const primitiveCatalog: PrimitiveDefinition[] = [
       visible: true,
     },
     propertySchema: [
-      { key: 'label', label: 'Label', type: 'string', default: '' },
       { key: 'placeholder', label: 'Placeholder', type: 'string', default: 'Enter text' },
-      { key: 'required', label: 'Required', type: 'boolean', default: false },
       { key: 'textColor', label: 'Text Color', type: 'string', default: '#ffffff' },
       { key: 'backgroundColor', label: 'Background', type: 'string', default: 'rgba(0, 0, 0, 0.35)' },
       { key: 'fontSize', label: 'Font Size', type: 'number', default: 16 },
@@ -129,7 +125,7 @@ const primitiveCatalog: PrimitiveDefinition[] = [
       },
       { key: 'visible', label: 'Visible', type: 'boolean', default: true },
     ],
-    previewProps: { placeholder: 'Enter text', required: false },
+    previewProps: { placeholder: 'Enter text' },
   },
   {
     id: 'primitive.form.number',
@@ -137,9 +133,8 @@ const primitiveCatalog: PrimitiveDefinition[] = [
     description: 'Numeric entry with range, precision, and adornment options.',
     icon: '�',
     category: 'Controls',
-    defaultSize: { x: 240, y: 120 },
+    defaultSize: { x: 240, y: 80 },
     defaultProps: {
-      label: '',
       placeholder: '0',
       min: 0,
       max: 100,
@@ -150,7 +145,6 @@ const primitiveCatalog: PrimitiveDefinition[] = [
       visible: true,
     },
     propertySchema: [
-      { key: 'label', label: 'Label', type: 'string', default: '' },
       { key: 'placeholder', label: 'Placeholder', type: 'string', default: '0' },
       { key: 'min', label: 'Minimum', type: 'number', default: 0 },
       { key: 'max', label: 'Maximum', type: 'number', default: 100 },
@@ -168,9 +162,8 @@ const primitiveCatalog: PrimitiveDefinition[] = [
     description: 'Calendar picker for choosing a date value.',
     icon: '📅',
     category: 'Controls',
-    defaultSize: { x: 280, y: 140 },
+    defaultSize: { x: 280, y: 80 },
     defaultProps: {
-      label: '',
       placeholder: 'Select date',
       minDate: '',
       maxDate: '',
@@ -178,7 +171,6 @@ const primitiveCatalog: PrimitiveDefinition[] = [
       visible: true,
     },
     propertySchema: [
-      { key: 'label', label: 'Label', type: 'string', default: '' },
       { key: 'placeholder', label: 'Placeholder', type: 'string', default: 'Select date' },
       { key: 'minDate', label: 'Min Date', type: 'string', default: '' },
       { key: 'maxDate', label: 'Max Date', type: 'string', default: '' },
@@ -193,15 +185,13 @@ const primitiveCatalog: PrimitiveDefinition[] = [
     description: 'Time selector with hour and minute granularity.',
     icon: '⏰',
     category: 'Controls',
-    defaultSize: { x: 240, y: 120 },
+    defaultSize: { x: 240, y: 80 },
     defaultProps: {
-      label: '',
       placeholder: 'Select time',
       stepMinutes: 5,
       visible: true,
     },
     propertySchema: [
-      { key: 'label', label: 'Label', type: 'string', default: '' },
       { key: 'placeholder', label: 'Placeholder', type: 'string', default: 'Select time' },
       { key: 'stepMinutes', label: 'Step (minutes)', type: 'number', default: 5 },
       { key: 'visible', label: 'Visible', type: 'boolean', default: true },
@@ -294,20 +284,20 @@ const primitiveCatalog: PrimitiveDefinition[] = [
     description: 'Dropdown select field with multiple options.',
     icon: '▼',
     category: 'Controls',
-    defaultSize: { x: 240, y: 120 },
+    defaultSize: { x: 240, y: 80 },
     defaultProps: { 
-      label: 'Select Option', 
+      placeholder: 'Select option',
       options: 'Option 1,Option 2,Option 3', 
       selectedIndex: 0,
       visible: true
     },
     propertySchema: [
-      { key: 'label', label: 'Label', type: 'string', default: 'Select Option' },
+      { key: 'placeholder', label: 'Placeholder', type: 'string', default: 'Select option' },
       { key: 'options', label: 'Options (comma-separated)', type: 'string', default: 'Option 1,Option 2,Option 3' },
       { key: 'selectedIndex', label: 'Selected Index', type: 'number', default: 0 },
       { key: 'visible', label: 'Visible', type: 'boolean', default: true },
     ],
-    previewProps: { label: 'Mode', options: 'Auto,Manual,Off', selectedIndex: 0 },
+    previewProps: { placeholder: 'Select mode', options: 'Auto,Manual,Off', selectedIndex: 0 },
   },
   {
     id: 'primitive.form.toggle',
@@ -315,22 +305,20 @@ const primitiveCatalog: PrimitiveDefinition[] = [
     description: 'Toggle switch for boolean values.',
     icon: '⏻',
     category: 'Controls',
-    defaultSize: { x: 200, y: 100 },
+    defaultSize: { x: 200, y: 80 },
     defaultProps: { 
-      label: 'Toggle', 
       checked: false, 
       trueLabel: 'On', 
       falseLabel: 'Off',
       visible: true
     },
     propertySchema: [
-      { key: 'label', label: 'Label', type: 'string', default: 'Toggle' },
       { key: 'checked', label: 'Checked', type: 'boolean', default: false },
       { key: 'trueLabel', label: 'True Label', type: 'string', default: 'On' },
       { key: 'falseLabel', label: 'False Label', type: 'string', default: 'Off' },
       { key: 'visible', label: 'Visible', type: 'boolean', default: true },
     ],
-    previewProps: { label: 'Enable', checked: true, trueLabel: 'Enabled', falseLabel: 'Disabled' },
+    previewProps: { checked: true, trueLabel: 'Enabled', falseLabel: 'Disabled' },
   },
   {
     id: 'primitive.form.button',
