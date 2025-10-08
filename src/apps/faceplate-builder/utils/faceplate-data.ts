@@ -398,4 +398,66 @@ export class FaceplateDataService {
       return null;
     }
   }
+
+  // Custom Component Methods
+  async createCustomComponent(parentId: EntityId, name: string, definition: string): Promise<EntityId> {
+    // For now, we'll store custom components as special Faceplate entities with a marker
+    // In the future, a dedicated CustomComponent entity type could be added to the schema
+    const customComponentType = await this.getEntityType('Faceplate');
+    const componentId = await this.dataStore.createEntity(customComponentType, parentId, name);
+    
+    await Promise.all([
+      this.writeString(componentId, 'TargetEntityType', '__CUSTOM_COMPONENT__'), // Marker to identify custom components
+      this.writeString(componentId, 'Configuration', definition),
+    ]);
+    
+    return componentId;
+  }
+
+  async readCustomComponent(componentId: EntityId): Promise<string> {
+    const [value] = await this.dataStore.read(componentId, [await this.getFieldType('Configuration')]);
+    if (!value || !('String' in value)) {
+      return '{}';
+    }
+    return value.String;
+  }
+
+  async updateCustomComponent(componentId: EntityId, name: string, definition: string): Promise<void> {
+    await Promise.all([
+      this.writeString(componentId, 'Name', name),
+      this.writeString(componentId, 'Configuration', definition),
+    ]);
+  }
+
+  async deleteCustomComponent(componentId: EntityId): Promise<void> {
+    await this.dataStore.deleteEntity(componentId);
+  }
+
+  async listCustomComponents(parentId?: EntityId): Promise<Array<{ id: EntityId; name: string; definition: string }>> {
+    try {
+      const faceplateType = await this.getEntityType('Faceplate');
+      const allFaceplates = await this.dataStore.findEntities(faceplateType, null);
+      
+      const customComponents: Array<{ id: EntityId; name: string; definition: string }> = [];
+      
+      for (const id of allFaceplates) {
+        const [targetTypeValue] = await this.dataStore.read(id, [await this.getFieldType('TargetEntityType')]);
+        if (targetTypeValue && 'String' in targetTypeValue && targetTypeValue.String === '__CUSTOM_COMPONENT__') {
+          const [nameValue] = await this.dataStore.read(id, [await this.getFieldType('Name')]);
+          const [defValue] = await this.dataStore.read(id, [await this.getFieldType('Configuration')]);
+          
+          customComponents.push({
+            id,
+            name: nameValue && 'String' in nameValue ? nameValue.String : 'Unnamed',
+            definition: defValue && 'String' in defValue ? defValue.String : '{}',
+          });
+        }
+      }
+      
+      return customComponents;
+    } catch (error) {
+      console.error('Failed to list custom components:', error);
+      return [];
+    }
+  }
 }

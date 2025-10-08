@@ -7,6 +7,10 @@ const props = defineProps<{
   faceplateName?: string;
 }>();
 
+const props2 = defineProps<{
+  hasMultipleSelected?: boolean;
+}>();
+
 const emit = defineEmits<{
   (event: 'undo'): void;
   (event: 'redo'): void;
@@ -14,6 +18,7 @@ const emit = defineEmits<{
   (event: 'reset'): void;
   (event: 'new'): void;
   (event: 'load'): void;
+  (event: 'create-custom'): void;
 }>();
 </script>
 
@@ -27,6 +32,10 @@ const emit = defineEmits<{
     <div class="toolbar__actions">
       <button type="button" @click="emit('new')">New</button>
       <button type="button" @click="emit('load')">Load</button>
+      <span class="toolbar__divider" aria-hidden="true"></span>
+      <button type="button" :disabled="!props2.hasMultipleSelected" @click="emit('create-custom')" title="Create custom component from selected">
+        <span class="toolbar__icon">✨</span> Create Custom
+      </button>
       <span class="toolbar__divider" aria-hidden="true"></span>
       <button type="button" :disabled="!props.canUndo" @click="emit('undo')">Undo</button>
       <button type="button" :disabled="!props.canRedo" @click="emit('redo')">Redo</button>
@@ -114,5 +123,9 @@ const emit = defineEmits<{
   width: 1px;
   height: 22px;
   background: rgba(255, 255, 255, 0.16);
+}
+
+.toolbar__icon {
+  margin-right: 4px;
 }
 </style>

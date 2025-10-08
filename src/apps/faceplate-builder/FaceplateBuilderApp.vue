@@ -9,6 +9,7 @@ import FaceplatePreview from './components/FaceplatePreview.vue';
 import BuilderToolbar from './components/BuilderToolbar.vue';
 import FaceplatePickerDialog from './components/FaceplatePickerDialog.vue';
 import CreateFaceplateDialog from './components/CreateFaceplateDialog.vue';
+import CreateCustomComponentDialog from './components/CreateCustomComponentDialog.vue';
 import { useDataStore } from '@/stores/data';
 import { FaceplateDataService } from './utils/faceplate-data';
 import type { EntityId } from '@/core/data/types';
@@ -469,12 +470,14 @@ const paletteItems = computed(() =>
 const nodes = ref<CanvasNode[]>([]);
 const bindings = ref<Binding[]>([]);
 const selectedNodeId = ref<string | null>(null);
+const selectedNodeIds = ref<Set<string>>(new Set()); // Multi-selection support
 const currentFaceplateId = ref<EntityId | null>(props.faceplateId ?? null);
 const currentFaceplateName = ref<string>('');
 const currentTargetEntityType = ref<string>('');
 const isSaving = ref(false);
 const showPickerDialog = ref(false);
 const showCreateDialog = ref(false);
+const showCreateCustomComponentDialog = ref(false);
 
 const history = reactive<{ stack: Array<{ nodes: CanvasNode[]; bindings: Binding[] }>; index: number }>({
   stack: [],
@@ -486,6 +489,8 @@ const selectedNode = computed(() => nodes.value.find((node) => node.id === selec
 const selectedTemplate = computed(() =>
   selectedNode.value ? templateMap.value[selectedNode.value.componentId] ?? null : null,
 );
+const selectedNodes = computed(() => nodes.value.filter((node) => selectedNodeIds.value.has(node.id)));
+const hasMultipleSelected = computed(() => selectedNodeIds.value.size > 1);
 const canUndo = computed(() => history.index > 0);
 const canRedo = computed(() => history.index < history.stack.length - 1);
 const dirty = computed(() => history.index !== savedIndex.value);
@@ -897,8 +902,149 @@ function handleCreateCancel() {
   showCreateDialog.value = false;
 }
 
+// Custom Component Functions
+async function loadCustomComponents() {
+  try {
+    const customComponents = await faceplateService.listCustomComponents();
+    
+    for (const cc of customComponents) {
+      const def = JSON.parse(cc.definition) as import('./types').CustomComponentDefinition;
+      
+      // Create a template for this custom component
+      const template: PaletteTemplate = {
+        id: `custom-${cc.id}`,
+        label: def.name,
+        description: def.description,
+        icon: def.icon,
+        primitiveId: 'custom.composite', // Special marker for custom components
+        defaults: {
+          size: def.size,
+          props: {}, // Custom components don't have editable props at the top level
+        },
+        propertySchema: [],
+        source: 'custom',
+        customComponentId: cc.id.toString(),
+      };
+      
+      // Add to component library if not already there
+      const existingIndex = componentLibrary.value.findIndex((t) => t.id === template.id);
+      if (existingIndex >= 0) {
+        componentLibrary.value[existingIndex] = template;
+      } else {
+        componentLibrary.value.push(template);
+      }
+    }
+  } catch (error) {
+    console.error('Failed to load custom components:', error);
+  }
+}
+
+async function handleCreateCustomComponent() {
+  const selected = selectedNodes.value;
+  if (selected.length === 0) {
+    alert('Please select one or more components to create a custom component');
+    return;
+  }
+  
+  showCreateCustomComponentDialog.value = true;
+}
+
+async function handleSaveCustomComponent(data: { name: string; description: string; icon: string }) {
+  const selected = selectedNodes.value;
+  if (selected.length === 0) {
+    return;
+  }
+  
+  try {
+    // Calculate bounding box
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const node of selected) {
+      minX = Math.min(minX, node.position.x);
+      minY = Math.min(minY, node.position.y);
+      maxX = Math.max(maxX, node.position.x + node.size.x);
+      maxY = Math.max(maxY, node.position.y + node.size.y);
+    }
+    
+    const width = maxX - minX;
+    const height = maxY - minY;
+    
+    // Build custom component definition
+    const definition: import('./types').CustomComponentDefinition = {
+      id: '', // Will be set by data store
+      name: data.name,
+      description: data.description,
+      icon: data.icon,
+      children: selected.map((node) => {
+        const template = templateMap.value[node.componentId];
+        return {
+          primitiveId: template?.primitiveId || node.componentId,
+          position: {
+            x: node.position.x - minX,
+            y: node.position.y - minY,
+          },
+          size: node.size,
+          props: node.props,
+        };
+      }),
+      bindings: bindings.value
+        .filter((b) => selected.some((n) => n.id === b.componentId))
+        .map((b) => {
+          const childIndex = selected.findIndex((n) => n.id === b.componentId);
+          return {
+            childIndex,
+            property: b.property,
+            expression: b.expression,
+          };
+        }),
+      size: { x: width, y: height },
+    };
+    
+    // Save to data store - use root as parent for now
+    const rootId = 1;
+    const componentId = await faceplateService.createCustomComponent(rootId, data.name, JSON.stringify(definition));
+    
+    definition.id = componentId.toString();
+    
+    // Add to component library
+    const template: PaletteTemplate = {
+      id: `custom-${componentId}`,
+      label: data.name,
+      description: data.description,
+      icon: data.icon,
+      primitiveId: 'custom.composite',
+      defaults: {
+        size: { x: width, y: height },
+        props: {},
+      },
+      propertySchema: [],
+      source: 'custom',
+      customComponentId: componentId.toString(),
+    };
+    
+    componentLibrary.value.push(template);
+    
+    showCreateCustomComponentDialog.value = false;
+    alert(`Custom component "${data.name}" created successfully!`);
+    
+    // Deselect all nodes
+    selectedNodeIds.value.clear();
+    selectedNodeId.value = null;
+    
+  } catch (error) {
+    console.error('Failed to create custom component:', error);
+    alert(`Failed to create custom component: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+function handleCancelCustomComponent() {
+  showCreateCustomComponentDialog.value = false;
+}
+
 // Initialize with an empty baseline state.
 onMounted(async () => {
+  // Load custom components from data store
+  await loadCustomComponents();
+  
   if (!history.stack.length) {
     pushHistory();
     markSaved();
@@ -955,6 +1101,7 @@ onMounted(async () => {
       :can-undo="canUndo"
       :can-redo="canRedo"
       :dirty="dirty"
+      :has-multiple-selected="hasMultipleSelected"
       :faceplate-id="currentFaceplateId ? String(currentFaceplateId) : null"
       :faceplate-name="currentFaceplateName"
       @undo="undo"
@@ -963,6 +1110,7 @@ onMounted(async () => {
       @save="saveWorkspace"
       @new="newWorkspace"
       @load="loadWorkspace"
+      @create-custom="handleCreateCustomComponent"
     />
 
     <div class="faceplate-builder__body">
@@ -1020,6 +1168,12 @@ onMounted(async () => {
       v-if="showCreateDialog"
       @create="handleCreateFaceplate"
       @cancel="handleCreateCancel"
+    />
+
+    <CreateCustomComponentDialog
+      v-if="showCreateCustomComponentDialog"
+      @create="handleSaveCustomComponent"
+      @cancel="handleCancelCustomComponent"
     />
   </div>
 </template>

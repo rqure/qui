@@ -37,6 +37,7 @@ export type PaletteTemplate = {
   propertySchema: PrimitivePropertyDefinition[];
   previewProps?: Record<string, unknown>;
   source: 'built-in' | 'custom';
+  customComponentId?: string; // Reference to custom component entity if source is 'custom'
 };
 
 export type CanvasNode = {
@@ -46,6 +47,7 @@ export type CanvasNode = {
   position: Vector2;
   size: Vector2;
   props: Record<string, unknown>;
+  selected?: boolean; // For multi-selection support
 };
 
 export type Binding = {
@@ -54,4 +56,27 @@ export type Binding = {
   componentName: string;
   property: string;
   expression: string;
+};
+
+// Custom component definition for composing multiple primitives
+export type CustomComponentDefinition = {
+  id: string; // Entity ID in data store
+  name: string;
+  description: string;
+  icon: string;
+  // Child components with relative positions within the custom component
+  children: Array<{
+    primitiveId: string;
+    position: Vector2; // Relative to custom component origin
+    size: Vector2;
+    props: Record<string, unknown>;
+  }>;
+  // Bindings within the custom component
+  bindings: Array<{
+    childIndex: number; // Index in children array
+    property: string;
+    expression: string;
+  }>;
+  // Bounding box size
+  size: Vector2;
 };
