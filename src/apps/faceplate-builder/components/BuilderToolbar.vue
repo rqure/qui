@@ -5,6 +5,8 @@ const props = defineProps<{
   dirty: boolean;
   faceplateId?: string | null;
   faceplateName?: string;
+  viewportWidth?: number;
+  viewportHeight?: number;
 }>();
 
 const emit = defineEmits<{
@@ -13,7 +15,18 @@ const emit = defineEmits<{
   (event: 'save'): void;
   (event: 'new'): void;
   (event: 'load'): void;
+  (event: 'viewport-resize', payload: { width: number; height: number }): void;
 }>();
+
+function handleViewportInput(axis: 'width' | 'height', event: Event) {
+  const value = Number((event.target as HTMLInputElement | null)?.value ?? 0);
+  if (!Number.isFinite(value) || value < 320) return;
+  
+  emit('viewport-resize', {
+    width: axis === 'width' ? value : props.viewportWidth ?? 1280,
+    height: axis === 'height' ? value : props.viewportHeight ?? 800,
+  });
+}
 </script>
 
 <template>
@@ -21,6 +34,16 @@ const emit = defineEmits<{
     <div class="toolbar__left">
       <span v-if="props.faceplateName" class="toolbar__badge toolbar__badge--name">{{ props.faceplateName }}</span>
       <span v-if="props.dirty" class="toolbar__badge">Unsaved changes</span>
+      <div class="toolbar__viewport">
+        <label>
+          <span>W:</span>
+          <input type="number" min="320" step="20" :value="props.viewportWidth ?? 1280" @change="handleViewportInput('width', $event)" />
+        </label>
+        <label>
+          <span>H:</span>
+          <input type="number" min="240" step="20" :value="props.viewportHeight ?? 800" @change="handleViewportInput('height', $event)" />
+        </label>
+      </div>
     </div>
     <div class="toolbar__actions">
       <button type="button" @click="emit('new')">New</button>
@@ -62,6 +85,31 @@ const emit = defineEmits<{
 .toolbar__badge--name {
   background: rgba(100, 150, 255, 0.16);
   border-color: rgba(100, 150, 255, 0.32);
+}
+
+.toolbar__viewport {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: 12px;
+}
+
+.toolbar__viewport label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.toolbar__viewport input {
+  width: 80px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.35);
+  color: inherit;
+  font-size: 12px;
 }
 
 .toolbar__actions {

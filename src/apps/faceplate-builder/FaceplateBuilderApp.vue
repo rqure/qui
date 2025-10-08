@@ -6,8 +6,6 @@ import InspectorPanel from './components/InspectorPanel.vue';
 import BuilderToolbar from './components/BuilderToolbar.vue';
 import FaceplatePickerDialog from './components/FaceplatePickerDialog.vue';
 import CreateFaceplateDialog from './components/CreateFaceplateDialog.vue';
-import CreateCustomComponentDialog from './components/CreateCustomComponentDialog.vue';
-import CustomComponentManagerDialog from './components/CustomComponentManagerDialog.vue';
 import { useDataStore } from '@/stores/data';
 import { FaceplateDataService } from './utils/faceplate-data';
 import type { FaceplateNotificationChannel, FaceplateScriptModule } from './utils/faceplate-data';
@@ -557,8 +555,6 @@ const viewportSize = ref<Vector2>({ ...DEFAULT_VIEWPORT });
 const faceplateMetadata = ref<Record<string, unknown>>({});
 const showPickerDialog = ref(false);
 const showCreateDialog = ref(false);
-const showCreateCustomComponentDialog = ref(false);
-const showCustomComponentManager = ref(false);
 const currentScriptModules = ref<FaceplateScriptModule[]>([]);
 const currentNotificationChannels = ref<FaceplateNotificationChannel[]>([]);
 
@@ -582,7 +578,6 @@ const selectedNodeBindings = computed(() =>
     : [],
 );
 const hasMultipleSelected = computed(() => selectedNodeIds.value.size > 1);
-const canCreateCustomComponent = computed(() => selectedNodeIds.value.size > 0);
 const canUndo = computed(() => history.index > 0);
 const canRedo = computed(() => history.index < history.stack.length - 1);
 const dirty = computed(() => history.index !== savedIndex.value);
@@ -702,12 +697,6 @@ async function handleNodeRequest(payload: { componentId: string; position: Vecto
   const template = templateMap.value[payload.componentId];
   if (!template) return;
 
-  // Check if this is a custom component
-  if (template.source === 'custom' && template.customComponentId) {
-    await instantiateCustomComponent(template.customComponentId, payload.position);
-    return;
-  }
-
   const nodeId = generateId('node');
   const defaultProps = { ...template.defaults.props };
   if ('label' in defaultProps && typeof defaultProps.label === 'string') {
@@ -727,65 +716,6 @@ async function handleNodeRequest(payload: { componentId: string; position: Vecto
   ];
   applySelection([nodeId], nodeId);
   pushHistory();
-}
-
-async function instantiateCustomComponent(customComponentId: string, position: Vector2) {
-  try {
-    const entityId = parseInt(customComponentId) as EntityId;
-    const defString = await faceplateService.readCustomComponent(entityId);
-    const def = JSON.parse(defString) as import('./types').CustomComponentDefinition;
-    
-    const newNodeIds: string[] = [];
-    
-    // Create nodes for each child component
-    for (const child of def.children) {
-      const primitiveTemplate = templateMap.value[child.primitiveId];
-      if (!primitiveTemplate) continue;
-      
-      const nodeId = generateId('node');
-      const childPosition = {
-        x: position.x + child.position.x,
-        y: position.y + child.position.y,
-      };
-      
-      nodes.value.push({
-        id: nodeId,
-        componentId: child.primitiveId,
-        name: primitiveTemplate.label,
-        position: childPosition,
-        size: { ...child.size },
-        props: { ...child.props },
-      });
-      
-      newNodeIds.push(nodeId);
-    }
-    
-    // Restore bindings for the instantiated children
-    for (let i = 0; i < def.bindings.length; i++) {
-      const binding = def.bindings[i];
-      if (binding.childIndex < newNodeIds.length) {
-        const bindingId = generateId('binding');
-          bindings.value.push({
-            id: bindingId,
-            componentId: newNodeIds[binding.childIndex],
-            componentName: nodes.value.find(n => n.id === newNodeIds[binding.childIndex])?.name || '',
-            property: binding.property,
-            expression: binding.expression,
-            mode: binding.mode ?? 'field',
-            transform: binding.transform ?? null,
-            dependencies: binding.dependencies?.length ? [...binding.dependencies] : undefined,
-          });
-      }
-    }
-    
-    // Select all newly created nodes
-    applySelection(newNodeIds, newNodeIds[0] ?? null);
-
-    pushHistory();
-  } catch (error) {
-    console.error('Failed to instantiate custom component:', error);
-    alert('Failed to instantiate custom component. Please try again.');
-  }
 }
 
 function applyNodePositionUpdates(updates: Array<{ nodeId: string; position: Vector2 }>) {
@@ -1204,10 +1134,9 @@ async function saveWorkspace() {
     
     faceplateMetadata.value = metadata;
     markSaved();
-    alert(`Faceplate "${currentFaceplateName.value}" saved successfully!`);
+    console.log(`Faceplate "${currentFaceplateName.value}" saved successfully!`);
   } catch (error) {
     console.error('Failed to save faceplate:', error);
-    alert(`Failed to save faceplate: ${error instanceof Error ? error.message : String(error)}`);
   } finally {
     isSaving.value = false;
   }
@@ -1264,10 +1193,9 @@ async function handlePickerSelect(faceplateId: EntityId) {
     
     pushHistory();
     markSaved();
-    alert(`Faceplate "${faceplate.name}" loaded successfully!`);
+    console.log(`Faceplate "${faceplate.name}" loaded successfully!`);
   } catch (error) {
     console.error('Failed to load faceplate:', error);
-    alert(`Failed to load faceplate: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -1319,10 +1247,9 @@ async function handleCreateFaceplate(data: { name: string; targetEntityType: str
     // Mark as dirty since we've set metadata but haven't saved components yet
     pushHistory();
     
-    alert(`Faceplate "${data.name}" created! Add components and save to persist.`);
+    console.log(`Faceplate "${data.name}" created! Add components and save to persist.`);
   } catch (error) {
     console.error('Failed to create faceplate:', error);
-    alert(`Failed to create faceplate: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -1330,190 +1257,7 @@ function handleCreateCancel() {
   showCreateDialog.value = false;
 }
 
-// Custom Component Functions
-async function loadCustomComponents() {
-  try {
-    const customComponents = await faceplateService.listCustomComponents();
-    
-    for (const cc of customComponents) {
-      const def = JSON.parse(cc.definition) as import('./types').CustomComponentDefinition;
-      
-      // Create a template for this custom component
-      const template: PaletteTemplate = {
-        id: `custom-${cc.id}`,
-        label: def.name,
-        description: def.description,
-        icon: def.icon,
-        primitiveId: 'custom.composite', // Special marker for custom components
-        defaults: {
-          size: def.size,
-          props: {}, // Custom components don't have editable props at the top level
-        },
-        propertySchema: [],
-        source: 'custom',
-        customComponentId: cc.id.toString(),
-      };
-      
-      // Add to component library if not already there
-      const existingIndex = componentLibrary.value.findIndex((t) => t.id === template.id);
-      if (existingIndex >= 0) {
-        componentLibrary.value[existingIndex] = template;
-      } else {
-        componentLibrary.value.push(template);
-      }
-    }
-  } catch (error) {
-    console.error('Failed to load custom components:', error);
-  }
-}
-
-async function handleCreateCustomComponent() {
-  const selected = selectedNodes.value;
-  if (selected.length === 0) {
-    alert('Please select one or more components to create a custom component');
-    return;
-  }
-  
-  showCreateCustomComponentDialog.value = true;
-}
-
-async function handleSaveCustomComponent(data: { name: string; description: string; icon: string }) {
-  const selected = selectedNodes.value;
-  if (selected.length === 0) {
-    return;
-  }
-  
-  try {
-    // Calculate bounding box
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    for (const node of selected) {
-      minX = Math.min(minX, node.position.x);
-      minY = Math.min(minY, node.position.y);
-      maxX = Math.max(maxX, node.position.x + node.size.x);
-      maxY = Math.max(maxY, node.position.y + node.size.y);
-    }
-    
-    const width = maxX - minX;
-    const height = maxY - minY;
-    
-    // Build custom component definition
-    const definition: import('./types').CustomComponentDefinition = {
-      id: '', // Will be set by data store
-      name: data.name,
-      description: data.description,
-      icon: data.icon,
-      children: selected.map((node) => {
-        const template = templateMap.value[node.componentId];
-        return {
-          primitiveId: template?.primitiveId || node.componentId,
-          position: {
-            x: node.position.x - minX,
-            y: node.position.y - minY,
-          },
-          size: node.size,
-          props: node.props,
-        };
-      }),
-      bindings: bindings.value
-        .filter((b) => selected.some((n) => n.id === b.componentId))
-        .map((b) => {
-          const childIndex = selected.findIndex((n) => n.id === b.componentId);
-          return {
-            childIndex,
-            property: b.property,
-            expression: b.expression,
-            mode: b.mode ?? 'field',
-            transform: b.transform ?? null,
-            dependencies: b.dependencies?.length ? [...b.dependencies] : undefined,
-          };
-        }),
-      size: { x: width, y: height },
-    };
-    
-    // Save to data store - use root as parent for now
-    const rootId = 1;
-    const componentId = await faceplateService.createCustomComponent(rootId, data.name, JSON.stringify(definition));
-    
-    definition.id = componentId.toString();
-    
-    // Add to component library
-    const template: PaletteTemplate = {
-      id: `custom-${componentId}`,
-      label: data.name,
-      description: data.description,
-      icon: data.icon,
-      primitiveId: 'custom.composite',
-      defaults: {
-        size: { x: width, y: height },
-        props: {},
-      },
-      propertySchema: [],
-      source: 'custom',
-      customComponentId: componentId.toString(),
-    };
-    
-    componentLibrary.value.push(template);
-    
-    showCreateCustomComponentDialog.value = false;
-    alert(`Custom component "${data.name}" created successfully!`);
-    
-    // Deselect all nodes
-    applySelection([], null);
-    
-  } catch (error) {
-    console.error('Failed to create custom component:', error);
-    alert(`Failed to create custom component: ${error instanceof Error ? error.message : String(error)}`);
-  }
-}
-
-function handleCancelCustomComponent() {
-  showCreateCustomComponentDialog.value = false;
-}
-
-function handleOpenCustomComponentManager() {
-  showCustomComponentManager.value = true;
-}
-
-function handleCloseCustomComponentManager() {
-  showCustomComponentManager.value = false;
-}
-
-async function handleDeleteCustomComponent(componentId: EntityId) {
-  try {
-    await faceplateService.deleteCustomComponent(componentId);
-    
-    // Remove from component library
-    const index = componentLibrary.value.findIndex((t) => t.customComponentId === componentId.toString());
-    if (index >= 0) {
-      componentLibrary.value.splice(index, 1);
-    }
-    
-    // Refresh the custom components list
-    await loadCustomComponents();
-    
-    alert('Custom component deleted successfully!');
-  } catch (error) {
-    console.error('Failed to delete custom component:', error);
-    alert(`Failed to delete custom component: ${error instanceof Error ? error.message : String(error)}`);
-  }
-}
-
-async function handleEditCustomComponent(componentId: EntityId) {
-  // For now, show an alert that edit is not yet implemented
-  // In a full implementation, this would open an edit dialog with the component definition
-  alert('Edit functionality coming soon! For now, you can delete and recreate the component.');
-}
-
-const customComponentsList = computed(() => {
-  return componentLibrary.value
-    .filter(t => t.source === 'custom')
-    .map(t => ({
-      id: parseInt(t.customComponentId || '0') as EntityId,
-      name: t.label,
-      description: t.description,
-      icon: t.icon,
-    }));
-});
+// Custom components have been removed from this implementation
 
 onMounted(() => {
   window.addEventListener('keydown', handleKeyDown);
@@ -1525,9 +1269,6 @@ onBeforeUnmount(() => {
 
 // Initialize with an empty baseline state.
 onMounted(async () => {
-  // Load custom components from data store
-  await loadCustomComponents();
-  
   if (!history.stack.length) {
     pushHistory();
     markSaved();
@@ -1581,7 +1322,6 @@ onMounted(async () => {
       markSaved();
     } catch (error) {
       console.error('Failed to load faceplate on mount:', error);
-      alert(`Failed to load faceplate: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 });
@@ -1595,21 +1335,21 @@ onMounted(async () => {
       :dirty="dirty"
       :faceplate-id="currentFaceplateId ? String(currentFaceplateId) : null"
       :faceplate-name="currentFaceplateName"
+      :viewport-width="viewportSize.x"
+      :viewport-height="viewportSize.y"
       @undo="undo"
       @redo="redo"
       @save="saveWorkspace"
       @new="newWorkspace"
       @load="loadWorkspace"
+      @viewport-resize="handleViewportUpdate"
     />
 
     <div class="faceplate-builder__body">
       <aside class="faceplate-builder__sidebar">
         <ComponentPalette
           :components="paletteItems"
-          :can-create-custom="canCreateCustomComponent"
           @create-request="(id) => handleNodeRequest({ componentId: id, position: { x: 40, y: 40 } })"
-          @create-custom="handleCreateCustomComponent"
-          @manage-custom="handleOpenCustomComponentManager"
         />
       </aside>
 
@@ -1659,20 +1399,6 @@ onMounted(async () => {
       @create="handleCreateFaceplate"
       @cancel="handleCreateCancel"
     />
-
-    <CreateCustomComponentDialog
-      v-if="showCreateCustomComponentDialog"
-      @create="handleSaveCustomComponent"
-      @cancel="handleCancelCustomComponent"
-    />
-
-    <CustomComponentManagerDialog
-      :show="showCustomComponentManager"
-      :components="customComponentsList"
-      @close="handleCloseCustomComponentManager"
-      @delete="handleDeleteCustomComponent"
-      @edit="handleEditCustomComponent"
-    />
   </div>
 </template>
 
@@ -1681,8 +1407,7 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   width: 100%;
-  min-height: 100vh;
-  max-height: 100vh;
+  height: 100%;
   overflow: hidden;
   background: radial-gradient(circle at top, rgba(0, 16, 24, 0.78), rgba(0, 0, 0, 0.9));
   color: var(--qui-text-primary);
