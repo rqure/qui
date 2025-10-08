@@ -5,18 +5,14 @@ const props = defineProps<{
   dirty: boolean;
   faceplateId?: string | null;
   faceplateName?: string;
-  hasMultipleSelected?: boolean;
 }>();
 
 const emit = defineEmits<{
   (event: 'undo'): void;
   (event: 'redo'): void;
   (event: 'save'): void;
-  (event: 'reset'): void;
   (event: 'new'): void;
   (event: 'load'): void;
-  (event: 'create-custom'): void;
-  (event: 'manage-custom'): void;
 }>();
 </script>
 
@@ -31,17 +27,9 @@ const emit = defineEmits<{
       <button type="button" @click="emit('new')">New</button>
       <button type="button" @click="emit('load')">Load</button>
       <span class="toolbar__divider" aria-hidden="true"></span>
-  <button type="button" :disabled="!props.hasMultipleSelected" @click="emit('create-custom')" title="Create custom component from selected">
-        <span class="toolbar__icon">✨</span> Create Custom
-      </button>
-      <button type="button" @click="emit('manage-custom')" title="Manage custom component library">
-        <span class="toolbar__icon">📚</span> Library
-      </button>
-      <span class="toolbar__divider" aria-hidden="true"></span>
       <button type="button" :disabled="!props.canUndo" @click="emit('undo')">Undo</button>
       <button type="button" :disabled="!props.canRedo" @click="emit('redo')">Redo</button>
       <span class="toolbar__divider" aria-hidden="true"></span>
-      <button type="button" class="toolbar__ghost" @click="emit('reset')">Reset</button>
       <button type="button" class="toolbar__primary" :disabled="!props.dirty && props.faceplateId != null" @click="emit('save')">Save</button>
     </div>
   </header>
@@ -116,17 +104,9 @@ const emit = defineEmits<{
   color: inherit;
 }
 
-.toolbar__ghost {
-  border-style: dashed;
-}
-
 .toolbar__divider {
   width: 1px;
   height: 22px;
   background: rgba(255, 255, 255, 0.16);
-}
-
-.toolbar__icon {
-  margin-right: 4px;
 }
 </style>

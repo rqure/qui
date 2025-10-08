@@ -15,22 +15,23 @@ const props = defineProps<{
   selectedNodeId: string | null;
   selectedNodeIds?: Set<string>;
   templates: Record<string, PaletteTemplate>;
+  viewport?: Vector2;
 }>();
 
 const emit = defineEmits<{
   (event: 'node-selected', payload: { nodeId: string; isMultiSelect: boolean }): void;
   (event: 'node-requested', payload: CanvasDropPayload): void;
-  (event: 'node-updated', payload: { nodeId: string; position: Vector2 }): void;
-  (event: 'node-move-end', payload: { nodeId: string; position: Vector2 }): void;
+  (event: 'nodes-updated', updates: Array<{ nodeId: string; position: Vector2 }>): void;
+  (event: 'nodes-move-end', updates: Array<{ nodeId: string; position: Vector2 }>): void;
   (event: 'canvas-clicked'): void;
   (event: 'drag-select-complete', selectedIds: string[]): void;
 }>();
 
 type DragState = {
-  nodeId: string;
-  origin: Vector2;
   pointerStart: Vector2;
   element: HTMLElement;
+  selection: string[];
+  origins: Map<string, Vector2>;
 };
 
 type SelectBoxState = {
@@ -44,26 +45,29 @@ const selectBoxState = reactive<SelectBoxState>({ start: { x: 0, y: 0 }, current
 const canvasRef = ref<HTMLDivElement | null>(null);
 
 const contentSize = computed(() => {
+  const baseWidth = props.viewport?.x ?? GRID_SIZE * 8;
+  const baseHeight = props.viewport?.y ?? GRID_SIZE * 6;
+
   if (!props.nodes || props.nodes.length === 0) {
     return {
-      width: GRID_SIZE * 8,
-      height: GRID_SIZE * 6,
+      width: baseWidth,
+      height: baseHeight,
     };
   }
 
-  const maxWidth = Math.max(
+  const maxNodeWidth = Math.max(
+    baseWidth,
     ...props.nodes.map((node) => node.position.x + Math.max(node.size.x, GRID_SIZE)),
-    GRID_SIZE * 6,
   );
 
-  const maxHeight = Math.max(
+  const maxNodeHeight = Math.max(
+    baseHeight,
     ...props.nodes.map((node) => node.position.y + Math.max(node.size.y, GRID_SIZE)),
-    GRID_SIZE * 5,
   );
 
   return {
-    width: maxWidth + GRID_SIZE,
-    height: maxHeight + GRID_SIZE,
+    width: maxNodeWidth + GRID_SIZE,
+    height: maxNodeHeight + GRID_SIZE,
   };
 });
 
@@ -103,12 +107,40 @@ function handleNodePointerDown(event: PointerEvent, nodeId: string) {
   // Check if shift key is pressed for multi-selection
   const isMultiSelect = event.shiftKey;
   emit('node-selected', { nodeId, isMultiSelect });
-  
+
+  const selection = new Set(props.selectedNodeIds ? Array.from(props.selectedNodeIds) : []);
+  if (isMultiSelect) {
+    if (selection.has(nodeId)) {
+      selection.delete(nodeId);
+    } else {
+      selection.add(nodeId);
+    }
+    if (!selection.size) {
+      selection.add(nodeId);
+    }
+  } else {
+    selection.clear();
+    selection.add(nodeId);
+  }
+
+  const originMap = new Map<string, Vector2>();
+  selection.forEach((id) => {
+    const nodeEl = id === nodeId ? target : canvasRef.value?.querySelector<HTMLElement>(`[data-node-id="${id}"]`);
+    if (nodeEl) {
+      originMap.set(id, { x: nodeEl.offsetLeft, y: nodeEl.offsetTop });
+    } else {
+      const node = props.nodes.find((candidate) => candidate.id === id);
+      if (node) {
+        originMap.set(id, { ...node.position });
+      }
+    }
+  });
+
   dragState.current = {
-    nodeId,
-    origin: { x: target.offsetLeft, y: target.offsetTop },
     pointerStart: { x: event.clientX, y: event.clientY },
     element: target,
+    selection: Array.from(selection),
+    origins: originMap,
   };
 
   target.setPointerCapture(event.pointerId);
@@ -149,14 +181,41 @@ function handlePointerMove(event: PointerEvent) {
   // Handle node dragging
   if (!dragState.current) return;
 
-  const deltaX = event.clientX - dragState.current.pointerStart.x;
-  const deltaY = event.clientY - dragState.current.pointerStart.y;
-  const snapped = snapToGrid({
-    x: dragState.current.origin.x + deltaX,
-    y: dragState.current.origin.y + deltaY,
+  const { origins, selection, pointerStart } = dragState.current;
+  const primaryOrigin = origins.get(selection[0]);
+  if (!primaryOrigin) {
+    return;
+  }
+
+  const deltaX = event.clientX - pointerStart.x;
+  const deltaY = event.clientY - pointerStart.y;
+  const snappedPrimary = snapToGrid({
+    x: primaryOrigin.x + deltaX,
+    y: primaryOrigin.y + deltaY,
   });
 
-  emit('node-updated', { nodeId: dragState.current.nodeId, position: snapped });
+  const shift = {
+    x: snappedPrimary.x - primaryOrigin.x,
+    y: snappedPrimary.y - primaryOrigin.y,
+  };
+
+  const updates = selection.map((id) => {
+    const origin = origins.get(id);
+    if (!origin) {
+      return null;
+    }
+    return {
+      nodeId: id,
+      position: {
+        x: Math.max(0, origin.x + shift.x),
+        y: Math.max(0, origin.y + shift.y),
+      },
+    };
+  }).filter((update): update is { nodeId: string; position: Vector2 } => Boolean(update));
+
+  if (updates.length) {
+    emit('nodes-updated', updates);
+  }
 }
 
 function handlePointerUp(event: PointerEvent) {
@@ -190,13 +249,39 @@ function handlePointerUp(event: PointerEvent) {
   
   // Handle node drag completion
   if (!dragState.current) return;
-  const { element, nodeId, origin, pointerStart } = dragState.current;
+  const { element, selection, origins, pointerStart } = dragState.current;
   element.releasePointerCapture(event.pointerId);
-  const snapped = snapToGrid({
-    x: origin.x + (event.clientX - pointerStart.x),
-    y: origin.y + (event.clientY - pointerStart.y),
-  });
-  emit('node-move-end', { nodeId, position: snapped });
+
+  const primaryOrigin = origins.get(selection[0]);
+  if (primaryOrigin) {
+    const snappedPrimary = snapToGrid({
+      x: primaryOrigin.x + (event.clientX - pointerStart.x),
+      y: primaryOrigin.y + (event.clientY - pointerStart.y),
+    });
+    const shift = {
+      x: snappedPrimary.x - primaryOrigin.x,
+      y: snappedPrimary.y - primaryOrigin.y,
+    };
+
+    const updates = selection.map((id) => {
+      const origin = origins.get(id);
+      if (!origin) {
+        return null;
+      }
+      return {
+        nodeId: id,
+        position: {
+          x: Math.max(0, origin.x + shift.x),
+          y: Math.max(0, origin.y + shift.y),
+        },
+      };
+    }).filter((update): update is { nodeId: string; position: Vector2 } => Boolean(update));
+
+    if (updates.length) {
+      emit('nodes-move-end', updates);
+    }
+  }
+
   dragState.current = null;
 }
 
@@ -272,6 +357,7 @@ onBeforeUnmount(teardownListeners);
           'canvas__node--selected': node.id === props.selectedNodeId,
           'canvas__node--multi-selected': props.selectedNodeIds?.has(node.id)
         }"
+        :data-node-id="node.id"
   :style="{ left: `${node.position.x}px`, top: `${node.position.y}px`, width: `${node.size.x}px`, height: `${node.size.y}px` }"
         @pointerdown="handleNodePointerDown($event, node.id)"
         @click.stop

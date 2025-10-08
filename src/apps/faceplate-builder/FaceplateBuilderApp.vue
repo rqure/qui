@@ -41,17 +41,42 @@ const props = defineProps<{
 const dataStore = useDataStore();
 const faceplateService = new FaceplateDataService(dataStore);
 
+const DEFAULT_VIEWPORT: Vector2 = { x: 1280, y: 800 };
+
 const primitiveCatalog: PrimitiveDefinition[] = [
   {
     id: 'primitive.text.block',
     label: 'Text Block',
-    description: 'Static or data-bound text with alignment options.',
+    description: 'Static or data-bound text with alignment and typography controls.',
     icon: '🔖',
     category: 'Text',
     defaultSize: { x: 220, y: 120 },
-    defaultProps: { label: 'Label', text: 'Sample Text', align: 'center' },
+    defaultProps: {
+      text: 'Sample Text',
+      align: 'center',
+      textColor: '#ffffff',
+      fontSize: 20,
+      fontWeight: 500,
+      fontStyle: 'normal',
+      lineHeight: 1.2,
+      letterSpacing: 0,
+    },
     propertySchema: [
       { key: 'text', label: 'Text', type: 'string', default: 'Sample Text' },
+      { key: 'textColor', label: 'Text Color', type: 'string', default: '#ffffff' },
+      { key: 'fontSize', label: 'Font Size', type: 'number', default: 20 },
+      { key: 'fontWeight', label: 'Font Weight', type: 'number', default: 500 },
+      {
+        key: 'fontStyle',
+        label: 'Font Style',
+        type: 'option',
+        default: 'normal',
+        options: [
+          { label: 'Normal', value: 'normal' },
+          { label: 'Italic', value: 'italic' },
+          { label: 'Oblique', value: 'oblique' },
+        ],
+      },
       {
         key: 'align',
         label: 'Alignment',
@@ -63,23 +88,128 @@ const primitiveCatalog: PrimitiveDefinition[] = [
           { label: 'Right', value: 'right' },
         ],
       },
+      { key: 'lineHeight', label: 'Line Height', type: 'number', default: 1.2 },
+      { key: 'letterSpacing', label: 'Letter Spacing', type: 'number', default: 0 },
     ],
-    previewProps: { text: 'Hierarchy: Line A', align: 'left' },
+    previewProps: { text: 'Hierarchy: Line A', align: 'left', textColor: '#ffffff' },
   },
   {
     id: 'primitive.form.field',
-    label: 'Form Field',
-    description: 'Input-style primitive for acknowledging values or setting targets.',
-    icon: '📝',
+    label: 'Text Input',
+    description: 'Basic text entry field suited for custom labeling and bindings.',
+    icon: '⌨️',
     category: 'Controls',
-    defaultSize: { x: 260, y: 160 },
-    defaultProps: { label: 'Setpoint', placeholder: 'Enter value', required: false },
+    defaultSize: { x: 260, y: 120 },
+    defaultProps: {
+      label: '',
+      placeholder: 'Enter text',
+      required: false,
+      textColor: '#ffffff',
+      backgroundColor: 'rgba(0, 0, 0, 0.35)',
+      fontSize: 16,
+      fontWeight: 500,
+      align: 'left',
+      visible: true,
+    },
     propertySchema: [
-      { key: 'label', label: 'Label', type: 'string', default: 'Form Field' },
-      { key: 'placeholder', label: 'Placeholder', type: 'string', default: 'Enter value' },
+      { key: 'label', label: 'Label', type: 'string', default: '' },
+      { key: 'placeholder', label: 'Placeholder', type: 'string', default: 'Enter text' },
       { key: 'required', label: 'Required', type: 'boolean', default: false },
+      { key: 'textColor', label: 'Text Color', type: 'string', default: '#ffffff' },
+      { key: 'backgroundColor', label: 'Background', type: 'string', default: 'rgba(0, 0, 0, 0.35)' },
+      { key: 'fontSize', label: 'Font Size', type: 'number', default: 16 },
+      { key: 'fontWeight', label: 'Font Weight', type: 'number', default: 500 },
+      {
+        key: 'align',
+        label: 'Alignment',
+        type: 'option',
+        default: 'left',
+        options: [
+          { label: 'Left', value: 'left' },
+          { label: 'Center', value: 'center' },
+          { label: 'Right', value: 'right' },
+        ],
+      },
+      { key: 'visible', label: 'Visible', type: 'boolean', default: true },
     ],
-    previewProps: { label: 'Target', placeholder: 'Enter new target' },
+    previewProps: { placeholder: 'Enter text', required: false },
+  },
+  {
+    id: 'primitive.form.number',
+    label: 'Number Input',
+    description: 'Numeric entry with range, precision, and adornment options.',
+    icon: '�',
+    category: 'Controls',
+    defaultSize: { x: 240, y: 120 },
+    defaultProps: {
+      label: '',
+      placeholder: '0',
+      min: 0,
+      max: 100,
+      step: 1,
+      suffix: '',
+      textColor: '#ffffff',
+      backgroundColor: 'rgba(0, 0, 0, 0.35)',
+      visible: true,
+    },
+    propertySchema: [
+      { key: 'label', label: 'Label', type: 'string', default: '' },
+      { key: 'placeholder', label: 'Placeholder', type: 'string', default: '0' },
+      { key: 'min', label: 'Minimum', type: 'number', default: 0 },
+      { key: 'max', label: 'Maximum', type: 'number', default: 100 },
+      { key: 'step', label: 'Step', type: 'number', default: 1 },
+      { key: 'suffix', label: 'Suffix', type: 'string', default: '' },
+      { key: 'textColor', label: 'Text Color', type: 'string', default: '#ffffff' },
+      { key: 'backgroundColor', label: 'Background', type: 'string', default: 'rgba(0, 0, 0, 0.35)' },
+      { key: 'visible', label: 'Visible', type: 'boolean', default: true },
+    ],
+    previewProps: { placeholder: '42', suffix: '°F' },
+  },
+  {
+    id: 'primitive.form.date',
+    label: 'Date Picker',
+    description: 'Calendar picker for choosing a date value.',
+    icon: '📅',
+    category: 'Controls',
+    defaultSize: { x: 280, y: 140 },
+    defaultProps: {
+      label: '',
+      placeholder: 'Select date',
+      minDate: '',
+      maxDate: '',
+      displayFormat: 'YYYY-MM-DD',
+      visible: true,
+    },
+    propertySchema: [
+      { key: 'label', label: 'Label', type: 'string', default: '' },
+      { key: 'placeholder', label: 'Placeholder', type: 'string', default: 'Select date' },
+      { key: 'minDate', label: 'Min Date', type: 'string', default: '' },
+      { key: 'maxDate', label: 'Max Date', type: 'string', default: '' },
+      { key: 'displayFormat', label: 'Display Format', type: 'string', default: 'YYYY-MM-DD' },
+      { key: 'visible', label: 'Visible', type: 'boolean', default: true },
+    ],
+    previewProps: { placeholder: '2025-01-01' },
+  },
+  {
+    id: 'primitive.form.time',
+    label: 'Time Picker',
+    description: 'Time selector with hour and minute granularity.',
+    icon: '⏰',
+    category: 'Controls',
+    defaultSize: { x: 240, y: 120 },
+    defaultProps: {
+      label: '',
+      placeholder: 'Select time',
+      stepMinutes: 5,
+      visible: true,
+    },
+    propertySchema: [
+      { key: 'label', label: 'Label', type: 'string', default: '' },
+      { key: 'placeholder', label: 'Placeholder', type: 'string', default: 'Select time' },
+      { key: 'stepMinutes', label: 'Step (minutes)', type: 'number', default: 5 },
+      { key: 'visible', label: 'Visible', type: 'boolean', default: true },
+    ],
+    previewProps: { placeholder: '14:30' },
   },
   {
     id: 'primitive.shape.rectangle',
@@ -276,6 +406,10 @@ const primitiveCatalog: PrimitiveDefinition[] = [
       borderColor: 'rgba(255, 255, 255, 0.2)', 
       borderWidth: 1,
       padding: 10,
+      gap: 12,
+      layoutDirection: 'vertical',
+      horizontalAlign: 'stretch',
+      verticalAlign: 'start',
       opacity: 1,
       visible: true
     },
@@ -284,6 +418,41 @@ const primitiveCatalog: PrimitiveDefinition[] = [
       { key: 'borderColor', label: 'Border Color', type: 'string', default: 'rgba(255, 255, 255, 0.2)' },
       { key: 'borderWidth', label: 'Border Width', type: 'number', default: 1 },
       { key: 'padding', label: 'Padding', type: 'number', default: 10 },
+      { key: 'gap', label: 'Gap', type: 'number', default: 12 },
+      {
+        key: 'layoutDirection',
+        label: 'Layout Direction',
+        type: 'option',
+        default: 'vertical',
+        options: [
+          { label: 'Vertical', value: 'vertical' },
+          { label: 'Horizontal', value: 'horizontal' },
+        ],
+      },
+      {
+        key: 'horizontalAlign',
+        label: 'Horizontal Align',
+        type: 'option',
+        default: 'stretch',
+        options: [
+          { label: 'Start', value: 'start' },
+          { label: 'Center', value: 'center' },
+          { label: 'End', value: 'end' },
+          { label: 'Stretch', value: 'stretch' },
+        ],
+      },
+      {
+        key: 'verticalAlign',
+        label: 'Vertical Align',
+        type: 'option',
+        default: 'start',
+        options: [
+          { label: 'Start', value: 'start' },
+          { label: 'Center', value: 'center' },
+          { label: 'End', value: 'end' },
+          { label: 'Stretch', value: 'stretch' },
+        ],
+      },
       { key: 'opacity', label: 'Opacity', type: 'number', default: 1 },
       { key: 'visible', label: 'Visible', type: 'boolean', default: true },
     ],
@@ -384,6 +553,8 @@ const currentFaceplateId = ref<EntityId | null>(props.faceplateId ?? null);
 const currentFaceplateName = ref<string>('');
 const currentTargetEntityType = ref<string>('');
 const isSaving = ref(false);
+const viewportSize = ref<Vector2>({ ...DEFAULT_VIEWPORT });
+const faceplateMetadata = ref<Record<string, unknown>>({});
 const showPickerDialog = ref(false);
 const showCreateDialog = ref(false);
 const showCreateCustomComponentDialog = ref(false);
@@ -391,7 +562,10 @@ const showCustomComponentManager = ref(false);
 const currentScriptModules = ref<FaceplateScriptModule[]>([]);
 const currentNotificationChannels = ref<FaceplateNotificationChannel[]>([]);
 
-const history = reactive<{ stack: Array<{ nodes: CanvasNode[]; bindings: Binding[] }>; index: number }>({
+const history = reactive<{
+  stack: Array<{ nodes: CanvasNode[]; bindings: Binding[]; viewport: Vector2; metadata: Record<string, unknown> }>;
+  index: number;
+}>({
   stack: [],
   index: -1,
 });
@@ -408,6 +582,7 @@ const selectedNodeBindings = computed(() =>
     : [],
 );
 const hasMultipleSelected = computed(() => selectedNodeIds.value.size > 1);
+const canCreateCustomComponent = computed(() => selectedNodeIds.value.size > 0);
 const canUndo = computed(() => history.index > 0);
 const canRedo = computed(() => history.index < history.stack.length - 1);
 const dirty = computed(() => history.index !== savedIndex.value);
@@ -416,11 +591,35 @@ function generateId(prefix: string) {
   return `${prefix}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function applySelection(ids: Iterable<string>, preferred?: string | null) {
+  const next = new Set(ids);
+  selectedNodeIds.value = next;
+
+  if (!next.size) {
+    selectedNodeId.value = null;
+    return;
+  }
+
+  if (preferred && next.has(preferred)) {
+    selectedNodeId.value = preferred;
+    return;
+  }
+
+  const current = selectedNodeId.value;
+  if (current && next.has(current)) {
+    selectedNodeId.value = current;
+    return;
+  }
+
+  const first = next.values().next().value ?? null;
+  selectedNodeId.value = first ?? null;
+}
+
 function getComponentName(componentId: string): string {
   return nodes.value.find((node) => node.id === componentId)?.name ?? componentId;
 }
 
-function cloneState(): { nodes: CanvasNode[]; bindings: Binding[] } {
+function cloneState(): { nodes: CanvasNode[]; bindings: Binding[]; viewport: Vector2; metadata: Record<string, unknown> } {
   return {
     nodes: nodes.value.map((node) => ({
       ...node,
@@ -429,7 +628,48 @@ function cloneState(): { nodes: CanvasNode[]; bindings: Binding[] } {
       props: { ...node.props },
     })),
     bindings: bindings.value.map((binding) => ({ ...binding })),
+    viewport: { ...viewportSize.value },
+    metadata: { ...faceplateMetadata.value },
   };
+}
+
+function normalizeViewport(value: unknown): Vector2 | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  const widthRaw = candidate.width ?? candidate.x;
+  const heightRaw = candidate.height ?? candidate.y;
+  const width = Number(widthRaw);
+  const height = Number(heightRaw);
+
+  if (!Number.isFinite(width) || !Number.isFinite(height)) {
+    return null;
+  }
+
+  return {
+    x: Math.max(320, Math.round(width)),
+    y: Math.max(240, Math.round(height)),
+  };
+}
+
+function applyViewportMetadata(metadata: Record<string, unknown> | undefined) {
+  const viewport = metadata ? normalizeViewport((metadata as Record<string, unknown>).viewport) : null;
+  faceplateMetadata.value = metadata
+    ? {
+        ...metadata,
+        ...(viewport
+          ? {
+              viewport: {
+                width: viewport.x,
+                height: viewport.y,
+              },
+            }
+          : {}),
+      }
+    : {};
+  viewportSize.value = viewport ?? { ...DEFAULT_VIEWPORT };
 }
 
 function pushHistory() {
@@ -438,7 +678,12 @@ function pushHistory() {
   history.index = history.stack.length - 1;
 }
 
-function applyState(snapshot: { nodes: CanvasNode[]; bindings: Binding[] }) {
+function applyState(snapshot: {
+  nodes: CanvasNode[];
+  bindings: Binding[];
+  viewport: Vector2;
+  metadata: Record<string, unknown>;
+}) {
   nodes.value = snapshot.nodes.map((node) => ({
     ...node,
     position: { ...node.position },
@@ -446,6 +691,8 @@ function applyState(snapshot: { nodes: CanvasNode[]; bindings: Binding[] }) {
     props: { ...node.props },
   }));
   bindings.value = snapshot.bindings.map((binding) => ({ ...binding }));
+  viewportSize.value = snapshot.viewport ? { ...snapshot.viewport } : { ...DEFAULT_VIEWPORT };
+  faceplateMetadata.value = snapshot.metadata ? { ...snapshot.metadata } : {};
   if (selectedNodeId.value && !nodes.value.some((node) => node.id === selectedNodeId.value)) {
     selectedNodeId.value = null;
   }
@@ -478,7 +725,7 @@ async function handleNodeRequest(payload: { componentId: string; position: Vecto
       props: defaultProps,
     },
   ];
-  selectedNodeId.value = nodeId;
+  applySelection([nodeId], nodeId);
   pushHistory();
 }
 
@@ -532,10 +779,8 @@ async function instantiateCustomComponent(customComponentId: string, position: V
     }
     
     // Select all newly created nodes
-    selectedNodeIds.value.clear();
-    newNodeIds.forEach(id => selectedNodeIds.value.add(id));
-    selectedNodeId.value = newNodeIds[0] || null;
-    
+    applySelection(newNodeIds, newNodeIds[0] ?? null);
+
     pushHistory();
   } catch (error) {
     console.error('Failed to instantiate custom component:', error);
@@ -543,46 +788,72 @@ async function instantiateCustomComponent(customComponentId: string, position: V
   }
 }
 
-function handleNodeUpdate(payload: { nodeId: string; position: Vector2 }) {
-  nodes.value = nodes.value.map((node) =>
-    node.id === payload.nodeId ? { ...node, position: { ...payload.position } } : node,
-  );
+function applyNodePositionUpdates(updates: Array<{ nodeId: string; position: Vector2 }>) {
+  if (!updates.length) {
+    return;
+  }
+
+  const positionMap = new Map<string, Vector2>();
+  updates.forEach((update) => {
+    positionMap.set(update.nodeId, { ...update.position });
+  });
+
+  nodes.value = nodes.value.map((node) => {
+    const nextPosition = positionMap.get(node.id);
+    if (!nextPosition) {
+      return node;
+    }
+    return {
+      ...node,
+      position: {
+        x: nextPosition.x,
+        y: nextPosition.y,
+      },
+    };
+  });
 }
 
-function handleNodeMoveEnd(payload: { nodeId: string; position: Vector2 }) {
-  handleNodeUpdate(payload);
+function handleNodesUpdated(updates: Array<{ nodeId: string; position: Vector2 }>) {
+  applyNodePositionUpdates(updates);
+}
+
+function handleNodesMoveEnd(updates: Array<{ nodeId: string; position: Vector2 }>) {
+  if (!updates.length) {
+    return;
+  }
+  applyNodePositionUpdates(updates);
   pushHistory();
 }
 
 function handleNodeSelected(payload: { nodeId: string; isMultiSelect: boolean }) {
+  const current = selectedNodeIds.value;
+  const next = new Set(current);
+
   if (payload.isMultiSelect) {
-    // Multi-select mode: toggle selection
-    if (selectedNodeIds.value.has(payload.nodeId)) {
-      selectedNodeIds.value.delete(payload.nodeId);
+    if (next.has(payload.nodeId)) {
+      next.delete(payload.nodeId);
     } else {
-      selectedNodeIds.value.add(payload.nodeId);
+      next.add(payload.nodeId);
     }
-    // Keep selectedNodeId as the last selected node
-    selectedNodeId.value = payload.nodeId;
-  } else {
-    // Single select mode: clear multi-selection and select only this node
-    selectedNodeIds.value.clear();
-    selectedNodeIds.value.add(payload.nodeId);
-    selectedNodeId.value = payload.nodeId;
+    if (!next.size) {
+      applySelection([payload.nodeId], payload.nodeId);
+      return;
+    }
+    applySelection(next, payload.nodeId);
+    return;
   }
+
+  applySelection([payload.nodeId], payload.nodeId);
 }
 
 function handleCanvasClick() {
   // Clear all selections when clicking on empty canvas
-  selectedNodeId.value = null;
-  selectedNodeIds.value.clear();
+  applySelection([], null);
 }
 
 function handleDragSelectComplete(selectedIds: string[]) {
   // Replace current selection with drag-selected nodes
-  selectedNodeIds.value.clear();
-  selectedIds.forEach(id => selectedNodeIds.value.add(id));
-  selectedNodeId.value = selectedIds[0] || null;
+  applySelection(selectedIds, selectedIds[0] ?? null);
 }
 
 function handleResize(payload: { nodeId: string; size: Vector2 }) {
@@ -598,6 +869,36 @@ function handleResize(payload: { nodeId: string; size: Vector2 }) {
       : node,
   );
   pushHistory();
+}
+
+function handleViewportUpdate(payload: { width: number; height: number }) {
+  const width = Math.max(320, Math.round(payload.width));
+  const height = Math.max(240, Math.round(payload.height));
+
+  if (viewportSize.value.x === width && viewportSize.value.y === height) {
+    return;
+  }
+
+  viewportSize.value = { x: width, y: height };
+  faceplateMetadata.value = {
+    ...faceplateMetadata.value,
+    viewport: { width, height },
+  };
+  pushHistory();
+}
+
+function handleViewportInput(axis: 'x' | 'y', event: Event) {
+  const value = Number((event.target as HTMLInputElement | null)?.value ?? 0);
+  if (!Number.isFinite(value)) {
+    return;
+  }
+  const width = axis === 'x' ? value : viewportSize.value.x;
+  const height = axis === 'y' ? value : viewportSize.value.y;
+  handleViewportUpdate({ width, height });
+}
+
+function resetViewportDimensions() {
+  handleViewportUpdate({ width: DEFAULT_VIEWPORT.x, height: DEFAULT_VIEWPORT.y });
 }
 
 function handlePropUpdated(payload: { nodeId: string; key: string; value: unknown }) {
@@ -627,21 +928,9 @@ function deleteNodesByIds(ids: string[]) {
   const beforeBindingCount = bindings.value.length;
   bindings.value = bindings.value.filter((binding) => !idSet.has(binding.componentId));
 
-  idSet.forEach((id) => {
-    selectedNodeIds.value.delete(id);
-  });
-
-  const activeSelectionChanged = selectedNodeId.value && idSet.has(selectedNodeId.value);
-  if (activeSelectionChanged) {
-    selectedNodeId.value = null;
-  }
-
-  if (!selectedNodeIds.value.size) {
-    selectedNodeId.value = null;
-  } else if (!selectedNodeId.value) {
-    const [firstRemaining] = Array.from(selectedNodeIds.value.values());
-    selectedNodeId.value = firstRemaining ?? null;
-  }
+  const nextSelection = new Set(selectedNodeIds.value);
+  idSet.forEach((id) => nextSelection.delete(id));
+  applySelection(nextSelection, selectedNodeId.value);
 
   if (beforeNodeCount !== nodes.value.length || beforeBindingCount !== bindings.value.length) {
     pushHistory();
@@ -788,12 +1077,14 @@ function markSaved() {
 function resetWorkspace() {
   nodes.value = [];
   bindings.value = [];
-  selectedNodeId.value = null;
   currentFaceplateId.value = null;
   currentFaceplateName.value = '';
   currentTargetEntityType.value = '';
   currentScriptModules.value = [];
   currentNotificationChannels.value = [];
+  viewportSize.value = { ...DEFAULT_VIEWPORT };
+  faceplateMetadata.value = {};
+  applySelection([], null);
   pushHistory();
   markSaved();
 }
@@ -859,7 +1150,7 @@ async function saveWorkspace() {
       w: node.size.x,
       h: node.size.y,
     }));
-    
+
     const bindingsData = bindings.value.map((b) => ({
       component: b.componentId,
       property: b.property,
@@ -869,18 +1160,27 @@ async function saveWorkspace() {
       dependencies: b.dependencies?.length ? b.dependencies : undefined,
       description: b.description,
     }));
+
+    const metadata = {
+      ...faceplateMetadata.value,
+      viewport: {
+        width: viewportSize.value.x,
+        height: viewportSize.value.y,
+      },
+    };
     
     // Save faceplate configuration
     await faceplateService.writeFaceplate({
       id: currentFaceplateId.value,
       name: currentFaceplateName.value,
       targetEntityType: currentTargetEntityType.value,
-      configuration: { layout, bindings: bindingsData },
+      configuration: { layout, bindings: bindingsData, metadata },
       components: componentIds,
       notificationChannels: currentNotificationChannels.value,
       scriptModules: currentScriptModules.value,
     });
     
+    faceplateMetadata.value = metadata;
     markSaved();
     alert(`Faceplate "${currentFaceplateName.value}" saved successfully!`);
   } catch (error) {
@@ -936,6 +1236,9 @@ async function handlePickerSelect(faceplateId: EntityId) {
       dependencies: Array.isArray(b.dependencies) ? b.dependencies : undefined,
       description: b.description,
     }));
+
+    applyViewportMetadata(faceplate.configuration.metadata as Record<string, unknown> | undefined);
+    applySelection([], null);
     
     pushHistory();
     markSaved();
@@ -988,6 +1291,8 @@ async function handleCreateFaceplate(data: { name: string; targetEntityType: str
     currentTargetEntityType.value = data.targetEntityType;
   currentScriptModules.value = [];
   currentNotificationChannels.value = [];
+  viewportSize.value = { ...DEFAULT_VIEWPORT };
+  faceplateMetadata.value = {};
     
     // Mark as dirty since we've set metadata but haven't saved components yet
     pushHistory();
@@ -1131,8 +1436,7 @@ async function handleSaveCustomComponent(data: { name: string; description: stri
     alert(`Custom component "${data.name}" created successfully!`);
     
     // Deselect all nodes
-    selectedNodeIds.value.clear();
-    selectedNodeId.value = null;
+    applySelection([], null);
     
   } catch (error) {
     console.error('Failed to create custom component:', error);
@@ -1248,6 +1552,9 @@ onMounted(async () => {
         description: b.description,
       }));
       
+      applyViewportMetadata(faceplate.configuration.metadata as Record<string, unknown> | undefined);
+      applySelection([], null);
+
       pushHistory();
       markSaved();
     } catch (error) {
@@ -1281,23 +1588,60 @@ onMounted(async () => {
       <aside class="faceplate-builder__sidebar">
         <ComponentPalette
           :components="paletteItems"
+          :can-create-custom="canCreateCustomComponent"
           @create-request="(id) => handleNodeRequest({ componentId: id, position: { x: 40, y: 40 } })"
+          @create-custom="handleCreateCustomComponent"
+          @manage-custom="handleOpenCustomComponentManager"
         />
       </aside>
 
       <main class="workspace">
-        <BuilderCanvas
-          :nodes="nodes"
-          :selected-node-id="selectedNodeId"
-          :selected-node-ids="selectedNodeIds"
-          :templates="templateMap"
-          @node-requested="handleNodeRequest"
-          @node-selected="handleNodeSelected"
-          @node-updated="handleNodeUpdate"
-          @node-move-end="handleNodeMoveEnd"
-          @canvas-clicked="handleCanvasClick"
-          @drag-select-complete="handleDragSelectComplete"
-        />
+        <section class="workspace__chrome">
+          <div class="workspace__panel">
+            <header>Viewport</header>
+            <div class="workspace__viewport-inputs">
+              <label>
+                <span>Width</span>
+                <input
+                  type="number"
+                  min="320"
+                  step="20"
+                  :value="viewportSize.x"
+                  @change="(event) => handleViewportInput('x', event)"
+                />
+              </label>
+              <label>
+                <span>Height</span>
+                <input
+                  type="number"
+                  min="240"
+                  step="20"
+                  :value="viewportSize.y"
+                  @change="(event) => handleViewportInput('y', event)"
+                />
+              </label>
+              <button type="button" class="workspace__reset" @click="resetViewportDimensions">
+                Reset
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <div class="workspace__canvas">
+          <BuilderCanvas
+            :nodes="nodes"
+            :selected-node-id="selectedNodeId"
+            :selected-node-ids="selectedNodeIds"
+            :templates="templateMap"
+            :viewport="viewportSize"
+            @node-requested="handleNodeRequest"
+            @node-selected="handleNodeSelected"
+            @nodes-updated="handleNodesUpdated"
+            @nodes-move-end="handleNodesMoveEnd"
+            @canvas-clicked="handleCanvasClick"
+            @drag-select-complete="handleDragSelectComplete"
+          />
+        </div>
       </main>
 
       <InspectorPanel

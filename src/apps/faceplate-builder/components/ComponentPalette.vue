@@ -9,10 +9,13 @@ interface PaletteComponent {
 
 const props = defineProps<{
   components: PaletteComponent[];
+  canCreateCustom?: boolean;
 }>();
 
-defineEmits<{
+const emit = defineEmits<{
   (event: 'create-request', componentId: string): void;
+  (event: 'create-custom'): void;
+  (event: 'manage-custom'): void;
 }>();
 
 function handleDragStart(event: DragEvent, componentId: string) {
@@ -27,6 +30,25 @@ function handleDragStart(event: DragEvent, componentId: string) {
   <aside class="palette">
     <header class="palette__header">
       <h2>Components</h2>
+      <div class="palette__actions">
+        <button
+          type="button"
+          class="palette__action"
+          :disabled="!props.canCreateCustom"
+          title="Create custom component from selection"
+          @click="emit('create-custom')"
+        >
+          ✨
+        </button>
+        <button
+          type="button"
+          class="palette__action"
+          title="Manage custom component library"
+          @click="emit('manage-custom')"
+        >
+          📚
+        </button>
+      </div>
     </header>
     <div class="palette__list">
       <button
@@ -35,8 +57,8 @@ function handleDragStart(event: DragEvent, componentId: string) {
         class="palette__item"
         draggable="true"
         type="button"
-        @dragstart="handleDragStart($event, item.id)"
-        @click="$emit('create-request', item.id)"
+  @dragstart="handleDragStart($event, item.id)"
+  @click="emit('create-request', item.id)"
       >
         <span class="palette__icon" aria-hidden="true">{{ item.icon }}</span>
         <span class="palette__body">
@@ -65,6 +87,10 @@ function handleDragStart(event: DragEvent, componentId: string) {
 .palette__header {
   padding: 14px 16px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .palette__header h2 {
@@ -72,6 +98,36 @@ function handleDragStart(event: DragEvent, componentId: string) {
   font-size: 15px;
   text-transform: uppercase;
   letter-spacing: 0.12em;
+}
+
+.palette__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.palette__action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  color: inherit;
+  font-size: 16px;
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+
+.palette__action:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.palette__action:not(:disabled):hover {
+  transform: translateY(-1px);
 }
 
 .palette__list {
