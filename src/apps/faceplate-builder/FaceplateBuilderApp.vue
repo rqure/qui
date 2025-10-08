@@ -7,6 +7,8 @@ import InspectorPanel from './components/InspectorPanel.vue';
 import BindingsPanel from './components/BindingsPanel.vue';
 import FaceplatePreview from './components/FaceplatePreview.vue';
 import BuilderToolbar from './components/BuilderToolbar.vue';
+import FaceplatePickerDialog from './components/FaceplatePickerDialog.vue';
+import CreateFaceplateDialog from './components/CreateFaceplateDialog.vue';
 import { useDataStore } from '@/stores/data';
 import { FaceplateDataService } from './utils/faceplate-data';
 import type { EntityId } from '@/core/data/types';
@@ -250,6 +252,8 @@ const currentFaceplateId = ref<EntityId | null>(props.faceplateId ?? null);
 const currentFaceplateName = ref<string>('');
 const currentTargetEntityType = ref<string>('');
 const isSaving = ref(false);
+const showPickerDialog = ref(false);
+const showCreateDialog = ref(false);
 
 const history = reactive<{ stack: Array<{ nodes: CanvasNode[]; bindings: Binding[] }>; index: number }>({
   stack: [],
@@ -486,26 +490,11 @@ async function saveWorkspace() {
   try {
     isSaving.value = true;
     
-    // Prompt for name if new faceplate
+    // Show create dialog if new faceplate
     if (!currentFaceplateId.value) {
-      const name = prompt('Enter faceplate name:', currentFaceplateName.value || 'New Faceplate');
-      if (!name) {
-        isSaving.value = false;
-        return;
-      }
-      currentFaceplateName.value = name;
-      
-      const targetType = prompt('Enter target entity type (e.g., Machine, Service):', currentTargetEntityType.value || 'Object');
-      if (!targetType) {
-        isSaving.value = false;
-        return;
-      }
-      currentTargetEntityType.value = targetType;
-      
-      // Create faceplate entity - use root as parent for now
-      // In a real app, would show a folder picker
-      const rootId = 1; // QOS root entity ID
-      currentFaceplateId.value = await faceplateService.createFaceplate(rootId, currentFaceplateName.value, currentTargetEntityType.value);
+      showCreateDialog.value = true;
+      isSaving.value = false;
+      return;
     }
     
     // Build component entities
@@ -584,14 +573,11 @@ async function saveWorkspace() {
 }
 
 async function loadWorkspace() {
-  const faceplateIdStr = prompt('Enter faceplate entity ID to load:');
-  if (!faceplateIdStr) return;
-  
-  const faceplateId = Number(faceplateIdStr);
-  if (isNaN(faceplateId)) {
-    alert('Invalid entity ID');
-    return;
-  }
+  showPickerDialog.value = true;
+}
+
+async function handlePickerSelect(faceplateId: EntityId) {
+  showPickerDialog.value = false;
   
   try {
     const faceplate = await faceplateService.readFaceplate(faceplateId);
@@ -653,6 +639,41 @@ function newWorkspace() {
     }
   }
   resetWorkspace();
+}
+
+function handlePickerCancel() {
+  showPickerDialog.value = false;
+}
+
+function handlePickerCreate() {
+  showPickerDialog.value = false;
+  showCreateDialog.value = true;
+}
+
+async function handleCreateFaceplate(data: { name: string; targetEntityType: string }) {
+  showCreateDialog.value = false;
+  
+  try {
+    // Create faceplate entity - use root as parent for now
+    const rootId = 1; // QOS root entity ID
+    const faceplateId = await faceplateService.createFaceplate(rootId, data.name, data.targetEntityType);
+    
+    currentFaceplateId.value = faceplateId;
+    currentFaceplateName.value = data.name;
+    currentTargetEntityType.value = data.targetEntityType;
+    
+    // Mark as dirty since we've set metadata but haven't saved components yet
+    pushHistory();
+    
+    alert(`Faceplate "${data.name}" created! Add components and save to persist.`);
+  } catch (error) {
+    console.error('Failed to create faceplate:', error);
+    alert(`Failed to create faceplate: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+function handleCreateCancel() {
+  showCreateDialog.value = false;
 }
 
 // Initialize with an empty baseline state.
@@ -765,6 +786,20 @@ onMounted(async () => {
         @prop-updated="handlePropUpdated"
       />
     </div>
+
+    <FaceplatePickerDialog
+      v-if="showPickerDialog"
+      mode="load"
+      @select="handlePickerSelect"
+      @cancel="handlePickerCancel"
+      @create="handlePickerCreate"
+    />
+
+    <CreateFaceplateDialog
+      v-if="showCreateDialog"
+      @create="handleCreateFaceplate"
+      @cancel="handleCreateCancel"
+    />
   </div>
 </template>
 
