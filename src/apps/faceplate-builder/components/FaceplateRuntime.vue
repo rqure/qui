@@ -4,7 +4,8 @@ import type { EntityId, FieldType, NotifyConfig, Notification } from '@/core/dat
 import { ValueHelpers } from '@/core/data/types';
 import { useDataStore } from '@/stores/data';
 import FaceplateComponentRenderer from './FaceplateComponentRenderer.vue';
-import { FaceplateDataService, type FaceplateComponentRecord, type FaceplateRecord, type FaceplateBindingDefinition } from '@/apps/faceplate-builder/utils/faceplate-data';
+import { FaceplateDataService, type FaceplateComponentRecord, type FaceplateRecord, type FaceplateBindingDefinition, type FaceplateScriptModule } from '@/apps/faceplate-builder/utils/faceplate-data';
+import type { BindingMode } from '@/apps/faceplate-builder/types';
 
 interface RenderSlot {
   id: EntityId;
@@ -27,6 +28,45 @@ interface NotificationSubscription {
   callback: (notification: Notification) => void;
 }
 
+type BindingTargetEntry = {
+  component: string;
+  property: string;
+  transform?: string | null;
+};
+
+type ScriptHelpers = {
+  clamp(value: number, min: number, max: number): number;
+  lerp(start: number, end: number, t: number): number;
+  round(value: number, precision?: number): number;
+  format(value: unknown, digits?: number): string;
+  colorRamp(value: number, stops: Array<{ stop: number; color: string }>): string;
+};
+
+type ScriptExecutionContext = {
+  entityId: EntityId | null;
+  faceplateId: EntityId | null;
+  expressionKey: string;
+  get(path: string): Promise<unknown>;
+  getCached(expressionKey: string): unknown;
+  getBindingValue(componentId: string, property: string): unknown;
+  setState(key: string, value: unknown): void;
+  getState<T>(key: string, defaultValue?: T): T | undefined;
+  bindingsSnapshot(): Record<string, unknown>;
+  module(name: string): Record<string, unknown> | undefined;
+  modules(): Record<string, Record<string, unknown>>;
+};
+
+type TransformContext = {
+  component: string;
+  property: string;
+  expressionKey: string;
+  entityId: EntityId | null;
+  faceplateId: EntityId | null;
+  helpers: ScriptHelpers;
+  module(name: string): Record<string, unknown> | undefined;
+  modules(): Record<string, Record<string, unknown>>;
+};
+
 const props = defineProps<{
   faceplateId?: EntityId | null;
   entityId?: EntityId | null;
@@ -48,9 +88,14 @@ const bindingValueMap = reactive<Record<string, unknown>>({});
 const expressionValueMap = reactive<Record<string, unknown>>({});
 const bindingPaths = new Map<string, FieldType[]>();
 const bindingTargets = new Map<string, { entityId: EntityId; fieldType: FieldType }>();
-const expressionToBindings = new Map<string, Array<{ component: string; property: string; transform?: string }>>();
+const expressionTargets = new Map<string, BindingTargetEntry[]>();
+const expressionMeta = new Map<string, { expression: string; mode: BindingMode; dependencies: string[]; description?: string }>();
+const dependencyIndex = new Map<string, Set<string>>();
 const componentLastUpdated = reactive<Record<string, Record<string, number>>>({});
 let subscriptions: NotificationSubscription[] = [];
+const scriptCache = new Map<string, (context: ScriptExecutionContext, helpers: ScriptHelpers) => Promise<unknown>>();
+const scriptState = new Map<string, Record<string, unknown>>();
+const scriptModuleExports = new Map<string, Record<string, unknown>>();
 
 const allBindings = computed(() => {
   if (!faceplate.value) return [] as FaceplateBindingDefinition[];
@@ -177,8 +222,10 @@ async function initialize() {
 
     if (faceplate.value) {
       components.value = await service.readComponents(faceplate.value.components);
+      compileFaceplateScriptModules(faceplate.value.scriptModules ?? []);
     } else {
       components.value = [];
+      compileFaceplateScriptModules([]);
     }
 
     buildBindingMaps();
@@ -192,12 +239,289 @@ async function initialize() {
   }
 }
 
+function determineBindingMode(binding: FaceplateBindingDefinition): BindingMode {
+  if (binding.mode) {
+    return binding.mode;
+  }
+  const trimmed = (binding.expression || '').trim();
+  if (trimmed.startsWith('script:')) {
+    return 'script';
+  }
+  const literal = tryEvaluateLiteral(trimmed);
+  if (literal.found) {
+    return 'literal';
+  }
+  return 'field';
+}
+
+function sanitizeBindingExpression(expression: string, mode: BindingMode): string {
+  if (mode === 'script' && expression.trim().startsWith('script:')) {
+    return expression.trim().slice('script:'.length);
+  }
+  return expression;
+}
+
+function makeExpressionKey(expression: string, mode: BindingMode): string {
+  return `${mode}::${expression}`;
+}
+
+function collectBindingDependencies(
+  binding: FaceplateBindingDefinition,
+  mode: BindingMode,
+  expression: string,
+): string[] {
+  if (mode === 'field') {
+    return [expression];
+  }
+  if (mode === 'script') {
+    const deps = Array.isArray(binding.dependencies) ? binding.dependencies : [];
+    return deps.map((dep) => dep.trim()).filter(Boolean);
+  }
+  return [];
+}
+
+function compileFaceplateScriptModules(modules: FaceplateScriptModule[]) {
+  scriptModuleExports.clear();
+  modules.forEach((moduleDef, index) => {
+    const name = moduleDef?.name?.trim() || `module-${index + 1}`;
+    const code = moduleDef?.code ?? '';
+    if (!code.trim()) {
+      return;
+    }
+
+    try {
+      const factory = new Function(
+        'helpers',
+        'module',
+        'exports',
+        '"use strict";\n' + code + '\n',
+      );
+      const moduleObj: { exports: Record<string, unknown> } = { exports: {} };
+      const exportsRef = moduleObj.exports;
+      factory(getScriptHelpers(), moduleObj, exportsRef);
+      const exports = moduleObj.exports || exportsRef;
+      scriptModuleExports.set(name, exports as Record<string, unknown>);
+    } catch (error) {
+      console.warn(`Failed to compile faceplate script module ${name}`, error);
+    }
+  });
+}
+
+async function evaluateBindingExpression(
+  expressionKey: string,
+  meta: { expression: string; mode: BindingMode; dependencies: string[] },
+): Promise<unknown> {
+  if (!props.entityId) {
+    expressionValueMap[expressionKey] = null;
+    return null;
+  }
+
+  switch (meta.mode) {
+    case 'literal': {
+      const literal = tryEvaluateLiteral(meta.expression);
+      const value = literal.found ? literal.value : meta.expression;
+      expressionValueMap[expressionKey] = value;
+      return value;
+    }
+    case 'field': {
+      const value = await evaluateFieldExpression(meta.expression);
+      expressionValueMap[expressionKey] = value;
+      return value;
+    }
+    case 'script': {
+      const value = await evaluateScriptExpression(expressionKey, meta.expression);
+      expressionValueMap[expressionKey] = value;
+      return value;
+    }
+    default:
+      expressionValueMap[expressionKey] = null;
+      return null;
+  }
+}
+
+async function evaluateFieldExpression(expression: string): Promise<unknown> {
+  if (!props.entityId) {
+    return null;
+  }
+
+  const path = await getFieldPath(expression);
+  if (!path.length) {
+    return null;
+  }
+
+  const [value] = await dataStore.read(props.entityId, path);
+  const extracted = ValueHelpers.extract(value);
+  await resolveBindingTarget(expression, path);
+  return extracted;
+}
+
+async function evaluateScriptExpression(expressionKey: string, source: string): Promise<unknown> {
+  if (!props.entityId) {
+    return null;
+  }
+
+  try {
+    const fn = getOrCreateScriptFunction(source);
+    const context = createScriptExecutionContext(expressionKey);
+    const result = await fn(context, getScriptHelpers());
+    return result;
+  } catch (error) {
+    console.warn('Faceplate script evaluation failed', error);
+    return null;
+  }
+}
+
+function normalizeScriptBody(source: string): string {
+  const trimmed = source.trim();
+  if (!trimmed) {
+    return 'return null;';
+  }
+
+  const hasReturn = /\breturn\b/.test(trimmed);
+  if (hasReturn) {
+    return trimmed;
+  }
+
+  if (trimmed.endsWith(';')) {
+    return `${trimmed} return undefined;`;
+  }
+
+  return `return (${trimmed});`;
+}
+
+function getOrCreateScriptFunction(source: string) {
+  const cached = scriptCache.get(source);
+  if (cached) {
+    return cached;
+  }
+
+  const body = normalizeScriptBody(source);
+  const factory = new Function(
+    'context',
+    'helpers',
+    '"use strict"; return (async () => {\n' + body + '\n})();',
+  );
+
+  const executor = (context: ScriptExecutionContext, helpers: ScriptHelpers) =>
+    Promise.resolve(factory(context, helpers));
+
+  scriptCache.set(source, executor);
+  return executor;
+}
+
+function getOrCreateScriptStateBucket(expressionKey: string): Record<string, unknown> {
+  if (!scriptState.has(expressionKey)) {
+    scriptState.set(expressionKey, {});
+  }
+  return scriptState.get(expressionKey)!;
+}
+
+function createScriptExecutionContext(expressionKey: string): ScriptExecutionContext {
+  const state = getOrCreateScriptStateBucket(expressionKey);
+
+  return {
+    entityId: props.entityId ?? null,
+    faceplateId: faceplate.value?.id ?? null,
+    expressionKey,
+    async get(path: string) {
+      const value = await evaluateFieldExpression(path);
+      const fieldKey = makeExpressionKey(path, 'field');
+      if (!expressionMeta.has(fieldKey)) {
+        expressionValueMap[fieldKey] = value;
+      }
+      return value;
+    },
+    getCached(targetKey: string) {
+      return expressionValueMap[targetKey];
+    },
+    getBindingValue(componentId: string, property: string) {
+      return bindingValueMap[`${componentId}:${property}`];
+    },
+    setState(key: string, value: unknown) {
+      state[key] = value;
+    },
+    getState<T>(key: string, defaultValue?: T) {
+      if (Object.prototype.hasOwnProperty.call(state, key)) {
+        return state[key] as T;
+      }
+      return defaultValue;
+    },
+    bindingsSnapshot() {
+      return { ...bindingValueMap };
+    },
+    module(name: string) {
+      return scriptModuleExports.get(name);
+    },
+    modules() {
+      return Object.fromEntries(scriptModuleExports.entries());
+    },
+  };
+}
+
+const sharedScriptHelpers: ScriptHelpers = {
+  clamp(value: number, min: number, max: number) {
+    const v = Number(value);
+    return Math.min(Math.max(v, min), max);
+  },
+  lerp(start: number, end: number, t: number) {
+    return start + (end - start) * t;
+  },
+  round(value: number, precision: number = 0) {
+    const factor = Math.pow(10, precision);
+    return Math.round(Number(value) * factor) / factor;
+  },
+  format(value: unknown, digits: number = 2) {
+    if (value === null || value === undefined) {
+      return '';
+    }
+    if (typeof value === 'number') {
+      if (!Number.isFinite(value)) {
+        return String(value);
+      }
+      return value.toFixed(digits);
+    }
+    if (value instanceof Date) {
+      return value.toISOString();
+    }
+    return String(value);
+  },
+  colorRamp(value: number, stops: Array<{ stop: number; color: string }>) {
+    if (!stops.length) {
+      return '#ffffff';
+    }
+    const sorted = [...stops].sort((a, b) => a.stop - b.stop);
+    if (value <= sorted[0].stop) {
+      return sorted[0].color;
+    }
+    if (value >= sorted[sorted.length - 1].stop) {
+      return sorted[sorted.length - 1].color;
+    }
+    for (let i = 0; i < sorted.length - 1; i += 1) {
+      const current = sorted[i];
+      const next = sorted[i + 1];
+      if (value >= current.stop && value <= next.stop) {
+        const ratio = (value - current.stop) / (next.stop - current.stop);
+        return ratio < 0.5 ? current.color : next.color;
+      }
+    }
+    return sorted[sorted.length - 1].color;
+  },
+};
+
+function getScriptHelpers(): ScriptHelpers {
+  return sharedScriptHelpers;
+}
+
 function buildBindingMaps() {
-  expressionToBindings.clear();
+  expressionTargets.clear();
+  expressionMeta.clear();
+  dependencyIndex.clear();
   Object.keys(bindingValueMap).forEach((key) => delete bindingValueMap[key]);
+  Object.keys(expressionValueMap).forEach((key) => delete expressionValueMap[key]);
   bindingPaths.clear();
   bindingTargets.clear();
   Object.keys(componentLastUpdated).forEach((key) => delete componentLastUpdated[key]);
+  scriptState.clear();
 
   for (const binding of allBindings.value) {
     const componentName = binding.component || '';
@@ -205,32 +529,63 @@ function buildBindingMaps() {
     const expression = binding.expression || '';
     if (!componentName || !property || !expression) continue;
 
-    const key = `${componentName}:${property}`;
-    if (!expressionToBindings.has(expression)) {
-      expressionToBindings.set(expression, []);
-    }
-    expressionToBindings.get(expression)!.push({ component: componentName, property, transform: binding.transform });
+    const mode = determineBindingMode(binding);
+    const normalizedExpression = sanitizeBindingExpression(expression, mode);
+    const expressionKey = makeExpressionKey(normalizedExpression, mode);
+    const dependencies = collectBindingDependencies(binding, mode, normalizedExpression);
 
-    if (!bindingValueMap[key]) {
-      bindingValueMap[key] = null;
+    if (!expressionMeta.has(expressionKey)) {
+      expressionMeta.set(expressionKey, {
+        expression: normalizedExpression,
+        mode,
+        dependencies: [...dependencies],
+        description: binding.description,
+      });
+    } else {
+      const existing = expressionMeta.get(expressionKey)!;
+      const merged = new Set([...existing.dependencies, ...dependencies]);
+      existing.dependencies = Array.from(merged);
+    }
+
+    if (!expressionTargets.has(expressionKey)) {
+      expressionTargets.set(expressionKey, []);
+    }
+
+    expressionTargets.get(expressionKey)!.push({
+      component: componentName,
+      property,
+      transform: binding.transform ?? null,
+    });
+
+    const bindingSlotKey = `${componentName}:${property}`;
+    if (!bindingValueMap[bindingSlotKey]) {
+      bindingValueMap[bindingSlotKey] = null;
     }
 
     if (!componentLastUpdated[componentName]) {
       componentLastUpdated[componentName] = {};
     }
+
+    dependencies.forEach((dependency) => {
+      if (!dependencyIndex.has(dependency)) {
+        dependencyIndex.set(dependency, new Set());
+      }
+      dependencyIndex.get(dependency)!.add(expressionKey);
+    });
   }
 }
 
 async function evaluateAllBindings() {
   if (!faceplate.value || !props.entityId) {
     Object.keys(bindingValueMap).forEach((key) => (bindingValueMap[key] = null));
+    Object.keys(expressionValueMap).forEach((key) => (expressionValueMap[key] = null));
     return;
   }
 
-  const expressions = Array.from(expressionToBindings.keys());
-  for (const expression of expressions) {
-    const value = await evaluateExpression(expression);
-    updateBindingsForExpression(expression, value);
+  const entries = Array.from(expressionMeta.entries());
+  for (const [key, meta] of entries) {
+    const value = await evaluateBindingExpression(key, meta);
+    updateBindingsForExpression(key, value);
   }
 }
 
@@ -313,27 +668,52 @@ async function resolveBindingTarget(expression: string, fieldPath: FieldType[]) 
   }
 }
 
-function updateBindingsForExpression(expression: string, value: unknown) {
-  if (!expressionToBindings.has(expression)) return;
+function updateBindingsForExpression(expressionKey: string, value: unknown) {
+  if (!expressionTargets.has(expressionKey)) return;
 
-  const bindings = expressionToBindings.get(expression)!;
-  bindings.forEach(({ component, property, transform }) => {
-    const key = `${component}:${property}`;
-    const transformed = applyTransform(transform, value);
+  const targets = expressionTargets.get(expressionKey)!;
+  targets.forEach((target) => {
+    const key = `${target.component}:${target.property}`;
+    const transformed = applyTransform(target.transform, value, {
+      component: target.component,
+      property: target.property,
+      expressionKey,
+      entityId: props.entityId ?? null,
+      faceplateId: faceplate.value?.id ?? null,
+      helpers: getScriptHelpers(),
+      module: (name: string) => scriptModuleExports.get(name),
+      modules: () => Object.fromEntries(scriptModuleExports.entries()),
+    });
     bindingValueMap[key] = transformed;
 
-    if (!componentLastUpdated[component]) {
-      componentLastUpdated[component] = {};
+    if (!componentLastUpdated[target.component]) {
+      componentLastUpdated[target.component] = {};
     }
-    componentLastUpdated[component][property] = Date.now();
+    componentLastUpdated[target.component][target.property] = Date.now();
   });
 }
 
-function applyTransform(transform: string | undefined, value: unknown): unknown {
+function applyTransform(transform: string | null | undefined, value: unknown, context: TransformContext): unknown {
   if (!transform) return value;
+  const raw = transform.trim();
+  if (!raw) return value;
+
   try {
-    const fn = new Function('value', `return (${transform});`);
-    return fn(value);
+    if (raw.includes('=>')) {
+      const factory = new Function(`return (${raw});`);
+      const transformer = factory();
+      if (typeof transformer === 'function') {
+        return transformer(value, context, context.helpers);
+      }
+    }
+
+    const fn = new Function(
+      'value',
+      'context',
+      'helpers',
+      '"use strict"; ' + raw,
+    );
+    return fn(value, context, context.helpers);
   } catch (error) {
     console.warn('Failed to apply transform', transform, error);
     return value;
@@ -344,23 +724,33 @@ async function registerNotifications() {
   await cleanupNotifications();
   if (!isLive.value || !props.entityId) return;
 
-  const expressionSet = new Set<string>(expressionToBindings.keys());
+  const dependencySet = new Set<string>();
+
+  expressionMeta.forEach((meta) => {
+    if (meta.mode === 'field') {
+      dependencySet.add(meta.expression);
+    }
+    meta.dependencies.forEach((dep) => dependencySet.add(dep));
+  });
 
   if (faceplate.value) {
-    faceplate.value.notificationChannels.forEach((channel) => {
-      ensureArray(channel?.fields).forEach((field) => expressionSet.add(field));
+    const channels = Array.isArray(faceplate.value.notificationChannels)
+      ? faceplate.value.notificationChannels
+      : [];
+    channels.forEach((channel) => {
+      ensureArray(channel?.fields).forEach((field) => dependencySet.add(field));
     });
   }
 
-  for (const expression of expressionSet) {
-    const literal = tryEvaluateLiteral(expression);
+  for (const dependency of dependencySet) {
+    const literal = tryEvaluateLiteral(dependency);
     if (literal.found) continue;
 
-    const path = await getFieldPath(expression);
+    const path = await getFieldPath(dependency);
     if (!path.length) continue;
 
-    await resolveBindingTarget(expression, path);
-    const target = bindingTargets.get(expression);
+    await resolveBindingTarget(dependency, path);
+    const target = bindingTargets.get(dependency);
     if (!target) continue;
 
     const notifyConfig: NotifyConfig = {
@@ -379,21 +769,36 @@ async function registerNotifications() {
         updatedValue = ValueHelpers.extract(notification.current.value);
       }
 
-      expressionValueMap[expression] = updatedValue;
-
-      if (expressionToBindings.has(expression)) {
-        updateBindingsForExpression(expression, updatedValue);
-      } else {
-        // This expression is tracked for relationship changes (e.g., Parent). Re-evaluate all bindings.
+      const subscribers = dependencyIndex.get(dependency);
+      if (!subscribers || !subscribers.size) {
         void evaluateAllBindings();
+        return;
       }
+
+      subscribers.forEach((expressionKey) => {
+        const meta = expressionMeta.get(expressionKey);
+        if (!meta) return;
+
+        if (meta.mode === 'field' && meta.expression === dependency && notification.current?.value !== undefined) {
+          expressionValueMap[expressionKey] = updatedValue;
+          updateBindingsForExpression(expressionKey, updatedValue);
+        } else {
+          void evaluateBindingExpression(expressionKey, meta)
+            .then((value) => {
+              updateBindingsForExpression(expressionKey, value);
+            })
+            .catch((error) => {
+              console.warn('Failed to refresh binding after notification', error);
+            });
+        }
+      });
     };
 
     try {
       await dataStore.registerNotification(notifyConfig, callback);
       subscriptions.push({ config: notifyConfig, callback });
     } catch (error) {
-      console.warn(`Failed to register notification for expression ${expression}`, error);
+      console.warn(`Failed to register notification for dependency ${dependency}`, error);
     }
   }
 }

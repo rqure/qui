@@ -5,6 +5,7 @@ import ComponentPalette from './components/ComponentPalette.vue';
 import ComponentComposerPanel from './components/ComponentComposerPanel.vue';
 import InspectorPanel from './components/InspectorPanel.vue';
 import BindingsPanel from './components/BindingsPanel.vue';
+import BindingEditorDialog from './components/BindingEditorDialog.vue';
 import FaceplatePreview from './components/FaceplatePreview.vue';
 import BuilderToolbar from './components/BuilderToolbar.vue';
 import FaceplatePickerDialog from './components/FaceplatePickerDialog.vue';
@@ -13,9 +14,11 @@ import CreateCustomComponentDialog from './components/CreateCustomComponentDialo
 import CustomComponentManagerDialog from './components/CustomComponentManagerDialog.vue';
 import { useDataStore } from '@/stores/data';
 import { FaceplateDataService } from './utils/faceplate-data';
+import type { FaceplateNotificationChannel, FaceplateScriptModule } from './utils/faceplate-data';
 import type { EntityId } from '@/core/data/types';
 import type {
   Binding,
+  BindingMode,
   CanvasNode,
   PaletteTemplate,
   PrimitiveDefinition,
@@ -480,6 +483,12 @@ const showPickerDialog = ref(false);
 const showCreateDialog = ref(false);
 const showCreateCustomComponentDialog = ref(false);
 const showCustomComponentManager = ref(false);
+const currentScriptModules = ref<FaceplateScriptModule[]>([]);
+const currentNotificationChannels = ref<FaceplateNotificationChannel[]>([]);
+const bindingEditorVisible = ref(false);
+const bindingEditorMode = ref<'create' | 'edit'>('create');
+const bindingEditorTargetId = ref<string | null>(null);
+const bindingEditorInitial = ref<Binding | null>(null);
 
 const history = reactive<{ stack: Array<{ nodes: CanvasNode[]; bindings: Binding[] }>; index: number }>({
   stack: [],
@@ -520,6 +529,25 @@ function ensureTemplateId(label: string): string {
     index += 1;
   }
   return candidate;
+}
+
+function getDefaultPropertyKeyForNode(node: CanvasNode): string {
+  const template = templateMap.value[node.componentId];
+  const propertySchema = template?.propertySchema ?? [];
+  if (propertySchema.length) {
+    const preferredOrder = ['value', 'text', 'status', 'label'];
+    const preferred = propertySchema.find((item) => preferredOrder.includes(item.key.toLowerCase()));
+    if (preferred) {
+      return preferred.key;
+    }
+    return propertySchema[0].key;
+  }
+  const propKeys = Object.keys(node.props ?? {});
+  return propKeys[0] ?? 'value';
+}
+
+function getComponentName(componentId: string): string {
+  return nodes.value.find((node) => node.id === componentId)?.name ?? componentId;
 }
 
 function cloneState(): { nodes: CanvasNode[]; bindings: Binding[] } {
@@ -620,13 +648,16 @@ async function instantiateCustomComponent(customComponentId: string, position: V
       const binding = def.bindings[i];
       if (binding.childIndex < newNodeIds.length) {
         const bindingId = generateId('binding');
-        bindings.value.push({
-          id: bindingId,
-          componentId: newNodeIds[binding.childIndex],
-          componentName: nodes.value.find(n => n.id === newNodeIds[binding.childIndex])?.name || '',
-          property: binding.property,
-          expression: binding.expression,
-        });
+          bindings.value.push({
+            id: bindingId,
+            componentId: newNodeIds[binding.childIndex],
+            componentName: nodes.value.find(n => n.id === newNodeIds[binding.childIndex])?.name || '',
+            property: binding.property,
+            expression: binding.expression,
+            mode: binding.mode ?? 'field',
+            transform: binding.transform ?? null,
+            dependencies: binding.dependencies?.length ? [...binding.dependencies] : undefined,
+          });
       }
     }
     
@@ -688,6 +719,9 @@ function handleRename(payload: { nodeId: string; name: string }) {
   nodes.value = nodes.value.map((node) =>
     node.id === payload.nodeId ? { ...node, name: payload.name } : node,
   );
+  bindings.value = bindings.value.map((binding) =>
+    binding.componentId === payload.nodeId ? { ...binding, componentName: payload.name } : binding,
+  );
   pushHistory();
 }
 
@@ -721,37 +755,97 @@ function handlePropUpdated(payload: { nodeId: string; key: string; value: unknow
   pushHistory();
 }
 
+function openBindingEditorForCreate() {
+  const targetNode = selectedNode.value ?? nodes.value[0];
+  if (!targetNode) {
+    alert('Add a component to the canvas before creating bindings.');
+    return;
+  }
+
+  const draft: Binding = {
+    id: '',
+    componentId: targetNode.id,
+    componentName: targetNode.name,
+    property: getDefaultPropertyKeyForNode(targetNode),
+    expression: 'Parent->Name',
+    mode: 'field',
+    transform: null,
+    dependencies: [],
+  };
+
+  bindingEditorMode.value = 'create';
+  bindingEditorTargetId.value = null;
+  bindingEditorInitial.value = draft;
+  bindingEditorVisible.value = true;
+}
+
+function openBindingEditorForEdit(bindingId: string) {
+  const binding = bindings.value.find((item) => item.id === bindingId);
+  if (!binding) return;
+  bindingEditorMode.value = 'edit';
+  bindingEditorTargetId.value = bindingId;
+  bindingEditorInitial.value = {
+    ...binding,
+    dependencies: [...(binding.dependencies ?? [])],
+  };
+  bindingEditorVisible.value = true;
+}
+
 function handleBindingCreate() {
-  if (!selectedNode.value) return;
-  const bindingId = generateId('binding');
-  bindings.value = [
-    ...bindings.value,
-    {
-      id: bindingId,
-      componentId: selectedNode.value.id,
-      componentName: selectedNode.value.name,
-      property: 'value',
-      expression: 'Parent->Name',
-    },
-  ];
-  pushHistory();
+  openBindingEditorForCreate();
 }
 
 function handleBindingEdit(bindingId: string) {
-  const binding = bindings.value.find((item) => item.id === bindingId);
-  if (!binding) return;
-  const samples = ['Parent->Name', 'Parent->Parent->Status', 'Temperature', 'CustomLiteral'];
-  const currentIndex = samples.indexOf(binding.expression);
-  const nextExpression = samples[(currentIndex + 1) % samples.length];
-  bindings.value = bindings.value.map((item) =>
-    item.id === bindingId ? { ...item, expression: nextExpression } : item,
-  );
-  pushHistory();
+  openBindingEditorForEdit(bindingId);
 }
 
 function handleBindingRemove(bindingId: string) {
   bindings.value = bindings.value.filter((item) => item.id !== bindingId);
   pushHistory();
+}
+
+function closeBindingEditor() {
+  bindingEditorVisible.value = false;
+  bindingEditorTargetId.value = null;
+  bindingEditorInitial.value = null;
+}
+
+function handleBindingEditorSave(payload: Omit<Binding, 'id' | 'componentName'> & { componentName?: string }) {
+  const resolvedMode: BindingMode = payload.mode ?? 'field';
+  const dependencies = payload.dependencies?.filter(Boolean) ?? [];
+  const componentId = payload.componentId;
+  const componentName = payload.componentName ?? getComponentName(componentId);
+
+  if (!componentId || !componentName) {
+    alert('Component reference not found for binding.');
+    return;
+  }
+
+  const baseBinding: Binding = {
+    id:
+      bindingEditorMode.value === 'edit' && bindingEditorTargetId.value
+        ? bindingEditorTargetId.value
+        : generateId('binding'),
+    componentId,
+    componentName,
+    property: payload.property,
+    expression: payload.expression,
+    mode: resolvedMode,
+    transform: payload.transform ?? null,
+    dependencies: dependencies.length ? dependencies : undefined,
+    description: payload.description,
+  };
+
+  if (bindingEditorMode.value === 'edit' && bindingEditorTargetId.value) {
+    bindings.value = bindings.value.map((binding) =>
+      binding.id === bindingEditorTargetId.value ? { ...baseBinding } : binding,
+    );
+  } else {
+    bindings.value = [...bindings.value, baseBinding];
+  }
+
+  pushHistory();
+  closeBindingEditor();
 }
 
 function handleComponentCreated(payload: {
@@ -799,6 +893,8 @@ function resetWorkspace() {
   currentFaceplateId.value = null;
   currentFaceplateName.value = '';
   currentTargetEntityType.value = '';
+  currentScriptModules.value = [];
+  currentNotificationChannels.value = [];
   pushHistory();
   markSaved();
 }
@@ -836,6 +932,10 @@ async function saveWorkspace() {
         component: node.id,
         property: b.property,
         expression: b.expression,
+        mode: b.mode ?? 'field',
+        transform: b.transform ?? undefined,
+        dependencies: b.dependencies?.length ? b.dependencies : undefined,
+        description: b.description,
       }));
       
       // Update component data
@@ -865,6 +965,10 @@ async function saveWorkspace() {
       component: b.componentId,
       property: b.property,
       expression: b.expression,
+      mode: b.mode ?? 'field',
+      transform: b.transform ?? undefined,
+      dependencies: b.dependencies?.length ? b.dependencies : undefined,
+      description: b.description,
     }));
     
     // Save faceplate configuration
@@ -873,12 +977,9 @@ async function saveWorkspace() {
       name: currentFaceplateName.value,
       targetEntityType: currentTargetEntityType.value,
       configuration: { layout, bindings: bindingsData },
-      configurationRaw: JSON.stringify({ layout, bindings: bindingsData }),
-      bindings: bindingsData,
-      bindingsRaw: JSON.stringify(bindingsData),
       components: componentIds,
-      notificationChannels: [],
-      notificationChannelsRaw: '[]',
+      notificationChannels: currentNotificationChannels.value,
+      scriptModules: currentScriptModules.value,
     });
     
     markSaved();
@@ -903,6 +1004,8 @@ async function handlePickerSelect(faceplateId: EntityId) {
     currentFaceplateId.value = faceplateId;
     currentFaceplateName.value = faceplate.name;
     currentTargetEntityType.value = faceplate.targetEntityType;
+  currentScriptModules.value = faceplate.scriptModules ?? [];
+  currentNotificationChannels.value = faceplate.notificationChannels ?? [];
     
     // Load components
     const components = await faceplateService.readComponents(faceplate.components);
@@ -929,6 +1032,10 @@ async function handlePickerSelect(faceplateId: EntityId) {
       componentName: nodes.value.find((n) => n.id === b.component)?.name || 'Unknown',
       property: b.property,
       expression: b.expression,
+      mode: b.mode ?? (b.expression?.trim()?.startsWith('script:') ? 'script' : 'field'),
+      transform: b.transform ?? null,
+      dependencies: Array.isArray(b.dependencies) ? b.dependencies : undefined,
+      description: b.description,
     }));
     
     pushHistory();
@@ -980,6 +1087,8 @@ async function handleCreateFaceplate(data: { name: string; targetEntityType: str
     currentFaceplateId.value = faceplateId;
     currentFaceplateName.value = data.name;
     currentTargetEntityType.value = data.targetEntityType;
+  currentScriptModules.value = [];
+  currentNotificationChannels.value = [];
     
     // Mark as dirty since we've set metadata but haven't saved components yet
     pushHistory();
@@ -1087,6 +1196,9 @@ async function handleSaveCustomComponent(data: { name: string; description: stri
             childIndex,
             property: b.property,
             expression: b.expression,
+            mode: b.mode ?? 'field',
+            transform: b.transform ?? null,
+            dependencies: b.dependencies?.length ? [...b.dependencies] : undefined,
           };
         }),
       size: { x: width, y: height },
@@ -1195,6 +1307,8 @@ onMounted(async () => {
       currentFaceplateId.value = props.faceplateId;
       currentFaceplateName.value = faceplate.name;
       currentTargetEntityType.value = faceplate.targetEntityType;
+  currentScriptModules.value = faceplate.scriptModules ?? [];
+  currentNotificationChannels.value = faceplate.notificationChannels ?? [];
       
       // Load components
       const components = await faceplateService.readComponents(faceplate.components);
@@ -1221,6 +1335,10 @@ onMounted(async () => {
         componentName: nodes.value.find((n) => n.id === b.component)?.name || 'Unknown',
         property: b.property,
         expression: b.expression,
+        mode: b.mode ?? (b.expression?.trim()?.startsWith('script:') ? 'script' : 'field'),
+        transform: b.transform ?? null,
+        dependencies: Array.isArray(b.dependencies) ? b.dependencies : undefined,
+        description: b.description,
       }));
       
       pushHistory();
@@ -1324,6 +1442,16 @@ onMounted(async () => {
       @close="handleCloseCustomComponentManager"
       @delete="handleDeleteCustomComponent"
       @edit="handleEditCustomComponent"
+    />
+
+    <BindingEditorDialog
+      v-if="bindingEditorVisible"
+      :show="bindingEditorVisible"
+      :nodes="nodes"
+      :templates="templateMap"
+      :binding="bindingEditorInitial"
+      @cancel="closeBindingEditor"
+      @save="handleBindingEditorSave"
     />
   </div>
 </template>

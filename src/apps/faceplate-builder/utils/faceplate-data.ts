@@ -1,6 +1,7 @@
 import type { EntityId, EntityType, FieldType, Value } from '@/core/data/types';
 import { ValueHelpers, FieldSchemaHelpers, extractEntityType } from '@/core/data/types';
 import { useDataStore } from '@/stores/data';
+import type { BindingMode } from '../types';
 
 export type DataStore = ReturnType<typeof useDataStore>;
 
@@ -9,6 +10,9 @@ export interface FaceplateBindingDefinition {
   property: string;
   expression: string;
   transform?: string;
+  mode?: BindingMode;
+  dependencies?: string[];
+  description?: string;
 }
 
 export interface FaceplateLayoutItem {
@@ -23,6 +27,12 @@ export interface FaceplateNotificationChannel {
   fields: string[];
   entityType?: string;
   triggerOnChange?: boolean;
+}
+
+export interface FaceplateScriptModule {
+  name: string;
+  description?: string;
+  code: string;
 }
 
 export interface FaceplateConfiguration {
@@ -42,6 +52,8 @@ export interface FaceplateRecord {
   components: EntityId[];
   notificationChannelsRaw: string;
   notificationChannels: FaceplateNotificationChannel[];
+  scriptModulesRaw: string;
+  scriptModules: FaceplateScriptModule[];
 }
 
 export interface FaceplateComponentRecord {
@@ -151,6 +163,7 @@ export class FaceplateDataService {
     const bindingsRaw = await this.readString(faceplateId, 'Bindings', '[]');
     const components = await this.readEntityList(faceplateId, 'Components');
     const notificationChannelsRaw = await this.readString(faceplateId, 'NotificationChannels', '[]');
+    const scriptModulesRaw = await this.readString(faceplateId, 'ScriptModules', '[]');
 
     const configuration = safeParseJson<FaceplateConfiguration>(configurationRaw, { layout: [], bindings: [] });
     configuration.layout = ensureArray(configuration.layout);
@@ -158,6 +171,7 @@ export class FaceplateDataService {
 
     const bindings = safeParseJson<FaceplateBindingDefinition[]>(bindingsRaw, []);
     const notificationChannels = safeParseJson<FaceplateNotificationChannel[]>(notificationChannelsRaw, []);
+    const scriptModules = safeParseJson<FaceplateScriptModule[]>(scriptModulesRaw, []);
 
     return {
       id: faceplateId,
@@ -170,6 +184,8 @@ export class FaceplateDataService {
       components,
       notificationChannelsRaw,
       notificationChannels,
+      scriptModulesRaw,
+      scriptModules,
     };
   }
 
@@ -255,13 +271,22 @@ export class FaceplateDataService {
     await this.dataStore.write(entityId, [fieldType], ValueHelpers.entityList(items));
   }
 
-  async writeFaceplate(faceplate: FaceplateRecord): Promise<void> {
+  async writeFaceplate(faceplate: {
+    id: EntityId;
+    name: string;
+    targetEntityType: string;
+    configuration: FaceplateConfiguration;
+    components: EntityId[];
+    notificationChannels: FaceplateNotificationChannel[];
+    scriptModules: FaceplateScriptModule[];
+  }): Promise<void> {
     await Promise.all([
       this.writeString(faceplate.id, 'Name', faceplate.name),
       this.writeString(faceplate.id, 'TargetEntityType', faceplate.targetEntityType),
       this.writeString(faceplate.id, 'Configuration', JSON.stringify(faceplate.configuration)),
       this.writeEntityList(faceplate.id, 'Components', faceplate.components),
       this.writeString(faceplate.id, 'NotificationChannels', JSON.stringify(faceplate.notificationChannels)),
+      this.writeString(faceplate.id, 'ScriptModules', JSON.stringify(faceplate.scriptModules ?? [])),
     ]);
   }
 
@@ -301,6 +326,7 @@ export class FaceplateDataService {
       this.writeString(faceplateId, 'Configuration', JSON.stringify({ layout: [], bindings: [], metadata: {} })),
       this.writeEntityList(faceplateId, 'Components', []),
       this.writeString(faceplateId, 'NotificationChannels', JSON.stringify([])),
+      this.writeString(faceplateId, 'ScriptModules', JSON.stringify([])),
     ]);
     
     return faceplateId;

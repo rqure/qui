@@ -50,12 +50,18 @@ export type CanvasNode = {
   selected?: boolean; // For multi-selection support
 };
 
+export type BindingMode = 'field' | 'literal' | 'script';
+
 export type Binding = {
   id: string;
   componentId: string;
   componentName: string;
   property: string;
   expression: string;
+  mode?: BindingMode;
+  transform?: string | null;
+  dependencies?: string[];
+  description?: string;
 };
 
 // Custom component definition for composing multiple primitives
@@ -76,6 +82,9 @@ export type CustomComponentDefinition = {
     childIndex: number; // Index in children array
     property: string;
     expression: string;
+    mode?: BindingMode;
+    transform?: string | null;
+    dependencies?: string[];
   }>;
   // Bounding box size
   size: Vector2;

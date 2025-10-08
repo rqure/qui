@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, reactive, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import ComponentSampleRenderer from './ComponentSampleRenderer.vue';
 import type { CanvasNode, PaletteTemplate, Vector2 } from '../types';
 
@@ -43,6 +43,30 @@ const dragState = reactive<{ current: DragState | null }>({ current: null });
 const selectBoxState = reactive<SelectBoxState>({ start: { x: 0, y: 0 }, current: { x: 0, y: 0 }, isActive: false });
 const canvasRef = ref<HTMLDivElement | null>(null);
 
+const contentSize = computed(() => {
+  if (!props.nodes || props.nodes.length === 0) {
+    return {
+      width: GRID_SIZE * 8,
+      height: GRID_SIZE * 6,
+    };
+  }
+
+  const maxWidth = Math.max(
+    ...props.nodes.map((node) => node.position.x + Math.max(node.size.x, GRID_SIZE)),
+    GRID_SIZE * 6,
+  );
+
+  const maxHeight = Math.max(
+    ...props.nodes.map((node) => node.position.y + Math.max(node.size.y, GRID_SIZE)),
+    GRID_SIZE * 5,
+  );
+
+  return {
+    width: maxWidth + GRID_SIZE,
+    height: maxHeight + GRID_SIZE,
+  };
+});
+
 function handleDragOver(event: DragEvent) {
   event.preventDefault();
   event.dataTransfer && (event.dataTransfer.dropEffect = 'copy');
@@ -74,6 +98,7 @@ function snapToGrid(point: Vector2): Vector2 {
 function handleNodePointerDown(event: PointerEvent, nodeId: string) {
   const target = event.currentTarget as HTMLElement | null;
   if (!target || event.button !== 0) return;
+  event.stopPropagation();
 
   // Check if shift key is pressed for multi-selection
   const isMultiSelect = event.shiftKey;
@@ -90,9 +115,8 @@ function handleNodePointerDown(event: PointerEvent, nodeId: string) {
 }
 
 function handleCanvasPointerDown(event: PointerEvent) {
-  // Only start drag-select if clicking on canvas background (not a node)
-  if (event.target !== canvasRef.value || !canvasRef.value) return;
-  
+  if (!canvasRef.value || event.target !== canvasRef.value) return;
+
   const rect = canvasRef.value.getBoundingClientRect();
   const point = {
     x: event.clientX - rect.left,
@@ -105,7 +129,7 @@ function handleCanvasPointerDown(event: PointerEvent) {
 }
 
 function handleCanvasClick(event: MouseEvent) {
-  // If clicking on the canvas background (not a node), clear selection
+  if (!canvasRef.value) return;
   if (event.target === canvasRef.value) {
     emit('canvas-clicked');
   }
@@ -217,8 +241,16 @@ onBeforeUnmount(teardownListeners);
 </script>
 
 <template>
-  <section class="canvas" ref="canvasRef" @dragover="handleDragOver" @drop="handleDrop" @click="handleCanvasClick" @pointerdown="handleCanvasPointerDown">
-    <div class="canvas__grid"></div>
+  <section class="canvas" @click="handleCanvasClick">
+    <div
+      ref="canvasRef"
+      class="canvas__surface"
+      :style="{ width: `${contentSize.width}px`, height: `${contentSize.height}px` }"
+      @dragover="handleDragOver"
+      @drop="handleDrop"
+      @pointerdown="handleCanvasPointerDown"
+    >
+      <div class="canvas__grid"></div>
     
     <!-- Drag-select box -->
     <div 
@@ -258,6 +290,7 @@ onBeforeUnmount(teardownListeners);
     <div v-if="!props.nodes.length" class="canvas__hint">
       Drag components here or drop them from the palette.
     </div>
+    </div>
   </section>
 </template>
 
@@ -267,8 +300,16 @@ onBeforeUnmount(teardownListeners);
   flex: 1;
   border: 1px dashed rgba(255, 255, 255, 0.14);
   border-radius: 14px;
+  overflow: auto;
+  background: rgba(0, 0, 0, 0.24);
+}
+
+.canvas__surface {
+  position: relative;
+  min-width: 100%;
+  min-height: 100%;
+  border-radius: inherit;
   background: linear-gradient(135deg, rgba(12, 22, 32, 0.85), rgba(6, 12, 20, 0.92));
-  overflow: hidden;
 }
 
 .canvas__grid {
@@ -278,6 +319,7 @@ onBeforeUnmount(teardownListeners);
     linear-gradient(to bottom, rgba(255,255,255,0.05) 1px, transparent 1px);
   background-size: 120px 120px;
   pointer-events: none;
+  border-radius: inherit;
 }
 
 .canvas__select-box {

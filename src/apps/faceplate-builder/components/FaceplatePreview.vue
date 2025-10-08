@@ -8,8 +8,23 @@ const props = defineProps<{
   templates: Record<string, PaletteTemplate>;
 }>();
 
+const previewMetrics = computed(() => {
+  if (!props.nodes.length) {
+    return { width: 480, height: 360 };
+  }
+
+  const maxX = Math.max(...props.nodes.map((node) => node.position.x + node.size.x));
+  const maxY = Math.max(...props.nodes.map((node) => node.position.y + node.size.y));
+
+  return {
+    width: Math.max(480, maxX + 120),
+    height: Math.max(360, maxY + 120),
+  };
+});
+
 const previewStyle = computed(() => ({
-  minHeight: `${Math.max(360, Math.max(...props.nodes.map((node) => node.position.y + node.size.y), 0) + 120)}px`,
+  minWidth: `${previewMetrics.value.width}px`,
+  minHeight: `${previewMetrics.value.height}px`,
 }));
 </script>
 
@@ -20,6 +35,7 @@ const previewStyle = computed(() => ({
       <p>Arrange components on the canvas; this preview mirrors their layout with sample styling.</p>
     </header>
     <div class="preview__stage" :style="previewStyle">
+      <div class="preview__grid"></div>
       <div v-if="!props.nodes.length" class="preview__placeholder">
         Drag components onto the canvas to see them rendered here.
       </div>
@@ -73,9 +89,18 @@ const previewStyle = computed(() => ({
 .preview__stage {
   position: relative;
   border-radius: 12px;
-  border: 1px dashed rgba(255, 255, 255, 0.1);
-  background: rgba(0, 0, 0, 0.28);
-  overflow: hidden;
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.22);
+  overflow: auto;
+}
+
+.preview__grid {
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 120px 120px;
+  pointer-events: none;
 }
 
 .preview__placeholder {

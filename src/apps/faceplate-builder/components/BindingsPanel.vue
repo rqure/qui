@@ -4,6 +4,8 @@ interface BindingItem {
   componentName: string;
   property: string;
   expression: string;
+  mode?: string;
+  transform?: string | null;
 }
 
 const props = defineProps<{
@@ -34,8 +36,12 @@ const emit = defineEmits<{
     <ul v-else class="bindings__list">
       <li v-for="binding in props.items" :key="binding.id" class="bindings__item">
         <div class="bindings__primary">
-          <strong>{{ binding.componentName }} · {{ binding.property }}</strong>
+          <div class="bindings__title">
+            <strong>{{ binding.componentName }} · {{ binding.property }}</strong>
+            <span v-if="binding.mode" class="bindings__badge">{{ binding.mode }}</span>
+          </div>
           <code>{{ binding.expression }}</code>
+          <small v-if="binding.transform" class="bindings__transform">transform: {{ binding.transform }}</small>
         </div>
         <div class="bindings__actions">
           <button type="button" @click="emit('edit', binding.id)">Edit</button>
@@ -118,9 +124,32 @@ const emit = defineEmits<{
   font-size: 14px;
 }
 
+.bindings__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bindings__badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: rgba(0, 255, 194, 0.14);
+  color: rgba(0, 255, 194, 0.8);
+}
+
 .bindings__primary code {
   font-size: 12px;
   opacity: 0.65;
+}
+
+.bindings__transform {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  opacity: 0.5;
 }
 
 .bindings__actions {

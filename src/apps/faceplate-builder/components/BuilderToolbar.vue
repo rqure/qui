@@ -5,9 +5,6 @@ const props = defineProps<{
   dirty: boolean;
   faceplateId?: string | null;
   faceplateName?: string;
-}>();
-
-const props2 = defineProps<{
   hasMultipleSelected?: boolean;
 }>();
 
@@ -34,7 +31,7 @@ const emit = defineEmits<{
       <button type="button" @click="emit('new')">New</button>
       <button type="button" @click="emit('load')">Load</button>
       <span class="toolbar__divider" aria-hidden="true"></span>
-      <button type="button" :disabled="!props2.hasMultipleSelected" @click="emit('create-custom')" title="Create custom component from selected">
+  <button type="button" :disabled="!props.hasMultipleSelected" @click="emit('create-custom')" title="Create custom component from selected">
         <span class="toolbar__icon">✨</span> Create Custom
       </button>
       <button type="button" @click="emit('manage-custom')" title="Manage custom component library">
