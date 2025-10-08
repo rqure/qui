@@ -587,8 +587,28 @@ function handleNodeMoveEnd(payload: { nodeId: string; position: Vector2 }) {
   pushHistory();
 }
 
-function handleNodeSelected(nodeId: string) {
-  selectedNodeId.value = nodeId;
+function handleNodeSelected(payload: { nodeId: string; isMultiSelect: boolean }) {
+  if (payload.isMultiSelect) {
+    // Multi-select mode: toggle selection
+    if (selectedNodeIds.value.has(payload.nodeId)) {
+      selectedNodeIds.value.delete(payload.nodeId);
+    } else {
+      selectedNodeIds.value.add(payload.nodeId);
+    }
+    // Keep selectedNodeId as the last selected node
+    selectedNodeId.value = payload.nodeId;
+  } else {
+    // Single select mode: clear multi-selection and select only this node
+    selectedNodeIds.value.clear();
+    selectedNodeIds.value.add(payload.nodeId);
+    selectedNodeId.value = payload.nodeId;
+  }
+}
+
+function handleCanvasClick() {
+  // Clear all selections when clicking on empty canvas
+  selectedNodeId.value = null;
+  selectedNodeIds.value.clear();
 }
 
 function handleRename(payload: { nodeId: string; name: string }) {
@@ -1129,11 +1149,13 @@ onMounted(async () => {
         <BuilderCanvas
           :nodes="nodes"
           :selected-node-id="selectedNodeId"
+          :selected-node-ids="selectedNodeIds"
           :templates="templateMap"
           @node-requested="handleNodeRequest"
           @node-selected="handleNodeSelected"
           @node-updated="handleNodeUpdate"
           @node-move-end="handleNodeMoveEnd"
+          @canvas-clicked="handleCanvasClick"
         />
 
         <BindingsPanel

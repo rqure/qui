@@ -13,14 +13,16 @@ const GRID_SIZE = 120;
 const props = defineProps<{
   nodes: CanvasNode[];
   selectedNodeId: string | null;
+  selectedNodeIds?: Set<string>;
   templates: Record<string, PaletteTemplate>;
 }>();
 
 const emit = defineEmits<{
-  (event: 'node-selected', nodeId: string): void;
+  (event: 'node-selected', payload: { nodeId: string; isMultiSelect: boolean }): void;
   (event: 'node-requested', payload: CanvasDropPayload): void;
   (event: 'node-updated', payload: { nodeId: string; position: Vector2 }): void;
   (event: 'node-move-end', payload: { nodeId: string; position: Vector2 }): void;
+  (event: 'canvas-clicked'): void;
 }>();
 
 type DragState = {
@@ -65,7 +67,10 @@ function handleNodePointerDown(event: PointerEvent, nodeId: string) {
   const target = event.currentTarget as HTMLElement | null;
   if (!target || event.button !== 0) return;
 
-  emit('node-selected', nodeId);
+  // Check if shift key is pressed for multi-selection
+  const isMultiSelect = event.shiftKey;
+  emit('node-selected', { nodeId, isMultiSelect });
+  
   dragState.current = {
     nodeId,
     origin: { x: target.offsetLeft, y: target.offsetTop },
@@ -74,6 +79,13 @@ function handleNodePointerDown(event: PointerEvent, nodeId: string) {
   };
 
   target.setPointerCapture(event.pointerId);
+}
+
+function handleCanvasClick(event: MouseEvent) {
+  // If clicking on the canvas background (not a node), clear selection
+  if (event.target === canvasRef.value) {
+    emit('canvas-clicked');
+  }
 }
 
 function handlePointerMove(event: PointerEvent) {
@@ -116,17 +128,20 @@ onBeforeUnmount(teardownListeners);
 </script>
 
 <template>
-  <section class="canvas" ref="canvasRef" @dragover="handleDragOver" @drop="handleDrop">
+  <section class="canvas" ref="canvasRef" @dragover="handleDragOver" @drop="handleDrop" @click="handleCanvasClick">
     <div class="canvas__grid"></div>
     <button
       v-for="node in props.nodes"
       :key="node.id"
       class="canvas__node"
       type="button"
-      :class="{ 'canvas__node--selected': node.id === props.selectedNodeId }"
+      :class="{ 
+        'canvas__node--selected': node.id === props.selectedNodeId,
+        'canvas__node--multi-selected': props.selectedNodeIds?.has(node.id)
+      }"
       :style="{ left: `${node.position.x}px`, top: `${node.position.y}px`, width: `${Math.max(node.size.x, GRID_SIZE)}px`, height: `${Math.max(node.size.y, GRID_SIZE)}px` }"
       @pointerdown="handleNodePointerDown($event, node.id)"
-      @click.stop="emit('node-selected', node.id)"
+      @click.stop
     >
       <div class="canvas__node-header">
         <span class="canvas__node-title">{{ node.name }}</span>
@@ -186,6 +201,12 @@ onBeforeUnmount(teardownListeners);
 .canvas__node--selected {
   border-color: rgba(0, 255, 194, 0.6);
   box-shadow: 0 18px 28px rgba(0, 255, 194, 0.18);
+}
+
+.canvas__node--multi-selected {
+  border-color: rgba(100, 150, 255, 0.6);
+  box-shadow: 0 12px 20px rgba(100, 150, 255, 0.15);
+  background: rgba(100, 150, 255, 0.08);
 }
 
 .canvas__node-header {
