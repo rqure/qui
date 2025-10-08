@@ -11,6 +11,7 @@ interface FaceplateItem {
 
 const props = defineProps<{
   show: boolean;
+  startInNewMode?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -140,16 +141,22 @@ onMounted(() => {
 watch(() => props.show, (newShow) => {
   if (newShow) {
     loadFaceplates();
+    if (props.startInNewMode) {
+      showNewForm.value = true;
+    } else {
+      showNewForm.value = false;
+    }
   }
 });
 </script>
 
 <template>
-  <div v-if="props.show" class="faceplate-selector">
-    <header class="selector__header">
-      <h3>Faceplates</h3>
-      <button type="button" class="selector__close" @click="emit('close')">✕</button>
-    </header>
+  <div v-if="props.show" class="faceplate-selector" @click.self="emit('close')">
+    <div class="selector__dialog">
+      <header class="selector__header">
+        <h3>Faceplates</h3>
+        <button type="button" class="selector__close" @click="emit('close')">✕</button>
+      </header>
     
     <div v-if="!showNewForm" class="selector__content">
       <div class="selector__search">
@@ -212,24 +219,35 @@ watch(() => props.show, (newShow) => {
         </button>
       </div>
     </div>
+    </div>
   </div>
 </template>
 
 <style scoped>
 .faceplate-selector {
-  position: absolute;
-  top: 60px;
-  left: 24px;
-  width: 360px;
-  max-height: calc(100vh - 120px);
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 6, 10, 0.88);
+  backdrop-filter: blur(12px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  padding: 24px;
+}
+
+.selector__dialog {
+  width: 100%;
+  max-width: 480px;
+  max-height: 80vh;
   background: rgba(2, 12, 18, 0.95);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 12px;
+  border-radius: 16px;
   backdrop-filter: blur(24px);
-  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
   display: flex;
   flex-direction: column;
-  z-index: 1000;
+  overflow: hidden;
 }
 
 .selector__header {

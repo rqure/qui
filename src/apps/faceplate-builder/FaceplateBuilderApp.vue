@@ -541,6 +541,7 @@ const isSaving = ref(false);
 const viewportSize = ref<Vector2>({ ...DEFAULT_VIEWPORT });
 const faceplateMetadata = ref<Record<string, unknown>>({});
 const showFaceplateSelector = ref(false);
+const selectorStartInNewMode = ref(false);
 const currentScriptModules = ref<FaceplateScriptModule[]>([]);
 const currentNotificationChannels = ref<FaceplateNotificationChannel[]>([]);
 
@@ -1041,8 +1042,10 @@ async function saveWorkspace() {
       return;
     }
     
-    // Build component entities
+    // Build component entities and maintain node ID to component ID mapping
     const componentIds: EntityId[] = [];
+    const nodeIdToComponentId = new Map<string, EntityId>();
+    
     for (const node of nodes.value) {
       const template = templateMap.value[node.componentId];
       if (!template) continue;
@@ -1054,11 +1057,12 @@ async function saveWorkspace() {
         template.primitiveId
       );
       componentIds.push(componentId);
+      nodeIdToComponentId.set(node.id, componentId);
       
-      // Find bindings for this node
+      // Find bindings for this node and map to component ID
       const nodeBindings = bindings.value.filter((b) => b.componentId === node.id);
       const bindingsData = nodeBindings.map((b) => ({
-        component: node.id,
+        component: String(componentId),
         property: b.property,
         expression: b.expression,
         mode: b.mode ?? 'field',
@@ -1081,24 +1085,32 @@ async function saveWorkspace() {
       });
     }
     
-    // Build layout configuration
-    const layout = nodes.value.map((node) => ({
-      component: node.id,
-      x: node.position.x,
-      y: node.position.y,
-      w: node.size.x,
-      h: node.size.y,
-    }));
+    // Build layout configuration using component entity IDs
+    const layout = nodes.value.map((node) => {
+      const componentId = nodeIdToComponentId.get(node.id);
+      if (!componentId) return null;
+      return {
+        component: String(componentId),
+        x: node.position.x,
+        y: node.position.y,
+        w: node.size.x,
+        h: node.size.y,
+      };
+    }).filter((item): item is NonNullable<typeof item> => item !== null);
 
-    const bindingsData = bindings.value.map((b) => ({
-      component: b.componentId,
-      property: b.property,
-      expression: b.expression,
-      mode: b.mode ?? 'field',
-      transform: b.transform ?? undefined,
-      dependencies: b.dependencies?.length ? b.dependencies : undefined,
-      description: b.description,
-    }));
+    const bindingsData = bindings.value.map((b) => {
+      const componentId = nodeIdToComponentId.get(b.componentId);
+      if (!componentId) return null;
+      return {
+        component: String(componentId),
+        property: b.property,
+        expression: b.expression,
+        mode: b.mode ?? 'field',
+        transform: b.transform ?? undefined,
+        dependencies: b.dependencies?.length ? b.dependencies : undefined,
+        description: b.description,
+      };
+    }).filter((item): item is NonNullable<typeof item> => item !== null);
 
     const metadata = {
       ...faceplateMetadata.value,
@@ -1130,6 +1142,7 @@ async function saveWorkspace() {
 }
 
 async function loadWorkspace() {
+  selectorStartInNewMode.value = false;
   showFaceplateSelector.value = true;
 }
 
@@ -1201,18 +1214,41 @@ function newWorkspace() {
   if (dirty.value) {
     console.log('Warning: You have unsaved changes.');
   }
-  // Reset to blank state but keep selector closed
-  // User must explicitly save to create a new faceplate
-  resetWorkspace();
+  // Show selector in 'new' mode
+  selectorStartInNewMode.value = true;
+  showFaceplateSelector.value = true;
 }
 
 function handleSelectorClose() {
   showFaceplateSelector.value = false;
+  selectorStartInNewMode.value = false;
 }
 
 async function handleSelectorNew(faceplateId: EntityId) {
-  // The selector component handles creation, we just need to load it
-  await handleSelectorSelect(faceplateId);
+  showFaceplateSelector.value = false;
+  selectorStartInNewMode.value = false;
+  
+  try {
+    const faceplate = await faceplateService.readFaceplate(faceplateId);
+    currentFaceplateId.value = faceplateId;
+    currentFaceplateName.value = faceplate.name;
+    currentTargetEntityType.value = faceplate.targetEntityType;
+    currentScriptModules.value = faceplate.scriptModules ?? [];
+    currentNotificationChannels.value = faceplate.notificationChannels ?? [];
+    
+    // Start with empty canvas for new faceplate
+    nodes.value = [];
+    bindings.value = [];
+    
+    applyViewportMetadata(faceplate.configuration.metadata as Record<string, unknown> | undefined);
+    applySelection([], null);
+    
+    pushHistory();
+    markSaved();
+    console.log(`New faceplate "${faceplate.name}" ready for editing!`);
+  } catch (error) {
+    console.error('Failed to initialize new faceplate:', error);
+  }
 }
 
 // Custom components have been removed from this implementation
@@ -1358,6 +1394,7 @@ onMounted(async () => {
 
     <FaceplateSelector
       :show="showFaceplateSelector"
+      :start-in-new-mode="selectorStartInNewMode"
       @select="handleSelectorSelect"
       @new="handleSelectorNew"
       @close="handleSelectorClose"
