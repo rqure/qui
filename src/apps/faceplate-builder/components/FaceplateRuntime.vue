@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import type { EntityId, FieldType, NotifyConfig, Notification } from '@/core/data/types';
 import { ValueHelpers } from '@/core/data/types';
 import { useDataStore } from '@/stores/data';
-import PrimitiveRenderer from './PrimitiveRenderer.vue';
+import FaceplateCanvas, { type CanvasComponent } from './FaceplateCanvas.vue';
 import { FaceplateDataService, type FaceplateComponentRecord, type FaceplateRecord, type FaceplateBindingDefinition, type FaceplateScriptModule } from '@/apps/faceplate-builder/utils/faceplate-data';
 import type { BindingMode } from '@/apps/faceplate-builder/types';
 import { IndirectFieldNotifier } from '@/apps/faceplate-builder/utils/indirect-field-notifier';
@@ -199,19 +199,31 @@ const renderedSlots = computed<RenderSlot[]>(() => {
   return slots;
 });
 
-const GRID_CELL_SIZE = 80; // Base grid cell size in pixels (matches builder grid)
+// Convert renderedSlots to CanvasComponent format
+const canvasComponents = computed<CanvasComponent[]>(() => {
+  return renderedSlots.value.map(slot => ({
+    id: slot.id,
+    type: slot.type,
+    position: {
+      x: slot.position.x,
+      y: slot.position.y,
+    },
+    size: {
+      x: slot.position.w,
+      y: slot.position.h,
+    },
+    config: slot.config,
+    bindings: slot.bindings,
+  }));
+});
 
-const gridTemplateColumns = computed(() => {
-  if (renderedSlots.value.length === 0) {
-    return 'repeat(1, minmax(220px, 1fr))';
-  }
-  // Convert pixel coordinates to grid units
-  const columns = Math.max(...renderedSlots.value.map((slot) => {
-    const gridX = Math.ceil(slot.position.x / GRID_CELL_SIZE);
-    const gridW = Math.ceil(slot.position.w / GRID_CELL_SIZE);
-    return gridX + gridW;
-  }), 1);
-  return `repeat(${columns}, minmax(220px, 1fr))`;
+const viewportSize = computed(() => {
+  const viewport = faceplate.value?.configuration?.metadata?.viewport as { width?: number; height?: number } | undefined;
+  if (!viewport) return undefined;
+  return {
+    x: viewport.width ?? 960,
+    y: viewport.height ?? 720,
+  };
 });
 
 function computeAnimationClasses(component: FaceplateComponentRecord, bindings: Record<string, unknown>): string[] {
@@ -926,21 +938,6 @@ function ensureArray<T>(value: T[] | T | null | undefined): T[] {
   return Array.isArray(value) ? value : [value];
 }
 
-function getSlotStyle(slot: RenderSlot) {
-  // Convert pixel coordinates to grid units
-  const gridX = Math.ceil(slot.position.x / GRID_CELL_SIZE);
-  const gridY = Math.ceil(slot.position.y / GRID_CELL_SIZE);
-  const gridW = Math.ceil(slot.position.w / GRID_CELL_SIZE);
-  const gridH = Math.ceil(slot.position.h / GRID_CELL_SIZE);
-  
-  return {
-    gridColumnStart: String(gridX + 1),
-    gridColumnEnd: `span ${Math.max(gridW, 1)}`,
-    gridRowStart: String(gridY + 1),
-    gridRowEnd: `span ${Math.max(gridH, 1)}`,
-  };
-}
-
 watch(
   () => [props.faceplateId, props.faceplateData],
   async () => {
@@ -978,22 +975,15 @@ defineExpose({
     <div v-else-if="error" class="runtime-state error">{{ error }}</div>
     <div v-else-if="!faceplate" class="runtime-state empty">No faceplate selected</div>
     <div v-else-if="!entityId" class="runtime-state empty">Select an entity to drive this faceplate (entityId: {{ entityId }})</div>
-    <div v-else class="runtime-grid" :style="{ gridTemplateColumns: gridTemplateColumns }">
-      <!-- Debug: {{ renderedSlots.length }} slots, grid columns: {{ gridTemplateColumns }} -->
-      <div
-        v-for="slot in renderedSlots"
-        :key="slot.id"
-        class="runtime-slot"
-        :style="getSlotStyle(slot)"
-      >
-        <PrimitiveRenderer
-          :type="slot.type"
-          :config="slot.config"
-          :bindings="slot.bindings"
-          :edit-mode="false"
-        />
-      </div>
-    </div>
+    <FaceplateCanvas
+      v-else
+      class="faceplate-runtime__canvas"
+      :components="canvasComponents"
+      :viewport="viewportSize"
+      :edit-mode="false"
+      :show-grid="false"
+      :show-viewport-boundary="false"
+    />
   </div>
 </template>
 
@@ -1003,9 +993,8 @@ defineExpose({
   flex-direction: column;
   width: 100%;
   height: 100%;
-  padding: 16px;
   background: radial-gradient(circle at top, rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0.65));
-  overflow: auto;
+  overflow: hidden;
 }
 
 .runtime-state {
@@ -1022,9 +1011,10 @@ defineExpose({
   color: var(--qui-danger-color);
 }
 
-.runtime-grid {
-  display: grid;
-  grid-auto-rows: minmax(160px, auto);
-  gap: 18px;
+.faceplate-runtime__canvas {
+  flex: 1;
+  border: none;
+  border-radius: 0;
+  background: transparent;
 }
 </style>

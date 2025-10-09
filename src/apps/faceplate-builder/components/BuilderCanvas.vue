@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
-import PrimitiveRenderer from './PrimitiveRenderer.vue';
+import FaceplateCanvas, { type CanvasComponent } from './FaceplateCanvas.vue';
 import type { CanvasNode, PaletteTemplate, Vector2 } from '../types';
 
 type CanvasDropPayload = {
@@ -42,33 +42,18 @@ type SelectBoxState = {
 
 const dragState = reactive<{ current: DragState | null }>({ current: null });
 const selectBoxState = reactive<SelectBoxState>({ start: { x: 0, y: 0 }, current: { x: 0, y: 0 }, isActive: false });
-const canvasRef = ref<HTMLDivElement | null>(null);
+const canvasRef = ref<InstanceType<typeof FaceplateCanvas> | null>(null);
+const wrapperRef = ref<HTMLElement | null>(null);
 
-const contentSize = computed(() => {
-  const baseWidth = props.viewport?.x ?? GRID_SIZE * 8;
-  const baseHeight = props.viewport?.y ?? GRID_SIZE * 6;
-
-  if (!props.nodes || props.nodes.length === 0) {
-    return {
-      width: baseWidth,
-      height: baseHeight,
-    };
-  }
-
-  const maxNodeWidth = Math.max(
-    baseWidth,
-    ...props.nodes.map((node) => node.position.x + Math.max(node.size.x, GRID_SIZE)),
-  );
-
-  const maxNodeHeight = Math.max(
-    baseHeight,
-    ...props.nodes.map((node) => node.position.y + Math.max(node.size.y, GRID_SIZE)),
-  );
-
-  return {
-    width: maxNodeWidth + GRID_SIZE,
-    height: maxNodeHeight + GRID_SIZE,
-  };
+// Convert CanvasNode to CanvasComponent format
+const canvasComponents = computed<CanvasComponent[]>(() => {
+  return props.nodes.map(node => ({
+    id: node.id,
+    type: node.componentId,
+    position: node.position,
+    size: node.size,
+    config: node.props,
+  }));
 });
 
 function handleDragOver(event: DragEvent) {
@@ -79,11 +64,11 @@ function handleDragOver(event: DragEvent) {
 function handleDrop(event: DragEvent) {
   event.preventDefault();
   const componentId = event.dataTransfer?.getData('application/x-faceplate-component') || event.dataTransfer?.getData('text/plain');
-  if (!componentId || !canvasRef.value) return;
+  if (!componentId || !wrapperRef.value) return;
 
-  const rect = canvasRef.value.getBoundingClientRect();
-  const localX = event.clientX - rect.left;
-  const localY = event.clientY - rect.top;
+  const rect = wrapperRef.value.getBoundingClientRect();
+  const localX = event.clientX - rect.left + wrapperRef.value.scrollLeft;
+  const localY = event.clientY - rect.top + wrapperRef.value.scrollTop;
 
   const snapped = snapToGrid({ x: localX, y: localY });
   emit('node-requested', {
@@ -99,13 +84,10 @@ function snapToGrid(point: Vector2): Vector2 {
   };
 }
 
-function handleNodePointerDown(event: PointerEvent, nodeId: string) {
-  const target = event.currentTarget as HTMLElement | null;
-  if (!target || event.button !== 0) return;
-  event.stopPropagation();
-
-  // Check if shift key is pressed for multi-selection
-  const isMultiSelect = event.shiftKey;
+function handleComponentClick(payload: { id: string | number; event: PointerEvent; isMultiSelect: boolean }) {
+  const nodeId = String(payload.id);
+  const isMultiSelect = payload.isMultiSelect;
+  
   emit('node-selected', { nodeId, isMultiSelect });
 
   const selection = new Set(props.selectedNodeIds ? Array.from(props.selectedNodeIds) : []);
@@ -125,34 +107,36 @@ function handleNodePointerDown(event: PointerEvent, nodeId: string) {
 
   const originMap = new Map<string, Vector2>();
   selection.forEach((id) => {
-    const nodeEl = id === nodeId ? target : canvasRef.value?.querySelector<HTMLElement>(`[data-node-id="${id}"]`);
-    if (nodeEl) {
-      originMap.set(id, { x: nodeEl.offsetLeft, y: nodeEl.offsetTop });
-    } else {
-      const node = props.nodes.find((candidate) => candidate.id === id);
-      if (node) {
-        originMap.set(id, { ...node.position });
-      }
+    const node = props.nodes.find((candidate) => candidate.id === id);
+    if (node) {
+      originMap.set(id, { ...node.position });
     }
   });
 
+  const target = payload.event.currentTarget as HTMLElement | null;
+  if (!target) return;
+
   dragState.current = {
-    pointerStart: { x: event.clientX, y: event.clientY },
+    pointerStart: { x: payload.event.clientX, y: payload.event.clientY },
     element: target,
     selection: Array.from(selection),
     origins: originMap,
   };
 
-  target.setPointerCapture(event.pointerId);
+  target.setPointerCapture(payload.event.pointerId);
+}
+
+function handleCanvasClick(pointerEvent: PointerEvent) {
+  emit('canvas-clicked');
 }
 
 function handleCanvasPointerDown(event: PointerEvent) {
-  if (!canvasRef.value || event.target !== canvasRef.value) return;
+  if (!wrapperRef.value) return;
 
-  const rect = canvasRef.value.getBoundingClientRect();
+  const rect = wrapperRef.value.getBoundingClientRect();
   const point = {
-    x: event.clientX - rect.left,
-    y: event.clientY - rect.top,
+    x: event.clientX - rect.left + wrapperRef.value.scrollLeft,
+    y: event.clientY - rect.top + wrapperRef.value.scrollTop,
   };
   
   selectBoxState.start = point;
@@ -160,20 +144,15 @@ function handleCanvasPointerDown(event: PointerEvent) {
   selectBoxState.isActive = true;
 }
 
-function handleCanvasClick(event: MouseEvent) {
-  if (!canvasRef.value) return;
-  if (event.target === canvasRef.value) {
-    emit('canvas-clicked');
-  }
-}
+
 
 function handlePointerMove(event: PointerEvent) {
   // Handle drag-select box
-  if (selectBoxState.isActive && canvasRef.value) {
-    const rect = canvasRef.value.getBoundingClientRect();
+  if (selectBoxState.isActive && wrapperRef.value) {
+    const rect = wrapperRef.value.getBoundingClientRect();
     selectBoxState.current = {
-      x: event.clientX - rect.left,
-      y: event.clientY - rect.top,
+      x: event.clientX - rect.left + wrapperRef.value.scrollLeft,
+      y: event.clientY - rect.top + wrapperRef.value.scrollTop,
     };
     return;
   }
@@ -326,21 +305,29 @@ onBeforeUnmount(teardownListeners);
 </script>
 
 <template>
-  <section class="canvas" @click="handleCanvasClick">
-    <div
+  <section 
+    ref="wrapperRef"
+    class="builder-canvas-wrapper"
+    @dragover="handleDragOver"
+    @drop="handleDrop"
+  >
+    <FaceplateCanvas
       ref="canvasRef"
-      class="canvas__surface"
-      :style="{ width: `${contentSize.width}px`, height: `${contentSize.height}px` }"
-      @dragover="handleDragOver"
-      @drop="handleDrop"
-      @pointerdown="handleCanvasPointerDown"
-    >
-      <div class="canvas__grid"></div>
-    
-    <!-- Drag-select box -->
+      :components="canvasComponents"
+      :viewport="viewport"
+      :edit-mode="true"
+      :selected-component-id="selectedNodeId"
+      :selected-component-ids="selectedNodeIds"
+      :show-grid="true"
+      :show-viewport-boundary="!!viewport"
+      @component-click="handleComponentClick"
+      @canvas-click="handleCanvasClick"
+      @pointerdown.capture="handleCanvasPointerDown"
+    />
+    <!-- Drag-select box overlay (positioned absolutely over canvas) -->
     <div 
-      v-if="selectBoxState.isActive" 
-      class="canvas__select-box"
+      v-if="selectBoxState.isActive"
+      class="builder-canvas-wrapper__select-box"
       :style="{
         left: `${Math.min(selectBoxState.start.x, selectBoxState.current.x)}px`,
         top: `${Math.min(selectBoxState.start.y, selectBoxState.current.y)}px`,
@@ -348,130 +335,21 @@ onBeforeUnmount(teardownListeners);
         height: `${Math.abs(selectBoxState.current.y - selectBoxState.start.y)}px`,
       }"
     ></div>
-      <button
-        v-for="node in props.nodes"
-        :key="node.id"
-        class="canvas__node"
-        type="button"
-        :class="{ 
-          'canvas__node--selected': node.id === props.selectedNodeId,
-          'canvas__node--multi-selected': props.selectedNodeIds?.has(node.id)
-        }"
-        :data-node-id="node.id"
-  :style="{ left: `${node.position.x}px`, top: `${node.position.y}px`, width: `${node.size.x}px`, height: `${node.size.y}px` }"
-        @pointerdown="handleNodePointerDown($event, node.id)"
-        @click.stop
-      >
-        <PrimitiveRenderer
-          class="canvas__node-preview"
-          :type="node.componentId"
-          :config="node.props"
-          :edit-mode="true"
-        />
-      </button>
-    <div v-if="!props.nodes.length" class="canvas__hint">
-      Drag components here or drop them from the palette.
-    </div>
-    </div>
   </section>
 </template>
 
 <style scoped>
-.canvas {
+.builder-canvas-wrapper {
   position: relative;
   flex: 1;
-  border: 1px dashed rgba(255, 255, 255, 0.14);
-  border-radius: 14px;
   overflow: auto;
-  background: rgba(0, 0, 0, 0.24);
 }
 
-.canvas__surface {
-  position: relative;
-  min-width: 100%;
-  min-height: 100%;
-  border-radius: inherit;
-  background: linear-gradient(135deg, rgba(12, 22, 32, 0.85), rgba(6, 12, 20, 0.92));
-}
-
-.canvas__grid {
-  position: absolute;
-  inset: 0;
-  background-image: linear-gradient(
-      to right,
-      rgba(255, 255, 255, 0.04) 1px,
-      transparent 1px
-    ),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
-  background-size: 120px 120px;
-  pointer-events: none;
-  z-index: 0;
-}
-
-.canvas__viewport-boundary {
-  position: absolute;
-  top: 0;
-  left: 0;
-  border: 2px dashed rgba(0, 255, 194, 0.4);
-  background: rgba(0, 255, 194, 0.02);
-  pointer-events: none;
-  z-index: 1;
-  box-shadow: inset 0 0 0 1px rgba(0, 255, 194, 0.2);
-}
-
-.canvas__select-box {
+.builder-canvas-wrapper__select-box {
   position: absolute;
   border: 2px dashed rgba(100, 150, 255, 0.8);
   background: rgba(100, 150, 255, 0.15);
   pointer-events: none;
   z-index: 1000;
-}
-
-.canvas__node {
-  position: absolute;
-  display: flex;
-  align-items: stretch;
-  justify-content: stretch;
-  padding: 0;
-  border-radius: 12px;
-  border: 1px solid transparent;
-  background: transparent;
-  cursor: grab;
-  transition: border 0.18s ease, box-shadow 0.18s ease;
-}
-
-.canvas__node:focus-visible {
-  outline: none;
-  border-color: rgba(0, 200, 255, 0.7);
-}
-
-.canvas__node:active {
-  cursor: grabbing;
-}
-
-.canvas__node--selected {
-  border-color: rgba(0, 255, 194, 0.6);
-  box-shadow: 0 0 0 3px rgba(0, 255, 194, 0.18);
-}
-
-.canvas__node--multi-selected {
-  border-color: rgba(100, 150, 255, 0.6);
-  box-shadow: 0 0 0 3px rgba(100, 150, 255, 0.18);
-}
-
-.canvas__node-preview {
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  border-radius: inherit;
-}
-
-.canvas__hint {
-  position: absolute;
-  inset: auto 16px 16px 16px;
-  text-align: center;
-  font-size: 13px;
-  opacity: 0.55;
-  pointer-events: none;
 }
 </style>
