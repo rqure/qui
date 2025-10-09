@@ -1042,6 +1042,16 @@ async function saveWorkspace() {
       return;
     }
     
+    // Delete old components before creating new ones
+    const existingFaceplate = await faceplateService.readFaceplate(currentFaceplateId.value);
+    if (existingFaceplate.components.length > 0) {
+      await Promise.all(existingFaceplate.components.map(compId => 
+        faceplateService.deleteComponent(compId).catch(() => {
+          // Ignore errors if component doesn't exist
+        })
+      ));
+    }
+    
     // Build component entities and maintain node ID to component ID mapping
     const componentIds: EntityId[] = [];
     const nodeIdToComponentId = new Map<string, EntityId>();

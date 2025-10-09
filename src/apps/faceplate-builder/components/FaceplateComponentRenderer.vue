@@ -106,28 +106,130 @@ const componentClasses = computed(() => {
     </header>
 
     <div class="component-body">
-      <div v-if="normalizedType === 'gauge'" class="gauge" :style="{ '--gauge-percent': `${gaugePercent}%` }">
+      <!-- Text Block -->
+      <div v-if="normalizedType === 'primitive.text.block'" class="text-block" 
+        :style="{ 
+          color: component.config.textColor,
+          fontSize: `${component.config.fontSize}px`,
+          fontWeight: component.config.fontWeight,
+          textAlign: component.config.align,
+          lineHeight: component.config.lineHeight
+        }">
+        {{ component.bindings.text || component.config.text || 'Text' }}
+      </div>
+
+      <!-- Form Field / Text Input -->
+      <div v-else-if="normalizedType === 'primitive.form.field'" class="form-field">
+        <input 
+          type="text" 
+          :placeholder="component.config.placeholder"
+          :value="formValue"
+          readonly
+          :style="{ 
+            color: component.config.textColor,
+            backgroundColor: component.config.backgroundColor,
+            fontSize: `${component.config.fontSize}px`,
+            fontWeight: component.config.fontWeight,
+            textAlign: component.config.align
+          }"
+        />
+      </div>
+
+      <!-- Number Input -->
+      <div v-else-if="normalizedType === 'primitive.form.number'" class="form-field">
+        <input 
+          type="number" 
+          :placeholder="component.config.placeholder"
+          :value="formValue"
+          readonly
+          :style="{ 
+            color: component.config.textColor,
+            backgroundColor: component.config.backgroundColor,
+            fontSize: `${component.config.fontSize}px`
+          }"
+        />
+      </div>
+
+      <!-- Button -->
+      <div v-else-if="normalizedType === 'primitive.form.button'" class="button-primitive">
+        <button
+          :style="{ 
+            color: component.config.textColor,
+            backgroundColor: component.config.backgroundColor,
+            fontSize: `${component.config.fontSize}px`,
+            fontWeight: component.config.fontWeight
+          }">
+          {{ component.config.label || 'Button' }}
+        </button>
+      </div>
+
+      <!-- Toggle -->
+      <div v-else-if="normalizedType === 'primitive.form.toggle'" class="toggle-primitive">
+        <label class="toggle-switch">
+          <input type="checkbox" :checked="!!component.bindings.value" disabled />
+          <span class="toggle-slider"></span>
+        </label>
+        <span class="toggle-label">{{ component.config.label }}</span>
+      </div>
+
+      <!-- Rectangle Shape -->
+      <div v-else-if="normalizedType === 'primitive.shape.rectangle'" class="shape-rectangle"
+        :style="{ 
+          backgroundColor: component.config.fillColor,
+          border: `${component.config.borderWidth}px solid ${component.config.borderColor}`,
+          borderRadius: `${component.config.cornerRadius}px`
+        }">
+      </div>
+
+      <!-- Circle Shape -->
+      <div v-else-if="normalizedType === 'primitive.shape.circle'" class="shape-circle"
+        :style="{ 
+          backgroundColor: component.config.fillColor,
+          border: `${component.config.borderWidth}px solid ${component.config.borderColor}`
+        }">
+      </div>
+
+      <!-- Container -->
+      <div v-else-if="normalizedType === 'primitive.container'" class="container-primitive"
+        :style="{ 
+          backgroundColor: component.config.backgroundColor,
+          border: `${component.config.borderWidth}px solid ${component.config.borderColor}`,
+          borderRadius: `${component.config.cornerRadius}px`,
+          padding: `${component.config.padding}px`,
+          gap: `${component.config.gap}px`,
+          flexDirection: component.config.layoutDirection === 'horizontal' ? 'row' : 'column'
+        }">
+        <span style="opacity: 0.5; font-size: 12px;">Container (children not yet supported)</span>
+      </div>
+
+      <!-- Legacy: Gauge -->
+      <div v-else-if="normalizedType === 'gauge'" class="gauge" :style="{ '--gauge-percent': `${gaugePercent}%` }">
         <div class="gauge-fill"></div>
         <div class="gauge-value">{{ gaugeValue }}</div>
         <div class="gauge-range">{{ gaugeMin }} – {{ gaugeMax }}</div>
       </div>
 
+      <!-- Legacy: Indicator -->
       <div v-else-if="normalizedType === 'indicator'" class="indicator">
         <div class="indicator-dot" :style="{ backgroundColor: indicatorColor }"></div>
         <div class="indicator-label">{{ indicatorState }}</div>
       </div>
 
+      <!-- Legacy: Form Field -->
       <div v-else-if="normalizedType === 'formfield'" class="form-field">
         <label>{{ props.component.config.label || props.component.name }}</label>
         <div class="value">{{ formValue }}</div>
       </div>
 
+      <!-- Legacy: Trend -->
       <div v-else-if="normalizedType === 'trend'" class="trend">
         <div class="trend-placeholder">Trend preview not available in this build</div>
       </div>
 
+      <!-- Fallback -->
       <div v-else class="custom">
-        <pre>{{ JSON.stringify(props.component.bindings, null, 2) }}</pre>
+        <div style="opacity: 0.7; margin-bottom: 8px;">Type: {{ component.type }}</div>
+        <pre style="font-size: 11px; opacity: 0.6;">{{ JSON.stringify(props.component.bindings, null, 2) }}</pre>
       </div>
     </div>
   </div>
@@ -245,6 +347,12 @@ const componentClasses = computed(() => {
   text-transform: capitalize;
 }
 
+.text-block {
+  width: 100%;
+  padding: 8px;
+  overflow-wrap: break-word;
+}
+
 .form-field {
   display: flex;
   flex-direction: column;
@@ -259,6 +367,21 @@ const componentClasses = computed(() => {
   opacity: 0.65;
 }
 
+.form-field input {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  font-family: inherit;
+  transition: border-color 0.2s;
+}
+
+.form-field input:focus {
+  outline: none;
+  border-color: var(--qui-accent-color);
+}
+
 .form-field .value {
   min-height: 32px;
   padding: 8px 10px;
@@ -267,6 +390,106 @@ const componentClasses = computed(() => {
   border-radius: 6px;
   font-size: 15px;
   letter-spacing: 0.04em;
+}
+
+.button-primitive {
+  width: 100%;
+}
+
+.button-primitive button {
+  width: 100%;
+  padding: 12px 24px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: transform 0.1s, opacity 0.2s;
+}
+
+.button-primitive button:hover {
+  transform: translateY(-1px);
+  opacity: 0.9;
+}
+
+.button-primitive button:active {
+  transform: translateY(0);
+}
+
+.toggle-primitive {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 48px;
+  height: 26px;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(255, 255, 255, 0.1);
+  transition: 0.3s;
+  border-radius: 26px;
+}
+
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 4px;
+  bottom: 4px;
+  background-color: white;
+  transition: 0.3s;
+  border-radius: 50%;
+}
+
+.toggle-switch input:checked + .toggle-slider {
+  background-color: var(--qui-accent-color);
+}
+
+.toggle-switch input:checked + .toggle-slider:before {
+  transform: translateX(22px);
+}
+
+.toggle-label {
+  font-size: 14px;
+}
+
+.shape-rectangle {
+  width: 100%;
+  height: 100%;
+  min-height: 60px;
+}
+
+.shape-circle {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+}
+
+.container-primitive {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 80px;
 }
 
 .trend .trend-placeholder {

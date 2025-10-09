@@ -124,6 +124,8 @@ const allBindings = computed(() => {
 const componentMap = computed(() => {
   const map = new Map<string, FaceplateComponentRecord>();
   components.value.forEach((component) => {
+    // Map by both ID (for layout lookups) and name (for binding lookups)
+    map.set(String(component.id), component);
     map.set(component.name, component);
   });
   return map;
@@ -135,10 +137,22 @@ const renderedSlots = computed<RenderSlot[]>(() => {
     ? faceplate.value.configuration.layout
     : [];
 
-  return layout
+  if (import.meta.env.DEV) {
+    console.log('renderedSlots - layout items:', layout.length);
+    console.log('renderedSlots - layout:', layout);
+    console.log('renderedSlots - components:', components.value.length);
+    console.log('renderedSlots - componentMap keys:', Array.from(componentMap.value.keys()));
+  }
+
+  const slots = layout
     .map((slot) => {
       const component = componentMap.value.get(slot.component);
-      if (!component) return null;
+      if (!component) {
+        if (import.meta.env.DEV) {
+          console.warn('Component not found for slot:', slot.component, 'Available:', Array.from(componentMap.value.keys()));
+        }
+        return null;
+      }
 
       const bindings: Record<string, unknown> = {};
       const lastUpdated = componentLastUpdated[component.name] || {};
@@ -176,13 +190,27 @@ const renderedSlots = computed<RenderSlot[]>(() => {
       } as RenderSlot;
     })
     .filter((slot): slot is RenderSlot => Boolean(slot));
+  
+  if (import.meta.env.DEV) {
+    console.log('renderedSlots - final count:', slots.length);
+    console.log('renderedSlots - final slots:', slots);
+  }
+  
+  return slots;
 });
+
+const GRID_CELL_SIZE = 80; // Base grid cell size in pixels (matches builder grid)
 
 const gridTemplateColumns = computed(() => {
   if (renderedSlots.value.length === 0) {
     return 'repeat(1, minmax(220px, 1fr))';
   }
-  const columns = Math.max(...renderedSlots.value.map((slot) => slot.position.x + slot.position.w), 1);
+  // Convert pixel coordinates to grid units
+  const columns = Math.max(...renderedSlots.value.map((slot) => {
+    const gridX = Math.ceil(slot.position.x / GRID_CELL_SIZE);
+    const gridW = Math.ceil(slot.position.w / GRID_CELL_SIZE);
+    return gridX + gridW;
+  }), 1);
   return `repeat(${columns}, minmax(220px, 1fr))`;
 });
 
@@ -224,12 +252,22 @@ async function initialize() {
     }
 
     if (faceplate.value) {
+      if (import.meta.env.DEV) {
+        console.log('Loading faceplate:', faceplate.value.id);
+        console.log('Component IDs to load:', faceplate.value.components);
+        console.log('Layout slots:', faceplate.value.configuration.layout);
+      }
+      
       // Load components and compile scripts in parallel
       const [componentsData] = await Promise.all([
         service.readComponents(faceplate.value.components),
         Promise.resolve(compileFaceplateScriptModules(faceplate.value.scriptModules ?? []))
       ]);
       components.value = componentsData;
+      
+      if (import.meta.env.DEV) {
+        console.log('Loaded components:', componentsData.map(c => ({ id: c.id, name: c.name })));
+      }
     } else {
       components.value = [];
       compileFaceplateScriptModules([]);
@@ -889,11 +927,17 @@ function ensureArray<T>(value: T[] | T | null | undefined): T[] {
 }
 
 function getSlotStyle(slot: RenderSlot) {
+  // Convert pixel coordinates to grid units
+  const gridX = Math.ceil(slot.position.x / GRID_CELL_SIZE);
+  const gridY = Math.ceil(slot.position.y / GRID_CELL_SIZE);
+  const gridW = Math.ceil(slot.position.w / GRID_CELL_SIZE);
+  const gridH = Math.ceil(slot.position.h / GRID_CELL_SIZE);
+  
   return {
-    gridColumnStart: String(slot.position.x + 1),
-    gridColumnEnd: `span ${Math.max(slot.position.w, 1)}`,
-    gridRowStart: String(slot.position.y + 1),
-    gridRowEnd: `span ${Math.max(slot.position.h, 1)}`,
+    gridColumnStart: String(gridX + 1),
+    gridColumnEnd: `span ${Math.max(gridW, 1)}`,
+    gridRowStart: String(gridY + 1),
+    gridRowEnd: `span ${Math.max(gridH, 1)}`,
   };
 }
 
@@ -933,8 +977,9 @@ defineExpose({
     <div v-if="loading" class="runtime-state loading">Loading faceplate…</div>
     <div v-else-if="error" class="runtime-state error">{{ error }}</div>
     <div v-else-if="!faceplate" class="runtime-state empty">No faceplate selected</div>
-    <div v-else-if="!entityId" class="runtime-state empty">Select an entity to drive this faceplate</div>
+    <div v-else-if="!entityId" class="runtime-state empty">Select an entity to drive this faceplate (entityId: {{ entityId }})</div>
     <div v-else class="runtime-grid" :style="{ gridTemplateColumns: gridTemplateColumns }">
+      <!-- Debug: {{ renderedSlots.length }} slots, grid columns: {{ gridTemplateColumns }} -->
       <div
         v-for="slot in renderedSlots"
         :key="slot.id"
@@ -980,5 +1025,8 @@ defineExpose({
 
 .runtime-slot {
   min-height: 160px;
+  /* Debug: make slots visible */
+  border: 1px solid rgba(0, 255, 170, 0.3);
+  background: rgba(0, 0, 0, 0.2);
 }
 </style>
