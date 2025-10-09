@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import type { EntityId, FieldType, NotifyConfig, Notification } from '@/core/data/types';
 import { ValueHelpers } from '@/core/data/types';
 import { useDataStore } from '@/stores/data';
-import FaceplateComponentRenderer from './FaceplateComponentRenderer.vue';
+import PrimitiveRenderer from './PrimitiveRenderer.vue';
 import { FaceplateDataService, type FaceplateComponentRecord, type FaceplateRecord, type FaceplateBindingDefinition, type FaceplateScriptModule } from '@/apps/faceplate-builder/utils/faceplate-data';
 import type { BindingMode } from '@/apps/faceplate-builder/types';
 import { IndirectFieldNotifier } from '@/apps/faceplate-builder/utils/indirect-field-notifier';
@@ -986,7 +986,12 @@ defineExpose({
         class="runtime-slot"
         :style="getSlotStyle(slot)"
       >
-        <FaceplateComponentRenderer :component="slot" />
+        <PrimitiveRenderer
+          :type="slot.type"
+          :config="slot.config"
+          :bindings="slot.bindings"
+          :edit-mode="false"
+        />
       </div>
     </div>
   </div>
@@ -1021,12 +1026,5 @@ defineExpose({
   display: grid;
   grid-auto-rows: minmax(160px, auto);
   gap: 18px;
-}
-
-.runtime-slot {
-  min-height: 160px;
-  /* Debug: make slots visible */
-  border: 1px solid rgba(0, 255, 170, 0.3);
-  background: rgba(0, 0, 0, 0.2);
 }
 </style>
