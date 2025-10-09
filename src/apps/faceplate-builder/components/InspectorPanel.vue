@@ -279,6 +279,70 @@ function handleParentChange(event: Event) {
     emit('add-to-container', { nodeIds: [props.node.id], containerId: newParentId });
   }
 }
+
+// Tab Container management
+const isTabContainer = computed(() => {
+  return props.node?.componentId === 'primitive.container.tabs';
+});
+
+const tabs = computed(() => {
+  if (!props.node?.props?.tabs || !Array.isArray(props.node.props.tabs)) {
+    return [];
+  }
+  return props.node.props.tabs as Array<{ name: string; id: string }>;
+});
+
+function addTab() {
+  if (!props.node) return;
+  const currentTabs = tabs.value;
+  const newTabIndex = currentTabs.length;
+  const newTab = {
+    name: `Tab ${newTabIndex + 1}`,
+    id: `tab-${newTabIndex}`,
+  };
+  emit('prop-updated', {
+    nodeId: props.node.id,
+    key: 'tabs',
+    value: [...currentTabs, newTab],
+  });
+}
+
+function removeTab(tabId: string) {
+  if (!props.node) return;
+  const currentTabs = tabs.value;
+  const updatedTabs = currentTabs.filter(tab => tab.id !== tabId);
+  if (updatedTabs.length === 0) {
+    // Don't allow removing all tabs
+    return;
+  }
+  emit('prop-updated', {
+    nodeId: props.node.id,
+    key: 'tabs',
+    value: updatedTabs,
+  });
+  // If active tab was removed, reset to first tab
+  const activeTab = Number(props.node.props?.activeTab ?? 0);
+  if (activeTab >= updatedTabs.length) {
+    emit('prop-updated', {
+      nodeId: props.node.id,
+      key: 'activeTab',
+      value: 0,
+    });
+  }
+}
+
+function updateTabName(tabId: string, newName: string) {
+  if (!props.node) return;
+  const currentTabs = tabs.value;
+  const updatedTabs = currentTabs.map(tab => 
+    tab.id === tabId ? { ...tab, name: newName } : tab
+  );
+  emit('prop-updated', {
+    nodeId: props.node.id,
+    key: 'tabs',
+    value: updatedTabs,
+  });
+}
 </script>
 
 <template>
@@ -379,6 +443,56 @@ function handleParentChange(event: Event) {
           </div>
           <p v-else class="inspector__hint">
             No children yet. Drag components over this container or use "Add to Container" from another component's menu.
+          </p>
+        </div>
+      </section>
+
+      <!-- Tab Management Section (for TabContainer only) -->
+      <section v-if="isTabContainer" class="inspector__section">
+        <header>
+          <h3>Tab Management</h3>
+        </header>
+        
+        <div class="tab-management">
+          <div class="tab-management__header">
+            <span class="container-section__label">Tabs ({{ tabs.length }})</span>
+            <button 
+              type="button" 
+              class="inspector__secondary"
+              @click="addTab"
+            >
+              Add Tab
+            </button>
+          </div>
+          
+          <div v-if="tabs.length > 0" class="tab-list">
+            <div 
+              v-for="(tab, index) in tabs" 
+              :key="tab.id" 
+              class="tab-item"
+            >
+              <span class="tab-item__index">{{ index }}</span>
+              <input 
+                type="text" 
+                class="tab-item__input"
+                :value="tab.name"
+                @input="updateTabName(tab.id, ($event.target as HTMLInputElement).value)"
+                placeholder="Tab name"
+              />
+              <button 
+                v-if="tabs.length > 1"
+                type="button" 
+                class="tab-item__remove"
+                @click="removeTab(tab.id)"
+                title="Remove tab"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+          
+          <p class="inspector__hint">
+            Each tab can have its own set of child components. Assign children to specific tabs using the component's tabId property.
           </p>
         </div>
       </section>
@@ -938,5 +1052,92 @@ function handleParentChange(event: Event) {
 
 .inspector__danger-link:hover {
   opacity: 0.8;
+}
+
+/* Tab Management Styles */
+.tab-management {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tab-management__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.tab-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tab-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+
+.tab-item:hover {
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.tab-item__index {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 4px;
+  background: rgba(0, 255, 136, 0.15);
+  border: 1px solid rgba(0, 255, 136, 0.3);
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(0, 255, 136, 0.9);
+}
+
+.tab-item__input {
+  flex: 1;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  color: inherit;
+  font-size: 13px;
+}
+
+.tab-item__input:focus {
+  outline: none;
+  border-color: rgba(0, 255, 194, 0.5);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.tab-item__remove {
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: rgba(255, 68, 68, 0.2);
+  color: #ff4444;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.tab-item__remove:hover {
+  background: rgba(255, 68, 68, 0.3);
+  transform: scale(1.1);
 }
 </style>

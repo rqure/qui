@@ -25,6 +25,7 @@ const emit = defineEmits<{
   (event: 'nodes-move-end', updates: Array<{ nodeId: string; position: Vector2 }>): void;
   (event: 'canvas-clicked'): void;
   (event: 'drag-select-complete', selectedIds: string[]): void;
+  (event: 'add-to-container', payload: { nodeIds: string[]; containerId: string }): void;
 }>();
 
 type DragState = {
@@ -44,6 +45,7 @@ const dragState = reactive<{ current: DragState | null }>({ current: null });
 const selectBoxState = reactive<SelectBoxState>({ start: { x: 0, y: 0 }, current: { x: 0, y: 0 }, isActive: false });
 const canvasRef = ref<InstanceType<typeof FaceplateCanvas> | null>(null);
 const wrapperRef = ref<HTMLElement | null>(null);
+const dropTargetContainerId = ref<string | null>(null);
 
 // Zoom and pan state
 const zoom = ref(1);
@@ -71,6 +73,32 @@ const canvasComponents = computed<CanvasComponent[]>(() => {
     // Children will be assembled by FaceplateCanvas
   }));
 });
+
+// Helper to check if a component is a container
+function isContainerType(componentId: string): boolean {
+  return componentId === 'primitive.container' || componentId === 'primitive.container.tabs';
+}
+
+// Find container at given position during drag
+function findContainerAtPosition(x: number, y: number): CanvasNode | null {
+  // Find containers under the cursor, excluding selected nodes being dragged
+  const selectedIds = props.selectedNodeIds ? Array.from(props.selectedNodeIds) : [];
+  const containers = props.nodes.filter(node => 
+    isContainerType(node.componentId) && !selectedIds.includes(node.id)
+  );
+  
+  // Check which container contains this point
+  for (const container of containers) {
+    const inBounds = x >= container.position.x && 
+                     x <= container.position.x + container.size.x &&
+                     y >= container.position.y && 
+                     y <= container.position.y + container.size.y;
+    if (inBounds) {
+      return container;
+    }
+  }
+  return null;
+}
 
 function handleDragOver(event: DragEvent) {
   event.preventDefault();
@@ -297,6 +325,17 @@ function handlePointerMove(event: PointerEvent) {
   if (updates.length) {
     emit('nodes-updated', updates);
   }
+
+  // Check if hovering over a container for drag-to-contain
+  if (canvasRef.value?.canvasRef) {
+    const canvasEl = canvasRef.value.canvasRef;
+    const rect = canvasEl.getBoundingClientRect();
+    const canvasX = (event.clientX - rect.left - pan.value.x) / zoom.value + canvasEl.scrollLeft;
+    const canvasY = (event.clientY - rect.top - pan.value.y) / zoom.value + canvasEl.scrollTop;
+    
+    const container = findContainerAtPosition(canvasX, canvasY);
+    dropTargetContainerId.value = container ? container.id : null;
+  }
 }
 
 function handlePointerUp(event: PointerEvent) {
@@ -367,8 +406,17 @@ function handlePointerUp(event: PointerEvent) {
     if (updates.length) {
       emit('nodes-move-end', updates);
     }
+
+    // Handle drag-to-contain if hovering over a container
+    if (dropTargetContainerId.value) {
+      emit('add-to-container', {
+        nodeIds: selection,
+        containerId: dropTargetContainerId.value
+      });
+    }
   }
 
+  dropTargetContainerId.value = null;
   dragState.current = null;
 }
 
@@ -470,6 +518,7 @@ onBeforeUnmount(teardownListeners);
       :edit-mode="true"
       :selected-component-id="selectedNodeId"
       :selected-component-ids="selectedNodeIds"
+      :drop-target-container-id="dropTargetContainerId"
       :show-grid="true"
       :show-viewport-boundary="!!viewport"
       :zoom="zoom"

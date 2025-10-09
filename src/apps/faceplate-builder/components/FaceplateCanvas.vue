@@ -25,6 +25,7 @@ interface Props {
   editMode?: boolean;
   selectedComponentId?: string | number | null;
   selectedComponentIds?: Set<string | number>;
+  dropTargetContainerId?: string | number | null; // Container being hovered during drag
   showGrid?: boolean;
   showViewportBoundary?: boolean;
   zoom?: number;
@@ -34,6 +35,7 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   editMode: false,
   selectedComponentId: null,
+  dropTargetContainerId: null,
   showGrid: true,
   showViewportBoundary: false,
   zoom: 1,
@@ -247,11 +249,16 @@ const ComponentNode = {
     parentVisible: { type: Boolean, default: true },
     parentOpacity: { type: Number, default: 1 },
     isInsideContainer: { type: Boolean, default: false },
+    dropTargetContainerId: { type: [String, Number], default: null },
   },
   emits: ['component-click', 'component-drag-start'],
   setup(props: any, { emit }: any) {
     const isContainerType = computed(() => {
       return isContainer(props.component.type);
+    });
+    
+    const isDropTarget = computed(() => {
+      return isContainerType.value && props.dropTargetContainerId === props.component.id;
     });
     
     // Check if this component should be visible (cascades from parent)
@@ -324,6 +331,7 @@ const ComponentNode = {
     
     return {
       isContainerType,
+      isDropTarget,
       isVisible,
       effectiveOpacity,
       layoutChildren,
@@ -342,6 +350,7 @@ const ComponentNode = {
         'faceplate-canvas__component--interactive': editMode,
         'faceplate-canvas__component--container': isContainerType,
         'faceplate-canvas__component--inside-container': isInsideContainer,
+        'faceplate-canvas__component--drop-target': isDropTarget,
       }"
       :style="componentStyle"
       :data-component-id="component.id"
@@ -367,6 +376,7 @@ const ComponentNode = {
             :parent-visible="isVisible"
             :parent-opacity="effectiveOpacity"
             :is-inside-container="true"
+            :drop-target-container-id="dropTargetContainerId"
             @component-click="$emit('component-click', $event)"
             @component-drag-start="$emit('component-drag-start', $event)"
           />
@@ -405,6 +415,7 @@ const ComponentNode = {
           :edit-mode="editMode"
           :is-selected="isComponentSelected(component.id)"
           :is-multi-selected="isComponentMultiSelected(component.id)"
+          :drop-target-container-id="dropTargetContainerId"
           @component-click="emit('component-click', $event)"
           @component-drag-start="emit('component-drag-start', $event)"
         />
@@ -525,6 +536,22 @@ const ComponentNode = {
 /* In edit mode, keep absolute positioning for manual layout */
 .faceplate-canvas--edit-mode .faceplate-canvas__component--inside-container {
   position: absolute;
+}
+
+/* Drop target highlighting during drag-to-contain */
+.faceplate-canvas__component--drop-target {
+  box-shadow: inset 0 0 0 3px rgba(0, 255, 194, 0.6), 0 0 12px rgba(0, 255, 194, 0.4) !important;
+  background-color: rgba(0, 255, 194, 0.08) !important;
+  animation: pulse-glow 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: inset 0 0 0 3px rgba(0, 255, 194, 0.6), 0 0 12px rgba(0, 255, 194, 0.4);
+  }
+  50% {
+    box-shadow: inset 0 0 0 3px rgba(0, 255, 194, 0.8), 0 0 16px rgba(0, 255, 194, 0.6);
+  }
 }
 
 .faceplate-canvas__hint {

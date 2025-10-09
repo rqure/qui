@@ -342,6 +342,11 @@ export const PRIMITIVE_REGISTRY: PrimitiveDefinition[] = [
       tabTextColor: '#ffffff',
       visible: true,
       opacity: 1,
+      tabs: [
+        { name: 'Tab 1', id: 'tab-0' },
+        { name: 'Tab 2', id: 'tab-1' },
+        { name: 'Tab 3', id: 'tab-2' },
+      ],
     },
     propertySchema: [
       { key: 'backgroundColor', label: 'Background', type: 'color', default: 'rgba(0, 0, 0, 0.2)' },

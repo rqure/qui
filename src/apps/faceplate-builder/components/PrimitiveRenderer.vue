@@ -187,26 +187,15 @@ const normalizedType = computed(() => props.type.toLowerCase());
           backgroundColor: config.tabBackgroundColor,
           color: config.tabTextColor
         }">
-        <div class="tab-button"
-          :class="{ 'tab-button-active': getValue('activeTab', 0) === 0 }"
+        <div 
+          v-for="(tab, index) in (config.tabs || [])"
+          :key="tab.id || index"
+          class="tab-button"
+          :class="{ 'tab-button-active': getValue('activeTab', 0) === index }"
           :style="{
-            backgroundColor: getValue('activeTab', 0) === 0 ? config.activeTabColor : 'transparent'
+            backgroundColor: getValue('activeTab', 0) === index ? config.activeTabColor : 'transparent'
           }">
-          Tab 1
-        </div>
-        <div class="tab-button"
-          :class="{ 'tab-button-active': getValue('activeTab', 0) === 1 }"
-          :style="{
-            backgroundColor: getValue('activeTab', 0) === 1 ? config.activeTabColor : 'transparent'
-          }">
-          Tab 2
-        </div>
-        <div class="tab-button"
-          :class="{ 'tab-button-active': getValue('activeTab', 0) === 2 }"
-          :style="{
-            backgroundColor: getValue('activeTab', 0) === 2 ? config.activeTabColor : 'transparent'
-          }">
-          Tab 3
+          {{ tab.name || `Tab ${index + 1}` }}
         </div>
       </div>
       <div class="tab-content" :style="{ padding: `${config.padding}px` }">
