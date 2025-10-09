@@ -262,7 +262,6 @@ const normalizedType = computed(() => props.type.toLowerCase());
 
 .form-input input:focus {
   outline: none;
-  border-color: var(--qui-accent-color);
 }
 
 .button-primitive {
