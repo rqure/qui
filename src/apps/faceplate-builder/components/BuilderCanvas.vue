@@ -8,7 +8,7 @@ type CanvasDropPayload = {
   position: Vector2;
 };
 
-const GRID_SIZE = 120;
+const GRID_SIZE = 10; // Fine grid for precise alignment (10px)
 
 const props = defineProps<{
   nodes: CanvasNode[];
@@ -45,6 +45,20 @@ const selectBoxState = reactive<SelectBoxState>({ start: { x: 0, y: 0 }, current
 const canvasRef = ref<InstanceType<typeof FaceplateCanvas> | null>(null);
 const wrapperRef = ref<HTMLElement | null>(null);
 
+// Zoom and pan state
+const zoom = ref(1);
+const pan = ref({ x: 0, y: 0 });
+const isPanning = ref(false);
+const panStart = ref({ x: 0, y: 0 });
+const panOrigin = ref({ x: 0, y: 0 });
+
+// Snapping state
+const snapToGridEnabled = ref(true);
+
+const ZOOM_MIN = 0.1;
+const ZOOM_MAX = 3;
+const ZOOM_STEP = 0.1;
+
 // Convert CanvasNode to CanvasComponent format
 const canvasComponents = computed<CanvasComponent[]>(() => {
   return props.nodes.map(node => ({
@@ -68,8 +82,8 @@ function handleDrop(event: DragEvent) {
 
   const canvasEl = canvasRef.value.canvasRef;
   const rect = canvasEl.getBoundingClientRect();
-  const localX = event.clientX - rect.left + canvasEl.scrollLeft;
-  const localY = event.clientY - rect.top + canvasEl.scrollTop;
+  const localX = (event.clientX - rect.left - pan.value.x) / zoom.value + canvasEl.scrollLeft;
+  const localY = (event.clientY - rect.top - pan.value.y) / zoom.value + canvasEl.scrollTop;
 
   const snapped = snapToGrid({ x: localX, y: localY });
   emit('node-requested', {
@@ -79,10 +93,70 @@ function handleDrop(event: DragEvent) {
 }
 
 function snapToGrid(point: Vector2): Vector2 {
+  if (!snapToGridEnabled.value) {
+    return {
+      x: Math.max(0, point.x),
+      y: Math.max(0, point.y),
+    };
+  }
   return {
     x: Math.max(0, Math.round(point.x / GRID_SIZE) * GRID_SIZE),
     y: Math.max(0, Math.round(point.y / GRID_SIZE) * GRID_SIZE),
   };
+}
+
+function toggleSnap() {
+  snapToGridEnabled.value = !snapToGridEnabled.value;
+}
+
+function handleZoomIn() {
+  zoom.value = Math.min(ZOOM_MAX, zoom.value + ZOOM_STEP);
+}
+
+function handleZoomOut() {
+  zoom.value = Math.max(ZOOM_MIN, zoom.value - ZOOM_STEP);
+}
+
+function handleZoomReset() {
+  zoom.value = 1;
+  pan.value = { x: 0, y: 0 };
+}
+
+function handleZoomFit() {
+  if (!props.viewport || !canvasRef.value?.canvasRef) return;
+  const canvasEl = canvasRef.value.canvasRef;
+  const containerWidth = canvasEl.clientWidth;
+  const containerHeight = canvasEl.clientHeight;
+  const contentWidth = props.viewport.x;
+  const contentHeight = props.viewport.y;
+  
+  const scaleX = containerWidth / contentWidth;
+  const scaleY = containerHeight / contentHeight;
+  zoom.value = Math.min(scaleX, scaleY, 1) * 0.9; // 90% to add padding
+  pan.value = { x: 0, y: 0 };
+}
+
+function handleWheel(event: WheelEvent) {
+  if (!event.ctrlKey && !event.metaKey) return;
+  event.preventDefault();
+  
+  const delta = -event.deltaY * 0.001;
+  const newZoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, zoom.value + delta));
+  
+  // Zoom towards cursor position
+  if (canvasRef.value?.canvasRef) {
+    const rect = canvasRef.value.canvasRef.getBoundingClientRect();
+    const mouseX = event.clientX - rect.left;
+    const mouseY = event.clientY - rect.top;
+    
+    const zoomRatio = newZoom / zoom.value;
+    pan.value = {
+      x: mouseX - (mouseX - pan.value.x) * zoomRatio,
+      y: mouseY - (mouseY - pan.value.y) * zoomRatio,
+    };
+  }
+  
+  zoom.value = newZoom;
 }
 
 function handleComponentClick(payload: { id: string | number; event: PointerEvent; isMultiSelect: boolean }) {
@@ -134,6 +208,14 @@ function handleCanvasClick(pointerEvent: PointerEvent) {
 function handleCanvasPointerDown(event: PointerEvent) {
   if (!canvasRef.value?.canvasRef) return;
   
+  // Check for space bar pan mode
+  if (event.button === 1 || (event.button === 0 && event.shiftKey && event.altKey)) {
+    isPanning.value = true;
+    panStart.value = { x: event.clientX, y: event.clientY };
+    panOrigin.value = { ...pan.value };
+    return;
+  }
+  
   // Only handle canvas background clicks, not component clicks
   const target = event.target as HTMLElement;
   if (target.closest('.faceplate-canvas__component') || target.classList.contains('faceplate-canvas__component')) {
@@ -143,8 +225,8 @@ function handleCanvasPointerDown(event: PointerEvent) {
   const canvasEl = canvasRef.value.canvasRef;
   const rect = canvasEl.getBoundingClientRect();
   const point = {
-    x: event.clientX - rect.left + canvasEl.scrollLeft,
-    y: event.clientY - rect.top + canvasEl.scrollTop,
+    x: (event.clientX - rect.left - pan.value.x) / zoom.value + canvasEl.scrollLeft,
+    y: (event.clientY - rect.top - pan.value.y) / zoom.value + canvasEl.scrollTop,
   };
   
   selectBoxState.start = point;
@@ -155,13 +237,22 @@ function handleCanvasPointerDown(event: PointerEvent) {
 
 
 function handlePointerMove(event: PointerEvent) {
+  // Handle panning
+  if (isPanning.value) {
+    pan.value = {
+      x: panOrigin.value.x + (event.clientX - panStart.value.x),
+      y: panOrigin.value.y + (event.clientY - panStart.value.y),
+    };
+    return;
+  }
+  
   // Handle drag-select box
   if (selectBoxState.isActive && canvasRef.value?.canvasRef) {
     const canvasEl = canvasRef.value.canvasRef;
     const rect = canvasEl.getBoundingClientRect();
     selectBoxState.current = {
-      x: event.clientX - rect.left + canvasEl.scrollLeft,
-      y: event.clientY - rect.top + canvasEl.scrollTop,
+      x: (event.clientX - rect.left - pan.value.x) / zoom.value + canvasEl.scrollLeft,
+      y: (event.clientY - rect.top - pan.value.y) / zoom.value + canvasEl.scrollTop,
     };
     return;
   }
@@ -207,6 +298,12 @@ function handlePointerMove(event: PointerEvent) {
 }
 
 function handlePointerUp(event: PointerEvent) {
+  // Handle pan end
+  if (isPanning.value) {
+    isPanning.value = false;
+    return;
+  }
+  
   // Handle drag-select completion
   if (selectBoxState.isActive) {
     const box = getSelectBox();
@@ -320,6 +417,50 @@ onBeforeUnmount(teardownListeners);
     @dragover="handleDragOver"
     @drop="handleDrop"
   >
+    <!-- Zoom controls -->
+    <div class="zoom-controls">
+      <button type="button" class="zoom-btn" @click="handleZoomOut" title="Zoom Out (Ctrl + Scroll)">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M2 8h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <span class="zoom-level">{{ Math.round(zoom * 100) }}%</span>
+      <button type="button" class="zoom-btn" @click="handleZoomIn" title="Zoom In (Ctrl + Scroll)">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M8 2v12M2 8h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <button type="button" class="zoom-btn" @click="handleZoomReset" title="Reset Zoom (100%)">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+          <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="2" fill="none"/>
+          <path d="M8 5v6M5 8h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <button type="button" class="zoom-btn" @click="handleZoomFit" title="Fit to Viewport" v-if="viewport">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+          <rect x="2" y="2" width="12" height="12" stroke="currentColor" stroke-width="2" fill="none" rx="1"/>
+          <path d="M5 8h6M8 5v6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <div class="zoom-divider"></div>
+      <button 
+        type="button" 
+        class="zoom-btn snap-btn" 
+        :class="{ 'snap-active': snapToGridEnabled }"
+        @click="toggleSnap" 
+        :title="snapToGridEnabled ? 'Snap to Grid: ON (10px)' : 'Snap to Grid: OFF'"
+      >
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+          <rect x="2" y="2" width="4" height="4" fill="currentColor" opacity="0.5"/>
+          <rect x="10" y="2" width="4" height="4" fill="currentColor" opacity="0.5"/>
+          <rect x="2" y="10" width="4" height="4" fill="currentColor" opacity="0.5"/>
+          <rect x="10" y="10" width="4" height="4" fill="currentColor" opacity="0.5"/>
+          <rect x="6" y="6" width="4" height="4" fill="currentColor"/>
+        </svg>
+      </button>
+      <span class="zoom-hint">Ctrl+Scroll to zoom • Middle-click to pan</span>
+    </div>
+    
     <FaceplateCanvas
       ref="canvasRef"
       :components="canvasComponents"
@@ -329,19 +470,22 @@ onBeforeUnmount(teardownListeners);
       :selected-component-ids="selectedNodeIds"
       :show-grid="true"
       :show-viewport-boundary="!!viewport"
+      :zoom="zoom"
+      :pan="pan"
       @component-click="handleComponentClick"
       @canvas-click="handleCanvasClick"
       @pointerdown.capture="handleCanvasPointerDown"
+      @wheel.prevent="handleWheel"
     />
     <!-- Drag-select box overlay (positioned absolutely over canvas) -->
     <div 
       v-if="selectBoxState.isActive"
       class="builder-canvas-wrapper__select-box"
       :style="{
-        left: `${Math.min(selectBoxState.start.x, selectBoxState.current.x)}px`,
-        top: `${Math.min(selectBoxState.start.y, selectBoxState.current.y)}px`,
-        width: `${Math.abs(selectBoxState.current.x - selectBoxState.start.x)}px`,
-        height: `${Math.abs(selectBoxState.current.y - selectBoxState.start.y)}px`,
+        left: `${Math.min(selectBoxState.start.x, selectBoxState.current.x) * zoom + pan.x}px`,
+        top: `${Math.min(selectBoxState.start.y, selectBoxState.current.y) * zoom + pan.y}px`,
+        width: `${Math.abs(selectBoxState.current.x - selectBoxState.start.x) * zoom}px`,
+        height: `${Math.abs(selectBoxState.current.y - selectBoxState.start.y) * zoom}px`,
       }"
     ></div>
   </section>
@@ -352,6 +496,88 @@ onBeforeUnmount(teardownListeners);
   position: relative;
   flex: 1;
   overflow: hidden;
+}
+
+.zoom-controls {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  backdrop-filter: blur(8px);
+}
+
+.zoom-btn {
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  color: var(--qui-text-primary);
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.zoom-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(0, 255, 194, 0.4);
+}
+
+.zoom-btn:active {
+  transform: scale(0.95);
+}
+
+.zoom-level {
+  min-width: 50px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--qui-text-primary);
+}
+
+.zoom-divider {
+  width: 1px;
+  height: 20px;
+  background: rgba(255, 255, 255, 0.1);
+  margin: 0 4px;
+}
+
+.snap-btn {
+  position: relative;
+}
+
+.snap-btn.snap-active {
+  background: rgba(0, 255, 194, 0.15);
+  border-color: rgba(0, 255, 194, 0.4);
+}
+
+.snap-btn.snap-active::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgba(0, 255, 194, 1);
+  box-shadow: 0 0 4px rgba(0, 255, 194, 0.8);
+}
+
+.zoom-hint {
+  margin-left: 4px;
+  padding-left: 12px;
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 11px;
+  color: var(--qui-text-secondary);
+  opacity: 0.7;
 }
 
 .builder-canvas-wrapper__select-box {
