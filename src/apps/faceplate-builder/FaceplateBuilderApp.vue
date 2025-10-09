@@ -614,6 +614,9 @@ function cloneState(): { nodes: CanvasNode[]; bindings: Binding[]; viewport: Vec
       position: { ...node.position },
       size: { ...node.size },
       props: { ...node.props },
+      parentId: node.parentId || null,
+      children: node.children ? [...node.children] : undefined,
+      zIndex: node.zIndex,
     })),
     bindings: bindings.value.map((binding) => ({ ...binding })),
     viewport: { ...viewportSize.value },
@@ -677,6 +680,9 @@ function applyState(snapshot: {
     position: { ...node.position },
     size: { ...node.size },
     props: { ...node.props },
+    parentId: node.parentId || null,
+    children: node.children ? [...node.children] : undefined,
+    zIndex: node.zIndex,
   }));
   bindings.value = snapshot.bindings.map((binding) => ({ ...binding }));
   viewportSize.value = snapshot.viewport ? { ...snapshot.viewport } : { ...DEFAULT_VIEWPORT };
@@ -845,14 +851,40 @@ function deleteNodesByIds(ids: string[]) {
   }
 
   const idSet = new Set(ids);
+  
+  // Also delete all descendants
+  const getAllDescendants = (nodeId: string): string[] => {
+    const children = getContainerChildren(nodeId);
+    const descendants: string[] = [];
+    for (const child of children) {
+      descendants.push(child.id);
+      descendants.push(...getAllDescendants(child.id));
+    }
+    return descendants;
+  };
+  
+  // Collect all nodes to delete (original + descendants)
+  const allIdsToDelete = new Set(ids);
+  for (const id of ids) {
+    getAllDescendants(id).forEach(descId => allIdsToDelete.add(descId));
+  }
+  
+  // Remove from parent containers
+  for (const id of allIdsToDelete) {
+    const node = nodes.value.find(n => n.id === id);
+    if (node && node.parentId) {
+      removeFromParentChildren(id, node.parentId);
+    }
+  }
+  
   const beforeNodeCount = nodes.value.length;
-  nodes.value = nodes.value.filter((node) => !idSet.has(node.id));
+  nodes.value = nodes.value.filter((node) => !allIdsToDelete.has(node.id));
 
   const beforeBindingCount = bindings.value.length;
-  bindings.value = bindings.value.filter((binding) => !idSet.has(binding.componentId));
+  bindings.value = bindings.value.filter((binding) => !allIdsToDelete.has(binding.componentId));
 
   const nextSelection = new Set(selectedNodeIds.value);
-  idSet.forEach((id) => nextSelection.delete(id));
+  allIdsToDelete.forEach((id) => nextSelection.delete(id));
   applySelection(nextSelection, selectedNodeId.value);
 
   if (beforeNodeCount !== nodes.value.length || beforeBindingCount !== bindings.value.length) {
@@ -976,6 +1008,132 @@ function handleSendBackward(payload: { nodeId: string }) {
   updated.splice(index - 1, 0, node);
   nodes.value = updated;
   pushHistory();
+}
+
+// Container management functions
+function isContainer(nodeId: string): boolean {
+  const node = nodes.value.find(n => n.id === nodeId);
+  if (!node) return false;
+  const template = templateMap.value[node.componentId];
+  if (!template) return false;
+  return template.primitiveId === 'primitive.container' || template.primitiveId === 'primitive.container.tabs';
+}
+
+function getContainerChildren(containerId: string): CanvasNode[] {
+  return nodes.value.filter(node => node.parentId === containerId);
+}
+
+function getAllContainers(): CanvasNode[] {
+  return nodes.value.filter(node => isContainer(node.id));
+}
+
+function addToContainer(nodeIds: string[], containerId: string) {
+  if (!isContainer(containerId)) return;
+  
+  const container = nodes.value.find(n => n.id === containerId);
+  if (!container) return;
+  
+  // Don't allow adding a container to itself or creating circular dependencies
+  for (const nodeId of nodeIds) {
+    if (nodeId === containerId) return;
+    if (isAncestor(nodeId, containerId)) return;
+  }
+  
+  nodes.value = nodes.value.map(node => {
+    if (!nodeIds.includes(node.id)) return node;
+    
+    // Remove from old parent if any
+    if (node.parentId) {
+      removeFromParentChildren(node.id, node.parentId);
+    }
+    
+    // Convert position to relative coordinates within container
+    const relativePosition = {
+      x: node.position.x - container.position.x,
+      y: node.position.y - container.position.y
+    };
+    
+    return {
+      ...node,
+      parentId: containerId,
+      position: relativePosition
+    };
+  });
+  
+  // Update container's children array
+  const existingChildren = container.children || [];
+  const newChildren = [...existingChildren, ...nodeIds.filter(id => !existingChildren.includes(id))];
+  nodes.value = nodes.value.map(node => 
+    node.id === containerId ? { ...node, children: newChildren } : node
+  );
+  
+  pushHistory();
+}
+
+function removeFromContainer(nodeIds: string[]) {
+  nodes.value = nodes.value.map(node => {
+    if (!nodeIds.includes(node.id) || !node.parentId) return node;
+    
+    const parent = nodes.value.find(n => n.id === node.parentId);
+    if (!parent) return node;
+    
+    // Convert position back to absolute coordinates
+    const absolutePosition = {
+      x: node.position.x + parent.position.x,
+      y: node.position.y + parent.position.y
+    };
+    
+    // Remove from parent's children array
+    removeFromParentChildren(node.id, node.parentId);
+    
+    return {
+      ...node,
+      parentId: null,
+      position: absolutePosition
+    };
+  });
+  
+  pushHistory();
+}
+
+function removeFromParentChildren(nodeId: string, parentId: string) {
+  nodes.value = nodes.value.map(node => {
+    if (node.id !== parentId) return node;
+    const children = node.children || [];
+    return {
+      ...node,
+      children: children.filter(id => id !== nodeId)
+    };
+  });
+}
+
+function isAncestor(potentialAncestorId: string, nodeId: string): boolean {
+  let current = nodes.value.find(n => n.id === nodeId);
+  while (current && current.parentId) {
+    if (current.parentId === potentialAncestorId) return true;
+    current = nodes.value.find(n => n.id === current!.parentId);
+  }
+  return false;
+}
+
+function clearContainerChildren(containerId: string) {
+  if (!isContainer(containerId)) return;
+  const children = getContainerChildren(containerId);
+  if (children.length > 0) {
+    removeFromContainer(children.map(c => c.id));
+  }
+}
+
+function handleAddToContainer(payload: { nodeIds: string[]; containerId: string }) {
+  addToContainer(payload.nodeIds, payload.containerId);
+}
+
+function handleRemoveFromContainer(payload: { nodeIds: string[] }) {
+  removeFromContainer(payload.nodeIds);
+}
+
+function handleClearContainer(payload: { containerId: string }) {
+  clearContainerChildren(payload.containerId);
 }
 
 function handleKeyDown(event: KeyboardEvent) {
@@ -1104,12 +1262,17 @@ async function saveWorkspace() {
     const layout = nodes.value.map((node) => {
       const componentId = nodeIdToComponentId.get(node.id);
       if (!componentId) return null;
+      
+      // Map parent node ID to component entity ID
+      const parentComponentId = node.parentId ? nodeIdToComponentId.get(node.parentId) : null;
+      
       return {
         component: String(componentId),
         x: node.position.x,
         y: node.position.y,
         w: node.size.x,
         h: node.size.y,
+        parentId: parentComponentId ? String(parentComponentId) : null,
       };
     }).filter((item): item is NonNullable<typeof item> => item !== null);
 
@@ -1296,12 +1459,12 @@ onMounted(async () => {
       // Load components
       const components = await faceplateService.readComponents(faceplate.components);
       
-      // Convert to canvas nodes
-      nodes.value = faceplate.configuration.layout.map((layoutItem) => {
+      // Convert to canvas nodes (with parent-child relationships)
+      const tempNodes = faceplate.configuration.layout.map((layoutItem) => {
         const component = components.find((c) => c.id.toString() === layoutItem.component);
         if (!component) return null;
         
-        return {
+        const node: CanvasNode = {
           id: layoutItem.component,
           componentId: findTemplateForPrimitive(component.componentType),
           name: component.name,
@@ -1309,7 +1472,34 @@ onMounted(async () => {
           size: { x: layoutItem.w || 4, y: layoutItem.h || 3 },
           props: component.configuration,
         };
+        
+        // Add parentId if present in layout
+        if (layoutItem.parentId) {
+          node.parentId = layoutItem.parentId;
+        }
+        
+        return node;
       }).filter((n): n is CanvasNode => n !== null);
+      
+      // Build children arrays for containers
+      const childrenMap = new Map<string, string[]>();
+      tempNodes.forEach(node => {
+        if (node.parentId) {
+          if (!childrenMap.has(node.parentId)) {
+            childrenMap.set(node.parentId, []);
+          }
+          childrenMap.get(node.parentId)!.push(node.id);
+        }
+      });
+      
+      // Assign children arrays to containers
+      nodes.value = tempNodes.map(node => {
+        const children = childrenMap.get(node.id);
+        if (children && children.length > 0) {
+          return { ...node, children };
+        }
+        return node;
+      });
       
       // Convert bindings
       bindings.value = faceplate.configuration.bindings.map((b, idx) => ({
@@ -1396,6 +1586,10 @@ onMounted(async () => {
         :node="selectedNode"
         :template="selectedTemplate"
         :bindings="selectedNodeBindings"
+        :all-nodes="nodes"
+        :all-containers="getAllContainers()"
+        :container-children="selectedNode ? getContainerChildren(selectedNode.id) : []"
+        :is-container="selectedNode ? isContainer(selectedNode.id) : false"
         @resize="handleResize"
         @prop-updated="handlePropUpdated"
         @binding-create="handleInspectorBindingCreate"
@@ -1404,6 +1598,9 @@ onMounted(async () => {
         @delete-node="handleInspectorNodeDelete"
         @bring-forward="handleBringForward"
         @send-backward="handleSendBackward"
+        @add-to-container="handleAddToContainer"
+        @remove-from-container="handleRemoveFromContainer"
+        @clear-container="handleClearContainer"
       />
     </div>
 

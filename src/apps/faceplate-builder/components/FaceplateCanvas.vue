@@ -15,6 +15,8 @@ export interface CanvasComponent {
   };
   config: Record<string, any>;
   bindings?: Record<string, unknown>;
+  parentId?: string | number | null;
+  children?: CanvasComponent[];
 }
 
 interface Props {
@@ -92,6 +94,92 @@ const viewportBoundaryStyle = computed(() => {
   };
 });
 
+// Build component tree with parent-child relationships
+const componentTree = computed(() => {
+  const componentsById = new Map<string | number, CanvasComponent>();
+  const rootComponents: CanvasComponent[] = [];
+  
+  // First pass: clone all components and index by ID
+  props.components.forEach(comp => {
+    componentsById.set(comp.id, { ...comp, children: [] });
+  });
+  
+  // Second pass: build tree structure
+  props.components.forEach(comp => {
+    const component = componentsById.get(comp.id)!;
+    
+    if (comp.parentId && componentsById.has(comp.parentId)) {
+      const parent = componentsById.get(comp.parentId)!;
+      if (!parent.children) parent.children = [];
+      parent.children.push(component);
+    } else {
+      rootComponents.push(component);
+    }
+  });
+  
+  return rootComponents;
+});
+
+// Check if component is a container
+function isContainer(type: string): boolean {
+  return type === 'primitive.container' || type === 'primitive.container.tabs';
+}
+
+// Calculate automatic child layout within container
+function calculateChildLayout(container: CanvasComponent, children: CanvasComponent[]): CanvasComponent[] {
+  if (!children || children.length === 0) return [];
+  
+  const config = container.config || {};
+  const padding = Number(config.padding) || 16;
+  const gap = Number(config.gap) || 12;
+  const direction = config.layoutDirection === 'horizontal' ? 'horizontal' : 'vertical';
+  const wrap = Boolean(config.wrap);
+  
+  const containerWidth = container.size.x;
+  const containerHeight = container.size.y;
+  const availableWidth = containerWidth - (padding * 2);
+  const availableHeight = containerHeight - (padding * 2);
+  
+  let currentX = padding;
+  let currentY = padding;
+  let rowMaxHeight = 0;
+  let colMaxWidth = 0;
+  
+  return children.map(child => {
+    const childWidth = child.size.x;
+    const childHeight = child.size.y;
+    
+    // Calculate position based on layout direction
+    if (direction === 'horizontal') {
+      // Check if we need to wrap
+      if (wrap && currentX + childWidth > availableWidth + padding && currentX > padding) {
+        currentX = padding;
+        currentY += rowMaxHeight + gap;
+        rowMaxHeight = 0;
+      }
+      
+      const position = { x: currentX, y: currentY };
+      currentX += childWidth + gap;
+      rowMaxHeight = Math.max(rowMaxHeight, childHeight);
+      
+      return { ...child, position };
+    } else {
+      // Vertical layout
+      if (wrap && currentY + childHeight > availableHeight + padding && currentY > padding) {
+        currentY = padding;
+        currentX += colMaxWidth + gap;
+        colMaxWidth = 0;
+      }
+      
+      const position = { x: currentX, y: currentY };
+      currentY += childHeight + gap;
+      colMaxWidth = Math.max(colMaxWidth, childWidth);
+      
+      return { ...child, position };
+    }
+  });
+}
+
 function getComponentStyle(component: CanvasComponent) {
   return {
     left: `${component.position.x}px`,
@@ -130,6 +218,121 @@ function handleCanvasPointerDown(event: PointerEvent) {
 defineExpose({
   canvasRef,
 });
+
+// Recursive component definition for rendering nested components
+const ComponentNode = {
+  name: 'ComponentNode',
+  components: {
+    PrimitiveRenderer,
+  },
+  props: {
+    component: Object as () => CanvasComponent,
+    editMode: Boolean,
+    isSelected: Boolean,
+    isMultiSelected: Boolean,
+    parentVisible: { type: Boolean, default: true },
+    parentOpacity: { type: Number, default: 1 },
+  },
+  emits: ['component-click', 'component-drag-start'],
+  setup(props: any, { emit }: any) {
+    const isContainerType = computed(() => isContainer(props.component.type));
+    
+    // Check if this component should be visible (cascades from parent)
+    const isVisible = computed(() => {
+      if (!props.parentVisible) return false;
+      // Check if component has visible property (for containers and other components)
+      const visible = props.component.config?.visible ?? true;
+      // Also check bindings if present
+      if (props.component.bindings?.visible !== undefined) {
+        return props.component.bindings.visible && visible;
+      }
+      return visible;
+    });
+    
+    // Calculate effective opacity (cascades from parent)
+    const effectiveOpacity = computed(() => {
+      const componentOpacity = props.component.config?.opacity ?? 1;
+      const bindingOpacity = props.component.bindings?.opacity ?? 1;
+      return props.parentOpacity * componentOpacity * bindingOpacity;
+    });
+    
+    const layoutChildren = computed(() => {
+      if (!isContainerType.value || !props.component.children?.length) {
+        return props.component.children || [];
+      }
+      return calculateChildLayout(props.component, props.component.children);
+    });
+    
+    const componentStyle = computed(() => {
+      const baseStyle = getComponentStyle(props.component);
+      // Apply opacity from cascade
+      if (effectiveOpacity.value !== 1) {
+        return {
+          ...baseStyle,
+          opacity: effectiveOpacity.value,
+        };
+      }
+      return baseStyle;
+    });
+    
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!props.editMode) return;
+      const isMultiSelect = event.shiftKey || event.ctrlKey || event.metaKey;
+      emit('component-click', { id: props.component.id, event, isMultiSelect });
+      emit('component-drag-start', { id: props.component.id, event });
+    };
+    
+    return {
+      isContainerType,
+      isVisible,
+      effectiveOpacity,
+      layoutChildren,
+      componentStyle,
+      handlePointerDown,
+    };
+  },
+  template: `
+    <button
+      v-show="isVisible"
+      type="button"
+      class="faceplate-canvas__component"
+      :class="{
+        'faceplate-canvas__component--selected': isSelected && editMode,
+        'faceplate-canvas__component--multi-selected': isMultiSelected && editMode,
+        'faceplate-canvas__component--interactive': editMode,
+        'faceplate-canvas__component--container': isContainerType,
+      }"
+      :style="componentStyle"
+      :data-component-id="component.id"
+      @pointerdown="handlePointerDown"
+      @click.stop
+    >
+      <PrimitiveRenderer
+        class="faceplate-canvas__component-content"
+        :type="component.type"
+        :config="component.config"
+        :bindings="component.bindings"
+        :edit-mode="false"
+      >
+        <!-- Render children inside container -->
+        <template v-if="isContainerType && layoutChildren.length">
+          <ComponentNode
+            v-for="child in layoutChildren"
+            :key="child.id"
+            :component="child"
+            :edit-mode="editMode"
+            :is-selected="false"
+            :is-multi-selected="false"
+            :parent-visible="isVisible"
+            :parent-opacity="effectiveOpacity"
+            @component-click="$emit('component-click', $event)"
+            @component-drag-start="$emit('component-drag-start', $event)"
+          />
+        </template>
+      </PrimitiveRenderer>
+    </button>
+  `,
+};
 </script>
 
 <template>
@@ -153,30 +356,17 @@ defineExpose({
         :style="viewportBoundaryStyle"
       ></div>
 
-      <!-- Components -->
-      <button
-        v-for="component in components"
-        :key="component.id"
-        type="button"
-        class="faceplate-canvas__component"
-        :class="{
-          'faceplate-canvas__component--selected': isComponentSelected(component.id) && editMode,
-          'faceplate-canvas__component--multi-selected': isComponentMultiSelected(component.id) && editMode,
-          'faceplate-canvas__component--interactive': editMode,
-        }"
-        :style="getComponentStyle(component)"
-        :data-component-id="component.id"
-        @pointerdown="handleComponentPointerDown($event, component.id)"
-        @click.stop
-      >
-        <PrimitiveRenderer
-          class="faceplate-canvas__component-content"
-          :type="component.type"
-          :config="component.config"
-          :bindings="component.bindings"
-          :edit-mode="false"
+      <!-- Components (recursive tree rendering) -->
+      <template v-for="component in componentTree" :key="component.id">
+        <ComponentNode
+          :component="component"
+          :edit-mode="editMode"
+          :is-selected="isComponentSelected(component.id)"
+          :is-multi-selected="isComponentMultiSelected(component.id)"
+          @component-click="emit('component-click', $event)"
+          @component-drag-start="emit('component-drag-start', $event)"
         />
-      </button>
+      </template>
 
       <!-- Hint for empty canvas -->
       <div v-if="!components.length && editMode" class="faceplate-canvas__hint">
@@ -271,6 +461,16 @@ defineExpose({
   height: 100%;
   pointer-events: none;
   border-radius: inherit;
+}
+
+/* Container specific styles */
+.faceplate-canvas__component--container .faceplate-canvas__component-content {
+  position: relative;
+}
+
+.faceplate-canvas__component--container .faceplate-canvas__component {
+  /* Nested components inside containers are also positioned absolutely */
+  position: absolute;
 }
 
 .faceplate-canvas__hint {

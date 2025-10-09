@@ -199,22 +199,35 @@ const renderedSlots = computed<RenderSlot[]>(() => {
   return slots;
 });
 
-// Convert renderedSlots to CanvasComponent format
+// Convert renderedSlots to CanvasComponent format (preserving hierarchy)
 const canvasComponents = computed<CanvasComponent[]>(() => {
-  return renderedSlots.value.map(slot => ({
-    id: slot.id,
-    type: slot.type,
-    position: {
-      x: slot.position.x,
-      y: slot.position.y,
-    },
-    size: {
-      x: slot.position.w,
-      y: slot.position.h,
-    },
-    config: slot.config,
-    bindings: slot.bindings,
-  }));
+  if (!faceplate.value) return [];
+  
+  const layout = Array.isArray(faceplate.value.configuration.layout)
+    ? faceplate.value.configuration.layout
+    : [];
+  
+  return renderedSlots.value.map(slot => {
+    // Find parent ID from layout data
+    const layoutItem = layout.find(item => item.component === String(slot.id));
+    const parentId = layoutItem?.parentId || null;
+    
+    return {
+      id: slot.id,
+      type: slot.type,
+      position: {
+        x: slot.position.x,
+        y: slot.position.y,
+      },
+      size: {
+        x: slot.position.w,
+        y: slot.position.h,
+      },
+      config: slot.config,
+      bindings: slot.bindings,
+      parentId: parentId,
+    };
+  });
 });
 
 const viewportSize = computed(() => {

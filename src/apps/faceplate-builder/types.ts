@@ -48,6 +48,9 @@ export type CanvasNode = {
   size: Vector2;
   props: Record<string, unknown>;
   selected?: boolean; // For multi-selection support
+  parentId?: string | null; // Reference to parent container node
+  children?: string[]; // Array of child node IDs (for container primitives)
+  zIndex?: number; // Explicit stacking order
 };
 
 export type BindingMode = 'field' | 'literal' | 'script';

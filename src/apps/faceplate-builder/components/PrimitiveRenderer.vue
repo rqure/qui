@@ -25,6 +25,19 @@ function getValue(key: string, defaultValue?: any): any {
   return defaultValue ?? '';
 }
 
+// Helper to convert alignment values to CSS
+function getAlignValue(align: string): string {
+  const alignMap: Record<string, string> = {
+    'start': 'flex-start',
+    'end': 'flex-end',
+    'center': 'center',
+    'stretch': 'stretch',
+    'space-between': 'space-between',
+    'space-around': 'space-around',
+  };
+  return alignMap[align] || align;
+}
+
 // Computed values for different component types
 const textValue = computed(() => {
   const val = getValue('text', getValue('value', ''));
@@ -134,18 +147,73 @@ const normalizedType = computed(() => props.type.toLowerCase());
     </div>
 
     <!-- Container -->
-    <div v-else-if="normalizedType === 'primitive.container'" class="container-primitive"
+    <div v-else-if="normalizedType === 'primitive.container'" 
+      v-show="getValue('visible', true)"
+      class="container-primitive"
       :style="{ 
         backgroundColor: config.backgroundColor,
         border: `${config.borderWidth}px solid ${config.borderColor}`,
         borderRadius: `${config.cornerRadius}px`,
         padding: `${config.padding}px`,
         gap: `${config.gap}px`,
-        flexDirection: config.layoutDirection === 'horizontal' ? 'row' : 'column'
+        opacity: getValue('opacity', 1),
+        overflow: getValue('overflow', 'visible'),
+        flexDirection: config.layoutDirection === 'horizontal' ? 'row' : 'column',
+        flexWrap: getValue('wrap', false) ? 'wrap' : 'nowrap',
+        justifyContent: config.layoutDirection === 'horizontal' ? getAlignValue(getValue('horizontalAlign', 'stretch')) : getAlignValue(getValue('verticalAlign', 'start')),
+        alignItems: config.layoutDirection === 'horizontal' ? getAlignValue(getValue('verticalAlign', 'start')) : getAlignValue(getValue('horizontalAlign', 'stretch'))
       }">
       <slot>
         <span class="container-placeholder">Container</span>
       </slot>
+    </div>
+
+    <!-- Tab Container -->
+    <div v-else-if="normalizedType === 'primitive.container.tabs'"
+      v-show="getValue('visible', true)"
+      class="tab-container"
+      :style="{
+        backgroundColor: config.backgroundColor,
+        border: `${config.borderWidth}px solid ${config.borderColor}`,
+        borderRadius: `${config.cornerRadius}px`,
+        opacity: getValue('opacity', 1)
+      }">
+      <div class="tab-header"
+        :class="{ 
+          'tab-header-vertical': config.tabPosition === 'left' || config.tabPosition === 'right',
+          'tab-header-bottom': config.tabPosition === 'bottom'
+        }"
+        :style="{ 
+          backgroundColor: config.tabBackgroundColor,
+          color: config.tabTextColor
+        }">
+        <div class="tab-button"
+          :class="{ 'tab-button-active': getValue('activeTab', 0) === 0 }"
+          :style="{
+            backgroundColor: getValue('activeTab', 0) === 0 ? config.activeTabColor : 'transparent'
+          }">
+          Tab 1
+        </div>
+        <div class="tab-button"
+          :class="{ 'tab-button-active': getValue('activeTab', 0) === 1 }"
+          :style="{
+            backgroundColor: getValue('activeTab', 0) === 1 ? config.activeTabColor : 'transparent'
+          }">
+          Tab 2
+        </div>
+        <div class="tab-button"
+          :class="{ 'tab-button-active': getValue('activeTab', 0) === 2 }"
+          :style="{
+            backgroundColor: getValue('activeTab', 0) === 2 ? config.activeTabColor : 'transparent'
+          }">
+          Tab 3
+        </div>
+      </div>
+      <div class="tab-content" :style="{ padding: `${config.padding}px` }">
+        <slot>
+          <span class="container-placeholder">Tab Content</span>
+        </slot>
+      </div>
     </div>
 
     <!-- Fallback -->
@@ -291,6 +359,59 @@ const normalizedType = computed(() => props.type.toLowerCase());
 .container-placeholder {
   opacity: 0.5;
   font-size: 12px;
+}
+
+.tab-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.tab-header {
+  display: flex;
+  flex-direction: row;
+  gap: 4px;
+  padding: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.tab-header-bottom {
+  order: 2;
+  border-bottom: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.tab-header-vertical {
+  flex-direction: column;
+  border-bottom: none;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.tab-button {
+  padding: 8px 16px;
+  cursor: pointer;
+  border-radius: 6px;
+  font-size: 14px;
+  transition: background-color 0.2s;
+  white-space: nowrap;
+}
+
+.tab-button:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.tab-button-active {
+  font-weight: 600;
+}
+
+.tab-content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
 }
 
 .primitive-fallback {

@@ -22,6 +22,10 @@ const props = defineProps<{
   node: CanvasNode | null;
   template: PaletteTemplate | null;
   bindings: Binding[];
+  allNodes?: CanvasNode[];
+  allContainers?: CanvasNode[];
+  containerChildren?: CanvasNode[];
+  isContainer?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -33,6 +37,9 @@ const emit = defineEmits<{
   (event: 'delete-node', payload: { nodeId: string }): void;
   (event: 'bring-forward', payload: { nodeId: string }): void;
   (event: 'send-backward', payload: { nodeId: string }): void;
+  (event: 'add-to-container', payload: { nodeIds: string[]; containerId: string }): void;
+  (event: 'remove-from-container', payload: { nodeIds: string[] }): void;
+  (event: 'clear-container', payload: { containerId: string }): void;
 }>();
 
 const propertySchema = computed<PrimitivePropertyDefinition[]>(() => {
@@ -256,6 +263,22 @@ function handleSendBackward() {
   if (!props.node) return;
   emit('send-backward', { nodeId: props.node.id });
 }
+
+function handleParentChange(event: Event) {
+  if (!props.node) return;
+  const target = event.target as HTMLSelectElement;
+  const newParentId = target.value;
+  
+  if (!newParentId) {
+    // Remove from current container
+    if (props.node.parentId) {
+      emit('remove-from-container', { nodeIds: [props.node.id] });
+    }
+  } else {
+    // Add to new container
+    emit('add-to-container', { nodeIds: [props.node.id], containerId: newParentId });
+  }
+}
 </script>
 
 <template>
@@ -289,6 +312,75 @@ function handleSendBackward() {
           <button type="button" class="inspector__secondary" @click="handleSendBackward">Send Backward</button>
         </div>
         <button type="button" class="inspector__danger" @click="handleDeleteClick">Delete Component</button>
+      </section>
+
+      <!-- Container Hierarchy Section -->
+      <section v-if="allContainers && allContainers.length > 0" class="inspector__section">
+        <header><h3>Container Hierarchy</h3></header>
+        
+        <!-- Parent Container -->
+        <div class="container-section">
+          <label class="inspector__field">
+            <span>Parent Container</span>
+            <select 
+              :value="node.parentId || ''"
+              @change="handleParentChange($event)"
+            >
+              <option value="">None (Root Level)</option>
+              <option 
+                v-for="container in allContainers" 
+                :key="container.id" 
+                :value="container.id"
+                :disabled="container.id === node.id"
+              >
+                {{ container.name }}
+              </option>
+            </select>
+          </label>
+          <button 
+            v-if="node.parentId" 
+            type="button" 
+            class="inspector__secondary"
+            @click="emit('remove-from-container', { nodeIds: [node.id] })"
+          >
+            Remove from Container
+          </button>
+        </div>
+
+        <!-- Children (if this is a container) -->
+        <div v-if="isContainer" class="container-section">
+          <div class="container-section__header">
+            <span class="container-section__label">Children ({{ containerChildren?.length || 0 }})</span>
+            <button 
+              v-if="containerChildren && containerChildren.length > 0"
+              type="button" 
+              class="inspector__danger-link"
+              @click="emit('clear-container', { containerId: node.id })"
+            >
+              Clear All
+            </button>
+          </div>
+          <div v-if="containerChildren && containerChildren.length > 0" class="container-children">
+            <div 
+              v-for="child in containerChildren" 
+              :key="child.id" 
+              class="container-child"
+            >
+              <span class="container-child__name">{{ child.name }}</span>
+              <button 
+                type="button" 
+                class="container-child__remove"
+                @click="emit('remove-from-container', { nodeIds: [child.id] })"
+                title="Remove from container"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+          <p v-else class="inspector__hint">
+            No children yet. Drag components over this container or use "Add to Container" from another component's menu.
+          </p>
+        </div>
       </section>
 
       <section class="inspector__section">
@@ -763,5 +855,88 @@ function handleSendBackward() {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+/* Container Hierarchy Styles */
+.container-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.container-section__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.container-section__label {
+  font-weight: 600;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.container-children {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.container-child {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+
+.container-child:hover {
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.container-child__name {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.9);
+  flex: 1;
+}
+
+.container-child__remove {
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: rgba(255, 68, 68, 0.2);
+  color: #ff4444;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.container-child__remove:hover {
+  background: rgba(255, 68, 68, 0.3);
+  transform: scale(1.1);
+}
+
+.inspector__danger-link {
+  background: none;
+  border: none;
+  color: #ff4444;
+  font-size: 11px;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+  transition: opacity 0.2s;
+}
+
+.inspector__danger-link:hover {
+  opacity: 0.8;
 }
 </style>

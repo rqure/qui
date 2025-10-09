@@ -59,7 +59,7 @@ const ZOOM_MIN = 0.1;
 const ZOOM_MAX = 3;
 const ZOOM_STEP = 0.1;
 
-// Convert CanvasNode to CanvasComponent format
+// Convert CanvasNode to CanvasComponent format (preserving parent-child relationships)
 const canvasComponents = computed<CanvasComponent[]>(() => {
   return props.nodes.map(node => ({
     id: node.id,
@@ -67,7 +67,18 @@ const canvasComponents = computed<CanvasComponent[]>(() => {
     position: node.position,
     size: node.size,
     config: node.props,
+    parentId: node.parentId,
+    // Children will be assembled by FaceplateCanvas
   }));
+});
+
+// Identify container nodes
+const containerNodes = computed(() => {
+  return props.nodes.filter(node => {
+    const template = props.templates[node.componentId];
+    if (!template) return false;
+    return template.primitiveId === 'primitive.container' || template.primitiveId === 'primitive.container.tabs';
+  });
 });
 
 function handleDragOver(event: DragEvent) {
@@ -477,6 +488,25 @@ onBeforeUnmount(teardownListeners);
       @pointerdown.capture="handleCanvasPointerDown"
       @wheel.prevent="handleWheel"
     />
+    
+    <!-- Container boundary overlays -->
+    <div 
+      v-for="container in containerNodes"
+      :key="`container-${container.id}`"
+      class="container-boundary"
+      :class="{ 'container-boundary--selected': selectedNodeIds?.has(container.id) }"
+      :style="{
+        left: `${container.position.x * zoom + pan.x}px`,
+        top: `${container.position.y * zoom + pan.y}px`,
+        width: `${container.size.x * zoom}px`,
+        height: `${container.size.y * zoom}px`,
+      }"
+    >
+      <div class="container-label">
+        📦 {{ container.name }}
+      </div>
+    </div>
+    
     <!-- Drag-select box overlay (positioned absolutely over canvas) -->
     <div 
       v-if="selectBoxState.isActive"
@@ -586,5 +616,40 @@ onBeforeUnmount(teardownListeners);
   background: rgba(100, 150, 255, 0.15);
   pointer-events: none;
   z-index: 1000;
+}
+
+/* Container boundary overlays */
+.container-boundary {
+  position: absolute;
+  border: 2px dashed rgba(255, 170, 0, 0.4);
+  background: rgba(255, 170, 0, 0.05);
+  pointer-events: none;
+  z-index: 50;
+  transition: all 0.2s;
+}
+
+.container-boundary--selected {
+  border-color: rgba(0, 255, 194, 0.6);
+  background: rgba(0, 255, 194, 0.08);
+  border-style: solid;
+}
+
+.container-label {
+  position: absolute;
+  top: -22px;
+  left: 0;
+  padding: 2px 8px;
+  background: rgba(0, 0, 0, 0.8);
+  border: 1px solid rgba(255, 170, 0, 0.4);
+  border-radius: 4px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.9);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.container-boundary--selected .container-label {
+  border-color: rgba(0, 255, 194, 0.6);
+  background: rgba(0, 255, 194, 0.15);
 }
 </style>

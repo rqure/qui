@@ -21,6 +21,7 @@ export interface FaceplateLayoutItem {
   y: number;
   w?: number;
   h?: number;
+  parentId?: string | null;
 }
 
 export interface FaceplateNotificationChannel {
