@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
-import ComponentSampleRenderer from './ComponentSampleRenderer.vue';
+import PrimitiveRenderer from './PrimitiveRenderer.vue';
 import type { CanvasNode, PaletteTemplate, Vector2 } from '../types';
 
 type CanvasDropPayload = {
@@ -362,12 +362,11 @@ onBeforeUnmount(teardownListeners);
         @pointerdown="handleNodePointerDown($event, node.id)"
         @click.stop
       >
-        <ComponentSampleRenderer
+        <PrimitiveRenderer
           class="canvas__node-preview"
-          :component-id="node.componentId"
-          :name="node.name"
-          :props="node.props"
-          :template="props.templates[node.componentId]"
+          :type="node.componentId"
+          :config="node.props"
+          :edit-mode="true"
         />
       </button>
     <div v-if="!props.nodes.length" class="canvas__hint">

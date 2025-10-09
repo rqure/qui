@@ -7,6 +7,7 @@ import BuilderToolbar from './components/BuilderToolbar.vue';
 import FaceplateSelector from './components/FaceplateSelector.vue';
 import { useDataStore } from '@/stores/data';
 import { FaceplateDataService } from './utils/faceplate-data';
+import { PRIMITIVE_REGISTRY } from './utils/primitive-registry';
 import type { FaceplateNotificationChannel, FaceplateScriptModule } from './utils/faceplate-data';
 import type { EntityId } from '@/core/data/types';
 import type {
@@ -40,7 +41,11 @@ const faceplateService = new FaceplateDataService(dataStore);
 
 const DEFAULT_VIEWPORT: Vector2 = { x: 1280, y: 800 };
 
-const primitiveCatalog: PrimitiveDefinition[] = [
+// Use unified primitive registry
+const primitiveCatalog: PrimitiveDefinition[] = PRIMITIVE_REGISTRY as any as PrimitiveDefinition[];
+
+// Legacy catalog definition (to be removed after full migration)
+const _legacyPrimitiveCatalog: PrimitiveDefinition[] = [
   {
     id: 'primitive.text.block',
     label: 'Text Block',
@@ -443,7 +448,7 @@ const primitiveCatalog: PrimitiveDefinition[] = [
     ],
     previewProps: { backgroundColor: 'rgba(0, 255, 170, 0.1)', borderColor: '#00ffaa', borderWidth: 2 },
   },
-];
+]; // End legacy catalog
 
 const primitiveMap = Object.fromEntries(
   primitiveCatalog.map((primitive) => [primitive.id, primitive]),

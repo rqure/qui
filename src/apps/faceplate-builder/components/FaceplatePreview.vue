@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import ComponentSampleRenderer from './ComponentSampleRenderer.vue';
+import PrimitiveRenderer from './PrimitiveRenderer.vue';
 import type { CanvasNode, PaletteTemplate } from '../types';
 
 const props = defineProps<{
@@ -50,11 +50,10 @@ const previewStyle = computed(() => ({
           height: `${node.size.y}px`,
         }"
       >
-        <ComponentSampleRenderer
-          :component-id="node.componentId"
-          :name="node.name"
-          :props="node.props"
-          :template="props.templates[node.componentId]"
+        <PrimitiveRenderer
+          :type="node.componentId"
+          :config="node.props"
+          :edit-mode="true"
         />
       </article>
     </div>

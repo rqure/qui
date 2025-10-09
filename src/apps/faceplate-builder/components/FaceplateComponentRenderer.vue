@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { EntityId } from '@/core/data/types';
+import PrimitiveRenderer from './PrimitiveRenderer.vue';
 
 interface RenderComponentModel {
   id: EntityId;
@@ -106,103 +107,16 @@ const componentClasses = computed(() => {
     </header>
 
     <div class="component-body">
-      <!-- Text Block -->
-      <div v-if="normalizedType === 'primitive.text.block'" class="text-block" 
-        :style="{ 
-          color: component.config.textColor,
-          fontSize: `${component.config.fontSize}px`,
-          fontWeight: component.config.fontWeight,
-          textAlign: component.config.align,
-          lineHeight: component.config.lineHeight
-        }">
-        {{ component.bindings.text || component.config.text || 'Text' }}
-      </div>
-
-      <!-- Form Field / Text Input -->
-      <div v-else-if="normalizedType === 'primitive.form.field'" class="form-field">
-        <input 
-          type="text" 
-          :placeholder="component.config.placeholder"
-          :value="formValue"
-          readonly
-          :style="{ 
-            color: component.config.textColor,
-            backgroundColor: component.config.backgroundColor,
-            fontSize: `${component.config.fontSize}px`,
-            fontWeight: component.config.fontWeight,
-            textAlign: component.config.align
-          }"
-        />
-      </div>
-
-      <!-- Number Input -->
-      <div v-else-if="normalizedType === 'primitive.form.number'" class="form-field">
-        <input 
-          type="number" 
-          :placeholder="component.config.placeholder"
-          :value="formValue"
-          readonly
-          :style="{ 
-            color: component.config.textColor,
-            backgroundColor: component.config.backgroundColor,
-            fontSize: `${component.config.fontSize}px`
-          }"
-        />
-      </div>
-
-      <!-- Button -->
-      <div v-else-if="normalizedType === 'primitive.form.button'" class="button-primitive">
-        <button
-          :style="{ 
-            color: component.config.textColor,
-            backgroundColor: component.config.backgroundColor,
-            fontSize: `${component.config.fontSize}px`,
-            fontWeight: component.config.fontWeight
-          }">
-          {{ component.config.label || 'Button' }}
-        </button>
-      </div>
-
-      <!-- Toggle -->
-      <div v-else-if="normalizedType === 'primitive.form.toggle'" class="toggle-primitive">
-        <label class="toggle-switch">
-          <input type="checkbox" :checked="!!component.bindings.value" disabled />
-          <span class="toggle-slider"></span>
-        </label>
-        <span class="toggle-label">{{ component.config.label }}</span>
-      </div>
-
-      <!-- Rectangle Shape -->
-      <div v-else-if="normalizedType === 'primitive.shape.rectangle'" class="shape-rectangle"
-        :style="{ 
-          backgroundColor: component.config.fillColor,
-          border: `${component.config.borderWidth}px solid ${component.config.borderColor}`,
-          borderRadius: `${component.config.cornerRadius}px`
-        }">
-      </div>
-
-      <!-- Circle Shape -->
-      <div v-else-if="normalizedType === 'primitive.shape.circle'" class="shape-circle"
-        :style="{ 
-          backgroundColor: component.config.fillColor,
-          border: `${component.config.borderWidth}px solid ${component.config.borderColor}`
-        }">
-      </div>
-
-      <!-- Container -->
-      <div v-else-if="normalizedType === 'primitive.container'" class="container-primitive"
-        :style="{ 
-          backgroundColor: component.config.backgroundColor,
-          border: `${component.config.borderWidth}px solid ${component.config.borderColor}`,
-          borderRadius: `${component.config.cornerRadius}px`,
-          padding: `${component.config.padding}px`,
-          gap: `${component.config.gap}px`,
-          flexDirection: component.config.layoutDirection === 'horizontal' ? 'row' : 'column'
-        }">
-        <span style="opacity: 0.5; font-size: 12px;">Container (children not yet supported)</span>
-      </div>
-
-      <!-- Legacy: Gauge -->
+      <!-- Use unified primitive renderer for all primitive types -->
+      <PrimitiveRenderer 
+        v-if="normalizedType.startsWith('primitive.')"
+        :type="normalizedType"
+        :config="component.config"
+        :bindings="component.bindings"
+        :edit-mode="props.editMode"
+      />
+      
+      <!-- Legacy: Gauge (kept for backward compatibility) -->
       <div v-else-if="normalizedType === 'gauge'" class="gauge" :style="{ '--gauge-percent': `${gaugePercent}%` }">
         <div class="gauge-fill"></div>
         <div class="gauge-value">{{ gaugeValue }}</div>
