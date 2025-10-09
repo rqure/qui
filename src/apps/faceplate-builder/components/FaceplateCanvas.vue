@@ -232,15 +232,12 @@ const ComponentNode = {
     isMultiSelected: Boolean,
     parentVisible: { type: Boolean, default: true },
     parentOpacity: { type: Number, default: 1 },
+    isInsideContainer: { type: Boolean, default: false },
   },
   emits: ['component-click', 'component-drag-start'],
   setup(props: any, { emit }: any) {
     const isContainerType = computed(() => {
-      const result = isContainer(props.component.type);
-      if (props.component.children?.length) {
-        console.log(`Component ${props.component.id} type: ${props.component.type}, isContainer: ${result}, children count: ${props.component.children.length}`);
-      }
-      return result;
+      return isContainer(props.component.type);
     });
     
     // Check if this component should be visible (cascades from parent)
@@ -264,18 +261,27 @@ const ComponentNode = {
     
     const layoutChildren = computed(() => {
       if (!isContainerType.value || !props.component.children?.length) {
-        console.log(`layoutChildren: skipping layout - isContainer: ${isContainerType.value}, children: ${props.component.children?.length || 0}`);
         return props.component.children || [];
       }
-      console.log(`layoutChildren: calculating layout for ${props.component.children.length} children`);
-      const result = calculateChildLayout(props.component, props.component.children);
-      console.log(`layoutChildren result:`, result);
-      return result;
+      return calculateChildLayout(props.component, props.component.children);
     });
     
     const componentStyle = computed(() => {
+      // If inside a container, don't use absolute positioning - let flexbox handle it
+      if (props.isInsideContainer) {
+        const style: Record<string, any> = {
+          width: `${props.component.size.x}px`,
+          height: `${props.component.size.y}px`,
+          position: 'relative', // Override absolute positioning
+        };
+        if (effectiveOpacity.value !== 1) {
+          style.opacity = effectiveOpacity.value;
+        }
+        return style;
+      }
+      
+      // Top-level components use absolute positioning
       const baseStyle = getComponentStyle(props.component);
-      // Apply opacity from cascade
       if (effectiveOpacity.value !== 1) {
         return {
           ...baseStyle,
@@ -311,6 +317,7 @@ const ComponentNode = {
         'faceplate-canvas__component--multi-selected': isMultiSelected && editMode,
         'faceplate-canvas__component--interactive': editMode,
         'faceplate-canvas__component--container': isContainerType,
+        'faceplate-canvas__component--inside-container': isInsideContainer,
       }"
       :style="componentStyle"
       :data-component-id="component.id"
@@ -335,6 +342,7 @@ const ComponentNode = {
             :is-multi-selected="false"
             :parent-visible="isVisible"
             :parent-opacity="effectiveOpacity"
+            :is-inside-container="true"
             @component-click="$emit('component-click', $event)"
             @component-drag-start="$emit('component-drag-start', $event)"
           />
@@ -478,9 +486,11 @@ const ComponentNode = {
   position: relative;
 }
 
-.faceplate-canvas__component--container .faceplate-canvas__component {
-  /* Nested components inside containers are also positioned absolutely */
-  position: absolute;
+/* Components inside containers use flexbox positioning, not absolute */
+.faceplate-canvas__component--inside-container {
+  position: relative !important;
+  /* flex-shrink: 0 prevents children from shrinking below their specified size */
+  flex-shrink: 0;
 }
 
 .faceplate-canvas__hint {

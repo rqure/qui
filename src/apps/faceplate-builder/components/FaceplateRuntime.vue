@@ -137,20 +137,10 @@ const renderedSlots = computed<RenderSlot[]>(() => {
     ? faceplate.value.configuration.layout
     : [];
 
-  if (import.meta.env.DEV) {
-    console.log('renderedSlots - layout items:', layout.length);
-    console.log('renderedSlots - layout:', layout);
-    console.log('renderedSlots - components:', components.value.length);
-    console.log('renderedSlots - componentMap keys:', Array.from(componentMap.value.keys()));
-  }
-
   const slots = layout
     .map((slot) => {
       const component = componentMap.value.get(slot.component);
       if (!component) {
-        if (import.meta.env.DEV) {
-          console.warn('Component not found for slot:', slot.component, 'Available:', Array.from(componentMap.value.keys()));
-        }
         return null;
       }
 
@@ -190,11 +180,6 @@ const renderedSlots = computed<RenderSlot[]>(() => {
       } as RenderSlot;
     })
     .filter((slot): slot is RenderSlot => Boolean(slot));
-  
-  if (import.meta.env.DEV) {
-    console.log('renderedSlots - final count:', slots.length);
-    console.log('renderedSlots - final slots:', slots);
-  }
   
   return slots;
 });
@@ -303,22 +288,12 @@ async function initialize() {
     }
 
     if (faceplate.value) {
-      if (import.meta.env.DEV) {
-        console.log('Loading faceplate:', faceplate.value.id);
-        console.log('Component IDs to load:', faceplate.value.components);
-        console.log('Layout slots:', faceplate.value.configuration.layout);
-      }
-      
       // Load components and compile scripts in parallel
       const [componentsData] = await Promise.all([
         service.readComponents(faceplate.value.components),
         Promise.resolve(compileFaceplateScriptModules(faceplate.value.scriptModules ?? []))
       ]);
       components.value = componentsData;
-      
-      if (import.meta.env.DEV) {
-        console.log('Loaded components:', componentsData.map(c => ({ id: c.id, name: c.name })));
-      }
     } else {
       components.value = [];
       compileFaceplateScriptModules([]);
