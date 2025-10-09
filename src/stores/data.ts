@@ -36,6 +36,7 @@ export const useDataStore = defineStore('data', {
     nextRequestId: 1,
     notificationCallbacks: {} as Record<string, NotificationCallback[]>, // Use string keys to avoid precision loss
     localToServerHash: {} as Record<number, string>, // Map local hash to server hash (as string)
+    pendingNotificationRegistrations: {} as Record<number, Promise<string>>, // Track in-flight registration requests
     connectionLostCallbacks: [] as (() => void)[],
     reconnectAttempts: 0,
     maxReconnectAttempts: 10,
@@ -641,24 +642,48 @@ export const useDataStore = defineStore('data', {
       
       // If we don't have a server hash yet, register with server
       if (serverConfigHash === undefined) {
+        // Check if there's already a pending registration for this config
+        let registrationPromise = this.pendingNotificationRegistrations[localConfigHash];
+        
+        if (!registrationPromise) {
+          // Create a new registration request
+          registrationPromise = (async () => {
+            try {
+              const response = await this.sendWebSocketRequest({
+                type: 'RegisterNotification',
+                config: config
+              });
+              
+              // Use the config_hash returned by the server (Rust's hash)
+              // Convert to string to avoid JavaScript number precision issues
+              const hash = String(response.config_hash);
+              
+              if (import.meta.env.DEV) {
+                console.log('Registered notification with config_hash:', response.config_hash, 'type:', typeof response.config_hash);
+                console.log('Stored as string:', hash);
+              }
+              
+              // Store the mapping from local to server hash
+              this.localToServerHash[localConfigHash] = hash;
+              
+              return hash;
+            } catch (err) {
+              // Clean up pending registration on error
+              delete this.pendingNotificationRegistrations[localConfigHash];
+              throw err;
+            } finally {
+              // Clean up pending registration on success
+              delete this.pendingNotificationRegistrations[localConfigHash];
+            }
+          })();
+          
+          // Store the pending registration promise
+          this.pendingNotificationRegistrations[localConfigHash] = registrationPromise;
+        }
+        
+        // Wait for the registration to complete (whether we created it or found it pending)
         try {
-          const response = await this.sendWebSocketRequest({
-            type: 'RegisterNotification',
-            config: config
-          });
-          
-          // Use the config_hash returned by the server (Rust's hash)
-          // Convert to string to avoid JavaScript number precision issues
-          serverConfigHash = String(response.config_hash);
-          
-          if (import.meta.env.DEV) {
-            console.log('Registered notification with config_hash:', response.config_hash, 'type:', typeof response.config_hash);
-            console.log('Stored as string:', serverConfigHash);
-          }
-          
-          // Store the mapping from local to server hash
-          this.localToServerHash[localConfigHash] = serverConfigHash;
-          
+          serverConfigHash = await registrationPromise;
         } catch (err) {
           throw err;
         }
