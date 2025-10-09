@@ -49,26 +49,7 @@ async function loadEntityName(entityId: EntityId) {
   }
 }
 
-function handleEntityInput(event: Event) {
-  const target = event.target as HTMLInputElement;
-  const value = target.value.trim();
-  if (!value) {
-    boundEntityId.value = null;
-    entityName.value = '';
-    return;
-  }
-  const parsed = Number(value);
-  if (!Number.isNaN(parsed)) {
-    boundEntityId.value = parsed as EntityId;
-    void loadEntityName(parsed as EntityId);
-  }
-}
 
-async function refreshRuntime() {
-  if (runtimeRef.value) {
-    await runtimeRef.value.refresh();
-  }
-}
 
 onMounted(async () => {
   await loadFaceplateMeta();
@@ -86,17 +67,13 @@ onMounted(async () => {
         <span v-if="entityName">{{ entityName }}</span>
       </div>
       <div class="controls">
-        <label>
-          Bound Entity
-          <input
-            class="entity-input"
-            type="number"
-            :value="boundEntityId ?? ''"
-            placeholder="Entity ID"
-            @change="handleEntityInput"
-          />
-        </label>
-        <button class="refresh-button" type="button" @click="refreshRuntime">Refresh</button>
+        <div v-if="boundEntityId" class="entity-badge">
+          <span class="badge-label">Entity</span>
+          <span class="badge-value">{{ boundEntityId }}</span>
+        </div>
+        <div v-else class="entity-badge entity-badge--empty">
+          <span class="badge-label">No entity bound</span>
+        </div>
       </div>
     </header>
 
@@ -160,29 +137,34 @@ onMounted(async () => {
   opacity: 0.75;
 }
 
-.entity-input {
-  margin-top: 4px;
-  width: 160px;
-  padding: 6px 8px;
-  border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(0, 0, 0, 0.4);
-  color: var(--qui-text-primary);
-}
-
-.refresh-button {
+.entity-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   padding: 6px 12px;
   border-radius: 6px;
-  background: var(--qui-accent-color);
-  color: #050505;
-  border: none;
-  font-weight: 600;
-  cursor: pointer;
-  transition: transform 0.2s ease;
+  background: rgba(0, 255, 170, 0.12);
+  border: 1px solid rgba(0, 255, 170, 0.25);
+  font-size: 12px;
 }
 
-.refresh-button:hover {
-  transform: translateY(-1px);
+.entity-badge--empty {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+  opacity: 0.6;
+}
+
+.badge-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.7;
+}
+
+.badge-value {
+  font-weight: 600;
+  font-family: 'Courier New', monospace;
+  color: var(--qui-accent-color);
 }
 
 .viewer-body {

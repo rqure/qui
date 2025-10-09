@@ -6,6 +6,7 @@ import { useDataStore } from '@/stores/data';
 import FaceplateComponentRenderer from './FaceplateComponentRenderer.vue';
 import { FaceplateDataService, type FaceplateComponentRecord, type FaceplateRecord, type FaceplateBindingDefinition, type FaceplateScriptModule } from '@/apps/faceplate-builder/utils/faceplate-data';
 import type { BindingMode } from '@/apps/faceplate-builder/types';
+import { IndirectFieldNotifier } from '@/apps/faceplate-builder/utils/indirect-field-notifier';
 
 interface RenderSlot {
   id: EntityId;
@@ -93,6 +94,7 @@ const expressionMeta = new Map<string, { expression: string; mode: BindingMode; 
 const dependencyIndex = new Map<string, Set<string>>();
 const componentLastUpdated = reactive<Record<string, Record<string, number>>>({});
 let subscriptions: NotificationSubscription[] = [];
+const indirectNotifiers = new Map<string, IndirectFieldNotifier>();
 const scriptCache = new Map<string, (context: ScriptExecutionContext, helpers: ScriptHelpers) => Promise<unknown>>();
 const scriptState = new Map<string, Record<string, unknown>>();
 const scriptModuleExports = new Map<string, Record<string, unknown>>();
@@ -212,6 +214,7 @@ async function initialize() {
   error.value = null;
 
   try {
+    // Load faceplate data if needed
     if (props.faceplateData) {
       faceplate.value = props.faceplateData;
     } else if (props.faceplateId) {
@@ -221,16 +224,25 @@ async function initialize() {
     }
 
     if (faceplate.value) {
-      components.value = await service.readComponents(faceplate.value.components);
-      compileFaceplateScriptModules(faceplate.value.scriptModules ?? []);
+      // Load components and compile scripts in parallel
+      const [componentsData] = await Promise.all([
+        service.readComponents(faceplate.value.components),
+        Promise.resolve(compileFaceplateScriptModules(faceplate.value.scriptModules ?? []))
+      ]);
+      components.value = componentsData;
     } else {
       components.value = [];
       compileFaceplateScriptModules([]);
     }
 
+    // Build binding maps synchronously
     buildBindingMaps();
-    await evaluateAllBindings();
-    await registerNotifications();
+    
+    // Evaluate bindings and register notifications in parallel
+    await Promise.all([
+      evaluateAllBindings(),
+      registerNotifications()
+    ]);
   } catch (err) {
     console.error('FaceplateRuntime initialization failed', err);
     error.value = err instanceof Error ? err.message : 'Failed to load faceplate';
@@ -582,11 +594,14 @@ async function evaluateAllBindings() {
     return;
   }
 
+  // Evaluate all bindings in parallel for faster initialization
   const entries = Array.from(expressionMeta.entries());
-  for (const [key, meta] of entries) {
-    const value = await evaluateBindingExpression(key, meta);
-    updateBindingsForExpression(key, value);
-  }
+  await Promise.all(
+    entries.map(async ([key, meta]) => {
+      const value = await evaluateBindingExpression(key, meta);
+      updateBindingsForExpression(key, value);
+    })
+  );
 }
 
 async function evaluateExpression(expression: string): Promise<unknown> {
@@ -659,13 +674,14 @@ async function getFieldPath(expression: string): Promise<FieldType[]> {
 async function resolveBindingTarget(expression: string, fieldPath: FieldType[]) {
   if (bindingTargets.has(expression)) return;
   if (!props.entityId) return;
+  if (!fieldPath.length) return;
 
-  try {
-    const [resolvedEntity, resolvedFieldType] = await dataStore.resolveIndirection(props.entityId, fieldPath);
-    bindingTargets.set(expression, { entityId: resolvedEntity, fieldType: resolvedFieldType });
-  } catch (err) {
-    console.warn(`Failed to resolve indirection for expression ${expression}`, err);
-  }
+  // Backend handles indirection for all field paths (direct and indirect)
+  // Store the starting entity and the first field in the path
+  bindingTargets.set(expression, { 
+    entityId: props.entityId, 
+    fieldType: fieldPath[0] 
+  });
 }
 
 function updateBindingsForExpression(expressionKey: string, value: unknown) {
@@ -749,9 +765,58 @@ async function registerNotifications() {
     const path = await getFieldPath(dependency);
     if (!path.length) continue;
 
+    // For indirect paths (e.g., "Parent->Name"), use IndirectFieldNotifier
+    if (path.length > 1) {
+      try {
+        const notifier = new IndirectFieldNotifier(
+          dataStore,
+          props.entityId!,
+          path,
+          (value) => {
+            // Handle final value changes
+            const subscribers = dependencyIndex.get(dependency);
+            if (!subscribers || !subscribers.size) {
+              void evaluateAllBindings();
+              return;
+            }
+
+            subscribers.forEach((expressionKey) => {
+              const meta = expressionMeta.get(expressionKey);
+              if (!meta) return;
+
+              if (meta.mode === 'field' && meta.expression === dependency) {
+                expressionValueMap[expressionKey] = value;
+                updateBindingsForExpression(expressionKey, value);
+              } else {
+                void evaluateBindingExpression(expressionKey, meta)
+                  .then((value) => {
+                    updateBindingsForExpression(expressionKey, value);
+                  })
+                  .catch((error) => {
+                    console.warn('Failed to refresh binding after notification', error);
+                  });
+              }
+            });
+          }
+        );
+
+        await notifier.start();
+        indirectNotifiers.set(dependency, notifier);
+      } catch (error) {
+        console.warn(`Failed to start IndirectFieldNotifier for dependency ${dependency}`, error);
+      }
+      continue;
+    }
+
+    // For direct paths (single field), use simple notification
     await resolveBindingTarget(dependency, path);
     const target = bindingTargets.get(dependency);
-    if (!target) continue;
+    
+    // Skip if target is invalid or missing required fields
+    if (!target || target.entityId == null || target.fieldType == null) {
+      console.warn(`Skipping notification registration for dependency ${dependency}: invalid target`, target);
+      continue;
+    }
 
     const notifyConfig: NotifyConfig = {
       EntityId: {
@@ -804,11 +869,18 @@ async function registerNotifications() {
 }
 
 async function cleanupNotifications() {
-  if (!subscriptions.length) return;
-  await Promise.all(
-    subscriptions.map(({ config, callback }) => dataStore.unregisterNotification(config, callback).catch(() => undefined)),
+  // Stop all indirect field notifiers
+  const notifierStops = Array.from(indirectNotifiers.values()).map((notifier) => notifier.stop().catch(() => undefined));
+  indirectNotifiers.clear();
+
+  // Unregister all direct notifications
+  const subscriptionCleanup = subscriptions.map(({ config, callback }) => 
+    dataStore.unregisterNotification(config, callback).catch(() => undefined)
   );
   subscriptions = [];
+
+  // Wait for all cleanup operations
+  await Promise.all([...notifierStops, ...subscriptionCleanup]);
 }
 
 function ensureArray<T>(value: T[] | T | null | undefined): T[] {
