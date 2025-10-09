@@ -235,7 +235,13 @@ const ComponentNode = {
   },
   emits: ['component-click', 'component-drag-start'],
   setup(props: any, { emit }: any) {
-    const isContainerType = computed(() => isContainer(props.component.type));
+    const isContainerType = computed(() => {
+      const result = isContainer(props.component.type);
+      if (props.component.children?.length) {
+        console.log(`Component ${props.component.id} type: ${props.component.type}, isContainer: ${result}, children count: ${props.component.children.length}`);
+      }
+      return result;
+    });
     
     // Check if this component should be visible (cascades from parent)
     const isVisible = computed(() => {
@@ -258,9 +264,13 @@ const ComponentNode = {
     
     const layoutChildren = computed(() => {
       if (!isContainerType.value || !props.component.children?.length) {
+        console.log(`layoutChildren: skipping layout - isContainer: ${isContainerType.value}, children: ${props.component.children?.length || 0}`);
         return props.component.children || [];
       }
-      return calculateChildLayout(props.component, props.component.children);
+      console.log(`layoutChildren: calculating layout for ${props.component.children.length} children`);
+      const result = calculateChildLayout(props.component, props.component.children);
+      console.log(`layoutChildren result:`, result);
+      return result;
     });
     
     const componentStyle = computed(() => {
