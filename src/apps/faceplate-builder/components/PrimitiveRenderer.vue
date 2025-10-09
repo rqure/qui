@@ -233,6 +233,14 @@ const normalizedType = computed(() => props.type.toLowerCase());
   justify-content: center;
 }
 
+/* For containers, don't override their flex layout */
+.primitive-renderer.primitive-primitive\.container,
+.primitive-renderer.primitive-primitive\.container\.tabs {
+  display: block;
+  align-items: unset;
+  justify-content: unset;
+}
+
 .text-block {
   width: 100%;
   height: 100%;

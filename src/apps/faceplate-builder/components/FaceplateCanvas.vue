@@ -99,14 +99,23 @@ const componentTree = computed(() => {
   const componentsById = new Map<string | number, CanvasComponent>();
   const rootComponents: CanvasComponent[] = [];
   
-  // First pass: clone all components and index by ID
+  // First pass: clone all components and index by ID, preserving existing children arrays
   props.components.forEach(comp => {
-    componentsById.set(comp.id, { ...comp, children: [] });
+    componentsById.set(comp.id, { ...comp, children: comp.children || [] });
   });
   
-  // Second pass: build tree structure
+  // Second pass: build tree structure (only if children aren't already provided)
   props.components.forEach(comp => {
     const component = componentsById.get(comp.id)!;
+    
+    // If component already has children from input, skip tree building for it
+    if (comp.children && comp.children.length > 0) {
+      // Component already has its children, just add to root if no parent
+      if (!comp.parentId) {
+        rootComponents.push(component);
+      }
+      return;
+    }
     
     if (comp.parentId && componentsById.has(comp.parentId)) {
       const parent = componentsById.get(comp.parentId)!;
@@ -116,6 +125,11 @@ const componentTree = computed(() => {
       rootComponents.push(component);
     }
   });
+  
+  if (import.meta.env.DEV) {
+    console.log('FaceplateCanvas - componentTree:', rootComponents);
+    console.log('FaceplateCanvas - componentsById:', Array.from(componentsById.entries()));
+  }
   
   return rootComponents;
 });
@@ -260,19 +274,29 @@ const ComponentNode = {
     });
     
     const layoutChildren = computed(() => {
+      // When rendering in runtime (not edit mode), just return children as-is
+      // Flexbox will handle the layout based on container config
       if (!isContainerType.value || !props.component.children?.length) {
         return props.component.children || [];
       }
+      
+      // In edit mode, we still calculate positions for absolute positioning
+      // In runtime/view mode, we just return the children and let flexbox position them
+      if (!props.editMode) {
+        return props.component.children;
+      }
+      
       return calculateChildLayout(props.component, props.component.children);
     });
     
     const componentStyle = computed(() => {
-      // If inside a container, don't use absolute positioning - let flexbox handle it
-      if (props.isInsideContainer) {
+      // If inside a container (in runtime/view mode), don't use absolute positioning
+      // Let flexbox handle it
+      if (props.isInsideContainer && !props.editMode) {
         const style: Record<string, any> = {
           width: `${props.component.size.x}px`,
           height: `${props.component.size.y}px`,
-          position: 'relative', // Override absolute positioning
+          // Don't set position - let it be default (static) for flexbox
         };
         if (effectiveOpacity.value !== 1) {
           style.opacity = effectiveOpacity.value;
@@ -280,7 +304,7 @@ const ComponentNode = {
         return style;
       }
       
-      // Top-level components use absolute positioning
+      // Top-level components or edit mode use absolute positioning
       const baseStyle = getComponentStyle(props.component);
       if (effectiveOpacity.value !== 1) {
         return {
@@ -484,13 +508,23 @@ const ComponentNode = {
 /* Container specific styles */
 .faceplate-canvas__component--container .faceplate-canvas__component-content {
   position: relative;
+  /* Allow the PrimitiveRenderer to use flex layout */
+  display: flex;
+  flex-direction: column;
 }
 
 /* Components inside containers use flexbox positioning, not absolute */
-.faceplate-canvas__component--inside-container {
-  position: relative !important;
+/* Only apply in runtime (when not in edit mode) */
+.faceplate-canvas:not(.faceplate-canvas--edit-mode) .faceplate-canvas__component--inside-container {
+  /* Don't override position - let it be default for flexbox */
+  position: static;
   /* flex-shrink: 0 prevents children from shrinking below their specified size */
   flex-shrink: 0;
+}
+
+/* In edit mode, keep absolute positioning for manual layout */
+.faceplate-canvas--edit-mode .faceplate-canvas__component--inside-container {
+  position: absolute;
 }
 
 .faceplate-canvas__hint {

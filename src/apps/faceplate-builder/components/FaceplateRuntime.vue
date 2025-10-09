@@ -192,11 +192,20 @@ const canvasComponents = computed<CanvasComponent[]>(() => {
     ? faceplate.value.configuration.layout
     : [];
   
+  if (import.meta.env.DEV && layout.length > 0) {
+    console.log('FaceplateRuntime - Layout items:', layout);
+    console.log('FaceplateRuntime - RenderedSlots:', renderedSlots.value.map(s => ({ id: s.id, name: s.name, type: s.type })));
+  }
+  
   // First pass: create components with parentId
   const components = renderedSlots.value.map(slot => {
     // Find parent ID from layout data
     const layoutItem = layout.find(item => item.component === String(slot.id));
     const parentId = layoutItem?.parentId || null;
+    
+    if (import.meta.env.DEV && parentId) {
+      console.log(`FaceplateRuntime - Component ${slot.id} has parentId: ${parentId}`);
+    }
     
     return {
       id: slot.id,
@@ -228,17 +237,30 @@ const canvasComponents = computed<CanvasComponent[]>(() => {
     }
   });
   
-  // Third pass: attach children arrays to their parents
-  return components.map(component => {
+  // Third pass: attach children arrays to their parents and filter to root only
+  const allComponents = components.map(component => {
     // Normalize component ID to string for Map lookup
     const componentKey = String(component.id);
     const children = childrenMap.get(componentKey);
+    
+    if (import.meta.env.DEV && children && children.length > 0) {
+      console.log(`FaceplateRuntime - Component ${component.id} (${component.type}) has ${children.length} children:`, children.map(c => ({ id: c.id, type: c.type })));
+    }
     
     return {
       ...component,
       children: children || undefined,
     };
   });
+  
+  // Only return root-level components (those without a parent)
+  const result = allComponents.filter(component => !component.parentId);
+  
+  if (import.meta.env.DEV) {
+    console.log('FaceplateRuntime - Final canvasComponents (root only):', result);
+  }
+  
+  return result;
 });
 
 const viewportSize = computed(() => {
