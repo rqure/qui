@@ -351,13 +351,13 @@ const normalizedType = computed(() => props.type.toLowerCase());
   width: 100%;
   height: 100%;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  /* Layout properties controlled by inline styles */
 }
 
 .container-placeholder {
   opacity: 0.5;
   font-size: 12px;
+  pointer-events: none;
 }
 
 .tab-container {

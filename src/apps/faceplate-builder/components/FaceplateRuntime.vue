@@ -207,7 +207,8 @@ const canvasComponents = computed<CanvasComponent[]>(() => {
     ? faceplate.value.configuration.layout
     : [];
   
-  return renderedSlots.value.map(slot => {
+  // First pass: create components with parentId
+  const components = renderedSlots.value.map(slot => {
     // Find parent ID from layout data
     const layoutItem = layout.find(item => item.component === String(slot.id));
     const parentId = layoutItem?.parentId || null;
@@ -226,6 +227,31 @@ const canvasComponents = computed<CanvasComponent[]>(() => {
       config: slot.config,
       bindings: slot.bindings,
       parentId: parentId,
+    };
+  });
+  
+  // Second pass: build children arrays for hierarchical rendering
+  const childrenMap = new Map<string | number, CanvasComponent[]>();
+  components.forEach(component => {
+    if (component.parentId) {
+      // Normalize parentId to string for consistent Map keys
+      const parentKey = String(component.parentId);
+      if (!childrenMap.has(parentKey)) {
+        childrenMap.set(parentKey, []);
+      }
+      childrenMap.get(parentKey)!.push(component);
+    }
+  });
+  
+  // Third pass: attach children arrays to their parents
+  return components.map(component => {
+    // Normalize component ID to string for Map lookup
+    const componentKey = String(component.id);
+    const children = childrenMap.get(componentKey);
+    
+    return {
+      ...component,
+      children: children || undefined,
     };
   });
 });
