@@ -64,11 +64,12 @@ function handleDragOver(event: DragEvent) {
 function handleDrop(event: DragEvent) {
   event.preventDefault();
   const componentId = event.dataTransfer?.getData('application/x-faceplate-component') || event.dataTransfer?.getData('text/plain');
-  if (!componentId || !wrapperRef.value) return;
+  if (!componentId || !canvasRef.value?.canvasRef) return;
 
-  const rect = wrapperRef.value.getBoundingClientRect();
-  const localX = event.clientX - rect.left + wrapperRef.value.scrollLeft;
-  const localY = event.clientY - rect.top + wrapperRef.value.scrollTop;
+  const canvasEl = canvasRef.value.canvasRef;
+  const rect = canvasEl.getBoundingClientRect();
+  const localX = event.clientX - rect.left + canvasEl.scrollLeft;
+  const localY = event.clientY - rect.top + canvasEl.scrollTop;
 
   const snapped = snapToGrid({ x: localX, y: localY });
   emit('node-requested', {
@@ -131,12 +132,19 @@ function handleCanvasClick(pointerEvent: PointerEvent) {
 }
 
 function handleCanvasPointerDown(event: PointerEvent) {
-  if (!wrapperRef.value) return;
+  if (!canvasRef.value?.canvasRef) return;
+  
+  // Only handle canvas background clicks, not component clicks
+  const target = event.target as HTMLElement;
+  if (target.closest('.faceplate-canvas__component') || target.classList.contains('faceplate-canvas__component')) {
+    return;
+  }
 
-  const rect = wrapperRef.value.getBoundingClientRect();
+  const canvasEl = canvasRef.value.canvasRef;
+  const rect = canvasEl.getBoundingClientRect();
   const point = {
-    x: event.clientX - rect.left + wrapperRef.value.scrollLeft,
-    y: event.clientY - rect.top + wrapperRef.value.scrollTop,
+    x: event.clientX - rect.left + canvasEl.scrollLeft,
+    y: event.clientY - rect.top + canvasEl.scrollTop,
   };
   
   selectBoxState.start = point;
@@ -148,11 +156,12 @@ function handleCanvasPointerDown(event: PointerEvent) {
 
 function handlePointerMove(event: PointerEvent) {
   // Handle drag-select box
-  if (selectBoxState.isActive && wrapperRef.value) {
-    const rect = wrapperRef.value.getBoundingClientRect();
+  if (selectBoxState.isActive && canvasRef.value?.canvasRef) {
+    const canvasEl = canvasRef.value.canvasRef;
+    const rect = canvasEl.getBoundingClientRect();
     selectBoxState.current = {
-      x: event.clientX - rect.left + wrapperRef.value.scrollLeft,
-      y: event.clientY - rect.top + wrapperRef.value.scrollTop,
+      x: event.clientX - rect.left + canvasEl.scrollLeft,
+      y: event.clientY - rect.top + canvasEl.scrollTop,
     };
     return;
   }
@@ -342,7 +351,7 @@ onBeforeUnmount(teardownListeners);
 .builder-canvas-wrapper {
   position: relative;
   flex: 1;
-  overflow: auto;
+  overflow: hidden;
 }
 
 .builder-canvas-wrapper__select-box {

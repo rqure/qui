@@ -115,7 +115,7 @@ function isComponentMultiSelected(id: string | number): boolean {
 function handleComponentPointerDown(event: PointerEvent, id: string | number) {
   if (!props.editMode) return;
   
-  event.stopPropagation();
+  // Don't stopPropagation - let it bubble to BuilderCanvas for drag handling
   const isMultiSelect = event.shiftKey || event.ctrlKey || event.metaKey;
   emit('component-click', { id, event, isMultiSelect });
   emit('component-drag-start', { id, event });
@@ -154,9 +154,10 @@ defineExpose({
       ></div>
 
       <!-- Components -->
-      <div
+      <button
         v-for="component in components"
         :key="component.id"
+        type="button"
         class="faceplate-canvas__component"
         :class="{
           'faceplate-canvas__component--selected': isComponentSelected(component.id) && editMode,
@@ -166,6 +167,7 @@ defineExpose({
         :style="getComponentStyle(component)"
         :data-component-id="component.id"
         @pointerdown="handleComponentPointerDown($event, component.id)"
+        @click.stop
       >
         <PrimitiveRenderer
           class="faceplate-canvas__component-content"
@@ -174,7 +176,7 @@ defineExpose({
           :bindings="component.bindings"
           :edit-mode="false"
         />
-      </div>
+      </button>
 
       <!-- Hint for empty canvas -->
       <div v-if="!components.length && editMode" class="faceplate-canvas__hint">
@@ -233,6 +235,7 @@ defineExpose({
   display: flex;
   align-items: stretch;
   justify-content: stretch;
+  padding: 0;
   border-radius: 12px;
   border: 1px solid transparent;
   background: transparent;
