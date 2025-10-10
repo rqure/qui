@@ -44,7 +44,7 @@ export class SelectionBox extends Model {
         }
 
         // Start with the bounds of the first target
-        let bounds = this._targets[0].getBounds();
+        const bounds = this._targets[0].getBounds();
         
         // Extend with bounds of all other targets
         for (let i = 1; i < this._targets.length; i++) {

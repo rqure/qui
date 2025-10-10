@@ -10,11 +10,29 @@ interface ExtendedMenuItem extends MenuItem {
   props?: Record<string, any>;
 }
 
+interface Props {
+  items?: MenuItem[];
+  position?: MenuPosition;
+  class?: string;
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  items: undefined,
+  position: undefined,
+  class: ''
+});
+
+defineEmits<{
+  close: [];
+}>();
+
 const menuStore = useMenuStore()
 const menuElement = ref<HTMLElement | null>(null)
 const activeSubmenuIndex = ref<number | null>(null)
 const submenuPosition = ref<MenuPosition>({ x: 0, y: 0 })
 const adjustedPosition = ref<MenuPosition>({ x: 0, y: 0 })
+const submenuCloseTimeout = ref<number | null>(null)
+const submenuOpenTimeout = ref<number | null>(null)
 
 // Handle menu item click
 const handleItemClick = (e: Event, item: ExtendedMenuItem) => {
@@ -67,55 +85,60 @@ const calculatePosition = () => {
 
 // Handle mouse enter for submenu items
 const handleMouseEnter = (index: number, item: MenuItem) => {
+  // Clear any pending close timeout
+  if (submenuCloseTimeout.value) {
+    clearTimeout(submenuCloseTimeout.value)
+    submenuCloseTimeout.value = null
+  }
+  
   if (item.children && item.children.length > 0 && !item.disabled) {
+    // Clear any pending open timeout
+    if (submenuOpenTimeout.value) {
+      clearTimeout(submenuOpenTimeout.value)
+    }
+    
+    // Set active index immediately for hover effect
     activeSubmenuIndex.value = index
     
-    // Delay slightly to prevent accidental opening
-    setTimeout(() => {
-      if (menuElement.value) {
+    // Delay positioning to prevent accidental opening
+    submenuOpenTimeout.value = window.setTimeout(() => {
+      if (menuElement.value && activeSubmenuIndex.value === index) {
         const itemElement = menuElement.value.querySelectorAll('.menu-item')[index] as HTMLElement
-        const itemRect = itemElement.getBoundingClientRect()
-        
-        submenuPosition.value = {
-          x: itemRect.right,
-          y: itemRect.top,
+        if (itemElement) {
+          const itemRect = itemElement.getBoundingClientRect()
+          
+          submenuPosition.value = {
+            x: itemRect.right,
+            y: itemRect.top,
+          }
         }
       }
-    }, 50)
+      submenuOpenTimeout.value = null
+    }, 150)
   } else {
-    activeSubmenuIndex.value = null
+    // Close submenu when hovering over non-submenu items
+    submenuCloseTimeout.value = window.setTimeout(() => {
+      activeSubmenuIndex.value = null
+      submenuCloseTimeout.value = null
+    }, 100)
   }
 }
 
 // Handle mouse leave for menu
 const handleMenuLeave = () => {
-  // Use timeout to prevent immediate closing when moving to submenu
-  setTimeout(() => {
-    if (!activeSubmenuIndex.value) return
-    
-    // Check if mouse is over submenu
-    const submenuElement = document.querySelector('.submenu')
-    if (submenuElement) {
-      const submenuRect = submenuElement.getBoundingClientRect()
-      const mouseX = window.event ? (window.event as MouseEvent).clientX : 0
-      const mouseY = window.event ? (window.event as MouseEvent).clientY : 0
-      
-      if (
-        mouseX >= submenuRect.left &&
-        mouseX <= submenuRect.right &&
-        mouseY >= submenuRect.top &&
-        mouseY <= submenuRect.bottom
-      ) {
-        return
-      }
-    }
-    
+  // Set a timeout to close submenu only if mouse doesn't return
+  if (submenuCloseTimeout.value) {
+    clearTimeout(submenuCloseTimeout.value)
+  }
+  
+  submenuCloseTimeout.value = window.setTimeout(() => {
     activeSubmenuIndex.value = null
-  }, 100)
+    submenuCloseTimeout.value = null
+  }, 300)
 }
 
 // Watch for position changes
-watch(() => menuStore.position, (newPosition) => {
+watch(() => props.position || menuStore.position, (newPosition) => {
   // Set initial position immediately
   adjustedPosition.value = { ...newPosition }
   
@@ -139,24 +162,43 @@ const handleEscape = (e: KeyboardEvent) => {
 }
 
 const handleOutsideClick = (e: MouseEvent) => {
-  if (menuElement.value && !menuElement.value.contains(e.target as Node)) {
+  // Check if click is inside ANY context menu (parent or submenu)
+  // All context menus have the class 'context-menu'
+  const clickedElement = e.target as HTMLElement;
+  const isInsideAnyMenu = clickedElement.closest('.context-menu');
+  
+  if (!isInsideAnyMenu) {
     menuStore.hideMenu()
   }
 }
 
 onMounted(() => {
-  document.addEventListener('keydown', handleEscape)
-  document.addEventListener('mousedown', handleOutsideClick)
+  // Only register global handlers for root menu (not submenus)
+  if (!props.items) {
+    document.addEventListener('keydown', handleEscape)
+    document.addEventListener('mousedown', handleOutsideClick)
+  }
   
   // Initial position calculation
-  if (menuStore.isVisible) {
+  if (menuStore.isVisible || props.items) {
     nextTick(calculatePosition)
   }
 })
 
 onBeforeUnmount(() => {
-  document.removeEventListener('keydown', handleEscape)
-  document.removeEventListener('mousedown', handleOutsideClick)
+  // Only remove handlers if this was a root menu
+  if (!props.items) {
+    document.removeEventListener('keydown', handleEscape)
+    document.removeEventListener('mousedown', handleOutsideClick)
+  }
+  
+  // Clear any pending timeouts
+  if (submenuCloseTimeout.value) {
+    clearTimeout(submenuCloseTimeout.value)
+  }
+  if (submenuOpenTimeout.value) {
+    clearTimeout(submenuOpenTimeout.value)
+  }
 })
 
 // Handle submenu close
@@ -168,22 +210,21 @@ const handleSubmenuClose = () => {
 <template>
   <Teleport to="body">
     <div
-      v-if="menuStore.isVisible"
+      v-if="props.items ? true : menuStore.isVisible"
       ref="menuElement"
-      class="context-menu"
+      :class="['context-menu', props.class]"
       :style="{
-        left: `${adjustedPosition.x}px`,
-        top: `${adjustedPosition.y}px`,
+        left: `${props.position?.x ?? adjustedPosition.x}px`,
+        top: `${props.position?.y ?? adjustedPosition.y}px`,
       }"
-      @mouseleave="handleMenuLeave"
     >
-      <div v-for="(item, index) in menuStore.items" :key="item.id">
+      <div v-for="(item, index) in (props.items || menuStore.items)" :key="item.id">
         <!-- Render separator -->
         <div v-if="isSeparator(item)" class="menu-separator"></div>
         
         <!-- Render custom component if provided -->
-        <div v-else-if="item.component" class="menu-custom-component">
-          <component :is="item.component" v-bind="item.props || {}"></component>
+        <div v-else-if="(item as ExtendedMenuItem).component" class="menu-custom-component">
+          <component :is="(item as ExtendedMenuItem).component" v-bind="(item as ExtendedMenuItem).props || {}"></component>
         </div>
         
         <!-- Regular menu item -->
@@ -195,7 +236,7 @@ const handleSubmenuClose = () => {
             'with-submenu': item.children && item.children.length > 0,
             active: index === activeSubmenuIndex
           }"
-          @click="(e) => handleItemClick(e, item)"
+          @click.stop="(e) => handleItemClick(e, item)"
           @mouseenter="() => handleMouseEnter(index, item)"
         >
           <div class="item-content">
@@ -213,7 +254,8 @@ const handleSubmenuClose = () => {
         <!-- Render submenu if active -->
         <ContextMenuComponent
           v-if="index === activeSubmenuIndex && item.children"
-          class="submenu"
+          :class="'submenu'"
+          :items="item.children"
           :position="submenuPosition"
           @close="handleSubmenuClose"
         />
@@ -234,6 +276,11 @@ const handleSubmenuClose = () => {
   padding: 6px;
   z-index: 9999;
   backdrop-filter: blur(var(--qui-backdrop-blur));
+  pointer-events: auto;
+}
+
+.context-menu.submenu {
+  z-index: 10000;
 }
 
 .menu-item {

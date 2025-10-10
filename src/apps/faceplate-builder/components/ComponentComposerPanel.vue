@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue';
-import ComponentSampleRenderer from './ComponentSampleRenderer.vue';
+import PrimitiveRenderer from './PrimitiveRenderer.vue';
 import type {
   PaletteTemplate,
   PrimitiveDefinition,
@@ -231,11 +231,10 @@ function handleSubmit() {
           <h3>Palette Preview</h3>
         </header>
         <div class="composer__preview-stage" role="presentation">
-          <ComponentSampleRenderer
-            :component-id="previewTemplate.id"
-            :name="previewTemplate.label"
-            :props="{ ...previewTemplate.defaults.props, ...propValues }"
-            :template="previewTemplate"
+          <PrimitiveRenderer
+            :type="previewTemplate.id"
+            :config="{ ...previewTemplate.defaults.props, ...propValues }"
+            :edit-mode="true"
           />
         </div>
       </section>

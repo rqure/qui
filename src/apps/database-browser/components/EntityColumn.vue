@@ -199,8 +199,8 @@ function openFaceplateBuilder(entity: EntityItem, faceplateId?: EntityId) {
     width: defaultSize.width,
     height: defaultSize.height,
     props: {
-      initialEntityId: entity.id,
-      initialFaceplateId: faceplateId ?? null
+      entityId: entity.id,
+      faceplateId: faceplateId ?? null
     }
   });
 }
