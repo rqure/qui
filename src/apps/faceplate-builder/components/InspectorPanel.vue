@@ -1646,19 +1646,30 @@ function handleScriptUpdate(handler: EventHandler, code: string) {
   padding-right: 26px;
 }
 
-/* Fix dropdown option colors - critical UX issue */
+/* Fix dropdown option colors - critical UX issue with cross-browser support */
+.property-card__control select,
+.event-handler-field select,
+.inspector__select {
+  color-scheme: dark; /* Force dark mode for native dropdowns */
+}
+
 .property-card__control select option,
 .event-handler-field select option,
 .inspector__select option {
   background: rgba(8, 16, 24, 0.98);
+  background-color: #0a1018; /* Solid fallback for better cross-browser support */
   color: #ffffff;
   padding: 8px;
 }
 
 .property-card__control select option:hover,
+.property-card__control select option:checked,
 .event-handler-field select option:hover,
-.inspector__select option:hover {
+.event-handler-field select option:checked,
+.inspector__select option:hover,
+.inspector__select option:checked {
   background: rgba(0, 255, 194, 0.2);
+  background-color: rgba(0, 255, 194, 0.15); /* Solid fallback */
 }
 
 .property-card__control input:disabled,

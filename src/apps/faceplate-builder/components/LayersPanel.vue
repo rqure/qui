@@ -10,7 +10,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (event: 'select-node', nodeId: string, isMultiSelect: boolean): void;
   (event: 'toggle-visibility', payload: { nodeId: string }): void;
-  (event: 'reorder', payload: { nodeId: string; newIndex: number; newParentId?: string | null }): void;
+  (event: 'reorder', payload: { nodeId: string; newIndex: number; newParentId?: string | null; newZIndex?: number }): void;
   (event: 'bring-to-front', nodeId: string): void;
   (event: 'send-to-back', nodeId: string): void;
 }>();
@@ -164,14 +164,23 @@ function handleDrop(event: DragEvent, targetNodeId: string) {
     return;
   }
   
-  // Calculate new index and parent
+  // Calculate new index, parent, and z-index
   let newIndex = 0;
   let newParentId: string | null = null;
+  let newZIndex: number | undefined;
   
   if (dropPosition.value === 'inside') {
     // Drop as first child of target
     newParentId = targetNodeId;
     newIndex = 0;
+    // Set z-index to be higher than other children
+    const children = getChildren(targetNodeId);
+    if (children.length > 0) {
+      const maxChildZIndex = Math.max(...children.map(c => c.zIndex ?? 0));
+      newZIndex = maxChildZIndex + 1;
+    } else {
+      newZIndex = 0;
+    }
   } else {
     // Drop before/after target (same parent as target)
     newParentId = targetNode.parentId ?? null;
@@ -181,12 +190,25 @@ function handleDrop(event: DragEvent, targetNodeId: string) {
     
     const targetIndex = siblings.findIndex(n => n.id === targetNodeId);
     newIndex = dropPosition.value === 'before' ? targetIndex : targetIndex + 1;
+    
+    // Calculate z-index based on position relative to target
+    if (dropPosition.value === 'before') {
+      newZIndex = (targetNode.zIndex ?? 0) - 1;
+    } else {
+      newZIndex = (targetNode.zIndex ?? 0) + 1;
+    }
+    
+    // Ensure z-index is non-negative
+    if (newZIndex < 0) {
+      newZIndex = 0;
+    }
   }
   
   emit('reorder', {
     nodeId: draggedNodeId.value,
     newIndex,
     newParentId,
+    newZIndex,
   });
   
   // Reset drag state

@@ -27,7 +27,7 @@ const emit = defineEmits<{
   (event: 'node-resize-end', payload: { nodeId: string; size: Vector2 }): void;
   (event: 'canvas-clicked'): void;
   (event: 'drag-select-complete', selectedIds: string[]): void;
-  (event: 'add-to-container', payload: { nodeIds: string[]; containerId: string }): void;
+  (event: 'add-to-container', payload: { nodeIds: string[]; containerId: string; relativePositions?: Array<{ nodeId: string; position: Vector2 }> }): void;
   (event: 'context-menu-action', payload: { action: string; nodeId?: string }): void;
 }>();
 
@@ -457,10 +457,10 @@ function handleCanvasPointerDown(event: PointerEvent) {
 
   const canvasEl = canvasRef.value.canvasRef;
   const rect = canvasEl.getBoundingClientRect();
-  // Properly transform screen coordinates to canvas coordinates accounting for zoom and pan
+  // Properly transform screen coordinates to canvas coordinates accounting for zoom, pan, and scroll
   const point = {
-    x: (event.clientX - rect.left - pan.value.x) / zoom.value,
-    y: (event.clientY - rect.top - pan.value.y) / zoom.value,
+    x: (event.clientX - rect.left - pan.value.x) / zoom.value + canvasEl.scrollLeft,
+    y: (event.clientY - rect.top - pan.value.y) / zoom.value + canvasEl.scrollTop,
   };
   
   selectBoxState.start = point;
@@ -508,6 +508,17 @@ function handlePointerMove(event: PointerEvent) {
     // Apply snapping
     const snappedPos = snapToGrid(newPos);
     const snappedSize = snapToGrid(newSize);
+    
+    // Detect alignment guides during resize for visual feedback
+    const resizingNode = props.nodes.find(n => n.id === nodeId);
+    if (resizingNode) {
+      const guides = detectAlignmentGuides([{
+        nodeId: nodeId,
+        position: snappedPos,
+        size: snappedSize,
+      }]);
+      alignmentGuides.value = guides;
+    }
     
     emit('nodes-updated', [{
       nodeId,
@@ -681,10 +692,31 @@ function handlePointerUp(event: PointerEvent) {
 
     // Handle drag-to-contain if hovering over a container
     if (dropTargetContainerId.value) {
-      emit('add-to-container', {
-        nodeIds: selection,
-        containerId: dropTargetContainerId.value
-      });
+      const containerNode = props.nodes.find(n => n.id === dropTargetContainerId.value);
+      if (containerNode) {
+        // Calculate relative positions within the container
+        const relativeUpdates = selection.map((id) => {
+          const node = props.nodes.find(n => n.id === id);
+          if (!node) return null;
+          
+          // Convert absolute position to relative position within container
+          const relativePosition = {
+            x: node.position.x - containerNode.position.x,
+            y: node.position.y - containerNode.position.y,
+          };
+          
+          return {
+            nodeId: id,
+            position: relativePosition,
+          };
+        }).filter(Boolean) as Array<{ nodeId: string; position: Vector2 }>;
+        
+        emit('add-to-container', {
+          nodeIds: selection,
+          containerId: dropTargetContainerId.value,
+          relativePositions: relativeUpdates,
+        });
+      }
     }
   }
 
@@ -1053,10 +1085,17 @@ onBeforeUnmount(teardownListeners);
   transition: all 0.2s;
 }
 
-.resize-handle:hover {
+.resize-handle:hover,
+.resize-handle:active {
   background: rgba(0, 255, 255, 1);
   transform: scale(1.3);
   box-shadow: 0 0 8px rgba(0, 255, 194, 0.8);
+}
+
+.resize-handle:active {
+  background: rgba(255, 200, 0, 1);
+  box-shadow: 0 0 12px rgba(255, 200, 0, 0.9);
+  transform: scale(1.4);
 }
 
 .resize-handle-nw {

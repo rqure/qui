@@ -468,6 +468,10 @@ function compileFaceplateScriptModules(modules: FaceplateScriptModule[]) {
   });
 }
 
+// Track evaluation stack to detect circular dependencies
+const evaluationStack = new Set<string>();
+const MAX_EVALUATION_DEPTH = 10;
+
 async function evaluateBindingExpression(
   expressionKey: string,
   meta: { expression: string; mode: BindingMode; dependencies: string[] },
@@ -477,26 +481,56 @@ async function evaluateBindingExpression(
     return null;
   }
 
-  switch (meta.mode) {
-    case 'literal': {
-      const literal = tryEvaluateLiteral(meta.expression);
-      const value = literal.found ? literal.value : meta.expression;
-      expressionValueMap[expressionKey] = value;
-      return value;
+  // Check for circular dependency
+  if (evaluationStack.has(expressionKey)) {
+    logger.error(`Circular dependency detected for expression: ${expressionKey}`);
+    scriptRuntimeErrors.value.push({
+      context: `Binding evaluation`,
+      error: `Circular dependency detected: ${expressionKey}`,
+      timestamp: Date.now(),
+    });
+    expressionValueMap[expressionKey] = null;
+    return null;
+  }
+
+  // Check evaluation depth
+  if (evaluationStack.size >= MAX_EVALUATION_DEPTH) {
+    logger.error(`Max evaluation depth exceeded (${MAX_EVALUATION_DEPTH}) for: ${expressionKey}`);
+    scriptRuntimeErrors.value.push({
+      context: `Binding evaluation`,
+      error: `Max evaluation depth exceeded: ${expressionKey}`,
+      timestamp: Date.now(),
+    });
+    expressionValueMap[expressionKey] = null;
+    return null;
+  }
+
+  evaluationStack.add(expressionKey);
+  
+  try {
+    switch (meta.mode) {
+      case 'literal': {
+        const literal = tryEvaluateLiteral(meta.expression);
+        const value = literal.found ? literal.value : meta.expression;
+        expressionValueMap[expressionKey] = value;
+        return value;
+      }
+      case 'field': {
+        const value = await evaluateFieldExpression(meta.expression);
+        expressionValueMap[expressionKey] = value;
+        return value;
+      }
+      case 'script': {
+        const value = await evaluateScriptExpression(expressionKey, meta.expression);
+        expressionValueMap[expressionKey] = value;
+        return value;
+      }
+      default:
+        expressionValueMap[expressionKey] = null;
+        return null;
     }
-    case 'field': {
-      const value = await evaluateFieldExpression(meta.expression);
-      expressionValueMap[expressionKey] = value;
-      return value;
-    }
-    case 'script': {
-      const value = await evaluateScriptExpression(expressionKey, meta.expression);
-      expressionValueMap[expressionKey] = value;
-      return value;
-    }
-    default:
-      expressionValueMap[expressionKey] = null;
-      return null;
+  } finally {
+    evaluationStack.delete(expressionKey);
   }
 }
 
@@ -1125,27 +1159,55 @@ function ensureArray<T>(value: T[] | T | null | undefined): T[] {
   return Array.isArray(value) ? value : [value];
 }
 
-// Event handler execution
-async function handleEventTriggered(payload: { handler: any; value?: any; nativeEvent?: Event }) {
-  const { handler, value, nativeEvent } = payload;
-  
-  if (!handler || handler.enabled === false) {
+// Event handler execution queue to prevent race conditions
+const eventHandlerQueue = ref<Array<{ handler: any; value?: any; nativeEvent?: Event }>>([]);
+const isProcessingEventQueue = ref(false);
+
+async function processEventQueue() {
+  if (isProcessingEventQueue.value || eventHandlerQueue.value.length === 0) {
     return;
   }
-
-  logger.debug('Event triggered:', handler.trigger, 'on component', handler.componentId, 'value:', value);
-
-  try {
-    if (handler.action.type === 'writeField') {
-      await executeWriteFieldAction(handler.action, value);
-    } else if (handler.action.type === 'script') {
-      await executeScriptAction(handler.action, value, nativeEvent);
-    } else if (handler.action.type === 'navigate') {
-      await executeNavigateAction(handler.action);
+  
+  isProcessingEventQueue.value = true;
+  
+  while (eventHandlerQueue.value.length > 0) {
+    const payload = eventHandlerQueue.value.shift();
+    if (!payload) continue;
+    
+    const { handler, value, nativeEvent } = payload;
+    
+    if (!handler || handler.enabled === false) {
+      continue;
     }
-  } catch (error) {
-    logger.error('Event handler execution failed:', error);
+
+    logger.debug('Event triggered:', handler.trigger, 'on component', handler.componentId, 'value:', value);
+
+    try {
+      if (handler.action.type === 'writeField') {
+        await executeWriteFieldAction(handler.action, value);
+      } else if (handler.action.type === 'script') {
+        await executeScriptAction(handler.action, value, nativeEvent);
+      } else if (handler.action.type === 'navigate') {
+        await executeNavigateAction(handler.action);
+      }
+    } catch (error) {
+      logger.error('Event handler execution failed:', error);
+      scriptRuntimeErrors.value.push({
+        context: `Event handler ${handler.trigger}`,
+        error: String(error),
+        timestamp: Date.now(),
+      });
+    }
   }
+  
+  isProcessingEventQueue.value = false;
+}
+
+// Event handler execution
+async function handleEventTriggered(payload: { handler: any; value?: any; nativeEvent?: Event }) {
+  // Add to queue and process sequentially to prevent race conditions
+  eventHandlerQueue.value.push(payload);
+  await processEventQueue();
 }
 
 async function executeWriteFieldAction(action: any, componentValue: any) {
@@ -1237,8 +1299,42 @@ async function executeScriptAction(action: any, componentValue: any, nativeEvent
 }
 
 async function executeNavigateAction(action: any) {
-  logger.warn('Navigate action not yet implemented:', action);
-  // TODO: Implement navigation when window system supports it
+  const targetFaceplate = action.targetFaceplate;
+  if (!targetFaceplate) {
+    logger.warn('Cannot navigate: no target faceplate specified');
+    return;
+  }
+  
+  try {
+    // Determine entity context for navigation
+    let contextEntityId = props.entityId;
+    if (action.entityContext) {
+      // Evaluate entity context expression
+      try {
+        const context = createScriptExecutionContext('navigate-context');
+        const helpers = getScriptHelpers();
+        const func = new Function('context', 'helpers', `return ${action.entityContext}`);
+        contextEntityId = func(context, helpers);
+      } catch (error) {
+        logger.error('Failed to evaluate entity context:', error);
+        contextEntityId = props.entityId;
+      }
+    }
+    
+    // Emit navigation event for the window manager to handle
+    // This allows the parent application to open a new window or navigate
+    logger.info('Navigate to faceplate:', targetFaceplate, 'with entity:', contextEntityId);
+    
+    // For now, we'll just log it as window system integration is needed
+    // In the future, this could emit an event or use a navigation service
+    console.log('Navigation requested:', {
+      targetFaceplate,
+      entityId: contextEntityId,
+      action,
+    });
+  } catch (error) {
+    logger.error('Navigation failed:', error);
+  }
 }
 
 watch(
