@@ -340,9 +340,8 @@ const ComponentNode = {
     };
   },
   template: `
-    <button
+    <div
       v-show="isVisible"
-      type="button"
       class="faceplate-canvas__component"
       :class="{
         'faceplate-canvas__component--selected': isSelected && editMode,
@@ -362,7 +361,7 @@ const ComponentNode = {
         :type="component.type"
         :config="component.config"
         :bindings="component.bindings"
-        :edit-mode="false"
+        :edit-mode="editMode"
       >
         <!-- Render children inside container -->
         <template v-if="isContainerType && layoutChildren.length">
@@ -382,7 +381,7 @@ const ComponentNode = {
           />
         </template>
       </PrimitiveRenderer>
-    </button>
+    </div>
   `,
 };
 </script>
@@ -484,11 +483,7 @@ const ComponentNode = {
   border: 1px solid transparent;
   background: transparent;
   transition: border 0.18s ease, box-shadow 0.18s ease;
-}
-
-/* In runtime mode, make button wrapper transparent to pointer events */
-.faceplate-canvas:not(.faceplate-canvas--edit-mode) .faceplate-canvas__component {
-  pointer-events: none;
+  pointer-events: auto;
 }
 
 .faceplate-canvas__component--interactive {
@@ -517,13 +512,12 @@ const ComponentNode = {
 .faceplate-canvas__component-content {
   width: 100%;
   height: 100%;
-  pointer-events: none;
   border-radius: inherit;
 }
 
-/* Enable pointer events for runtime mode */
-.faceplate-canvas:not(.faceplate-canvas--edit-mode) .faceplate-canvas__component-content {
-  pointer-events: auto;
+/* In edit mode, prevent interactions with component internals so we can drag/select the wrapper */
+.faceplate-canvas--edit-mode .faceplate-canvas__component-content {
+  pointer-events: none;
 }
 
 /* Container specific styles */

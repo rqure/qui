@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import type { EntityId } from '@/core/data/types';
 
 interface Props {
@@ -13,6 +13,23 @@ const props = withDefaults(defineProps<Props>(), {
   bindings: () => ({}),
   editMode: false,
 });
+
+// Local state for tab container active tab
+const localActiveTab = ref(0);
+
+// Watch for external activeTab changes
+watch(() => props.config.activeTab, (newVal) => {
+  if (newVal !== undefined) {
+    localActiveTab.value = newVal;
+  }
+}, { immediate: true });
+
+// Handle tab click
+function handleTabClick(index: number) {
+  if (!props.editMode) {
+    localActiveTab.value = index;
+  }
+}
 
 // Helper to get effective value (binding overrides config)
 function getValue(key: string, defaultValue?: any): any {
@@ -78,7 +95,7 @@ const normalizedType = computed(() => props.type.toLowerCase());
         type="text" 
         :placeholder="config.placeholder"
         :value="textValue"
-        :readonly="!editMode"
+        :readonly="editMode"
         :style="{ 
           color: config.textColor,
           backgroundColor: config.backgroundColor,
@@ -98,7 +115,7 @@ const normalizedType = computed(() => props.type.toLowerCase());
         :min="config.min"
         :max="config.max"
         :step="config.step"
-        :readonly="!editMode"
+        :readonly="editMode"
         :style="{ 
           color: config.textColor,
           backgroundColor: config.backgroundColor,
@@ -121,7 +138,7 @@ const normalizedType = computed(() => props.type.toLowerCase());
     <!-- Toggle -->
     <div v-else-if="normalizedType === 'primitive.form.toggle'" class="toggle-primitive">
       <label class="toggle-switch">
-        <input type="checkbox" :checked="!!getValue('value', false)" :disabled="!editMode" />
+        <input type="checkbox" :checked="!!getValue('value', false)" :disabled="editMode" />
         <span class="toggle-slider" :style="{
           backgroundColor: getValue('value', false) ? config.activeColor : config.inactiveColor
         }"></span>
@@ -151,7 +168,7 @@ const normalizedType = computed(() => props.type.toLowerCase());
       v-show="getValue('visible', true)"
       class="container-primitive"
       :style="{ 
-        backgroundColor: config.backgroundColor,
+        backgroundColor: config.backgroundColor || 'transparent',
         border: `${config.borderWidth}px solid ${config.borderColor}`,
         borderRadius: `${config.cornerRadius}px`,
         padding: `${config.padding}px`,
@@ -164,7 +181,7 @@ const normalizedType = computed(() => props.type.toLowerCase());
         alignItems: config.layoutDirection === 'horizontal' ? getAlignValue(getValue('verticalAlign', 'start')) : getAlignValue(getValue('horizontalAlign', 'stretch'))
       }">
       <slot>
-        <span class="container-placeholder">Container</span>
+        <span v-if="editMode" class="container-placeholder">Empty Container</span>
       </slot>
     </div>
 
@@ -173,7 +190,7 @@ const normalizedType = computed(() => props.type.toLowerCase());
       v-show="getValue('visible', true)"
       class="tab-container"
       :style="{
-        backgroundColor: config.backgroundColor,
+        backgroundColor: config.backgroundColor || 'transparent',
         border: `${config.borderWidth}px solid ${config.borderColor}`,
         borderRadius: `${config.cornerRadius}px`,
         opacity: getValue('opacity', 1)
@@ -187,20 +204,22 @@ const normalizedType = computed(() => props.type.toLowerCase());
           backgroundColor: config.tabBackgroundColor,
           color: config.tabTextColor
         }">
-        <div 
+        <button 
           v-for="(tab, index) in (config.tabs || [])"
           :key="tab.id || index"
+          type="button"
           class="tab-button"
-          :class="{ 'tab-button-active': getValue('activeTab', 0) === index }"
+          :class="{ 'tab-button-active': localActiveTab === index }"
           :style="{
-            backgroundColor: getValue('activeTab', 0) === index ? config.activeTabColor : 'transparent'
-          }">
+            backgroundColor: localActiveTab === index ? config.activeTabColor : 'transparent'
+          }"
+          @click.stop="handleTabClick(index)">
           {{ tab.name || `Tab ${index + 1}` }}
-        </div>
+        </button>
       </div>
       <div class="tab-content" :style="{ padding: `${config.padding}px` }">
         <slot>
-          <span class="container-placeholder">Tab Content</span>
+          <span v-if="editMode" class="container-placeholder">Empty Tab</span>
         </slot>
       </div>
     </div>
@@ -388,8 +407,12 @@ const normalizedType = computed(() => props.type.toLowerCase());
 .tab-button {
   padding: 8px 16px;
   cursor: pointer;
+  border: none;
+  background: transparent;
+  color: inherit;
   border-radius: 6px;
   font-size: 14px;
+  font-family: inherit;
   transition: background-color 0.2s;
   white-space: nowrap;
 }
