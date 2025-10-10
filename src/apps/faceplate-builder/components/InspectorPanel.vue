@@ -863,7 +863,7 @@ function handleScriptUpdate(handler: EventHandler, code: string) {
                     placeholder="Enter expression or value"
                   />
                   <small v-if="(row.binding.mode ?? 'field') === 'field'" class="binding-help">
-                    Examples: <code>Name</code>, <code>Parent->Name</code>, <code>Status->Value</code>. Use <code>-></code> for indirect field paths. Read-only.
+                    Simple: <code>Name</code>, <code>Parent->Name</code>. Computed: <code>Temperature * 1.8 + 32</code>, <code>Width * Height</code>. Supports +, -, *, /, %, (). Read-only.
                   </small>
                   <small v-else-if="(row.binding.mode ?? 'field') === 'twoWay'" class="binding-help">
                     Two-way binding: Reads from field AND automatically writes back changes. Perfect for input fields. Example: <code>Temperature</code>, <code>Settings->Value</code>

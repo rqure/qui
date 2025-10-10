@@ -5,6 +5,7 @@ import ComponentPalette from './components/ComponentPalette.vue';
 import InspectorPanel from './components/InspectorPanel.vue';
 import BuilderToolbar from './components/BuilderToolbar.vue';
 import FaceplateSelector from './components/FaceplateSelector.vue';
+import LayersPanel from './components/LayersPanel.vue';
 import { useDataStore } from '@/stores/data';
 import { FaceplateDataService } from './utils/faceplate-data';
 import {
@@ -674,6 +675,65 @@ function handleToggleLock(payload: { nodeId: string }) {
     n.id === payload.nodeId ? { ...n, locked: !n.locked } : n
   );
   pushHistory();
+}
+
+// Layer management functions
+function handleLayerReorder(payload: { nodeId: string; newIndex: number; newParentId?: string | null }) {
+  const node = nodes.value.find(n => n.id === payload.nodeId);
+  if (!node) return;
+  
+  // Remove from old parent
+  if (node.parentId) {
+    removeFromParentChildren(payload.nodeId, node.parentId);
+  }
+  
+  // Update node's parent
+  const updatedNode = {
+    ...node,
+    parentId: payload.newParentId ?? null,
+  };
+  
+  // If adding to a new parent, update parent's children array
+  if (payload.newParentId) {
+    const parent = nodes.value.find(n => n.id === payload.newParentId);
+    if (parent) {
+      const children = parent.children ?? [];
+      const newChildren = [...children];
+      newChildren.splice(payload.newIndex, 0, payload.nodeId);
+      
+      nodes.value = nodes.value.map(n => {
+        if (n.id === payload.newParentId) {
+          return { ...n, children: newChildren };
+        }
+        if (n.id === payload.nodeId) {
+          return updatedNode;
+        }
+        return n;
+      });
+    }
+  } else {
+    // Moving to root level - update the node in the array
+    nodes.value = nodes.value.map(n => 
+      n.id === payload.nodeId ? updatedNode : n
+    );
+    
+    // Reorder in the nodes array
+    const currentIndex = nodes.value.findIndex(n => n.id === payload.nodeId);
+    if (currentIndex !== -1) {
+      const updated = [...nodes.value];
+      const [movedNode] = updated.splice(currentIndex, 1);
+      updated.splice(payload.newIndex, 0, movedNode);
+      nodes.value = updated;
+    }
+  }
+  
+  pushHistory();
+}
+
+function handleLayerVisibilityToggle(nodeId: string) {
+  // This is handled internally by LayersPanel for visual feedback
+  // We could extend CanvasNode to have a 'visible' property if needed
+  // For now, this is just a placeholder for potential future integration
 }
 
 // Container management functions
@@ -1476,6 +1536,16 @@ onMounted(async () => {
         </div>
       </main>
 
+      <LayersPanel
+        :nodes="nodes"
+        :selected-node-ids="selectedNodeIds"
+        @select-node="(nodeId, isMultiSelect) => handleNodeSelected({ nodeId, isMultiSelect })"
+        @toggle-visibility="handleLayerVisibilityToggle"
+        @reorder="handleLayerReorder"
+        @bring-to-front="(nodeId) => handleBringForward({ nodeId })"
+        @send-to-back="(nodeId) => handleSendBackward({ nodeId })"
+      />
+
       <InspectorPanel
         :node="selectedNode"
         :template="selectedTemplate"
@@ -1525,7 +1595,7 @@ onMounted(async () => {
 
 .faceplate-builder__body {
   display: grid;
-  grid-template-columns: 300px minmax(0, 1fr) 320px;
+  grid-template-columns: 300px minmax(0, 1fr) 280px 320px;
   gap: 0;
   flex: 1;
   min-height: 0;

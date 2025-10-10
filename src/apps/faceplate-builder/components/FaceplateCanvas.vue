@@ -359,6 +359,17 @@ const ComponentNode = {
       @pointerdown="handlePointerDown"
       @click.stop
     >
+      <!-- Drop zone overlay for containers -->
+      <div
+        v-if="isDropTarget && editMode"
+        class="faceplate-canvas__drop-zone-overlay"
+      >
+        <div class="faceplate-canvas__drop-zone-content">
+          <div class="faceplate-canvas__drop-zone-icon">📦</div>
+          <div class="faceplate-canvas__drop-zone-text">Drop here to add to container</div>
+        </div>
+      </div>
+      
       <PrimitiveRenderer
         class="faceplate-canvas__component-content"
         :type="component.type"
@@ -591,6 +602,67 @@ const ComponentNode = {
   50% {
     box-shadow: inset 0 0 0 3px rgba(0, 255, 194, 0.8), 0 0 16px rgba(0, 255, 194, 0.6);
   }
+}
+
+.faceplate-canvas__drop-zone-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 255, 194, 0.15);
+  backdrop-filter: blur(4px);
+  border: 3px dashed rgba(0, 255, 194, 0.8);
+  border-radius: 8px;
+  z-index: 1000;
+  pointer-events: none;
+  animation: drop-zone-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes drop-zone-pulse {
+  0%, 100% {
+    background: rgba(0, 255, 194, 0.15);
+    border-color: rgba(0, 255, 194, 0.8);
+  }
+  50% {
+    background: rgba(0, 255, 194, 0.25);
+    border-color: rgba(0, 255, 194, 1);
+  }
+}
+
+.faceplate-canvas__drop-zone-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 24px;
+  background: rgba(0, 20, 15, 0.85);
+  border-radius: 12px;
+  border: 2px solid rgba(0, 255, 194, 0.5);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.faceplate-canvas__drop-zone-icon {
+  font-size: 48px;
+  animation: drop-zone-icon-bounce 1s ease-in-out infinite;
+}
+
+@keyframes drop-zone-icon-bounce {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-8px) scale(1.1);
+  }
+}
+
+.faceplate-canvas__drop-zone-text {
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(0, 255, 194, 1);
+  text-align: center;
+  letter-spacing: 0.05em;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
 }
 
 .faceplate-canvas__hint {

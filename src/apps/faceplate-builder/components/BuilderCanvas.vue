@@ -67,6 +67,14 @@ const panOrigin = ref({ x: 0, y: 0 });
 // Snapping state
 const snapToGridEnabled = ref(true);
 
+// Alignment guides state
+const alignmentGuides = ref<Array<{
+  type: 'vertical' | 'horizontal';
+  position: number;
+  label: string;
+}>>([]);
+const ALIGNMENT_THRESHOLD = 5; // pixels
+
 // Computed for multi-select check
 const hasMultipleSelected = computed(() => (props.selectedNodeIds?.size ?? 0) > 1);
 
@@ -157,6 +165,120 @@ function snapToGrid(point: Vector2): Vector2 {
     x: Math.max(0, Math.round(point.x / GRID_SIZE_FINE) * GRID_SIZE_FINE),
     y: Math.max(0, Math.round(point.y / GRID_SIZE_FINE) * GRID_SIZE_FINE),
   };
+}
+
+// Detect alignment guides when dragging
+function detectAlignmentGuides(
+  draggedNodes: Array<{ nodeId: string; position: Vector2; size: Vector2 }>,
+): Array<{ type: 'vertical' | 'horizontal'; position: number; label: string }> {
+  const guides: Array<{ type: 'vertical' | 'horizontal'; position: number; label: string }> = [];
+  
+  // Get all other nodes (not being dragged)
+  const draggedIds = new Set(draggedNodes.map(n => n.nodeId));
+  const staticNodes = props.nodes.filter(n => !draggedIds.has(n.id));
+  
+  // For each dragged node, check alignment with static nodes
+  draggedNodes.forEach(draggedNode => {
+    const draggedLeft = draggedNode.position.x;
+    const draggedRight = draggedNode.position.x + draggedNode.size.x;
+    const draggedCenterX = draggedNode.position.x + draggedNode.size.x / 2;
+    const draggedTop = draggedNode.position.y;
+    const draggedBottom = draggedNode.position.y + draggedNode.size.y;
+    const draggedCenterY = draggedNode.position.y + draggedNode.size.y / 2;
+    
+    staticNodes.forEach(staticNode => {
+      const staticLeft = staticNode.position.x;
+      const staticRight = staticNode.position.x + staticNode.size.x;
+      const staticCenterX = staticNode.position.x + staticNode.size.x / 2;
+      const staticTop = staticNode.position.y;
+      const staticBottom = staticNode.position.y + staticNode.size.y;
+      const staticCenterY = staticNode.position.y + staticNode.size.y / 2;
+      
+      // Check vertical alignments (X-axis)
+      if (Math.abs(draggedLeft - staticLeft) < ALIGNMENT_THRESHOLD) {
+        guides.push({ type: 'vertical', position: staticLeft, label: 'Left' });
+      }
+      if (Math.abs(draggedRight - staticRight) < ALIGNMENT_THRESHOLD) {
+        guides.push({ type: 'vertical', position: staticRight, label: 'Right' });
+      }
+      if (Math.abs(draggedCenterX - staticCenterX) < ALIGNMENT_THRESHOLD) {
+        guides.push({ type: 'vertical', position: staticCenterX, label: 'Center' });
+      }
+      if (Math.abs(draggedLeft - staticRight) < ALIGNMENT_THRESHOLD) {
+        guides.push({ type: 'vertical', position: staticRight, label: 'Edge' });
+      }
+      if (Math.abs(draggedRight - staticLeft) < ALIGNMENT_THRESHOLD) {
+        guides.push({ type: 'vertical', position: staticLeft, label: 'Edge' });
+      }
+      
+      // Check horizontal alignments (Y-axis)
+      if (Math.abs(draggedTop - staticTop) < ALIGNMENT_THRESHOLD) {
+        guides.push({ type: 'horizontal', position: staticTop, label: 'Top' });
+      }
+      if (Math.abs(draggedBottom - staticBottom) < ALIGNMENT_THRESHOLD) {
+        guides.push({ type: 'horizontal', position: staticBottom, label: 'Bottom' });
+      }
+      if (Math.abs(draggedCenterY - staticCenterY) < ALIGNMENT_THRESHOLD) {
+        guides.push({ type: 'horizontal', position: staticCenterY, label: 'Center' });
+      }
+      if (Math.abs(draggedTop - staticBottom) < ALIGNMENT_THRESHOLD) {
+        guides.push({ type: 'horizontal', position: staticBottom, label: 'Edge' });
+      }
+      if (Math.abs(draggedBottom - staticTop) < ALIGNMENT_THRESHOLD) {
+        guides.push({ type: 'horizontal', position: staticTop, label: 'Edge' });
+      }
+    });
+  });
+  
+  // Remove duplicate guides at the same position
+  const uniqueGuides = guides.filter((guide, index, self) => 
+    index === self.findIndex(g => 
+      g.type === guide.type && Math.abs(g.position - guide.position) < 1
+    )
+  );
+  
+  return uniqueGuides;
+}
+
+// Snap to alignment guides if close enough
+function snapToAlignmentGuides(
+  position: Vector2,
+  size: Vector2,
+  guides: Array<{ type: 'vertical' | 'horizontal'; position: number; label: string }>,
+): Vector2 {
+  let snappedX = position.x;
+  let snappedY = position.y;
+  
+  const left = position.x;
+  const right = position.x + size.x;
+  const centerX = position.x + size.x / 2;
+  const top = position.y;
+  const bottom = position.y + size.y;
+  const centerY = position.y + size.y / 2;
+  
+  guides.forEach(guide => {
+    if (guide.type === 'vertical') {
+      // Try to snap left, right, or center to the guide
+      if (Math.abs(left - guide.position) < ALIGNMENT_THRESHOLD) {
+        snappedX = guide.position;
+      } else if (Math.abs(right - guide.position) < ALIGNMENT_THRESHOLD) {
+        snappedX = guide.position - size.x;
+      } else if (Math.abs(centerX - guide.position) < ALIGNMENT_THRESHOLD) {
+        snappedX = guide.position - size.x / 2;
+      }
+    } else {
+      // Try to snap top, bottom, or center to the guide
+      if (Math.abs(top - guide.position) < ALIGNMENT_THRESHOLD) {
+        snappedY = guide.position;
+      } else if (Math.abs(bottom - guide.position) < ALIGNMENT_THRESHOLD) {
+        snappedY = guide.position - size.y;
+      } else if (Math.abs(centerY - guide.position) < ALIGNMENT_THRESHOLD) {
+        snappedY = guide.position - size.y / 2;
+      }
+    }
+  });
+  
+  return { x: snappedX, y: snappedY };
 }
 
 function toggleSnap() {
@@ -401,10 +523,28 @@ function handlePointerMove(event: PointerEvent) {
 
   const deltaX = event.clientX - pointerStart.x;
   const deltaY = event.clientY - pointerStart.y;
-  const snappedPrimary = snapToGrid({
+  let snappedPrimary = snapToGrid({
     x: primaryOrigin.x + deltaX,
     y: primaryOrigin.y + deltaY,
   });
+
+  // Get primary node size for alignment detection
+  const primaryNode = props.nodes.find(n => n.id === selection[0]);
+  if (primaryNode) {
+    // Detect alignment guides
+    const draggedNodesInfo = [{
+      nodeId: primaryNode.id,
+      position: snappedPrimary,
+      size: primaryNode.size,
+    }];
+    const guides = detectAlignmentGuides(draggedNodesInfo);
+    alignmentGuides.value = guides;
+    
+    // Snap to alignment guides if detected
+    if (guides.length > 0) {
+      snappedPrimary = snapToAlignmentGuides(snappedPrimary, primaryNode.size, guides);
+    }
+  }
 
   const shift = {
     x: snappedPrimary.x - primaryOrigin.x,
@@ -532,6 +672,7 @@ function handlePointerUp(event: PointerEvent) {
 
   dropTargetContainerId.value = null;
   dragState.current = null;
+  alignmentGuides.value = []; // Clear alignment guides
 }
 
 function getSelectBox() {
@@ -705,6 +846,22 @@ onBeforeUnmount(teardownListeners);
         </div>
       </template>
     </template>
+    
+    <!-- Alignment guides -->
+    <div 
+      v-for="(guide, index) in alignmentGuides" 
+      :key="`guide-${index}`"
+      class="alignment-guide"
+      :class="{
+        'alignment-guide--vertical': guide.type === 'vertical',
+        'alignment-guide--horizontal': guide.type === 'horizontal',
+      }"
+      :style="{
+        [guide.type === 'vertical' ? 'left' : 'top']: `${guide.position * zoom + (guide.type === 'vertical' ? pan.x : pan.y)}px`,
+      }"
+    >
+      <div class="alignment-guide__label">{{ guide.label }}</div>
+    </div>
   </section>
 </template>
 
@@ -879,5 +1036,77 @@ onBeforeUnmount(teardownListeners);
   background: rgba(100, 150, 255, 0.15);
   pointer-events: none;
   z-index: 1000;
+}
+
+/* Alignment guides */
+.alignment-guide {
+  position: absolute;
+  pointer-events: none;
+  z-index: 999;
+}
+
+.alignment-guide--vertical {
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(255, 100, 255, 0.8) 10%,
+    rgba(255, 100, 255, 0.8) 90%,
+    transparent 100%
+  );
+  box-shadow: 0 0 8px rgba(255, 100, 255, 0.6);
+  animation: guide-pulse 1.5s ease-in-out infinite;
+}
+
+.alignment-guide--horizontal {
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent 0%,
+    rgba(255, 100, 255, 0.8) 10%,
+    rgba(255, 100, 255, 0.8) 90%,
+    transparent 100%
+  );
+  box-shadow: 0 0 8px rgba(255, 100, 255, 0.6);
+  animation: guide-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes guide-pulse {
+  0%, 100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.alignment-guide__label {
+  position: absolute;
+  padding: 4px 8px;
+  background: rgba(255, 100, 255, 0.9);
+  color: white;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  white-space: nowrap;
+}
+
+.alignment-guide--vertical .alignment-guide__label {
+  top: 50%;
+  left: 4px;
+  transform: translateY(-50%);
+}
+
+.alignment-guide--horizontal .alignment-guide__label {
+  left: 50%;
+  top: 4px;
+  transform: translateX(-50%);
 }
 </style>

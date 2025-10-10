@@ -84,8 +84,19 @@ const faceplate = ref<FaceplateRecord | null>(null);
 const components = ref<FaceplateComponentRecord[]>([]);
 const loading = ref(true);
 const error = ref<string | null>(null);
-const scriptCompilationErrors = ref<Array<{ module: string; error: string }>>([]);
+const scriptCompilationErrors = ref<Array<{ module: string; error: string; timestamp: number }>>([]);
+const scriptRuntimeErrors = ref<Array<{ context: string; error: string; timestamp: number }>>([]);
 const isLive = computed(() => props.live !== false);
+const showErrorPanel = ref(true);
+
+// Format timestamp for error display
+function formatTimestamp(timestamp: number): string {
+  const date = new Date(timestamp);
+  const hours = date.getHours().toString().padStart(2, '0');
+  const minutes = date.getMinutes().toString().padStart(2, '0');
+  const seconds = date.getSeconds().toString().padStart(2, '0');
+  return `${hours}:${minutes}:${seconds}`;
+}
 
 const bindingValueMap = reactive<Record<string, unknown>>({});
 const expressionValueMap = reactive<Record<string, unknown>>({});
@@ -406,6 +417,17 @@ function collectBindingDependencies(
   expression: string,
 ): string[] {
   if (mode === 'field') {
+    // For computed expressions, extract all field references
+    if (isComputedExpression(expression)) {
+      const fieldPattern = /\b([A-Za-z_][\w]*(?:->[A-Za-z_][\w]*)*)\b(?!\s*\()/g;
+      const fields = new Set<string>();
+      let match;
+      while ((match = fieldPattern.exec(expression)) !== null) {
+        fields.add(match[1]);
+      }
+      return Array.from(fields);
+    }
+    // For simple field references, return the expression itself
     return [expression];
   }
   if (mode === 'script') {
@@ -440,7 +462,7 @@ function compileFaceplateScriptModules(modules: FaceplateScriptModule[]) {
       scriptModuleExports.set(name, exports as Record<string, unknown>);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      scriptCompilationErrors.value.push({ module: name, error: errorMessage });
+      scriptCompilationErrors.value.push({ module: name, error: errorMessage, timestamp: Date.now() });
       logger.error(`Failed to compile faceplate script module "${name}":`, error);
     }
   });
@@ -478,11 +500,93 @@ async function evaluateBindingExpression(
   }
 }
 
+// Check if expression contains computed operators
+function isComputedExpression(expression: string): boolean {
+  return /[+\-*/%()]/.test(expression) && !/^[A-Za-z_][\w]*(?:->[A-Za-z_][\w]*)*$/.test(expression);
+}
+
+// Evaluate computed expressions like "Temperature * 1.8 + 32"
+async function evaluateComputedExpression(expression: string): Promise<number | null> {
+  if (!props.entityId) {
+    return null;
+  }
+
+  // Extract field references from the expression (words not followed by parentheses)
+  const fieldPattern = /\b([A-Za-z_][\w]*(?:->[A-Za-z_][\w]*)*)\b(?!\s*\()/g;
+  const fields = new Set<string>();
+  let match;
+  while ((match = fieldPattern.exec(expression)) !== null) {
+    fields.add(match[1]);
+  }
+
+  // Read all field values
+  const fieldValues = new Map<string, number>();
+  for (const field of fields) {
+    const path = await getFieldPath(field);
+    if (!path.length) {
+      logger.warn(`Field not found in computed expression: ${field}`);
+      return null;
+    }
+    
+    const [value] = await dataStore.read(props.entityId, path);
+    const extracted = ValueHelpers.extract(value);
+    
+    // Convert to number
+    const numValue = typeof extracted === 'number' ? extracted : 
+                     typeof extracted === 'string' ? parseFloat(extracted) :
+                     typeof extracted === 'boolean' ? (extracted ? 1 : 0) :
+                     null;
+    
+    if (numValue === null || isNaN(numValue)) {
+      logger.warn(`Field value is not numeric in computed expression: ${field} = ${extracted}`);
+      return null;
+    }
+    
+    fieldValues.set(field, numValue);
+  }
+
+  // Replace field names with their values in the expression
+  let evaluableExpression = expression;
+  for (const [field, value] of fieldValues) {
+    // Use word boundaries to avoid partial replacements
+    const regex = new RegExp(`\\b${field.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&')}\\b`, 'g');
+    evaluableExpression = evaluableExpression.replace(regex, String(value));
+  }
+
+  // Evaluate the mathematical expression safely
+  try {
+    // Only allow numbers, operators, and parentheses
+    if (!/^[\d\s+\-*/%().]+$/.test(evaluableExpression)) {
+      logger.warn(`Invalid computed expression after substitution: ${evaluableExpression}`);
+      return null;
+    }
+    
+    // Use Function constructor for safe evaluation (better than eval)
+    const result = new Function(`'use strict'; return (${evaluableExpression})`)();
+    
+    if (typeof result !== 'number' || isNaN(result)) {
+      logger.warn(`Computed expression did not evaluate to a number: ${result}`);
+      return null;
+    }
+    
+    return result;
+  } catch (error) {
+    logger.warn('Failed to evaluate computed expression:', error);
+    return null;
+  }
+}
+
 async function evaluateFieldExpression(expression: string): Promise<unknown> {
   if (!props.entityId) {
     return null;
   }
 
+  // Check if this is a computed expression
+  if (isComputedExpression(expression)) {
+    return await evaluateComputedExpression(expression);
+  }
+
+  // Simple field reference
   const path = await getFieldPath(expression);
   if (!path.length) {
     return null;
@@ -505,6 +609,12 @@ async function evaluateScriptExpression(expressionKey: string, source: string): 
     const result = await fn(context, getScriptHelpers());
     return result;
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    scriptRuntimeErrors.value.push({
+      context: `Script binding evaluation`,
+      error: errorMessage,
+      timestamp: Date.now()
+    });
     logger.warn('Faceplate script evaluation failed:', error);
     return null;
   }
@@ -1178,14 +1288,85 @@ defineExpose({
     <div v-else-if="error" class="runtime-state error">{{ error }}</div>
     <div v-else-if="!faceplate" class="runtime-state empty">No faceplate selected</div>
     <div v-else-if="!entityId" class="runtime-state empty">Select an entity to drive this faceplate (entityId: {{ entityId }})</div>
-    <div v-else-if="scriptCompilationErrors.length > 0" class="script-errors">
-      <div class="script-errors__header">⚠️ Script Compilation Errors</div>
-      <div v-for="(err, idx) in scriptCompilationErrors" :key="idx" class="script-errors__item">
-        <strong>{{ err.module }}:</strong> {{ err.error }}
+    
+    <!-- Enhanced error panel for script errors -->
+    <div 
+      v-if="(scriptCompilationErrors.length > 0 || scriptRuntimeErrors.length > 0) && showErrorPanel && faceplate"
+      class="error-panel"
+    >
+      <div class="error-panel__header">
+        <div class="error-panel__title">
+          <span class="error-panel__icon">⚠️</span>
+          <span>Script Errors ({{ scriptCompilationErrors.length + scriptRuntimeErrors.length }})</span>
+        </div>
+        <button 
+          type="button" 
+          class="error-panel__close"
+          @click="showErrorPanel = false"
+        >
+          ✕
+        </button>
+      </div>
+      
+      <div class="error-panel__content">
+        <!-- Compilation Errors -->
+        <div v-if="scriptCompilationErrors.length > 0" class="error-panel__section">
+          <div class="error-panel__section-title">Compilation Errors</div>
+          <div 
+            v-for="(err, idx) in scriptCompilationErrors" 
+            :key="`compile-${idx}`" 
+            class="error-panel__item error-panel__item--compile"
+          >
+            <div class="error-panel__item-header">
+              <span class="error-panel__item-badge">Module</span>
+              <span class="error-panel__item-module">{{ err.module }}</span>
+              <span class="error-panel__item-time">{{ formatTimestamp(err.timestamp) }}</span>
+            </div>
+            <div class="error-panel__item-message">{{ err.error }}</div>
+          </div>
+        </div>
+        
+        <!-- Runtime Errors -->
+        <div v-if="scriptRuntimeErrors.length > 0" class="error-panel__section">
+          <div class="error-panel__section-title">Runtime Errors</div>
+          <div 
+            v-for="(err, idx) in scriptRuntimeErrors.slice(-10)" 
+            :key="`runtime-${idx}`" 
+            class="error-panel__item error-panel__item--runtime"
+          >
+            <div class="error-panel__item-header">
+              <span class="error-panel__item-badge">Context</span>
+              <span class="error-panel__item-context">{{ err.context }}</span>
+              <span class="error-panel__item-time">{{ formatTimestamp(err.timestamp) }}</span>
+            </div>
+            <div class="error-panel__item-message">{{ err.error }}</div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="error-panel__footer">
+        <button 
+          type="button" 
+          class="error-panel__action"
+          @click="scriptCompilationErrors = []; scriptRuntimeErrors = []"
+        >
+          Clear All
+        </button>
       </div>
     </div>
+    
+    <!-- Show button to reopen error panel if hidden -->
+    <button
+      v-if="(scriptCompilationErrors.length > 0 || scriptRuntimeErrors.length > 0) && !showErrorPanel && faceplate"
+      type="button"
+      class="error-panel__reopen"
+      @click="showErrorPanel = true"
+    >
+      ⚠️ {{ scriptCompilationErrors.length + scriptRuntimeErrors.length }} Errors
+    </button>
+    
     <FaceplateCanvas
-      v-else
+      v-if="faceplate && entityId"
       class="faceplate-runtime__canvas"
       :components="canvasComponents"
       :viewport="viewportSize"
@@ -1228,37 +1409,240 @@ defineExpose({
   background: transparent;
 }
 
-.script-errors {
+/* Enhanced Error Panel */
+.error-panel {
   position: absolute;
-  top: 12px;
-  right: 12px;
-  max-width: 400px;
-  background: rgba(139, 0, 0, 0.95);
-  border: 1px solid rgba(255, 100, 100, 0.5);
-  border-radius: 8px;
-  padding: 12px 16px;
-  z-index: 1000;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  top: 16px;
+  right: 16px;
+  width: 480px;
+  max-height: 600px;
+  display: flex;
+  flex-direction: column;
+  background: rgba(20, 0, 0, 0.96);
+  border: 2px solid rgba(255, 80, 80, 0.6);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  z-index: 2000;
+  animation: error-panel-slide-in 0.3s ease-out;
 }
 
-.script-errors__header {
-  font-size: 14px;
+@keyframes error-panel-slide-in {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.error-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid rgba(255, 80, 80, 0.3);
+  background: rgba(255, 50, 50, 0.15);
+}
+
+.error-panel__title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
   font-weight: 600;
-  margin-bottom: 8px;
   color: #ffcccc;
+  letter-spacing: 0.03em;
 }
 
-.script-errors__item {
+.error-panel__icon {
+  font-size: 18px;
+  animation: error-icon-pulse 2s ease-in-out infinite;
+}
+
+@keyframes error-icon-pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.2);
+  }
+}
+
+.error-panel__close {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  border-radius: 6px;
+  color: #ffcccc;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.error-panel__close:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+}
+
+.error-panel__content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+.error-panel__section {
+  margin-bottom: 16px;
+}
+
+.error-panel__section:last-child {
+  margin-bottom: 0;
+}
+
+.error-panel__section-title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255, 200, 200, 0.8);
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 80, 80, 0.2);
+}
+
+.error-panel__item {
+  margin-bottom: 10px;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 8px;
+  border-left: 3px solid rgba(255, 100, 100, 0.6);
+}
+
+.error-panel__item--compile {
+  border-left-color: rgba(255, 150, 0, 0.8);
+}
+
+.error-panel__item--runtime {
+  border-left-color: rgba(255, 50, 50, 0.8);
+}
+
+.error-panel__item-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.error-panel__item-badge {
+  padding: 2px 8px;
+  background: rgba(255, 100, 100, 0.3);
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(255, 200, 200, 0.9);
+}
+
+.error-panel__item-module,
+.error-panel__item-context {
+  font-size: 12px;
+  font-weight: 600;
+  color: #ffaaaa;
+  font-family: 'Courier New', monospace;
+}
+
+.error-panel__item-time {
+  margin-left: auto;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  font-family: 'Courier New', monospace;
+}
+
+.error-panel__item-message {
   font-size: 12px;
   font-family: 'Courier New', monospace;
-  margin: 6px 0;
-  padding: 6px 8px;
+  color: #ffdddd;
+  line-height: 1.5;
+  word-break: break-word;
+  padding: 8px;
   background: rgba(0, 0, 0, 0.3);
   border-radius: 4px;
-  color: #ffdddd;
 }
 
-.script-errors__item strong {
-  color: #ffaaaa;
+.error-panel__footer {
+  padding: 12px 18px;
+  border-top: 1px solid rgba(255, 80, 80, 0.3);
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.error-panel__action {
+  padding: 8px 16px;
+  background: rgba(255, 100, 100, 0.2);
+  border: 1px solid rgba(255, 100, 100, 0.4);
+  border-radius: 6px;
+  color: #ffcccc;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.error-panel__action:hover {
+  background: rgba(255, 100, 100, 0.3);
+  border-color: rgba(255, 100, 100, 0.6);
+  color: #ffffff;
+}
+
+.error-panel__reopen {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  padding: 10px 16px;
+  background: rgba(20, 0, 0, 0.96);
+  border: 2px solid rgba(255, 80, 80, 0.6);
+  border-radius: 8px;
+  color: #ffcccc;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  z-index: 1500;
+  transition: all 0.2s;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.error-panel__reopen:hover {
+  background: rgba(40, 0, 0, 1);
+  border-color: rgba(255, 80, 80, 0.8);
+  transform: scale(1.05);
+}
+
+/* Custom scrollbar for error panel */
+.error-panel__content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.error-panel__content::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
+}
+
+.error-panel__content::-webkit-scrollbar-thumb {
+  background: rgba(255, 100, 100, 0.4);
+  border-radius: 4px;
+}
+
+.error-panel__content::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 100, 100, 0.6);
 }
 </style>
