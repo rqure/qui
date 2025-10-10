@@ -21,6 +21,20 @@ const emit = defineEmits<{
   (event: 'event-triggered', payload: { handler: EventHandler; value?: any; nativeEvent?: Event }): void;
 }>();
 
+// Transition support
+const transitionStyle = computed(() => {
+  const duration = getValue('transitionDuration', 0);
+  const easing = getValue('transitionEasing', 'ease');
+  
+  if (!duration || duration === 0 || easing === 'none') {
+    return {};
+  }
+  
+  return {
+    transition: `all ${duration}ms ${easing}`,
+  };
+});
+
 // Animation support
 const animationStyle = computed(() => {
   const animationType = getValue('animationType', 'none');
@@ -142,7 +156,11 @@ function handleInputBlur(event: FocusEvent) {
 </script>
 
 <template>
-  <div class="primitive-renderer" :class="`primitive-${normalizedType}`">
+  <div 
+    v-show="getValue('visible', true)"
+    class="primitive-renderer" 
+    :class="`primitive-${normalizedType}`"
+  >
     <!-- Text Block -->
     <div v-if="normalizedType === 'primitive.text.block'" class="text-block" 
       :style="{ 
@@ -158,7 +176,8 @@ function handleInputBlur(event: FocusEvent) {
         textTransform: config.textTransform || 'none',
         wordWrap: config.wordWrap || 'normal',
         opacity: config.opacity ?? 1,
-        ...animationStyle
+        ...animationStyle,
+        ...transitionStyle
       }">
       {{ textValue }}
     </div>
@@ -183,7 +202,9 @@ function handleInputBlur(event: FocusEvent) {
           backgroundColor: config.backgroundColor,
           fontSize: `${config.fontSize}px`,
           fontWeight: config.fontWeight,
-          textAlign: config.align
+          textAlign: config.align,
+          ...transitionStyle,
+          ...transitionStyle
         }"
       />
     </div>
@@ -224,7 +245,8 @@ function handleInputBlur(event: FocusEvent) {
         opacity: config.opacity ?? 1,
         '--hover-bg': config.hoverBackgroundColor || config.backgroundColor,
         '--active-bg': config.activeBackgroundColor || config.backgroundColor,
-        ...animationStyle
+        ...animationStyle,
+        ...transitionStyle
       }">
       <span v-if="config.icon" class="button-icon">{{ config.icon }}</span>
       {{ config.label || 'Button' }}
@@ -250,7 +272,8 @@ function handleInputBlur(event: FocusEvent) {
         boxShadow: config.boxShadow || 'none',
         opacity: config.opacity ?? 1,
         transform: config.rotation ? `rotate(${config.rotation}deg)` : 'none',
-        ...animationStyle
+        ...animationStyle,
+        ...transitionStyle
       }">
     </div>
 
@@ -261,7 +284,8 @@ function handleInputBlur(event: FocusEvent) {
         border: `${config.borderWidth}px ${config.borderStyle || 'solid'} ${config.borderColor}`,
         boxShadow: config.boxShadow || 'none',
         opacity: config.opacity ?? 1,
-        ...animationStyle
+        ...animationStyle,
+        ...transitionStyle
       }">
     </div>
 
@@ -280,7 +304,8 @@ function handleInputBlur(event: FocusEvent) {
         flexDirection: config.layoutDirection === 'horizontal' ? 'row' : 'column',
         flexWrap: getValue('wrap', false) ? 'wrap' : 'nowrap',
         justifyContent: config.layoutDirection === 'horizontal' ? getAlignValue(getValue('horizontalAlign', 'stretch')) : getAlignValue(getValue('verticalAlign', 'start')),
-        alignItems: config.layoutDirection === 'horizontal' ? getAlignValue(getValue('verticalAlign', 'start')) : getAlignValue(getValue('horizontalAlign', 'stretch'))
+        alignItems: config.layoutDirection === 'horizontal' ? getAlignValue(getValue('verticalAlign', 'start')) : getAlignValue(getValue('horizontalAlign', 'stretch')),
+        ...transitionStyle
       }">
       <slot>
         <span v-if="editMode" class="container-placeholder">Empty Container</span>
@@ -295,7 +320,8 @@ function handleInputBlur(event: FocusEvent) {
         backgroundColor: config.backgroundColor || 'transparent',
         border: `${config.borderWidth}px solid ${config.borderColor}`,
         borderRadius: `${config.cornerRadius}px`,
-        opacity: getValue('opacity', 1)
+        opacity: getValue('opacity', 1),
+        ...transitionStyle
       }">
       <div class="tab-header"
         :class="{ 

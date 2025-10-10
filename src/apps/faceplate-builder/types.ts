@@ -57,6 +57,7 @@ export type CanvasNode = {
   zIndex?: number; // Explicit stacking order
   eventHandlers?: EventHandler[]; // Event handlers for this component
   locked?: boolean; // Whether component is locked (prevents editing/moving)
+  hidden?: boolean; // Whether component is hidden in builder (still renders at runtime)
 };
 
 export type BindingMode = 'field' | 'literal' | 'script' | 'twoWay';

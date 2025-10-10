@@ -20,6 +20,19 @@ export interface PropertySchema {
 }
 
 /**
+ * Common behavior properties for all components
+ */
+export const COMMON_BEHAVIOR_PROPERTIES: PropertySchema[] = [
+  {
+    key: 'visible',
+    label: 'Visible',
+    type: 'boolean',
+    default: true,
+    category: 'Behavior',
+  },
+];
+
+/**
  * Common animation properties that can be added to any component
  */
 export const COMMON_ANIMATION_PROPERTIES: PropertySchema[] = [
@@ -73,6 +86,31 @@ export const COMMON_ANIMATION_PROPERTIES: PropertySchema[] = [
     default: 'ease-in-out',
     category: 'Animation',
     options: [
+      { label: 'Linear', value: 'linear' },
+      { label: 'Ease', value: 'ease' },
+      { label: 'Ease In', value: 'ease-in' },
+      { label: 'Ease Out', value: 'ease-out' },
+      { label: 'Ease In Out', value: 'ease-in-out' },
+    ],
+  },
+  {
+    key: 'transitionDuration',
+    label: 'Transition Duration (ms)',
+    type: 'number',
+    default: 0,
+    min: 0,
+    max: 2000,
+    step: 50,
+    category: 'Animation',
+  },
+  {
+    key: 'transitionEasing',
+    label: 'Transition Easing',
+    type: 'option',
+    default: 'ease',
+    category: 'Animation',
+    options: [
+      { label: 'None', value: 'none' },
       { label: 'Linear', value: 'linear' },
       { label: 'Ease', value: 'ease' },
       { label: 'Ease In', value: 'ease-in' },
@@ -188,6 +226,7 @@ export const PRIMITIVE_REGISTRY: PrimitiveDefinition[] = [
         ],
       },
       { key: 'opacity', label: 'Opacity', type: 'number', default: 1, min: 0, max: 1, step: 0.1, category: 'Appearance' },
+      ...COMMON_BEHAVIOR_PROPERTIES,
       ...COMMON_ANIMATION_PROPERTIES,
     ],
     previewProps: { text: 'Sample Text', align: 'center', textColor: '#ffffff' },
@@ -260,6 +299,8 @@ export const PRIMITIVE_REGISTRY: PrimitiveDefinition[] = [
       { key: 'max', label: 'Max Value', type: 'number', default: 100 },
       { key: 'step', label: 'Step', type: 'number', default: 1, min: 0.1, step: 0.1 },
       { key: 'required', label: 'Required', type: 'boolean', default: false },
+      ...COMMON_BEHAVIOR_PROPERTIES,
+      ...COMMON_ANIMATION_PROPERTIES,
     ],
   },
 
@@ -292,6 +333,8 @@ export const PRIMITIVE_REGISTRY: PrimitiveDefinition[] = [
       { key: 'icon', label: 'Icon (emoji or text)', type: 'string', default: '' },
       { key: 'boxShadow', label: 'Box Shadow', type: 'string', default: '0 2px 8px rgba(0, 0, 0, 0.2)' },
       { key: 'opacity', label: 'Opacity', type: 'number', default: 1, min: 0, max: 1, step: 0.1 },
+      ...COMMON_BEHAVIOR_PROPERTIES,
+      ...COMMON_ANIMATION_PROPERTIES,
     ],
   },
 

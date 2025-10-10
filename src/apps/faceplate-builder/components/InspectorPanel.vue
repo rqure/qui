@@ -30,6 +30,7 @@ const props = defineProps<{
   allContainers?: CanvasNode[];
   containerChildren?: CanvasNode[];
   isContainer?: boolean;
+  selectedCount?: number;
 }>();
 
 const emit = defineEmits<{
@@ -48,6 +49,9 @@ const emit = defineEmits<{
   (event: 'event-handler-update', payload: { nodeId: string; handler: EventHandler }): void;
   (event: 'event-handler-remove', payload: { nodeId: string; handlerId: string }): void;
   (event: 'toggle-lock', payload: { nodeId: string }): void;
+  (event: 'toggle-visibility', payload: { nodeId: string }): void;
+  (event: 'group-selected'): void;
+  (event: 'ungroup-selected'): void;
 }>();
 
 const propertySchema = computed<PrimitivePropertyDefinition[]>(() => {
@@ -564,7 +568,27 @@ function handleScriptUpdate(handler: EventHandler, code: string) {
       </div>
     </header>
 
-    <div v-if="!node" class="inspector__empty">Select a component to edit its properties.</div>
+    <div v-if="!node && (!selectedCount || selectedCount <= 1)" class="inspector__empty">Select a component to edit its properties.</div>
+
+    <!-- Multi-selection actions -->
+    <div v-else-if="!node && selectedCount && selectedCount >= 2" class="inspector__content">
+      <section class="inspector__section">
+        <header><h3>Multi-Selection ({{ selectedCount }} items)</h3></header>
+        <div class="inspector__actions">
+          <button 
+            type="button" 
+            class="inspector__primary" 
+            @click="emit('group-selected')"
+            title="Group selected components into a container (Cmd/Ctrl + G)"
+          >
+            📦 Group Selection
+          </button>
+        </div>
+        <p class="inspector__hint">
+          Group the selected components into a container for easier organization and layout management.
+        </p>
+      </section>
+    </div>
 
     <form v-else class="inspector__content" @submit.prevent>
       <section class="inspector__section">
@@ -588,10 +612,29 @@ function handleScriptUpdate(handler: EventHandler, code: string) {
           >
             {{ node.locked ? '🔒 Locked' : '🔓 Unlocked' }}
           </button>
+          <button 
+            type="button" 
+            :class="['inspector__secondary', { 'inspector__visibility-hidden': node.hidden }]"
+            @click="emit('toggle-visibility', { nodeId: node.id })"
+            :title="node.hidden ? 'Show component in builder' : 'Hide component in builder (still renders at runtime)'"
+          >
+            {{ node.hidden ? '👁️ Hidden' : '👁️ Visible' }}
+          </button>
         </div>
         <div class="inspector__actions">
           <button type="button" class="inspector__secondary" @click="handleBringForward" :disabled="node.locked">Bring Forward</button>
           <button type="button" class="inspector__secondary" @click="handleSendBackward" :disabled="node.locked">Send Backward</button>
+        </div>
+        <div class="inspector__actions" v-if="isContainer">
+          <button 
+            type="button" 
+            class="inspector__secondary" 
+            @click="emit('ungroup-selected')"
+            :disabled="node.locked || !containerChildren || containerChildren.length === 0"
+            title="Extract children from container (Cmd/Ctrl + Shift + G)"
+          >
+            📦 Ungroup
+          </button>
         </div>
         <button type="button" class="inspector__danger" @click="handleDeleteClick" :disabled="node.locked">Delete Component</button>
       </section>
@@ -766,10 +809,16 @@ function handleScriptUpdate(handler: EventHandler, code: string) {
               <div v-for="row in categoryRows" :key="row.definition.key" class="property-card">
             <header class="property-card__header">
               <div class="property-card__titles">
-                <span class="property-card__label">{{ row.definition.label }}</span>
-                <small v-if="row.binding" class="property-card__status">
-                  Bound · {{ row.binding.mode ?? 'field' }}
-                </small>
+                <span class="property-card__label">
+                  {{ row.definition.label }}
+                  <span v-if="row.binding" 
+                    :class="['binding-badge', `binding-badge--${row.binding.mode ?? 'field'}`]"
+                    :title="`Binding mode: ${row.binding.mode ?? 'field'}`"
+                  >
+                    {{ row.binding.mode === 'field' ? '📖' : row.binding.mode === 'twoWay' ? '🔄' : row.binding.mode === 'literal' ? '📝' : '⚡' }}
+                    {{ row.binding.mode ?? 'field' }}
+                  </span>
+                </span>
               </div>
               <button
                 type="button"
@@ -791,15 +840,30 @@ function handleScriptUpdate(handler: EventHandler, code: string) {
                   />
                 </template>
                 <template v-else-if="row.definition.type === 'number'">
-                  <input
-                    type="number"
-                    :value="Number(node?.props?.[row.definition.key] ?? row.definition.default ?? 0)"
-                    :min="row.definition.min"
-                    :max="row.definition.max"
-                    :step="row.definition.step ?? 1"
-                    :disabled="Boolean(row.binding)"
-                    @input="handlePropInput(row.definition, $event)"
-                  />
+                  <div class="number-input-group">
+                    <!-- Show slider if min and max are defined -->
+                    <input
+                      v-if="row.definition.min !== undefined && row.definition.max !== undefined"
+                      type="range"
+                      class="number-slider"
+                      :value="Number(node?.props?.[row.definition.key] ?? row.definition.default ?? 0)"
+                      :min="row.definition.min"
+                      :max="row.definition.max"
+                      :step="row.definition.step ?? 1"
+                      :disabled="Boolean(row.binding)"
+                      @input="handlePropInput(row.definition, $event)"
+                    />
+                    <input
+                      type="number"
+                      class="number-input"
+                      :value="Number(node?.props?.[row.definition.key] ?? row.definition.default ?? 0)"
+                      :min="row.definition.min"
+                      :max="row.definition.max"
+                      :step="row.definition.step ?? 1"
+                      :disabled="Boolean(row.binding)"
+                      @input="handlePropInput(row.definition, $event)"
+                    />
+                  </div>
                 </template>
                 <template v-else-if="row.definition.type === 'option'">
                   <select
@@ -1956,5 +2020,99 @@ function handleScriptUpdate(handler: EventHandler, code: string) {
 
 .event-handler-toggle span {
   font-weight: 500;
+}
+
+/* Number input with slider */
+.number-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.number-slider {
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.1);
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.number-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--qui-accent-color, #00ffaa);
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.number-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+.number-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border: none;
+  border-radius: 50%;
+  background: var(--qui-accent-color, #00ffaa);
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.number-slider::-moz-range-thumb:hover {
+  transform: scale(1.2);
+}
+
+.number-slider:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.number-input {
+  width: 100%;
+}
+
+/* Binding indicator badges */
+.binding-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.binding-badge--field {
+  background: rgba(100, 150, 255, 0.2);
+  color: rgba(100, 150, 255, 1);
+  border: 1px solid rgba(100, 150, 255, 0.4);
+}
+
+.binding-badge--twoWay {
+  background: rgba(255, 170, 0, 0.2);
+  color: rgba(255, 170, 0, 1);
+  border: 1px solid rgba(255, 170, 0, 0.4);
+}
+
+.binding-badge--literal {
+  background: rgba(150, 100, 255, 0.2);
+  color: rgba(150, 100, 255, 1);
+  border: 1px solid rgba(150, 100, 255, 0.4);
+}
+
+.binding-badge--script {
+  background: rgba(0, 255, 170, 0.2);
+  color: rgba(0, 255, 170, 1);
+  border: 1px solid rgba(0, 255, 170, 0.4);
 }
 </style>

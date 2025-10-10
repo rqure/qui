@@ -9,7 +9,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (event: 'select-node', nodeId: string, isMultiSelect: boolean): void;
-  (event: 'toggle-visibility', nodeId: string): void;
+  (event: 'toggle-visibility', payload: { nodeId: string }): void;
   (event: 'reorder', payload: { nodeId: string; newIndex: number; newParentId?: string | null }): void;
   (event: 'bring-to-front', nodeId: string): void;
   (event: 'send-to-back', nodeId: string): void;
@@ -17,9 +17,6 @@ const emit = defineEmits<{
 
 // Track which nodes have their children expanded
 const expandedNodes = ref<Set<string>>(new Set());
-
-// Track visibility state (hidden nodes)
-const hiddenNodes = ref<Set<string>>(new Set());
 
 // Drag and drop state
 const draggedNodeId = ref<string | null>(null);
@@ -68,19 +65,15 @@ function isSelected(nodeId: string): boolean {
   return props.selectedNodeIds.has(nodeId);
 }
 
-// Check if node is visible
+// Check if node is visible (based on hidden property from node itself)
 function isVisible(nodeId: string): boolean {
-  return !hiddenNodes.value.has(nodeId);
+  const node = props.nodes.find(n => n.id === nodeId);
+  return !node?.hidden;
 }
 
 // Toggle visibility
 function handleVisibilityToggle(nodeId: string) {
-  if (hiddenNodes.value.has(nodeId)) {
-    hiddenNodes.value.delete(nodeId);
-  } else {
-    hiddenNodes.value.add(nodeId);
-  }
-  emit('toggle-visibility', nodeId);
+  emit('toggle-visibility', { nodeId });
 }
 
 // Handle node selection
@@ -254,9 +247,12 @@ function collapseAll() {
   expandedNodes.value.clear();
 }
 
-// Show all nodes
+// Show all nodes - emit toggle-visibility for all hidden nodes
 function showAll() {
-  hiddenNodes.value.clear();
+  const hiddenNodesList = props.nodes.filter(n => n.hidden);
+  hiddenNodesList.forEach(node => {
+    emit('toggle-visibility', { nodeId: node.id });
+  });
 }
 </script>
 

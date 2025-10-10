@@ -79,16 +79,19 @@ const ALIGNMENT_THRESHOLD = 5; // pixels
 const hasMultipleSelected = computed(() => (props.selectedNodeIds?.size ?? 0) > 1);
 
 // Convert CanvasNode to CanvasComponent format (preserving parent-child relationships)
+// Filter out hidden nodes (they won't render in builder but will at runtime)
 const canvasComponents = computed<CanvasComponent[]>(() => {
-  return props.nodes.map(node => ({
-    id: node.id,
-    type: node.componentId,
-    position: node.position,
-    size: node.size,
-    config: node.props,
-    parentId: node.parentId,
-    // Children will be assembled by FaceplateCanvas
-  }));
+  return props.nodes
+    .filter(node => !node.hidden) // Hide components marked as hidden
+    .map(node => ({
+      id: node.id,
+      type: node.componentId,
+      position: node.position,
+      size: node.size,
+      config: node.props,
+      parentId: node.parentId,
+      // Children will be assembled by FaceplateCanvas
+    }));
 });
 
 // Helper to check if a component is a container

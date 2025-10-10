@@ -677,6 +677,17 @@ function handleToggleLock(payload: { nodeId: string }) {
   pushHistory();
 }
 
+function handleToggleVisibility(payload: { nodeId: string }) {
+  const node = nodes.value.find(n => n.id === payload.nodeId);
+  if (!node) return;
+  
+  nodes.value = nodes.value.map(n => 
+    n.id === payload.nodeId ? { ...n, hidden: !n.hidden } : n
+  );
+  pushHistory();
+  logger.info(`Toggled visibility for node ${payload.nodeId}: ${node.hidden ? 'shown' : 'hidden'}`);
+}
+
 // Layer management functions
 function handleLayerReorder(payload: { nodeId: string; newIndex: number; newParentId?: string | null }) {
   const node = nodes.value.find(n => n.id === payload.nodeId);
@@ -730,10 +741,8 @@ function handleLayerReorder(payload: { nodeId: string; newIndex: number; newPare
   pushHistory();
 }
 
-function handleLayerVisibilityToggle(nodeId: string) {
-  // This is handled internally by LayersPanel for visual feedback
-  // We could extend CanvasNode to have a 'visible' property if needed
-  // For now, this is just a placeholder for potential future integration
+function handleLayerVisibilityToggle(payload: { nodeId: string }) {
+  handleToggleVisibility(payload);
 }
 
 // Container management functions
@@ -860,6 +869,148 @@ function handleRemoveFromContainer(payload: { nodeIds: string[] }) {
 
 function handleClearContainer(payload: { containerId: string }) {
   clearContainerChildren(payload.containerId);
+}
+
+/**
+ * Group selected nodes into a new container
+ * Creates a container that encompasses all selected nodes and makes them children
+ */
+function groupSelectedNodes() {
+  if (selectedNodeIds.value.size < 2) {
+    logger.warn('Need at least 2 nodes selected to group');
+    return;
+  }
+  
+  const nodesToGroup = nodes.value.filter(node => selectedNodeIds.value.has(node.id));
+  
+  // Calculate bounding box of selected nodes
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const node of nodesToGroup) {
+    const absPos = getAbsolutePosition(node);
+    minX = Math.min(minX, absPos.x);
+    minY = Math.min(minY, absPos.y);
+    maxX = Math.max(maxX, absPos.x + node.size.x);
+    maxY = Math.max(maxY, absPos.y + node.size.y);
+  }
+  
+  // Add padding around group
+  const padding = 20;
+  minX -= padding;
+  minY -= padding;
+  maxX += padding;
+  maxY += padding;
+  
+  // Find container template
+  const containerTemplate = componentLibrary.value.find(t => t.primitiveId === 'primitive.container');
+  if (!containerTemplate) {
+    logger.error('Container template not found');
+    return;
+  }
+  
+  // Create container node
+  const containerId = generateId('node');
+  const containerNode: CanvasNode = {
+    id: containerId,
+    componentId: containerTemplate.id,
+    name: 'Group Container',
+    position: { x: minX, y: minY },
+    size: { x: maxX - minX, y: maxY - minY },
+    props: {
+      ...containerTemplate.defaults.props,
+      backgroundColor: 'rgba(255, 255, 255, 0.05)',
+      borderColor: 'rgba(255, 255, 255, 0.2)',
+      borderWidth: 1,
+      cornerRadius: 8,
+      padding: padding,
+    },
+    children: [],
+    zIndex: Math.min(...nodesToGroup.map(n => n.zIndex ?? 0)) - 1, // Place container behind grouped nodes
+  };
+  
+  // Add container to nodes
+  nodes.value.push(containerNode);
+  
+  // Add selected nodes to container
+  addToContainer(Array.from(selectedNodeIds.value), containerId);
+  
+  // Select the new container
+  selectedNodeIds.value.clear();
+  selectedNodeIds.value.add(containerId);
+  selectedNodeId.value = containerId;
+  
+  pushHistory();
+  logger.info(`Grouped ${nodesToGroup.length} nodes into container ${containerId}`);
+}
+
+/**
+ * Ungroup a container - extract its children back to root level
+ */
+function ungroupSelectedNode() {
+  if (selectedNodeIds.value.size !== 1) {
+    logger.warn('Need exactly 1 container selected to ungroup');
+    return;
+  }
+  
+  const containerId = Array.from(selectedNodeIds.value)[0];
+  const container = nodes.value.find(n => n.id === containerId);
+  
+  if (!container) return;
+  
+  if (!isContainer(containerId)) {
+    logger.warn('Selected node is not a container');
+    return;
+  }
+  
+  const children = container.children || [];
+  if (children.length === 0) {
+    logger.warn('Container has no children to ungroup');
+    return;
+  }
+  
+  // Remove children from container (converts to absolute positions)
+  removeFromContainer(children);
+  
+  // Select the ungrouped children
+  selectedNodeIds.value.clear();
+  children.forEach(id => selectedNodeIds.value.add(id));
+  selectedNodeId.value = children[0] || null;
+  
+  // Delete the container
+  nodes.value = nodes.value.filter(n => n.id !== containerId);
+  
+  // Remove any bindings associated with the container
+  bindings.value = bindings.value.filter(b => b.componentId !== containerId);
+  
+  pushHistory();
+  logger.info(`Ungrouped container ${containerId}, extracted ${children.length} children`);
+}
+
+/**
+ * Get absolute position of a node (accounting for parent containers)
+ */
+function getAbsolutePosition(node: CanvasNode): Vector2 {
+  if (!node.parentId) {
+    return { ...node.position };
+  }
+  
+  const parent = nodes.value.find(n => n.id === node.parentId);
+  if (!parent) {
+    return { ...node.position };
+  }
+  
+  const parentAbsPos = getAbsolutePosition(parent);
+  return {
+    x: parentAbsPos.x + node.position.x,
+    y: parentAbsPos.y + node.position.y,
+  };
+}
+
+function handleGroupSelected() {
+  groupSelectedNodes();
+}
+
+function handleUngroupSelected() {
+  ungroupSelectedNode();
 }
 
 // Clipboard for copy/paste operations
@@ -1056,6 +1207,20 @@ function handleKeyDown(event: KeyboardEvent) {
   if (isMod && event.key === 'd' && selectedNodeIds.value.size) {
     event.preventDefault();
     duplicateSelectedNodes();
+    return;
+  }
+
+  // Group: Cmd/Ctrl + G
+  if (isMod && event.key === 'g' && selectedNodeIds.value.size >= 2) {
+    event.preventDefault();
+    groupSelectedNodes();
+    return;
+  }
+
+  // Ungroup: Cmd/Ctrl + Shift + G
+  if (isMod && isShift && event.key === 'g' && selectedNodeIds.value.size === 1) {
+    event.preventDefault();
+    ungroupSelectedNode();
     return;
   }
 
@@ -1554,6 +1719,7 @@ onMounted(async () => {
         :all-containers="getAllContainers()"
         :container-children="selectedNode ? getContainerChildren(selectedNode.id) : []"
         :is-container="selectedNode ? isContainer(selectedNode.id) : false"
+        :selected-count="selectedNodeIds.size"
         @resize="handleResize"
         @prop-updated="handlePropUpdated"
         @binding-create="handleInspectorBindingCreate"
@@ -1569,6 +1735,9 @@ onMounted(async () => {
         @remove-from-container="handleRemoveFromContainer"
         @clear-container="handleClearContainer"
         @toggle-lock="handleToggleLock"
+        @toggle-visibility="handleToggleVisibility"
+        @group-selected="handleGroupSelected"
+        @ungroup-selected="handleUngroupSelected"
       />
     </div>
 
