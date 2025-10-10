@@ -120,13 +120,24 @@ function handleClickOutside(event: MouseEvent) {
   }
 }
 
+// Keyboard navigation support
+function handleKeyDown(event: KeyboardEvent) {
+  if (event.key === 'Escape') {
+    showPicker.value = false;
+  } else if (event.key === 'Enter' && showPicker.value) {
+    showPicker.value = false;
+  }
+}
+
 watch(showPicker, (show) => {
   if (show) {
     setTimeout(() => {
       document.addEventListener('click', handleClickOutside);
+      document.addEventListener('keydown', handleKeyDown);
     }, 0);
   } else {
     document.removeEventListener('click', handleClickOutside);
+    document.removeEventListener('keydown', handleKeyDown);
   }
 });
 </script>
@@ -138,6 +149,8 @@ watch(showPicker, (show) => {
       class="color-picker__trigger"
       :disabled="disabled"
       @click.stop="showPicker = !showPicker"
+      @keydown.enter.prevent="showPicker = !showPicker"
+      @keydown.space.prevent="showPicker = !showPicker"
     >
       <span class="color-picker__preview" :style="{ backgroundColor: currentColor }"></span>
       <span class="color-picker__value">{{ modelValue || 'transparent' }}</span>
@@ -222,7 +235,10 @@ watch(showPicker, (show) => {
             class="color-picker__preset"
             :style="{ backgroundColor: preset }"
             @click="selectPreset(preset)"
+            @keydown.enter.prevent="selectPreset(preset)"
+            @keydown.space.prevent="selectPreset(preset)"
             :title="preset"
+            :aria-label="`Select color ${preset}`"
           ></button>
         </div>
       </div>

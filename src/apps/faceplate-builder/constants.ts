@@ -22,8 +22,3 @@ export const DEFAULT_VIEWPORT_WIDTH = 1280;
 export const DEFAULT_VIEWPORT_HEIGHT = 800;
 export const DEFAULT_COMPONENT_WIDTH = 240;
 export const DEFAULT_COMPONENT_HEIGHT = 180;
-
-// Connection and retry
-export const MAX_RECONNECT_ATTEMPTS = 10;
-export const RECONNECT_DELAY_MS = 1000;
-export const CONNECTION_TIMEOUT_MS = 5000;
