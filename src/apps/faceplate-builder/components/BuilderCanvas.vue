@@ -2,13 +2,12 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import FaceplateCanvas, { type CanvasComponent } from './FaceplateCanvas.vue';
 import type { CanvasNode, PaletteTemplate, Vector2 } from '../types';
+import { GRID_SIZE_FINE, ZOOM_MIN, ZOOM_MAX, ZOOM_STEP } from '../constants';
 
 type CanvasDropPayload = {
   componentId: string;
   position: Vector2;
 };
-
-const GRID_SIZE = 10; // Fine grid for precise alignment (10px)
 
 const props = defineProps<{
   nodes: CanvasNode[];
@@ -57,10 +56,6 @@ const panOrigin = ref({ x: 0, y: 0 });
 // Snapping state
 const snapToGridEnabled = ref(true);
 
-const ZOOM_MIN = 0.1;
-const ZOOM_MAX = 3;
-const ZOOM_STEP = 0.1;
-
 // Convert CanvasNode to CanvasComponent format (preserving parent-child relationships)
 const canvasComponents = computed<CanvasComponent[]>(() => {
   return props.nodes.map(node => ({
@@ -80,6 +75,7 @@ function isContainerType(componentId: string): boolean {
 }
 
 // Find container at given position during drag
+// Considers nested containers and z-index to find the topmost container
 function findContainerAtPosition(x: number, y: number): CanvasNode | null {
   // Find containers under the cursor, excluding selected nodes being dragged
   const selectedIds = props.selectedNodeIds ? Array.from(props.selectedNodeIds) : [];
@@ -87,17 +83,31 @@ function findContainerAtPosition(x: number, y: number): CanvasNode | null {
     isContainerType(node.componentId) && !selectedIds.includes(node.id)
   );
   
-  // Check which container contains this point
-  for (const container of containers) {
+  // Find all containers that contain this point
+  const matchingContainers = containers.filter(container => {
     const inBounds = x >= container.position.x && 
                      x <= container.position.x + container.size.x &&
                      y >= container.position.y && 
                      y <= container.position.y + container.size.y;
-    if (inBounds) {
-      return container;
-    }
-  }
-  return null;
+    return inBounds;
+  });
+  
+  if (!matchingContainers.length) return null;
+  
+  // Sort by z-index (higher first) and then by order in array (later = on top)
+  matchingContainers.sort((a, b) => {
+    const aZ = a.zIndex ?? 0;
+    const bZ = b.zIndex ?? 0;
+    if (aZ !== bZ) return bZ - aZ; // Higher z-index first
+    
+    // If same z-index, prefer the one that appears later in the nodes array
+    const aIdx = props.nodes.indexOf(a);
+    const bIdx = props.nodes.indexOf(b);
+    return bIdx - aIdx;
+  });
+  
+  // Return the topmost container
+  return matchingContainers[0];
 }
 
 function handleDragOver(event: DragEvent) {
@@ -130,8 +140,8 @@ function snapToGrid(point: Vector2): Vector2 {
     };
   }
   return {
-    x: Math.max(0, Math.round(point.x / GRID_SIZE) * GRID_SIZE),
-    y: Math.max(0, Math.round(point.y / GRID_SIZE) * GRID_SIZE),
+    x: Math.max(0, Math.round(point.x / GRID_SIZE_FINE) * GRID_SIZE_FINE),
+    y: Math.max(0, Math.round(point.y / GRID_SIZE_FINE) * GRID_SIZE_FINE),
   };
 }
 
@@ -254,9 +264,10 @@ function handleCanvasPointerDown(event: PointerEvent) {
 
   const canvasEl = canvasRef.value.canvasRef;
   const rect = canvasEl.getBoundingClientRect();
+  // Properly transform screen coordinates to canvas coordinates accounting for zoom and pan
   const point = {
-    x: (event.clientX - rect.left - pan.value.x) / zoom.value + canvasEl.scrollLeft,
-    y: (event.clientY - rect.top - pan.value.y) / zoom.value + canvasEl.scrollTop,
+    x: (event.clientX - rect.left - pan.value.x) / zoom.value,
+    y: (event.clientY - rect.top - pan.value.y) / zoom.value,
   };
   
   selectBoxState.start = point;

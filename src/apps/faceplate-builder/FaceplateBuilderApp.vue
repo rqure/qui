@@ -7,6 +7,12 @@ import BuilderToolbar from './components/BuilderToolbar.vue';
 import FaceplateSelector from './components/FaceplateSelector.vue';
 import { useDataStore } from '@/stores/data';
 import { FaceplateDataService } from './utils/faceplate-data';
+import {
+  DEFAULT_VIEWPORT_WIDTH,
+  DEFAULT_VIEWPORT_HEIGHT,
+  MIN_VIEWPORT_WIDTH,
+  MIN_VIEWPORT_HEIGHT,
+} from './constants';
 import { PRIMITIVE_REGISTRY } from './utils/primitive-registry';
 import type { FaceplateNotificationChannel, FaceplateScriptModule } from './utils/faceplate-data';
 import type { EntityId } from '@/core/data/types';
@@ -39,7 +45,7 @@ const props = defineProps<{
 const dataStore = useDataStore();
 const faceplateService = new FaceplateDataService(dataStore);
 
-const DEFAULT_VIEWPORT: Vector2 = { x: 1280, y: 800 };
+const DEFAULT_VIEWPORT: Vector2 = { x: DEFAULT_VIEWPORT_WIDTH, y: DEFAULT_VIEWPORT_HEIGHT };
 
 const primitiveMap = Object.fromEntries(
   PRIMITIVE_REGISTRY.map((primitive) => [primitive.id, primitive]),
@@ -231,8 +237,8 @@ function normalizeViewport(value: unknown): Vector2 | null {
   }
 
   return {
-    x: Math.max(320, Math.round(width)),
-    y: Math.max(240, Math.round(height)),
+    x: Math.max(MIN_VIEWPORT_WIDTH, Math.round(width)),
+    y: Math.max(MIN_VIEWPORT_HEIGHT, Math.round(height)),
   };
 }
 
@@ -783,6 +789,79 @@ function resetWorkspace() {
   markSaved();
 }
 
+/**
+ * Shared function to load faceplate data and update component state
+ * Eliminates code duplication between onMounted and handleSelectorSelect
+ */
+async function loadFaceplateData(faceplateId: EntityId) {
+  const faceplate = await faceplateService.readFaceplate(faceplateId);
+  currentFaceplateId.value = faceplateId;
+  currentFaceplateName.value = faceplate.name;
+  currentTargetEntityType.value = faceplate.targetEntityType;
+  currentScriptModules.value = faceplate.scriptModules ?? [];
+  currentNotificationChannels.value = faceplate.notificationChannels ?? [];
+  
+  // Load components
+  const components = await faceplateService.readComponents(faceplate.components);
+  
+  // Convert to canvas nodes with parent-child relationships
+  const tempNodes = faceplate.configuration.layout.map((layoutItem) => {
+    const component = components.find((c) => c.id.toString() === layoutItem.component);
+    if (!component) return null;
+    
+    const node: CanvasNode = {
+      id: layoutItem.component,
+      componentId: findTemplateForPrimitive(component.componentType),
+      name: component.name,
+      position: { x: layoutItem.x, y: layoutItem.y },
+      size: { x: layoutItem.w || 4, y: layoutItem.h || 3 },
+      props: component.configuration,
+      parentId: layoutItem.parentId || null,
+    };
+    
+    return node;
+  }).filter((n): n is CanvasNode => n !== null);
+  
+  // Build children arrays for containers
+  const childrenMap = new Map<string, string[]>();
+  tempNodes.forEach(node => {
+    if (node.parentId) {
+      if (!childrenMap.has(node.parentId)) {
+        childrenMap.set(node.parentId, []);
+      }
+      childrenMap.get(node.parentId)!.push(node.id);
+    }
+  });
+  
+  // Assign children arrays to containers
+  nodes.value = tempNodes.map(node => {
+    const children = childrenMap.get(node.id);
+    if (children && children.length > 0) {
+      return { ...node, children };
+    }
+    return node;
+  });
+  
+  // Convert bindings
+  bindings.value = faceplate.configuration.bindings.map((b, idx) => ({
+    id: `binding-${idx}`,
+    componentId: b.component,
+    componentName: nodes.value.find((n) => n.id === b.component)?.name || 'Unknown',
+    property: b.property,
+    expression: b.expression,
+    mode: b.mode ?? (b.expression?.trim()?.startsWith('script:') ? 'script' : 'field'),
+    transform: b.transform ?? null,
+    dependencies: Array.isArray(b.dependencies) ? b.dependencies : undefined,
+    description: b.description,
+  }));
+  
+  applyViewportMetadata(faceplate.configuration.metadata as Record<string, unknown> | undefined);
+  applySelection([], null);
+  
+  pushHistory();
+  markSaved();
+}
+
 async function saveWorkspace() {
   if (isSaving.value) return;
   
@@ -797,18 +876,11 @@ async function saveWorkspace() {
       return;
     }
     
-    // Delete old components before creating new ones
-    console.log('Deleting old components...');
+    // Get existing components to delete after new ones are created (avoid race condition)
     const existingFaceplate = await faceplateService.readFaceplate(currentFaceplateId.value);
-    if (existingFaceplate.components.length > 0) {
-      await Promise.all(existingFaceplate.components.map(compId => 
-        faceplateService.deleteComponent(compId).catch(() => {
-          // Ignore errors if component doesn't exist
-        })
-      ));
-    }
+    const oldComponentIds = existingFaceplate.components;
     
-    // Build component entities and maintain node ID to component ID mapping
+    // Build NEW component entities with fresh IDs
     const componentIds: EntityId[] = [];
     const nodeIdToComponentId = new Map<string, EntityId>();
     
@@ -816,7 +888,7 @@ async function saveWorkspace() {
       const template = templateMap.value[node.componentId];
       if (!template) continue;
       
-      // Create or update component
+      // Always create a NEW component with fresh ID
       const componentId = await faceplateService.createComponent(
         currentFaceplateId.value,
         node.name,
@@ -902,9 +974,17 @@ async function saveWorkspace() {
       scriptModules: currentScriptModules.value,
     });
     
+    // NOW delete old components after successful save (prevents race condition)
+    if (oldComponentIds.length > 0) {
+      await Promise.all(oldComponentIds.map(compId => 
+        faceplateService.deleteComponent(compId).catch((err) => {
+          console.warn(`Failed to delete old component ${compId}:`, err);
+        })
+      ));
+    }
+    
     faceplateMetadata.value = metadata;
     markSaved();
-    console.log(`Faceplate "${currentFaceplateName.value}" saved successfully!`);
   } catch (error) {
     console.error('Failed to save faceplate:', error);
   } finally {
@@ -921,54 +1001,7 @@ async function handleSelectorSelect(faceplateId: EntityId) {
   showFaceplateSelector.value = false;
   
   try {
-    const faceplate = await faceplateService.readFaceplate(faceplateId);
-    currentFaceplateId.value = faceplateId;
-    currentFaceplateName.value = faceplate.name;
-    currentTargetEntityType.value = faceplate.targetEntityType;
-  currentScriptModules.value = faceplate.scriptModules ?? [];
-  currentNotificationChannels.value = faceplate.notificationChannels ?? [];
-    
-    // Load components
-    const components = await faceplateService.readComponents(faceplate.components);
-    
-    // Convert to canvas nodes with parent-child relationships
-    const loadedNodes = faceplate.configuration.layout.map((layoutItem) => {
-      const component = components.find((c) => c.id.toString() === layoutItem.component);
-      if (!component) return null;
-      
-      const node: CanvasNode = {
-        id: layoutItem.component,
-        componentId: findTemplateForPrimitive(component.componentType),
-        name: component.name,
-        position: { x: layoutItem.x, y: layoutItem.y },
-        size: { x: layoutItem.w || 4, y: layoutItem.h || 3 },
-        props: component.configuration,
-        parentId: layoutItem.parentId !== undefined ? layoutItem.parentId : null,
-      };
-      return node;
-    }).filter((n): n is CanvasNode => n !== null);
-    
-    nodes.value = loadedNodes;
-    
-    // Convert bindings
-    bindings.value = faceplate.configuration.bindings.map((b, idx) => ({
-      id: `binding-${idx}`,
-      componentId: b.component,
-      componentName: nodes.value.find((n) => n.id === b.component)?.name || 'Unknown',
-      property: b.property,
-      expression: b.expression,
-      mode: b.mode ?? (b.expression?.trim()?.startsWith('script:') ? 'script' : 'field'),
-      transform: b.transform ?? null,
-      dependencies: Array.isArray(b.dependencies) ? b.dependencies : undefined,
-      description: b.description,
-    }));
-
-    applyViewportMetadata(faceplate.configuration.metadata as Record<string, unknown> | undefined);
-    applySelection([], null);
-    
-    pushHistory();
-    markSaved();
-    console.log(`Faceplate "${faceplate.name}" loaded successfully!`);
+    await loadFaceplateData(faceplateId);
   } catch (error) {
     console.error('Failed to load faceplate:', error);
   }
@@ -1046,76 +1079,7 @@ onMounted(async () => {
   // If a faceplate ID was provided, load it
   if (props.faceplateId) {
     try {
-      const faceplate = await faceplateService.readFaceplate(props.faceplateId);
-      currentFaceplateId.value = props.faceplateId;
-      currentFaceplateName.value = faceplate.name;
-      currentTargetEntityType.value = faceplate.targetEntityType;
-  currentScriptModules.value = faceplate.scriptModules ?? [];
-  currentNotificationChannels.value = faceplate.notificationChannels ?? [];
-      
-      // Load components
-      const components = await faceplateService.readComponents(faceplate.components);
-      
-      // Convert to canvas nodes (with parent-child relationships)
-      const tempNodes = faceplate.configuration.layout.map((layoutItem) => {
-        const component = components.find((c) => c.id.toString() === layoutItem.component);
-        if (!component) return null;
-        
-        const node: CanvasNode = {
-          id: layoutItem.component,
-          componentId: findTemplateForPrimitive(component.componentType),
-          name: component.name,
-          position: { x: layoutItem.x, y: layoutItem.y },
-          size: { x: layoutItem.w || 4, y: layoutItem.h || 3 },
-          props: component.configuration,
-        };
-        
-        // Add parentId if present in layout
-        if (layoutItem.parentId) {
-          node.parentId = layoutItem.parentId;
-        }
-        
-        return node;
-      }).filter((n): n is CanvasNode => n !== null);
-      
-      // Build children arrays for containers
-      const childrenMap = new Map<string, string[]>();
-      tempNodes.forEach(node => {
-        if (node.parentId) {
-          if (!childrenMap.has(node.parentId)) {
-            childrenMap.set(node.parentId, []);
-          }
-          childrenMap.get(node.parentId)!.push(node.id);
-        }
-      });
-      
-      // Assign children arrays to containers
-      nodes.value = tempNodes.map(node => {
-        const children = childrenMap.get(node.id);
-        if (children && children.length > 0) {
-          return { ...node, children };
-        }
-        return node;
-      });
-      
-      // Convert bindings
-      bindings.value = faceplate.configuration.bindings.map((b, idx) => ({
-        id: `binding-${idx}`,
-        componentId: b.component,
-        componentName: nodes.value.find((n) => n.id === b.component)?.name || 'Unknown',
-        property: b.property,
-        expression: b.expression,
-        mode: b.mode ?? (b.expression?.trim()?.startsWith('script:') ? 'script' : 'field'),
-        transform: b.transform ?? null,
-        dependencies: Array.isArray(b.dependencies) ? b.dependencies : undefined,
-        description: b.description,
-      }));
-      
-      applyViewportMetadata(faceplate.configuration.metadata as Record<string, unknown> | undefined);
-      applySelection([], null);
-
-      pushHistory();
-      markSaved();
+      await loadFaceplateData(props.faceplateId);
     } catch (error) {
       console.error('Failed to load faceplate on mount:', error);
     }

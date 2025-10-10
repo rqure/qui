@@ -296,9 +296,18 @@ function addTab() {
   if (!props.node) return;
   const currentTabs = tabs.value;
   const newTabIndex = currentTabs.length;
+  
+  // Generate unique tab ID to avoid collisions
+  let tabId = `tab-${newTabIndex}`;
+  let counter = newTabIndex;
+  while (currentTabs.some(tab => tab.id === tabId)) {
+    counter++;
+    tabId = `tab-${counter}`;
+  }
+  
   const newTab = {
     name: `Tab ${newTabIndex + 1}`,
-    id: `tab-${newTabIndex}`,
+    id: tabId,
   };
   emit('prop-updated', {
     nodeId: props.node.id,

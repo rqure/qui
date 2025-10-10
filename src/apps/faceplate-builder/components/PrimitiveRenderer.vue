@@ -14,6 +14,10 @@ const props = withDefaults(defineProps<Props>(), {
   editMode: false,
 });
 
+const emit = defineEmits<{
+  (event: 'tab-changed', index: number): void;
+}>();
+
 // Local state for tab container active tab
 const localActiveTab = ref(0);
 
@@ -28,6 +32,7 @@ watch(() => props.config.activeTab, (newVal) => {
 function handleTabClick(index: number) {
   if (!props.editMode) {
     localActiveTab.value = index;
+    emit('tab-changed', index);
   }
 }
 

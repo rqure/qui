@@ -69,29 +69,3 @@ export type Binding = {
   dependencies?: string[];
   description?: string;
 };
-
-// Custom component definition for composing multiple primitives
-export type CustomComponentDefinition = {
-  id: string; // Entity ID in data store
-  name: string;
-  description: string;
-  icon: string;
-  // Child components with relative positions within the custom component
-  children: Array<{
-    primitiveId: string;
-    position: Vector2; // Relative to custom component origin
-    size: Vector2;
-    props: Record<string, unknown>;
-  }>;
-  // Bindings within the custom component
-  bindings: Array<{
-    childIndex: number; // Index in children array
-    property: string;
-    expression: string;
-    mode?: BindingMode;
-    transform?: string | null;
-    dependencies?: string[];
-  }>;
-  // Bounding box size
-  size: Vector2;
-};
