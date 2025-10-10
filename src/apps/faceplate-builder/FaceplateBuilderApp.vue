@@ -666,6 +666,16 @@ function handleSendBackward(payload: { nodeId: string }) {
   pushHistory();
 }
 
+function handleToggleLock(payload: { nodeId: string }) {
+  const node = nodes.value.find(n => n.id === payload.nodeId);
+  if (!node) return;
+  
+  nodes.value = nodes.value.map(n => 
+    n.id === payload.nodeId ? { ...n, locked: !n.locked } : n
+  );
+  pushHistory();
+}
+
 // Container management functions
 function isContainer(nodeId: string): boolean {
   const node = nodes.value.find(n => n.id === nodeId);
@@ -1488,6 +1498,7 @@ onMounted(async () => {
         @add-to-container="handleAddToContainer"
         @remove-from-container="handleRemoveFromContainer"
         @clear-container="handleClearContainer"
+        @toggle-lock="handleToggleLock"
       />
     </div>
 

@@ -220,6 +220,9 @@ function handleResizeHandlePointerDown(event: PointerEvent, nodeId: string, hand
   const node = props.nodes.find(n => n.id === nodeId);
   if (!node) return;
   
+  // Don't allow resizing locked nodes
+  if (node.locked) return;
+  
   resizeState.current = {
     nodeId,
     handle,
@@ -234,6 +237,14 @@ function handleResizeHandlePointerDown(event: PointerEvent, nodeId: string, hand
 function handleComponentClick(payload: { id: string | number; event: PointerEvent; isMultiSelect: boolean }) {
   const nodeId = String(payload.id);
   const isMultiSelect = payload.isMultiSelect;
+  
+  // Check if node is locked
+  const clickedNode = props.nodes.find((candidate) => candidate.id === nodeId);
+  if (clickedNode?.locked) {
+    // Still select locked nodes, but don't allow dragging
+    emit('node-selected', { nodeId: nodeId, isMultiSelect: false });
+    return;
+  }
   
   emit('node-selected', { nodeId, isMultiSelect });
 
@@ -252,8 +263,18 @@ function handleComponentClick(payload: { id: string | number; event: PointerEven
     selection.add(nodeId);
   }
 
+  // Filter out locked nodes from drag selection
+  const unlockedSelection = Array.from(selection).filter(id => {
+    const node = props.nodes.find((candidate) => candidate.id === id);
+    return node && !node.locked;
+  });
+  
+  if (unlockedSelection.length === 0) {
+    return; // All selected nodes are locked, don't start drag
+  }
+
   const originMap = new Map<string, Vector2>();
-  selection.forEach((id) => {
+  unlockedSelection.forEach((id) => {
     const node = props.nodes.find((candidate) => candidate.id === id);
     if (node) {
       originMap.set(id, { ...node.position });
@@ -266,7 +287,7 @@ function handleComponentClick(payload: { id: string | number; event: PointerEven
   dragState.current = {
     pointerStart: { x: payload.event.clientX, y: payload.event.clientY },
     element: target,
-    selection: Array.from(selection),
+    selection: unlockedSelection,
     origins: originMap,
   };
 

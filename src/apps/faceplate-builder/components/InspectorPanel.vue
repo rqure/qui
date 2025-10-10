@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watchEffect } from 'vue';
+import ColorPicker from './ColorPicker.vue';
 import type {
   Binding,
   BindingMode,
@@ -46,6 +47,7 @@ const emit = defineEmits<{
   (event: 'event-handler-create', payload: { nodeId: string; handler: EventHandler }): void;
   (event: 'event-handler-update', payload: { nodeId: string; handler: EventHandler }): void;
   (event: 'event-handler-remove', payload: { nodeId: string; handlerId: string }): void;
+  (event: 'toggle-lock', payload: { nodeId: string }): void;
 }>();
 
 const propertySchema = computed<PrimitivePropertyDefinition[]>(() => {
@@ -74,6 +76,44 @@ const propertyRows = computed(() =>
     binding: bindingMap.value[definition.key],
   })),
 );
+
+// Group properties by category
+const categorizedProperties = computed(() => {
+  const categories: Record<string, typeof propertyRows.value> = {
+    'Layout': [],
+    'Appearance': [],
+    'Typography': [],
+    'Animation': [],
+    'Behavior': [],
+    'Advanced': [],
+    'Uncategorized': [],
+  };
+  
+  propertyRows.value.forEach((row) => {
+    const category = row.definition.category || 'Uncategorized';
+    if (!categories[category]) {
+      categories[category] = [];
+    }
+    categories[category].push(row);
+  });
+  
+  // Filter out empty categories
+  return Object.entries(categories).filter(([_, rows]) => rows.length > 0);
+});
+
+const expandedCategories = ref<Record<string, boolean>>({
+  'Layout': true,
+  'Appearance': true,
+  'Typography': false,
+  'Animation': false,
+  'Behavior': false,
+  'Advanced': false,
+  'Uncategorized': true,
+});
+
+function toggleCategory(category: string) {
+  expandedCategories.value[category] = !expandedCategories.value[category];
+}
 
 const bindingAdvanced = ref<Record<string, boolean>>({});
 
@@ -532,18 +572,28 @@ function handleScriptUpdate(handler: EventHandler, code: string) {
         <div class="inspector__grid">
           <label class="inspector__field">
             <span>Width (px)</span>
-            <input type="number" min="10" step="5" :value="node.size.x" @input="handleSizeChange('x', $event)" />
+            <input type="number" min="10" step="5" :value="node.size.x" @input="handleSizeChange('x', $event)" :disabled="node.locked" />
           </label>
           <label class="inspector__field">
             <span>Height (px)</span>
-            <input type="number" min="10" step="5" :value="node.size.y" @input="handleSizeChange('y', $event)" />
+            <input type="number" min="10" step="5" :value="node.size.y" @input="handleSizeChange('y', $event)" :disabled="node.locked" />
           </label>
         </div>
         <div class="inspector__actions">
-          <button type="button" class="inspector__secondary" @click="handleBringForward">Bring Forward</button>
-          <button type="button" class="inspector__secondary" @click="handleSendBackward">Send Backward</button>
+          <button 
+            type="button" 
+            :class="['inspector__secondary', { 'inspector__lock-active': node.locked }]"
+            @click="emit('toggle-lock', { nodeId: node.id })"
+            :title="node.locked ? 'Unlock component' : 'Lock component'"
+          >
+            {{ node.locked ? '🔒 Locked' : '🔓 Unlocked' }}
+          </button>
         </div>
-        <button type="button" class="inspector__danger" @click="handleDeleteClick">Delete Component</button>
+        <div class="inspector__actions">
+          <button type="button" class="inspector__secondary" @click="handleBringForward" :disabled="node.locked">Bring Forward</button>
+          <button type="button" class="inspector__secondary" @click="handleSendBackward" :disabled="node.locked">Send Backward</button>
+        </div>
+        <button type="button" class="inspector__danger" @click="handleDeleteClick" :disabled="node.locked">Delete Component</button>
       </section>
 
       <!-- Quick Add to Container Section (shown when not in a container and containers exist) -->
@@ -701,7 +751,19 @@ function handleScriptUpdate(handler: EventHandler, code: string) {
         <header><h3>Properties</h3></header>
         <p v-if="!propertySchema.length" class="inspector__hint">This component has no configurable properties yet.</p>
         <div v-else class="inspector__list">
-          <div v-for="row in propertyRows" :key="row.definition.key" class="property-card">
+          <!-- Property Categories -->
+          <div v-for="[categoryName, categoryRows] in categorizedProperties" :key="categoryName" class="property-category">
+            <button 
+              type="button" 
+              class="property-category__header"
+              @click="toggleCategory(categoryName)"
+            >
+              <span class="property-category__icon">{{ expandedCategories[categoryName] ? '▼' : '▶' }}</span>
+              <span class="property-category__name">{{ categoryName }}</span>
+              <span class="property-category__count">({{ categoryRows.length }})</span>
+            </button>
+            <div v-show="expandedCategories[categoryName]" class="property-category__content">
+              <div v-for="row in categoryRows" :key="row.definition.key" class="property-card">
             <header class="property-card__header">
               <div class="property-card__titles">
                 <span class="property-card__label">{{ row.definition.label }}</span>
@@ -750,6 +812,13 @@ function handleScriptUpdate(handler: EventHandler, code: string) {
                     </option>
                   </select>
                 </template>
+                <template v-else-if="row.definition.type === 'color'">
+                  <ColorPicker
+                    :model-value="String(node?.props?.[row.definition.key] ?? row.definition.default ?? '#ffffff')"
+                    :disabled="Boolean(row.binding)"
+                    @update:model-value="(value) => handlePropInput(row.definition, { target: { value } } as any)"
+                  />
+                </template>
                 <template v-else>
                   <input
                     type="text"
@@ -764,18 +833,19 @@ function handleScriptUpdate(handler: EventHandler, code: string) {
               <div v-if="row.binding" class="binding-editor">
                 <div class="binding-editor__modes">
                   <button
-                    v-for="mode in ['field', 'literal', 'script']"
+                    v-for="mode in ['field', 'twoWay', 'literal', 'script']"
                     :key="mode"
                     type="button"
                     :class="['binding-editor__mode', { 'binding-editor__mode--active': (row.binding.mode ?? 'field') === mode }]"
                     @click="handleBindingModeChange(row.definition, row.definition.key, mode as BindingMode)"
                   >
-                    {{ mode === 'field' ? 'Entity Field' : mode === 'literal' ? 'Literal' : 'Script' }}
+                    {{ mode === 'field' ? 'Field (Read)' : mode === 'twoWay' ? 'Two-Way' : mode === 'literal' ? 'Literal' : 'Script' }}
                   </button>
                 </div>
 
                 <label class="binding-editor__field">
-                  <span v-if="(row.binding.mode ?? 'field') === 'field'">Field Path</span>
+                  <span v-if="(row.binding.mode ?? 'field') === 'field'">Field Path (Read Only)</span>
+                  <span v-else-if="(row.binding.mode ?? 'field') === 'twoWay'">Field Path (Read & Write)</span>
                   <span v-else-if="(row.binding.mode ?? 'field') === 'literal'">Literal Value</span>
                   <span v-else>Script Body</span>
                   <textarea
@@ -793,7 +863,10 @@ function handleScriptUpdate(handler: EventHandler, code: string) {
                     placeholder="Enter expression or value"
                   />
                   <small v-if="(row.binding.mode ?? 'field') === 'field'" class="binding-help">
-                    Examples: <code>Name</code>, <code>Parent->Name</code>, <code>Status->Value</code>. Use <code>-></code> for indirect field paths.
+                    Examples: <code>Name</code>, <code>Parent->Name</code>, <code>Status->Value</code>. Use <code>-></code> for indirect field paths. Read-only.
+                  </small>
+                  <small v-else-if="(row.binding.mode ?? 'field') === 'twoWay'" class="binding-help">
+                    Two-way binding: Reads from field AND automatically writes back changes. Perfect for input fields. Example: <code>Temperature</code>, <code>Settings->Value</code>
                   </small>
                   <small v-else-if="(row.binding.mode ?? 'field') === 'script'" class="binding-help">
                     Available: <code>context.get(path)</code>, <code>context.getCached(path)</code>, <code>helpers.clamp()</code>, <code>helpers.lerp()</code>, <code>helpers.colorRamp()</code>
@@ -842,6 +915,8 @@ function handleScriptUpdate(handler: EventHandler, code: string) {
                   </label>
                 </div>
               </div>
+            </div>
+          </div>
             </div>
           </div>
         </div>
@@ -1155,6 +1230,17 @@ function handleScriptUpdate(handler: EventHandler, code: string) {
   border-color: rgba(255, 255, 255, 0.28);
 }
 
+.inspector__lock-active {
+  background: rgba(255, 200, 100, 0.15);
+  border-color: rgba(255, 200, 100, 0.4);
+  color: rgba(255, 220, 150, 0.95);
+}
+
+.inspector__lock-active:hover {
+  background: rgba(255, 200, 100, 0.25);
+  border-color: rgba(255, 200, 100, 0.6);
+}
+
 .inspector__danger {
   align-self: flex-start;
   border-radius: 10px;
@@ -1203,6 +1289,60 @@ function handleScriptUpdate(handler: EventHandler, code: string) {
   text-align: center;
   font-size: 14px;
   opacity: 0.65;
+}
+
+.property-category {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.property-category__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  background: rgba(0, 255, 194, 0.08);
+  border: 1px solid rgba(0, 255, 194, 0.15);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
+  color: inherit;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.property-category__header:hover {
+  background: rgba(0, 255, 194, 0.12);
+  border-color: rgba(0, 255, 194, 0.25);
+}
+
+.property-category__icon {
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+.property-category__name {
+  flex: 1;
+}
+
+.property-category__count {
+  font-size: 11px;
+  opacity: 0.6;
+  font-weight: 400;
+}
+
+.property-category__content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-left: 8px;
 }
 
 .property-card {
@@ -1315,7 +1455,7 @@ function handleScriptUpdate(handler: EventHandler, code: string) {
 
 .binding-editor__modes {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
 }
 

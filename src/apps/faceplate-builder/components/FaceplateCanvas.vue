@@ -352,6 +352,7 @@ const ComponentNode = {
         'faceplate-canvas__component--container': isContainerType,
         'faceplate-canvas__component--inside-container': isInsideContainer,
         'faceplate-canvas__component--drop-target': isDropTarget,
+        'faceplate-canvas__component--locked': component.locked && editMode,
       }"
       :style="componentStyle"
       :data-component-id="component.id"
@@ -385,6 +386,10 @@ const ComponentNode = {
           />
         </template>
       </PrimitiveRenderer>
+      <!-- Lock indicator -->
+      <div v-if="component.locked && editMode" class="faceplate-canvas__lock-indicator">
+        🔒
+      </div>
     </div>
   `,
 };
@@ -508,9 +513,34 @@ const ComponentNode = {
   box-shadow: 0 0 0 3px rgba(100, 150, 255, 0.18);
 }
 
+.faceplate-canvas__component--locked {
+  border-color: rgba(255, 200, 100, 0.5) !important;
+  box-shadow: 0 0 0 3px rgba(255, 200, 100, 0.15) !important;
+  cursor: not-allowed !important;
+  opacity: 0.8;
+}
+
 .faceplate-canvas__component--interactive:focus-visible {
   outline: none;
   border-color: rgba(0, 200, 255, 0.7);
+}
+
+.faceplate-canvas__lock-indicator {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 24px;
+  height: 24px;
+  background: rgba(255, 200, 100, 0.95);
+  border: 1px solid rgba(255, 180, 60, 0.8);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  pointer-events: none;
+  z-index: 10;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 .faceplate-canvas__component-content {

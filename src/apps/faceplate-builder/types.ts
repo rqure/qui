@@ -13,6 +13,7 @@ export type PrimitivePropertyDefinition = {
   min?: number;
   max?: number;
   step?: number;
+  category?: 'Layout' | 'Appearance' | 'Typography' | 'Animation' | 'Behavior' | 'Advanced';
 };
 
 export type PrimitiveDefinition = {
@@ -55,9 +56,10 @@ export type CanvasNode = {
   children?: string[]; // Array of child node IDs (for container primitives)
   zIndex?: number; // Explicit stacking order
   eventHandlers?: EventHandler[]; // Event handlers for this component
+  locked?: boolean; // Whether component is locked (prevents editing/moving)
 };
 
-export type BindingMode = 'field' | 'literal' | 'script';
+export type BindingMode = 'field' | 'literal' | 'script' | 'twoWay';
 
 export type Binding = {
   id: string;

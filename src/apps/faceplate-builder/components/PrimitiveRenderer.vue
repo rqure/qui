@@ -21,6 +21,22 @@ const emit = defineEmits<{
   (event: 'event-triggered', payload: { handler: EventHandler; value?: any; nativeEvent?: Event }): void;
 }>();
 
+// Animation support
+const animationStyle = computed(() => {
+  const animationType = getValue('animationType', 'none');
+  if (animationType === 'none' || props.editMode) {
+    return {};
+  }
+  
+  const duration = getValue('animationDuration', 1000) / 1000; // Convert to seconds
+  const iterations = getValue('animationIterations', 'infinite');
+  const easing = getValue('animationEasing', 'ease-in-out');
+  
+  return {
+    animation: `anim-${animationType} ${duration}s ${easing} 0s ${iterations}`,
+  };
+});
+
 // Local state for tab container active tab
 const localActiveTab = ref(0);
 
@@ -141,7 +157,8 @@ function handleInputBlur(event: FocusEvent) {
         textDecoration: config.textDecoration || 'none',
         textTransform: config.textTransform || 'none',
         wordWrap: config.wordWrap || 'normal',
-        opacity: config.opacity ?? 1
+        opacity: config.opacity ?? 1,
+        ...animationStyle
       }">
       {{ textValue }}
     </div>
@@ -206,7 +223,8 @@ function handleInputBlur(event: FocusEvent) {
         boxShadow: config.boxShadow || 'none',
         opacity: config.opacity ?? 1,
         '--hover-bg': config.hoverBackgroundColor || config.backgroundColor,
-        '--active-bg': config.activeBackgroundColor || config.backgroundColor
+        '--active-bg': config.activeBackgroundColor || config.backgroundColor,
+        ...animationStyle
       }">
       <span v-if="config.icon" class="button-icon">{{ config.icon }}</span>
       {{ config.label || 'Button' }}
@@ -231,7 +249,8 @@ function handleInputBlur(event: FocusEvent) {
         borderRadius: `${config.cornerRadius}px`,
         boxShadow: config.boxShadow || 'none',
         opacity: config.opacity ?? 1,
-        transform: config.rotation ? `rotate(${config.rotation}deg)` : 'none'
+        transform: config.rotation ? `rotate(${config.rotation}deg)` : 'none',
+        ...animationStyle
       }">
     </div>
 
@@ -241,7 +260,8 @@ function handleInputBlur(event: FocusEvent) {
         backgroundColor: config.fillColor,
         border: `${config.borderWidth}px ${config.borderStyle || 'solid'} ${config.borderColor}`,
         boxShadow: config.boxShadow || 'none',
-        opacity: config.opacity ?? 1
+        opacity: config.opacity ?? 1,
+        ...animationStyle
       }">
     </div>
 
@@ -676,5 +696,48 @@ function handleInputBlur(event: FocusEvent) {
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Animation Keyframes */
+@keyframes anim-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+@keyframes anim-fade {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+@keyframes anim-shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-8px); }
+  20%, 40%, 60%, 80% { transform: translateX(8px); }
+}
+
+@keyframes anim-rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes anim-slide {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-20px); }
+}
+
+@keyframes anim-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-20px); }
+  75% { transform: translateY(-10px); }
+}
+
+@keyframes anim-glow {
+  0%, 100% { box-shadow: 0 0 0 rgba(0,0,0,0); filter: drop-shadow(0 0 0 rgba(0,0,0,0)); }
+  50% { box-shadow: 0 0 15px currentColor; filter: drop-shadow(0 0 15px currentColor); }
+}
+
+@keyframes anim-flash {
+  0%, 100% { background-color: transparent; }
+  50% { background-color: rgba(255, 0, 0, 0.3); }
 }
 </style>

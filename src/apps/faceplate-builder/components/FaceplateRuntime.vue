@@ -211,6 +211,34 @@ const canvasComponents = computed<CanvasComponent[]>(() => {
     // Find event handlers for this component
     const handlers = eventHandlersFromConfig.filter((h: any) => String(h.componentId) === String(slot.id));
     
+    // Add automatic event handlers for twoWay bindings
+    const componentBindings = allBindings.value.filter((b: any) => String(b.componentId) === String(slot.id));
+    const twoWayBindings = componentBindings.filter((b: any) => b.mode === 'twoWay');
+    
+    // For each twoWay binding, create an automatic write handler
+    twoWayBindings.forEach((binding: any) => {
+      // Check if there's already a handler for this event
+      const hasExistingHandler = handlers.some((h: any) => 
+        h.trigger === 'onChange' || h.trigger === 'onInput'
+      );
+      
+      if (!hasExistingHandler) {
+        // Create automatic write handler
+        handlers.push({
+          id: `auto-twoway-${binding.id}`,
+          componentId: String(slot.id),
+          trigger: 'onChange',
+          action: {
+            type: 'writeField',
+            fieldPath: binding.expression,
+            valueSource: 'component',
+          },
+          enabled: true,
+          description: `Auto-generated for two-way binding to ${binding.expression}`,
+        });
+      }
+    });
+    
     if (import.meta.env.DEV && parentId) {
       console.log(`FaceplateRuntime - Component ${slot.id} has parentId: ${parentId}`);
     }

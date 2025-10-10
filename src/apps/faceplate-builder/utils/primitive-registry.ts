@@ -16,7 +16,71 @@ export interface PropertySchema {
   min?: number;
   max?: number;
   step?: number;
+  category?: 'Layout' | 'Appearance' | 'Typography' | 'Animation' | 'Behavior' | 'Advanced';
 }
+
+/**
+ * Common animation properties that can be added to any component
+ */
+export const COMMON_ANIMATION_PROPERTIES: PropertySchema[] = [
+  {
+    key: 'animationType',
+    label: 'Animation Type',
+    type: 'option',
+    default: 'none',
+    category: 'Animation',
+    options: [
+      { label: 'None', value: 'none' },
+      { label: 'Pulse', value: 'pulse' },
+      { label: 'Fade', value: 'fade' },
+      { label: 'Shake', value: 'shake' },
+      { label: 'Rotate', value: 'rotate' },
+      { label: 'Slide', value: 'slide' },
+      { label: 'Bounce', value: 'bounce' },
+      { label: 'Glow', value: 'glow' },
+      { label: 'Flash', value: 'flash' },
+    ],
+  },
+  {
+    key: 'animationDuration',
+    label: 'Animation Duration (ms)',
+    type: 'number',
+    default: 1000,
+    min: 100,
+    max: 10000,
+    step: 100,
+    category: 'Animation',
+  },
+  {
+    key: 'animationIterations',
+    label: 'Animation Iterations',
+    type: 'option',
+    default: 'infinite',
+    category: 'Animation',
+    options: [
+      { label: 'Infinite', value: 'infinite' },
+      { label: '1', value: 1 },
+      { label: '2', value: 2 },
+      { label: '3', value: 3 },
+      { label: '5', value: 5 },
+      { label: '10', value: 10 },
+    ],
+  },
+  {
+    key: 'animationEasing',
+    label: 'Animation Easing',
+    type: 'option',
+    default: 'ease-in-out',
+    category: 'Animation',
+    options: [
+      { label: 'Linear', value: 'linear' },
+      { label: 'Ease', value: 'ease' },
+      { label: 'Ease In', value: 'ease-in' },
+      { label: 'Ease Out', value: 'ease-out' },
+      { label: 'Ease In Out', value: 'ease-in-out' },
+    ],
+  },
+];
 
 export interface PrimitiveDefinition {
   // Builder metadata
@@ -55,15 +119,16 @@ export const PRIMITIVE_REGISTRY: PrimitiveDefinition[] = [
       letterSpacing: 0,
     },
     propertySchema: [
-      { key: 'text', label: 'Text', type: 'string', default: 'Sample Text' },
-      { key: 'textColor', label: 'Text Color', type: 'color', default: '#ffffff' },
-      { key: 'fontSize', label: 'Font Size', type: 'number', default: 20, min: 8, max: 72 },
-      { key: 'fontWeight', label: 'Font Weight', type: 'number', default: 500, min: 100, max: 900, step: 100 },
+      { key: 'text', label: 'Text', type: 'string', default: 'Sample Text', category: 'Appearance' },
+      { key: 'textColor', label: 'Text Color', type: 'color', default: '#ffffff', category: 'Appearance' },
+      { key: 'fontSize', label: 'Font Size', type: 'number', default: 20, min: 8, max: 72, category: 'Typography' },
+      { key: 'fontWeight', label: 'Font Weight', type: 'number', default: 500, min: 100, max: 900, step: 100, category: 'Typography' },
       {
         key: 'fontStyle',
         label: 'Font Style',
         type: 'option',
         default: 'normal',
+        category: 'Typography',
         options: [
           { label: 'Normal', value: 'normal' },
           { label: 'Italic', value: 'italic' },
@@ -74,20 +139,22 @@ export const PRIMITIVE_REGISTRY: PrimitiveDefinition[] = [
         label: 'Alignment',
         type: 'option',
         default: 'center',
+        category: 'Layout',
         options: [
           { label: 'Left', value: 'left' },
           { label: 'Center', value: 'center' },
           { label: 'Right', value: 'right' },
         ],
       },
-      { key: 'lineHeight', label: 'Line Height', type: 'number', default: 1.2, min: 0.5, max: 3, step: 0.1 },
-      { key: 'letterSpacing', label: 'Letter Spacing', type: 'number', default: 0, min: -2, max: 10, step: 0.5 },
-      { key: 'textShadow', label: 'Text Shadow', type: 'string', default: '' },
+      { key: 'lineHeight', label: 'Line Height', type: 'number', default: 1.2, min: 0.5, max: 3, step: 0.1, category: 'Typography' },
+      { key: 'letterSpacing', label: 'Letter Spacing', type: 'number', default: 0, min: -2, max: 10, step: 0.5, category: 'Typography' },
+      { key: 'textShadow', label: 'Text Shadow', type: 'string', default: '', category: 'Appearance' },
       {
         key: 'textDecoration',
         label: 'Text Decoration',
         type: 'option',
         default: 'none',
+        category: 'Typography',
         options: [
           { label: 'None', value: 'none' },
           { label: 'Underline', value: 'underline' },
@@ -100,6 +167,7 @@ export const PRIMITIVE_REGISTRY: PrimitiveDefinition[] = [
         label: 'Text Transform',
         type: 'option',
         default: 'none',
+        category: 'Typography',
         options: [
           { label: 'None', value: 'none' },
           { label: 'Uppercase', value: 'uppercase' },
@@ -112,13 +180,15 @@ export const PRIMITIVE_REGISTRY: PrimitiveDefinition[] = [
         label: 'Word Wrap',
         type: 'option',
         default: 'normal',
+        category: 'Typography',
         options: [
           { label: 'Normal', value: 'normal' },
           { label: 'Break Word', value: 'break-word' },
           { label: 'No Wrap', value: 'nowrap' },
         ],
       },
-      { key: 'opacity', label: 'Opacity', type: 'number', default: 1, min: 0, max: 1, step: 0.1 },
+      { key: 'opacity', label: 'Opacity', type: 'number', default: 1, min: 0, max: 1, step: 0.1, category: 'Appearance' },
+      ...COMMON_ANIMATION_PROPERTIES,
     ],
     previewProps: { text: 'Sample Text', align: 'center', textColor: '#ffffff' },
   },
