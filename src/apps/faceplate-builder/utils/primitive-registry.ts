@@ -11,12 +11,13 @@ export interface PropertySchema {
   key: string;
   label: string;
   type: 'string' | 'number' | 'boolean' | 'option' | 'color';
-  default: any;
-  options?: Array<{ label: string; value: any }>;
+  default?: unknown;
   min?: number;
   max?: number;
   step?: number;
+  options?: Array<{ label: string; value: string | number }>;
   category?: 'Layout' | 'Appearance' | 'Typography' | 'Animation' | 'Behavior' | 'Advanced';
+  description?: string;
 }
 
 /**

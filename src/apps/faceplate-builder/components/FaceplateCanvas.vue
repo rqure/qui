@@ -50,6 +50,7 @@ const emit = defineEmits<{
   (event: 'component-drag', payload: { id: string | number; position: { x: number; y: number } }): void;
   (event: 'component-drag-end', payload: { id: string | number; position: { x: number; y: number } }): void;
   (event: 'event-triggered', payload: any): void;
+  (event: 'component-contextmenu', payload: { id: string | number; event: MouseEvent }): void;
 }>();
 
 const GRID_SIZE = 120;
@@ -253,7 +254,7 @@ const ComponentNode = {
     isInsideContainer: { type: Boolean, default: false },
     dropTargetContainerId: { type: [String, Number], default: null },
   },
-  emits: ['component-click', 'component-drag-start'],
+  emits: ['component-click', 'component-drag-start', 'component-contextmenu'],
   setup(props: any, { emit }: any) {
     const isContainerType = computed(() => {
       return isContainer(props.component.type);
@@ -331,6 +332,13 @@ const ComponentNode = {
       emit('component-drag-start', { id: props.component.id, event });
     };
     
+    const handleContextMenu = (event: MouseEvent) => {
+      if (!props.editMode) return;
+      event.preventDefault();
+      event.stopPropagation();
+      emit('component-contextmenu', { id: props.component.id, event });
+    };
+    
     return {
       isContainerType,
       isDropTarget,
@@ -339,6 +347,7 @@ const ComponentNode = {
       layoutChildren,
       componentStyle,
       handlePointerDown,
+      handleContextMenu,
     };
   },
   template: `
@@ -357,6 +366,7 @@ const ComponentNode = {
       :style="componentStyle"
       :data-component-id="component.id"
       @pointerdown="handlePointerDown"
+      @contextmenu="handleContextMenu"
       @click.stop
     >
       <!-- Drop zone overlay for containers -->
@@ -394,6 +404,7 @@ const ComponentNode = {
             :drop-target-container-id="dropTargetContainerId"
             @component-click="$emit('component-click', $event)"
             @component-drag-start="$emit('component-drag-start', $event)"
+            @component-contextmenu="$emit('component-contextmenu', $event)"
           />
         </template>
       </PrimitiveRenderer>
@@ -437,6 +448,7 @@ const ComponentNode = {
           :drop-target-container-id="dropTargetContainerId"
           @component-click="emit('component-click', $event)"
           @component-drag-start="emit('component-drag-start', $event)"
+          @component-contextmenu="emit('component-contextmenu', $event)"
         />
       </template>
 

@@ -688,6 +688,58 @@ function handleToggleVisibility(payload: { nodeId: string }) {
   logger.info(`Toggled visibility for node ${payload.nodeId}: ${node.hidden ? 'shown' : 'hidden'}`);
 }
 
+// Context menu action handler
+function handleContextMenuAction(payload: { action: string; nodeId?: string }) {
+  switch (payload.action) {
+    case 'duplicate':
+      if (payload.nodeId) {
+        // Select the node first if not selected
+        if (!selectedNodeIds.value.has(payload.nodeId)) {
+          applySelection([payload.nodeId], payload.nodeId);
+        }
+        duplicateSelectedNodes();
+      }
+      break;
+    case 'copy':
+      if (payload.nodeId) {
+        // Select the node first if not selected
+        if (!selectedNodeIds.value.has(payload.nodeId)) {
+          applySelection([payload.nodeId], payload.nodeId);
+        }
+        copySelectedNodes();
+      }
+      break;
+    case 'paste':
+      pasteNodes();
+      break;
+    case 'delete':
+      if (payload.nodeId) {
+        handleInspectorNodeDelete({ nodeId: payload.nodeId });
+      }
+      break;
+    case 'toggle-lock':
+      if (payload.nodeId) {
+        handleToggleLock({ nodeId: payload.nodeId });
+      }
+      break;
+    case 'toggle-visibility':
+      if (payload.nodeId) {
+        handleToggleVisibility({ nodeId: payload.nodeId });
+      }
+      break;
+    case 'bring-forward':
+      if (payload.nodeId) {
+        handleBringForward({ nodeId: payload.nodeId });
+      }
+      break;
+    case 'send-backward':
+      if (payload.nodeId) {
+        handleSendBackward({ nodeId: payload.nodeId });
+      }
+      break;
+  }
+}
+
 // Layer management functions
 function handleLayerReorder(payload: { nodeId: string; newIndex: number; newParentId?: string | null }) {
   const node = nodes.value.find(n => n.id === payload.nodeId);
@@ -1686,6 +1738,7 @@ onMounted(async () => {
             @canvas-clicked="handleCanvasClick"
             @drag-select-complete="handleDragSelectComplete"
             @add-to-container="handleAddToContainer"
+            @context-menu-action="handleContextMenuAction"
           />
           <div v-if="!hasFaceplateSelected" class="workspace__overlay">
             <div class="workspace__overlay-content">

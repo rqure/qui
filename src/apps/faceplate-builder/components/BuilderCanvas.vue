@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import FaceplateCanvas, { type CanvasComponent } from './FaceplateCanvas.vue';
+import ContextMenu from './ContextMenu.vue';
 import type { CanvasNode, PaletteTemplate, Vector2 } from '../types';
 import { GRID_SIZE_FINE, ZOOM_MIN, ZOOM_MAX, ZOOM_STEP } from '../constants';
 
@@ -27,6 +28,7 @@ const emit = defineEmits<{
   (event: 'canvas-clicked'): void;
   (event: 'drag-select-complete', selectedIds: string[]): void;
   (event: 'add-to-container', payload: { nodeIds: string[]; containerId: string }): void;
+  (event: 'context-menu-action', payload: { action: string; nodeId?: string }): void;
 }>();
 
 type DragState = {
@@ -74,6 +76,19 @@ const alignmentGuides = ref<Array<{
   label: string;
 }>>([]);
 const ALIGNMENT_THRESHOLD = 5; // pixels
+
+// Context menu state
+const contextMenu = reactive<{
+  show: boolean;
+  x: number;
+  y: number;
+  nodeId: string | null;
+}>({
+  show: false,
+  x: 0,
+  y: 0,
+  nodeId: null,
+});
 
 // Computed for multi-select check
 const hasMultipleSelected = computed(() => (props.selectedNodeIds?.size ?? 0) > 1);
@@ -740,6 +755,57 @@ function teardownListeners() {
   document.removeEventListener('keydown', handleCanvasKeyDown);
 }
 
+// Context menu handlers
+function handleContextMenu(event: MouseEvent, nodeId?: string) {
+  event.preventDefault();
+  event.stopPropagation();
+  
+  contextMenu.show = true;
+  contextMenu.x = event.clientX;
+  contextMenu.y = event.clientY;
+  contextMenu.nodeId = nodeId || null;
+}
+
+function handleComponentContextMenu(payload: { id: string | number; event: MouseEvent }) {
+  handleContextMenu(payload.event, String(payload.id));
+}
+
+function handleContextMenuAction(action: string) {
+  contextMenu.show = false;
+  emit('context-menu-action', { action, nodeId: contextMenu.nodeId || undefined });
+}
+
+function closeContextMenu() {
+  contextMenu.show = false;
+  contextMenu.nodeId = null;
+}
+
+// Context menu items
+const contextMenuItems = computed(() => {
+  const node = contextMenu.nodeId ? props.nodes.find(n => n.id === contextMenu.nodeId) : null;
+  
+  if (!node) {
+    // Canvas context menu
+    return [
+      { label: 'Paste', icon: '📋', action: 'paste', shortcut: 'Ctrl+V' },
+    ];
+  }
+  
+  // Node context menu
+  return [
+    { label: 'Duplicate', icon: '📋', action: 'duplicate', shortcut: 'Ctrl+D' },
+    { label: 'Copy', icon: '📄', action: 'copy', shortcut: 'Ctrl+C' },
+    { separator: true, label: '', action: '' },
+    { label: node.locked ? 'Unlock' : 'Lock', icon: node.locked ? '🔓' : '🔒', action: 'toggle-lock' },
+    { label: node.hidden ? 'Show' : 'Hide', icon: '👁️', action: 'toggle-visibility' },
+    { separator: true, label: '', action: '' },
+    { label: 'Bring Forward', icon: '⬆️', action: 'bring-forward', disabled: node.locked },
+    { label: 'Send Backward', icon: '⬇️', action: 'send-backward', disabled: node.locked },
+    { separator: true, label: '', action: '' },
+    { label: 'Delete', icon: '🗑️', action: 'delete', shortcut: 'Del', disabled: node.locked },
+  ];
+});
+
 onMounted(setupListeners);
 onBeforeUnmount(teardownListeners);
 </script>
@@ -809,8 +875,10 @@ onBeforeUnmount(teardownListeners);
       :pan="pan"
       @component-click="handleComponentClick"
       @canvas-click="handleCanvasClick"
+      @component-contextmenu="handleComponentContextMenu"
       @pointerdown.capture="handleCanvasPointerDown"
       @wheel.prevent="handleWheel"
+      @contextmenu="handleContextMenu($event)"
     />
     
     <!-- Drag-select box overlay (positioned absolutely over canvas) -->
@@ -865,6 +933,16 @@ onBeforeUnmount(teardownListeners);
     >
       <div class="alignment-guide__label">{{ guide.label }}</div>
     </div>
+    
+    <!-- Context Menu -->
+    <ContextMenu
+      :show="contextMenu.show"
+      :x="contextMenu.x"
+      :y="contextMenu.y"
+      :items="contextMenuItems"
+      @action="handleContextMenuAction"
+      @close="closeContextMenu"
+    />
   </section>
 </template>
 

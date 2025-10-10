@@ -119,6 +119,115 @@ function toggleCategory(category: string) {
   expandedCategories.value[category] = !expandedCategories.value[category];
 }
 
+// Property search
+const propertySearchQuery = ref('');
+
+// Filter properties based on search
+const filteredCategorizedProperties = computed(() => {
+  if (!propertySearchQuery.value) return categorizedProperties.value;
+  
+  const query = propertySearchQuery.value.toLowerCase();
+  const filtered: typeof categorizedProperties.value = [];
+  
+  for (const [category, rows] of categorizedProperties.value) {
+    const matchingRows = rows.filter((row) =>
+      row.definition.label.toLowerCase().includes(query) ||
+      row.definition.key.toLowerCase().includes(query) ||
+      (row.definition.description || '').toLowerCase().includes(query)
+    );
+    
+    if (matchingRows.length > 0) {
+      filtered.push([category, matchingRows]);
+    }
+  }
+  
+  return filtered;
+});
+
+// Component naming
+const componentName = ref('');
+const nameError = ref<string | null>(null);
+
+watchEffect(() => {
+  if (props.node) {
+    componentName.value = props.node.name || props.node.componentId;
+  }
+});
+
+function validateComponentName(name: string): string | null {
+  if (!name.trim()) {
+    return 'Name cannot be empty';
+  }
+  
+  if (name.length > 100) {
+    return 'Name is too long (max 100 characters)';
+  }
+  
+  // Check for duplicate names
+  const isDuplicate = props.allNodes?.some(
+    (n) => n.id !== props.node?.id && n.name === name.trim()
+  );
+  
+  if (isDuplicate) {
+    return 'Component name must be unique';
+  }
+  
+  return null;
+}
+
+function handleNameChange(event: Event) {
+  if (!props.node) return;
+  
+  const input = event.target as HTMLInputElement;
+  const newName = input.value.trim();
+  
+  nameError.value = validateComponentName(newName);
+  
+  if (!nameError.value) {
+    componentName.value = newName;
+    emit('prop-updated', { nodeId: props.node.id, key: '__name', value: newName });
+  }
+}
+
+// Property reset
+function handlePropertyReset(definition: PrimitivePropertyDefinition) {
+  if (!props.node || props.node.locked) return;
+  
+  const defaultValue = definition.default ?? null;
+  emit('prop-updated', { nodeId: props.node.id, key: definition.key, value: defaultValue });
+}
+
+// Property validation
+function validateProperty(definition: PrimitivePropertyDefinition, value: unknown): string | null {
+  if (definition.type === 'number') {
+    const numValue = Number(value);
+    
+    if (isNaN(numValue)) {
+      return 'Must be a valid number';
+    }
+    
+    if (definition.min !== undefined && numValue < definition.min) {
+      return `Must be at least ${definition.min}`;
+    }
+    
+    if (definition.max !== undefined && numValue > definition.max) {
+      return `Must be at most ${definition.max}`;
+    }
+  }
+  
+  if (definition.type === 'color' && typeof value === 'string') {
+    // Basic color validation
+    const colorPattern = /^(#[0-9a-fA-F]{3,8}|rgba?\([^)]+\)|[a-zA-Z]+|transparent)$/;
+    if (!colorPattern.test(value.trim())) {
+      return 'Invalid color format';
+    }
+  }
+  
+  return null;
+}
+
+const propertyErrors = ref<Record<string, string | null>>({});
+
 const bindingAdvanced = ref<Record<string, boolean>>({});
 
 watchEffect(() => {
@@ -296,7 +405,18 @@ function handlePropInput(definition: PrimitivePropertyDefinition, event: Event) 
   } else {
     value = (event.target as HTMLInputElement | HTMLTextAreaElement | null)?.value ?? '';
   }
-  emit('prop-updated', { nodeId: props.node.id, key: definition.key, value });
+  
+  // Validate the value
+  const validationError = validateProperty(definition, value);
+  propertyErrors.value = {
+    ...propertyErrors.value,
+    [definition.key]: validationError,
+  };
+  
+  // Only emit if validation passes
+  if (!validationError) {
+    emit('prop-updated', { nodeId: props.node.id, key: definition.key, value });
+  }
 }
 
 function handleDeleteClick() {
@@ -791,11 +911,41 @@ function handleScriptUpdate(handler: EventHandler, code: string) {
       </section>
 
       <section class="inspector__section">
-        <header><h3>Properties</h3></header>
+        <header>
+          <h3>Properties</h3>
+        </header>
+        
+        <!-- Component Naming -->
+        <div v-if="node" class="inspector__field inspector__field--name">
+          <label>
+            <span>Component Name</span>
+            <input
+              type="text"
+              :value="componentName"
+              @input="handleNameChange"
+              :class="{ 'input-error': nameError }"
+              placeholder="Enter unique name..."
+              maxlength="100"
+            />
+            <small v-if="nameError" class="error-message">{{ nameError }}</small>
+            <small v-else class="binding-help">Unique identifier for this component instance</small>
+          </label>
+        </div>
+        
+        <!-- Property Search -->
+        <div v-if="propertySchema.length > 10" class="property-search">
+          <input
+            v-model="propertySearchQuery"
+            type="text"
+            class="property-search__input"
+            placeholder="🔍 Search properties..."
+          />
+        </div>
+        
         <p v-if="!propertySchema.length" class="inspector__hint">This component has no configurable properties yet.</p>
         <div v-else class="inspector__list">
           <!-- Property Categories -->
-          <div v-for="[categoryName, categoryRows] in categorizedProperties" :key="categoryName" class="property-category">
+          <div v-for="[categoryName, categoryRows] in filteredCategorizedProperties" :key="categoryName" class="property-category">
             <button 
               type="button" 
               class="property-category__header"
@@ -820,13 +970,25 @@ function handleScriptUpdate(handler: EventHandler, code: string) {
                   </span>
                 </span>
               </div>
-              <button
-                type="button"
-                class="property-card__action"
-                @click="row.binding ? handleBindingRemove(row.definition.key) : handleBindingCreate(row.definition)"
-              >
-                {{ row.binding ? 'Remove Binding' : 'Add Binding' }}
-              </button>
+              <div class="property-card__actions">
+                <button
+                  v-if="!row.binding && node?.props?.[row.definition.key] !== row.definition.default"
+                  type="button"
+                  class="property-card__reset"
+                  @click="handlePropertyReset(row.definition)"
+                  :disabled="node?.locked"
+                  title="Reset to default value"
+                >
+                  ↺
+                </button>
+                <button
+                  type="button"
+                  class="property-card__action"
+                  @click="row.binding ? handleBindingRemove(row.definition.key) : handleBindingCreate(row.definition)"
+                >
+                  {{ row.binding ? 'Remove Binding' : 'Add Binding' }}
+                </button>
+              </div>
             </header>
 
             <div class="property-card__body">
@@ -856,6 +1018,7 @@ function handleScriptUpdate(handler: EventHandler, code: string) {
                     <input
                       type="number"
                       class="number-input"
+                      :class="{ 'input-error': propertyErrors[row.definition.key] }"
                       :value="Number(node?.props?.[row.definition.key] ?? row.definition.default ?? 0)"
                       :min="row.definition.min"
                       :max="row.definition.max"
@@ -864,6 +1027,7 @@ function handleScriptUpdate(handler: EventHandler, code: string) {
                       @input="handlePropInput(row.definition, $event)"
                     />
                   </div>
+                  <small v-if="propertyErrors[row.definition.key]" class="error-message">{{ propertyErrors[row.definition.key] }}</small>
                 </template>
                 <template v-else-if="row.definition.type === 'option'">
                   <select
@@ -2114,5 +2278,93 @@ function handleScriptUpdate(handler: EventHandler, code: string) {
   background: rgba(0, 255, 170, 0.2);
   color: rgba(0, 255, 170, 1);
   border: 1px solid rgba(0, 255, 170, 0.4);
+}
+
+/* Component name field */
+.inspector__field--name {
+  margin-bottom: 16px;
+}
+
+.inspector__field--name input {
+  width: 100%;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  color: inherit;
+  font-size: 14px;
+}
+
+.inspector__field--name input.input-error {
+  border-color: rgba(255, 68, 68, 0.6);
+  background: rgba(255, 68, 68, 0.08);
+}
+
+/* Property search */
+.property-search {
+  margin-bottom: 12px;
+}
+
+.property-search__input {
+  width: 100%;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  color: inherit;
+  font-size: 13px;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.property-search__input:focus {
+  border-color: rgba(0, 255, 194, 0.5);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* Property reset button */
+.property-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.property-card__reset {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 170, 0, 0.15);
+  border: 1px solid rgba(255, 170, 0, 0.3);
+  border-radius: 6px;
+  color: rgba(255, 170, 0, 1);
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.property-card__reset:hover:not(:disabled) {
+  background: rgba(255, 170, 0, 0.25);
+  transform: scale(1.1);
+}
+
+.property-card__reset:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Validation error messages */
+.error-message {
+  display: block;
+  margin-top: 4px;
+  color: rgba(255, 68, 68, 1);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.input-error {
+  border-color: rgba(255, 68, 68, 0.6) !important;
+  background: rgba(255, 68, 68, 0.08) !important;
 }
 </style>
