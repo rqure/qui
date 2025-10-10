@@ -807,17 +807,24 @@ async function loadFaceplateData(faceplateId: EntityId) {
   
   // Convert to canvas nodes with parent-child relationships
   const tempNodes = faceplate.configuration.layout.map((layoutItem) => {
-    const component = components.find((c) => c.id.toString() === layoutItem.component);
+    const component = components.find((c) => c.name === layoutItem.component);
     if (!component) return null;
     
+    // Find parent component ID if parentId (name) is specified
+    let parentComponentId: string | null = null;
+    if (layoutItem.parentId) {
+      const parentComponent = components.find((c) => c.name === layoutItem.parentId);
+      parentComponentId = parentComponent ? String(parentComponent.id) : null;
+    }
+    
     const node: CanvasNode = {
-      id: layoutItem.component,
+      id: String(component.id),
       componentId: findTemplateForPrimitive(component.componentType),
       name: component.name,
       position: { x: layoutItem.x, y: layoutItem.y },
       size: { x: layoutItem.w || 4, y: layoutItem.h || 3 },
       props: component.configuration,
-      parentId: layoutItem.parentId || null,
+      parentId: parentComponentId,
     };
     
     return node;
@@ -843,18 +850,21 @@ async function loadFaceplateData(faceplateId: EntityId) {
     return node;
   });
   
-  // Convert bindings
-  bindings.value = faceplate.configuration.bindings.map((b, idx) => ({
-    id: `binding-${idx}`,
-    componentId: b.component,
-    componentName: nodes.value.find((n) => n.id === b.component)?.name || 'Unknown',
-    property: b.property,
-    expression: b.expression,
-    mode: b.mode ?? (b.expression?.trim()?.startsWith('script:') ? 'script' : 'field'),
-    transform: b.transform ?? null,
-    dependencies: Array.isArray(b.dependencies) ? b.dependencies : undefined,
-    description: b.description,
-  }));
+  // Convert bindings - b.component is now a name, find node by name
+  bindings.value = faceplate.configuration.bindings.map((b, idx) => {
+    const node = nodes.value.find((n) => n.name === b.component);
+    return {
+      id: `binding-${idx}`,
+      componentId: node?.id || '',
+      componentName: b.component,
+      property: b.property,
+      expression: b.expression,
+      mode: b.mode ?? (b.expression?.trim()?.startsWith('script:') ? 'script' : 'field'),
+      transform: b.transform ?? null,
+      dependencies: Array.isArray(b.dependencies) ? b.dependencies : undefined,
+      description: b.description,
+    };
+  });
   
   applyViewportMetadata(faceplate.configuration.metadata as Record<string, unknown> | undefined);
   applySelection([], null);
@@ -898,10 +908,10 @@ async function saveWorkspace() {
       componentIds.push(componentId);
       nodeIdToComponentId.set(node.id, componentId);
       
-      // Find bindings for this node and map to component ID
+      // Find bindings for this node and save with component name (not ID)
       const nodeBindings = bindings.value.filter((b) => b.componentId === node.id);
       const bindingsData = nodeBindings.map((b) => ({
-        component: String(componentId),
+        component: node.name,
         property: b.property,
         expression: b.expression,
         mode: b.mode ?? 'field',
@@ -924,29 +934,29 @@ async function saveWorkspace() {
       });
     }
     
-    // Build layout configuration using component entity IDs
+    // Build layout configuration using component names
     const layout = nodes.value.map((node) => {
       const componentId = nodeIdToComponentId.get(node.id);
       if (!componentId) return null;
       
-      // Map parent node ID to component entity ID
-      const parentComponentId = node.parentId ? nodeIdToComponentId.get(node.parentId) : null;
+      // Map parent node ID to parent component name
+      const parentNode = node.parentId ? nodes.value.find(n => n.id === node.parentId) : null;
       
       return {
-        component: String(componentId),
+        component: node.name,
         x: node.position.x,
         y: node.position.y,
         w: node.size.x,
         h: node.size.y,
-        parentId: parentComponentId ? String(parentComponentId) : null,
+        parentId: parentNode ? parentNode.name : null,
       };
     }).filter((item): item is NonNullable<typeof item> => item !== null);
 
     const bindingsData = bindings.value.map((b) => {
-      const componentId = nodeIdToComponentId.get(b.componentId);
-      if (!componentId) return null;
+      const node = nodes.value.find(n => n.id === b.componentId);
+      if (!node) return null;
       return {
-        component: String(componentId),
+        component: b.componentName,
         property: b.property,
         expression: b.expression,
         mode: b.mode ?? 'field',

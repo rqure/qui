@@ -120,35 +120,8 @@ const allBindings = computed(() => {
     }));
   });
 
-  // Normalize component references: if component field is a numeric ID, look up the name
-  const normalizeComponentRef = (binding: FaceplateBindingDefinition): FaceplateBindingDefinition => {
-    // Check if component is a numeric ID (as string or number)
-    const componentRef = String(binding.component || '');
-    if (/^\d+$/.test(componentRef)) {
-      // It's a numeric ID, look up the component name
-      const component = componentMap.value.get(componentRef);
-      if (component) {
-        return { ...binding, component: component.name };
-      }
-      logger.warn(`Binding references unknown component ID: ${componentRef}`);
-    }
-    return binding;
-  };
-
-  const allBindingsResult = [...fromConfig, ...fromRecord, ...componentLevel]
-    .filter((binding) => binding.component && binding.property && binding.expression)
-    .map(normalizeComponentRef);
-  
-  if (import.meta.env.DEV && allBindingsResult.length > 0) {
-    logger.debug('allBindings:', allBindingsResult.map(b => ({
-      component: b.component,
-      property: b.property,
-      expression: b.expression,
-      mode: b.mode
-    })));
-  }
-  
-  return allBindingsResult;
+  return [...fromConfig, ...fromRecord, ...componentLevel]
+    .filter((binding) => binding.component && binding.property && binding.expression);
 });
 
 const componentMap = computed(() => {
