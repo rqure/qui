@@ -7,6 +7,7 @@ import BuilderToolbar from './components/BuilderToolbar.vue';
 import FaceplateSelector from './components/FaceplateSelector.vue';
 import LayersPanel from './components/LayersPanel.vue';
 import { useDataStore } from '@/stores/data';
+import { useWindowStore } from '@/stores/windows';
 import { FaceplateDataService } from './utils/faceplate-data';
 import {
   DEFAULT_VIEWPORT_WIDTH,
@@ -47,6 +48,7 @@ const props = defineProps<{
 
 const dataStore = useDataStore();
 const faceplateService = new FaceplateDataService(dataStore);
+const windowStore = useWindowStore();
 
 const DEFAULT_VIEWPORT: Vector2 = { x: DEFAULT_VIEWPORT_WIDTH, y: DEFAULT_VIEWPORT_HEIGHT };
 
@@ -428,7 +430,27 @@ function handleViewportUpdate(payload: { width: number; height: number }) {
     ...faceplateMetadata.value,
     viewport: { width, height },
   };
+  
+  // Resize the builder window to match the viewport (with padding for toolbars)
+  resizeWindowToViewport(width, height);
+  
   pushHistory();
+}
+
+function resizeWindowToViewport(viewportWidth: number, viewportHeight: number) {
+  // Find our window by checking if any window has this component
+  const ourWindow = windowStore.windows.find(w => {
+    // Check if window component matches our builder
+    return w.title.includes('Faceplate Builder') || w.title === 'Faceplate Builder';
+  });
+  
+  if (ourWindow) {
+    // Add padding for toolbar and chrome (approximately 120px)
+    const windowHeight = viewportHeight + 120;
+    const windowWidth = viewportWidth;
+    
+    windowStore.updateWindowSize(ourWindow.id, windowWidth, windowHeight);
+  }
 }
 
 function handleViewportInput(axis: 'x' | 'y', event: Event) {
@@ -1431,6 +1453,9 @@ async function loadFaceplateData(faceplateId: EntityId) {
   applyViewportMetadata(faceplate.configuration.metadata as Record<string, unknown> | undefined);
   applySelection([], null);
   
+  // Resize window to match viewport
+  resizeWindowToViewport(viewportSize.value.x, viewportSize.value.y);
+  
   pushHistory();
   markSaved();
 }
@@ -1642,6 +1667,9 @@ async function handleSelectorNew(faceplateId: EntityId) {
     
     applyViewportMetadata(faceplate.configuration.metadata as Record<string, unknown> | undefined);
     applySelection([], null);
+    
+    // Resize window to match viewport
+    resizeWindowToViewport(viewportSize.value.x, viewportSize.value.y);
     
     pushHistory();
     markSaved();

@@ -1541,6 +1541,7 @@ defineExpose({
   border: none;
   border-radius: 0;
   background: transparent;
+  overflow: hidden;
 }
 
 /* Enhanced Error Panel */

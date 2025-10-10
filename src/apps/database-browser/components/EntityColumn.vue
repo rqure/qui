@@ -211,14 +211,37 @@ async function openFaceplateWindow(entity: EntityItem, faceplate: EntityFaceplat
   });
 }
 
-function openFaceplateBuilder(entity: EntityItem, faceplateId?: EntityId) {
+async function openFaceplateBuilder(entity: EntityItem, faceplateId?: EntityId) {
   const defaultSize = faceplateBuilderApp.manifest.defaultWindowSize || { width: 1200, height: 800 };
+  let width = defaultSize.width;
+  let height = defaultSize.height;
+  
+  // If opening an existing faceplate, try to load its dimensions
+  if (faceplateId) {
+    try {
+      const configFieldType = await dataStore.getFieldType('Configuration');
+      const [configValue] = await dataStore.read(faceplateId, [configFieldType]);
+      
+      if (configValue && typeof configValue === 'object' && 'String' in configValue) {
+        const config = JSON.parse(configValue.String);
+        if (config.metadata?.viewport) {
+          width = config.metadata.viewport.width || width;
+          height = config.metadata.viewport.height || height;
+          // Add some padding for window chrome and toolbars
+          height += 120;
+        }
+      }
+    } catch (err) {
+      console.warn('Could not load faceplate dimensions for builder, using defaults', err);
+    }
+  }
+  
   windowStore.createWindow({
     title: 'Faceplate Builder',
     component: faceplateBuilderApp.component.default,
     icon: faceplateBuilderApp.manifest.icon,
-    width: defaultSize.width,
-    height: defaultSize.height,
+    width,
+    height,
     props: {
       entityId: entity.id,
       faceplateId: faceplateId ?? null

@@ -57,39 +57,28 @@ const GRID_SIZE = 120;
 
 const canvasRef = ref<HTMLDivElement | null>(null);
 
-const contentSize = computed(() => {
-  const baseWidth = props.viewport?.x ?? GRID_SIZE * 8;
-  const baseHeight = props.viewport?.y ?? GRID_SIZE * 6;
 
-  if (!props.components || props.components.length === 0) {
+// In edit mode: use fixed viewport dimensions with zoom/pan transforms
+// In runtime mode: use 100% to fill container naturally without transforms
+const surfaceStyle = computed(() => {
+  if (props.editMode) {
+    // Builder mode: fixed size with zoom/pan
+    const width = props.viewport?.x ?? GRID_SIZE * 8;
+    const height = props.viewport?.y ?? GRID_SIZE * 6;
     return {
-      width: baseWidth,
-      height: baseHeight,
+      width: `${width}px`,
+      height: `${height}px`,
+      transform: `scale(${props.zoom}) translate(${props.pan.x}px, ${props.pan.y}px)`,
+      transformOrigin: 'top left',
+    };
+  } else {
+    // Runtime mode: fill container at 100%
+    return {
+      width: '100%',
+      height: '100%',
     };
   }
-
-  const maxNodeWidth = Math.max(
-    baseWidth,
-    ...props.components.map((comp) => comp.position.x + Math.max(comp.size.x, GRID_SIZE)),
-  );
-
-  const maxNodeHeight = Math.max(
-    baseHeight,
-    ...props.components.map((comp) => comp.position.y + Math.max(comp.size.y, GRID_SIZE)),
-  );
-
-  return {
-    width: maxNodeWidth + GRID_SIZE,
-    height: maxNodeHeight + GRID_SIZE,
-  };
 });
-
-const surfaceStyle = computed(() => ({
-  width: `${contentSize.value.width}px`,
-  height: `${contentSize.value.height}px`,
-  transform: `scale(${props.zoom}) translate(${props.pan.x}px, ${props.pan.y}px)`,
-  transformOrigin: 'top left',
-}));
 
 const viewportBoundaryStyle = computed(() => {
   if (!props.viewport) return {};
@@ -468,17 +457,27 @@ const ComponentNode = {
   flex: 1;
   border: 1px dashed rgba(255, 255, 255, 0.14);
   border-radius: 14px;
-  overflow: auto;
   background: rgba(0, 0, 0, 0.24);
+}
+
+/* In edit mode, allow scrolling for zoom/pan navigation */
+.faceplate-canvas.faceplate-canvas--edit-mode {
+  overflow: auto;
+}
+
+/* In runtime, hide overflow to prevent scrollbars */
+.faceplate-canvas:not(.faceplate-canvas--edit-mode) {
+  overflow: hidden;
 }
 
 .faceplate-canvas__surface {
   position: relative;
-  min-width: 100%;
-  min-height: 100%;
+  width: 100%;
+  height: 100%;
   border-radius: inherit;
   background: linear-gradient(135deg, rgba(12, 22, 32, 0.85), rgba(6, 12, 20, 0.92));
   transition: transform 0.2s ease-out;
+  overflow: visible;
 }
 
 .faceplate-canvas__grid {
