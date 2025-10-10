@@ -408,7 +408,9 @@ function sanitizeBindingExpression(expression: string, mode: BindingMode): strin
 }
 
 function makeExpressionKey(expression: string, mode: BindingMode): string {
-  return `${mode}::${expression}`;
+  // Normalize whitespace to prevent duplicate keys from formatting differences
+  const normalized = expression.trim().replace(/\s+/g, ' ');
+  return `${mode}::${normalized}`;
 }
 
 function collectBindingDependencies(
@@ -468,32 +470,43 @@ function compileFaceplateScriptModules(modules: FaceplateScriptModule[]) {
   });
 }
 
-// Track evaluation stack to detect circular dependencies
-const evaluationStack = new Set<string>();
-const MAX_EVALUATION_DEPTH = 10;
+// Track evaluation depth per call chain to detect true circular dependencies
+const MAX_EVALUATION_DEPTH = 50;
+// Cache ongoing evaluations to prevent duplicate work and false circular dependency errors
+const ongoingEvaluations = new Map<string, Promise<unknown>>();
 
 async function evaluateBindingExpression(
   expressionKey: string,
   meta: { expression: string; mode: BindingMode; dependencies: string[] },
+  evaluationStack: Set<string> = new Set(),
 ): Promise<unknown> {
   if (!props.entityId) {
     expressionValueMap[expressionKey] = null;
     return null;
   }
 
-  // Check for circular dependency
+  // If this expression is already being evaluated, wait for that evaluation to complete
+  if (ongoingEvaluations.has(expressionKey)) {
+    if (import.meta.env.DEV) {
+      logger.debug(`Reusing ongoing evaluation for: ${expressionKey}`);
+    }
+    return ongoingEvaluations.get(expressionKey)!;
+  }
+
+  // Check for circular dependency within this specific call chain
   if (evaluationStack.has(expressionKey)) {
-    logger.error(`Circular dependency detected for expression: ${expressionKey}`);
+    const callChain = Array.from(evaluationStack).join(' → ');
+    logger.error(`Circular dependency detected: ${callChain} → ${expressionKey}`);
     scriptRuntimeErrors.value.push({
       context: `Binding evaluation`,
-      error: `Circular dependency detected: ${expressionKey}`,
+      error: `Circular dependency: ${callChain} → ${expressionKey}`,
       timestamp: Date.now(),
     });
     expressionValueMap[expressionKey] = null;
     return null;
   }
 
-  // Check evaluation depth
+  // Check evaluation depth for this call chain
   if (evaluationStack.size >= MAX_EVALUATION_DEPTH) {
     logger.error(`Max evaluation depth exceeded (${MAX_EVALUATION_DEPTH}) for: ${expressionKey}`);
     scriptRuntimeErrors.value.push({
@@ -505,10 +518,14 @@ async function evaluateBindingExpression(
     return null;
   }
 
-  evaluationStack.add(expressionKey);
+  // Create a new stack for this evaluation path
+  const newStack = new Set(evaluationStack);
+  newStack.add(expressionKey);
   
-  try {
-    switch (meta.mode) {
+  // Create and cache the evaluation promise
+  const evaluationPromise = (async () => {
+    try {
+      switch (meta.mode) {
       case 'literal': {
         const literal = tryEvaluateLiteral(meta.expression);
         const value = literal.found ? literal.value : meta.expression;
@@ -528,10 +545,27 @@ async function evaluateBindingExpression(
       default:
         expressionValueMap[expressionKey] = null;
         return null;
+      }
+    } catch (error) {
+      // Catch any unexpected errors during evaluation
+      logger.error(`Unexpected error evaluating expression ${expressionKey}:`, error);
+      scriptRuntimeErrors.value.push({
+        context: `Binding evaluation`,
+        error: `Error in ${expressionKey}: ${error instanceof Error ? error.message : String(error)}`,
+        timestamp: Date.now(),
+      });
+      expressionValueMap[expressionKey] = null;
+      return null;
+    } finally {
+      // Remove from ongoing evaluations once complete
+      ongoingEvaluations.delete(expressionKey);
     }
-  } finally {
-    evaluationStack.delete(expressionKey);
-  }
+  })();
+  
+  // Cache the promise so parallel evaluations can reuse it
+  ongoingEvaluations.set(expressionKey, evaluationPromise);
+  
+  return evaluationPromise;
 }
 
 // Check if expression contains computed operators
@@ -805,6 +839,7 @@ function buildBindingMaps() {
   bindingTargets.clear();
   Object.keys(componentLastUpdated).forEach((key) => delete componentLastUpdated[key]);
   scriptState.clear();
+  ongoingEvaluations.clear();
 
   for (const binding of allBindings.value) {
     const componentName = binding.component || '';
@@ -1378,6 +1413,7 @@ onBeforeUnmount(async () => {
   expressionTargets.clear();
   expressionMeta.clear();
   dependencyIndex.clear();
+  ongoingEvaluations.clear();
 });
 
 defineExpose({
@@ -1483,6 +1519,7 @@ defineExpose({
 
 <style scoped>
 .faceplate-runtime {
+  position: relative;
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -1514,7 +1551,7 @@ defineExpose({
 
 /* Enhanced Error Panel */
 .error-panel {
-  position: absolute;
+  position: fixed;
   top: 16px;
   right: 16px;
   width: 480px;
@@ -1526,8 +1563,9 @@ defineExpose({
   border-radius: 12px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
   backdrop-filter: blur(8px);
-  z-index: 2000;
+  z-index: 10000;
   animation: error-panel-slide-in 0.3s ease-out;
+  pointer-events: auto;
 }
 
 @keyframes error-panel-slide-in {
@@ -1708,7 +1746,7 @@ defineExpose({
 }
 
 .error-panel__reopen {
-  position: absolute;
+  position: fixed;
   top: 16px;
   right: 16px;
   padding: 10px 16px;
@@ -1719,9 +1757,10 @@ defineExpose({
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  z-index: 1500;
+  z-index: 9999;
   transition: all 0.2s;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  pointer-events: auto;
 }
 
 .error-panel__reopen:hover {
