@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import type { EntityId } from '@/core/data/types';
+import type { EventHandler } from '../types';
 
 interface Props {
   type: string;
   config: Record<string, any>;
   bindings?: Record<string, unknown>;
   editMode?: boolean;
+  eventHandlers?: EventHandler[];
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -16,6 +18,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   (event: 'tab-changed', index: number): void;
+  (event: 'event-triggered', payload: { handler: EventHandler; value?: any; nativeEvent?: Event }): void;
 }>();
 
 // Local state for tab container active tab
@@ -76,6 +79,50 @@ const textValue = computed(() => {
 });
 
 const normalizedType = computed(() => props.type.toLowerCase());
+
+// Event handler execution
+function triggerEvent(eventType: string, value?: any, nativeEvent?: Event) {
+  if (props.editMode) return; // Don't trigger in edit mode
+  
+  const handlers = props.eventHandlers?.filter(
+    h => h.trigger === eventType && h.enabled !== false
+  ) || [];
+  
+  handlers.forEach(handler => {
+    emit('event-triggered', { handler, value, nativeEvent });
+  });
+}
+
+// Component-specific event handlers
+function handleButtonClick(event: MouseEvent) {
+  const value = getValue('label', 'Button');
+  triggerEvent('onClick', value, event);
+}
+
+function handleToggleChange(event: Event) {
+  const checked = (event.target as HTMLInputElement).checked;
+  triggerEvent('onChange', checked, event);
+}
+
+function handleInputChange(event: Event) {
+  const value = (event.target as HTMLInputElement).value;
+  triggerEvent('onChange', value, event);
+}
+
+function handleInputInput(event: Event) {
+  const value = (event.target as HTMLInputElement).value;
+  triggerEvent('onInput', value, event);
+}
+
+function handleInputFocus(event: FocusEvent) {
+  const value = (event.target as HTMLInputElement).value;
+  triggerEvent('onFocus', value, event);
+}
+
+function handleInputBlur(event: FocusEvent) {
+  const value = (event.target as HTMLInputElement).value;
+  triggerEvent('onBlur', value, event);
+}
 </script>
 
 <template>
@@ -89,7 +136,12 @@ const normalizedType = computed(() => props.type.toLowerCase());
         fontStyle: config.fontStyle,
         textAlign: config.align,
         lineHeight: config.lineHeight,
-        letterSpacing: `${config.letterSpacing}px`
+        letterSpacing: `${config.letterSpacing}px`,
+        textShadow: config.textShadow || 'none',
+        textDecoration: config.textDecoration || 'none',
+        textTransform: config.textTransform || 'none',
+        wordWrap: config.wordWrap || 'normal',
+        opacity: config.opacity ?? 1
       }">
       {{ textValue }}
     </div>
@@ -101,6 +153,14 @@ const normalizedType = computed(() => props.type.toLowerCase());
         :placeholder="config.placeholder"
         :value="textValue"
         :readonly="editMode"
+        :required="config.required"
+        :minlength="config.minLength"
+        :maxlength="config.maxLength"
+        :pattern="config.pattern || undefined"
+        @change="handleInputChange"
+        @input="handleInputInput"
+        @focus="handleInputFocus"
+        @blur="handleInputBlur"
         :style="{ 
           color: config.textColor,
           backgroundColor: config.backgroundColor,
@@ -121,6 +181,10 @@ const normalizedType = computed(() => props.type.toLowerCase());
         :max="config.max"
         :step="config.step"
         :readonly="editMode"
+        @change="handleInputChange"
+        @input="handleInputInput"
+        @focus="handleInputFocus"
+        @blur="handleInputBlur"
         :style="{ 
           color: config.textColor,
           backgroundColor: config.backgroundColor,
@@ -131,19 +195,27 @@ const normalizedType = computed(() => props.type.toLowerCase());
 
     <!-- Button -->
     <button v-else-if="normalizedType === 'primitive.form.button'" class="button-primitive"
+      @click="handleButtonClick"
       :style="{ 
         color: config.textColor,
         backgroundColor: config.backgroundColor,
         fontSize: `${config.fontSize}px`,
-        fontWeight: config.fontWeight
+        fontWeight: config.fontWeight,
+        borderRadius: `${config.borderRadius ?? 8}px`,
+        border: config.borderWidth ? `${config.borderWidth}px solid ${config.borderColor}` : 'none',
+        boxShadow: config.boxShadow || 'none',
+        opacity: config.opacity ?? 1,
+        '--hover-bg': config.hoverBackgroundColor || config.backgroundColor,
+        '--active-bg': config.activeBackgroundColor || config.backgroundColor
       }">
+      <span v-if="config.icon" class="button-icon">{{ config.icon }}</span>
       {{ config.label || 'Button' }}
     </button>
 
     <!-- Toggle -->
     <div v-else-if="normalizedType === 'primitive.form.toggle'" class="toggle-primitive">
       <label class="toggle-switch">
-        <input type="checkbox" :checked="!!getValue('value', false)" :disabled="editMode" />
+        <input type="checkbox" :checked="!!getValue('value', false)" :disabled="editMode" @change="handleToggleChange" />
         <span class="toggle-slider" :style="{
           backgroundColor: getValue('value', false) ? config.activeColor : config.inactiveColor
         }"></span>
@@ -155,8 +227,11 @@ const normalizedType = computed(() => props.type.toLowerCase());
     <div v-else-if="normalizedType === 'primitive.shape.rectangle'" class="shape-rectangle"
       :style="{ 
         backgroundColor: config.fillColor,
-        border: `${config.borderWidth}px solid ${config.borderColor}`,
-        borderRadius: `${config.cornerRadius}px`
+        border: `${config.borderWidth}px ${config.borderStyle || 'solid'} ${config.borderColor}`,
+        borderRadius: `${config.cornerRadius}px`,
+        boxShadow: config.boxShadow || 'none',
+        opacity: config.opacity ?? 1,
+        transform: config.rotation ? `rotate(${config.rotation}deg)` : 'none'
       }">
     </div>
 
@@ -164,7 +239,9 @@ const normalizedType = computed(() => props.type.toLowerCase());
     <div v-else-if="normalizedType === 'primitive.shape.circle'" class="shape-circle"
       :style="{ 
         backgroundColor: config.fillColor,
-        border: `${config.borderWidth}px solid ${config.borderColor}`
+        border: `${config.borderWidth}px ${config.borderStyle || 'solid'} ${config.borderColor}`,
+        boxShadow: config.boxShadow || 'none',
+        opacity: config.opacity ?? 1
       }">
     </div>
 
@@ -393,12 +470,18 @@ const normalizedType = computed(() => props.type.toLowerCase());
 }
 
 .button-primitive:hover {
+  background-color: var(--hover-bg) !important;
   transform: translateY(-1px);
-  opacity: 0.9;
 }
 
 .button-primitive:active {
+  background-color: var(--active-bg) !important;
   transform: translateY(0);
+}
+
+.button-icon {
+  margin-right: 8px;
+  font-size: 1.2em;
 }
 
 .toggle-primitive {

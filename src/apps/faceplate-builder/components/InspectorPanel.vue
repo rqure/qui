@@ -6,6 +6,9 @@ import type {
   CanvasNode,
   PaletteTemplate,
   PrimitivePropertyDefinition,
+  EventHandler,
+  EventTrigger,
+  EventAction,
 } from '../types';
 
 type BindingDraftPayload = {
@@ -40,6 +43,9 @@ const emit = defineEmits<{
   (event: 'add-to-container', payload: { nodeIds: string[]; containerId: string }): void;
   (event: 'remove-from-container', payload: { nodeIds: string[] }): void;
   (event: 'clear-container', payload: { containerId: string }): void;
+  (event: 'event-handler-create', payload: { nodeId: string; handler: EventHandler }): void;
+  (event: 'event-handler-update', payload: { nodeId: string; handler: EventHandler }): void;
+  (event: 'event-handler-remove', payload: { nodeId: string; handlerId: string }): void;
 }>();
 
 const propertySchema = computed<PrimitivePropertyDefinition[]>(() => {
@@ -361,6 +367,150 @@ function updateTabName(tabId: string, newName: string) {
     value: updatedTabs,
   });
 }
+
+// Event Handler Management
+const eventHandlers = computed<EventHandler[]>(() => {
+  return props.node?.eventHandlers ?? [];
+});
+
+// Determine which events are applicable for this component type
+const applicableEvents = computed<EventTrigger[]>(() => {
+  if (!props.node) return [];
+  const componentId = props.node.componentId;
+  
+  // Define which events each component type supports
+  if (componentId === 'primitive.form.button') {
+    return ['onClick'];
+  } else if (componentId === 'primitive.form.toggle') {
+    return ['onChange', 'onClick'];
+  } else if (componentId === 'primitive.form.field' || componentId === 'primitive.form.number') {
+    return ['onChange', 'onInput', 'onFocus', 'onBlur', 'onSubmit'];
+  }
+  
+  // Default: only onClick for most components
+  return ['onClick'];
+});
+
+const isInteractiveComponent = computed(() => {
+  if (!props.node) return false;
+  const componentId = props.node.componentId;
+  return componentId.includes('form.') || componentId.includes('button') || componentId.includes('toggle');
+});
+
+// Generate unique ID for event handler
+function generateHandlerId(): string {
+  return `event-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+}
+
+// Create new event handler
+function handleEventHandlerCreate(trigger: EventTrigger) {
+  if (!props.node) return;
+  
+  const newHandler: EventHandler = {
+    id: generateHandlerId(),
+    componentId: props.node.id,
+    trigger,
+    action: {
+      type: 'writeField',
+      valueSource: 'component',
+      fieldPath: 'Value',
+    },
+    enabled: true,
+  };
+  
+  emit('event-handler-create', { nodeId: props.node.id, handler: newHandler });
+}
+
+// Update event handler
+function handleEventHandlerUpdate(handler: EventHandler, updates: Partial<EventHandler>) {
+  if (!props.node) return;
+  
+  const updated: EventHandler = {
+    ...handler,
+    ...updates,
+  };
+  
+  emit('event-handler-update', { nodeId: props.node.id, handler: updated });
+}
+
+// Remove event handler
+function handleEventHandlerRemove(handlerId: string) {
+  if (!props.node) return;
+  emit('event-handler-remove', { nodeId: props.node.id, handlerId });
+}
+
+// Get user-friendly label for event trigger
+function getEventTriggerLabel(trigger: EventTrigger): string {
+  const labels: Record<EventTrigger, string> = {
+    onClick: 'Click',
+    onChange: 'Change',
+    onInput: 'Input',
+    onSubmit: 'Submit',
+    onFocus: 'Focus',
+    onBlur: 'Blur',
+  };
+  return labels[trigger] || trigger;
+}
+
+// Get user-friendly label for action type
+function getActionTypeLabel(actionType: string): string {
+  const labels: Record<string, string> = {
+    writeField: 'Write Field',
+    script: 'Run Script',
+    navigate: 'Navigate',
+  };
+  return labels[actionType] || actionType;
+}
+
+// Event handler action type change
+function handleActionTypeChange(handler: EventHandler, newType: 'writeField' | 'script' | 'navigate') {
+  let newAction: EventAction;
+  
+  if (newType === 'writeField') {
+    newAction = {
+      type: 'writeField',
+      valueSource: 'component',
+      fieldPath: 'Value',
+    };
+  } else if (newType === 'script') {
+    newAction = {
+      type: 'script',
+      code: '// Access component value via event parameter\n// context.set("FieldPath", value);\nconsole.log("Event triggered");',
+      dependencies: [],
+    };
+  } else {
+    newAction = {
+      type: 'navigate',
+      targetFaceplate: '',
+    };
+  }
+  
+  handleEventHandlerUpdate(handler, { action: newAction });
+}
+
+// Update writeField action properties
+function handleWriteFieldUpdate(handler: EventHandler, key: string, value: string) {
+  if (handler.action.type !== 'writeField') return;
+  
+  const updatedAction = {
+    ...handler.action,
+    [key]: value,
+  };
+  
+  handleEventHandlerUpdate(handler, { action: updatedAction });
+}
+
+// Update script action code
+function handleScriptUpdate(handler: EventHandler, code: string) {
+  if (handler.action.type !== 'script') return;
+  
+  const updatedAction = {
+    ...handler.action,
+    code,
+  };
+  
+  handleEventHandlerUpdate(handler, { action: updatedAction });
+}
 </script>
 
 <template>
@@ -633,13 +783,24 @@ function updateTabName(tabId: string, newName: string) {
                     :value="row.binding.expression"
                     rows="4"
                     @input="handleBindingExpressionInput(row.definition.key, $event)"
+                    placeholder="// Available: context, helpers&#10;return await context.get('Parent->Name');"
                   ></textarea>
                   <input
                     v-else
                     type="text"
                     :value="row.binding.expression"
                     @input="handleBindingExpressionInput(row.definition.key, $event)"
+                    placeholder="Enter expression or value"
                   />
+                  <small v-if="(row.binding.mode ?? 'field') === 'field'" class="binding-help">
+                    Examples: <code>Name</code>, <code>Parent->Name</code>, <code>Status->Value</code>. Use <code>-></code> for indirect field paths.
+                  </small>
+                  <small v-else-if="(row.binding.mode ?? 'field') === 'script'" class="binding-help">
+                    Available: <code>context.get(path)</code>, <code>context.getCached(path)</code>, <code>helpers.clamp()</code>, <code>helpers.lerp()</code>, <code>helpers.colorRamp()</code>
+                  </small>
+                  <small v-else class="binding-help">
+                    Enter a literal value: string, number, or boolean
+                  </small>
                 </label>
 
                 <div class="binding-editor__advanced">
@@ -655,8 +816,9 @@ function updateTabName(tabId: string, newName: string) {
                       :value="getDependenciesText(row.binding)"
                       rows="3"
                       @input="handleBindingDependenciesInput(row.definition.key, $event)"
+                      placeholder="Parent->Name&#10;Status&#10;Temperature->Value"
                     ></textarea>
-                    <small>One per line. Used to notify the runtime which fields to observe.</small>
+                    <small>One per line. Field paths that trigger script re-evaluation. Example: <code>Parent->Name</code></small>
                   </label>
 
                   <label class="binding-editor__field">
@@ -665,8 +827,9 @@ function updateTabName(tabId: string, newName: string) {
                       :value="row.binding.transform ?? ''"
                       rows="3"
                       @input="handleBindingTransformInput(row.definition.key, $event)"
+                      placeholder="// Post-process the value&#10;return value.toFixed(2);"
                     ></textarea>
-                    <small>Optional post-processing hook. Receives <code>value</code>.</small>
+                    <small>Optional post-processing. Receives <code>value</code>. Example: <code>(value) => value * 100</code> or <code>return value.toFixed(2);</code></small>
                   </label>
 
                   <label class="binding-editor__field">
@@ -678,6 +841,182 @@ function updateTabName(tabId: string, newName: string) {
                     ></textarea>
                   </label>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Event Handlers Section -->
+      <section v-if="isInteractiveComponent" class="inspector__section">
+        <header>
+          <h3>Event Handlers</h3>
+        </header>
+        
+        <p v-if="!eventHandlers.length" class="inspector__hint">
+          Add event handlers to make this component interactive. Event handlers can write values to fields, execute custom scripts, or trigger navigation.
+        </p>
+        
+        <div class="event-handlers">
+          <!-- Available events to add -->
+          <div v-if="applicableEvents.length > 0" class="event-add-section">
+            <span class="event-section-label">Add Event Handler</span>
+            <div class="event-triggers">
+              <button
+                v-for="trigger in applicableEvents"
+                :key="trigger"
+                type="button"
+                class="event-trigger-button"
+                :disabled="eventHandlers.some(h => h.trigger === trigger)"
+                @click="handleEventHandlerCreate(trigger)"
+                :title="eventHandlers.some(h => h.trigger === trigger) ? 'Handler already exists for this event' : `Add ${getEventTriggerLabel(trigger)} handler`"
+              >
+                + {{ getEventTriggerLabel(trigger) }}
+              </button>
+            </div>
+          </div>
+
+          <!-- Event handler list -->
+          <div v-if="eventHandlers.length > 0" class="event-handler-list">
+            <div
+              v-for="handler in eventHandlers"
+              :key="handler.id"
+              class="event-handler-card"
+            >
+              <div class="event-handler-header">
+                <div class="event-handler-title">
+                  <span class="event-handler-trigger-badge">{{ getEventTriggerLabel(handler.trigger) }}</span>
+                  <span class="event-handler-action-label">{{ getActionTypeLabel(handler.action.type) }}</span>
+                </div>
+                <button
+                  type="button"
+                  class="event-handler-remove"
+                  @click="handleEventHandlerRemove(handler.id)"
+                  title="Remove event handler"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div class="event-handler-body">
+                <!-- Action Type Selector -->
+                <label class="event-handler-field">
+                  <span>Action Type</span>
+                  <select
+                    :value="handler.action.type"
+                    @change="handleActionTypeChange(handler, ($event.target as HTMLSelectElement).value as any)"
+                  >
+                    <option value="writeField">Write Field</option>
+                    <option value="script">Run Script</option>
+                    <option value="navigate">Navigate</option>
+                  </select>
+                </label>
+
+                <!-- Write Field Action -->
+                <template v-if="handler.action.type === 'writeField'">
+                  <label class="event-handler-field">
+                    <span>Field Path</span>
+                    <input
+                      type="text"
+                      :value="(handler.action as any).fieldPath || ''"
+                      @input="handleWriteFieldUpdate(handler, 'fieldPath', ($event.target as HTMLInputElement).value)"
+                      placeholder="e.g., Value, Status, Parent->Name"
+                    />
+                    <small>Path to the field to write to (supports indirect paths)</small>
+                  </label>
+
+                  <label class="event-handler-field">
+                    <span>Value Source</span>
+                    <select
+                      :value="(handler.action as any).valueSource || 'component'"
+                      @change="handleWriteFieldUpdate(handler, 'valueSource', ($event.target as HTMLSelectElement).value)"
+                    >
+                      <option value="component">Component Value</option>
+                      <option value="literal">Literal Value</option>
+                      <option value="expression">Expression</option>
+                    </select>
+                    <small>Where to get the value to write</small>
+                  </label>
+
+                  <label v-if="(handler.action as any).valueSource !== 'component'" class="event-handler-field">
+                    <span>Value</span>
+                    <input
+                      type="text"
+                      :value="(handler.action as any).value || ''"
+                      @input="handleWriteFieldUpdate(handler, 'value', ($event.target as HTMLInputElement).value)"
+                      placeholder="Value to write"
+                    />
+                  </label>
+
+                  <label class="event-handler-field">
+                    <span>Target Entity (optional)</span>
+                    <input
+                      type="text"
+                      :value="(handler.action as any).targetEntity || ''"
+                      @input="handleWriteFieldUpdate(handler, 'targetEntity', ($event.target as HTMLInputElement).value)"
+                      placeholder="Default: bound entity"
+                    />
+                    <small>Leave empty to use bound entity, or specify entity path</small>
+                  </label>
+                </template>
+
+                <!-- Script Action -->
+                <template v-if="handler.action.type === 'script'">
+                  <label class="event-handler-field">
+                    <span>Script Code</span>
+                    <textarea
+                      :value="(handler.action as any).code || ''"
+                      @input="handleScriptUpdate(handler, ($event.target as HTMLTextAreaElement).value)"
+                      rows="6"
+                      placeholder="// Available: event, value, context&#10;// Example:&#10;await context.set('Status', value);"
+                    ></textarea>
+                    <small>JavaScript code to execute. Access event details via <code>event</code>, component value via <code>value</code>, and data context via <code>context</code></small>
+                  </label>
+                </template>
+
+                <!-- Navigate Action -->
+                <template v-if="handler.action.type === 'navigate'">
+                  <label class="event-handler-field">
+                    <span>Target Faceplate</span>
+                    <input
+                      type="text"
+                      :value="(handler.action as any).targetFaceplate || ''"
+                      @input="handleWriteFieldUpdate(handler, 'targetFaceplate', ($event.target as HTMLInputElement).value)"
+                      placeholder="Faceplate ID"
+                    />
+                  </label>
+
+                  <label class="event-handler-field">
+                    <span>Entity Context (optional)</span>
+                    <input
+                      type="text"
+                      :value="(handler.action as any).entityContext || ''"
+                      @input="handleWriteFieldUpdate(handler, 'entityContext', ($event.target as HTMLInputElement).value)"
+                      placeholder="Entity ID or path"
+                    />
+                  </label>
+                </template>
+
+                <!-- Description -->
+                <label class="event-handler-field">
+                  <span>Description (optional)</span>
+                  <textarea
+                    :value="handler.description || ''"
+                    @input="handleEventHandlerUpdate(handler, { description: ($event.target as HTMLTextAreaElement).value })"
+                    rows="2"
+                    placeholder="Describe what this handler does..."
+                  ></textarea>
+                </label>
+
+                <!-- Enabled toggle -->
+                <label class="event-handler-toggle">
+                  <input
+                    type="checkbox"
+                    :checked="handler.enabled !== false"
+                    @change="handleEventHandlerUpdate(handler, { enabled: ($event.target as HTMLInputElement).checked })"
+                  />
+                  <span>Enabled</span>
+                </label>
               </div>
             </div>
           </div>
@@ -999,6 +1338,24 @@ function updateTabName(tabId: string, newName: string) {
 .binding-editor__field small {
   font-size: 10px;
   opacity: 0.55;
+  line-height: 1.4;
+}
+
+.binding-editor__field small code {
+  padding: 2px 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  font-family: 'Courier New', monospace;
+  font-size: 10px;
+}
+
+.binding-help {
+  display: block;
+  margin-top: 4px;
+  font-size: 10px;
+  line-height: 1.5;
+  opacity: 0.7;
+  font-style: italic;
 }
 
 .binding-editor__advanced {
@@ -1243,5 +1600,206 @@ function updateTabName(tabId: string, newName: string) {
 .tab-item__remove:hover {
   background: rgba(255, 68, 68, 0.3);
   transform: scale(1.1);
+}
+
+/* Event Handler Styles */
+.event-handlers {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.event-add-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.event-section-label {
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.8;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.event-triggers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.event-trigger-button {
+  padding: 8px 14px;
+  background: linear-gradient(135deg, rgba(0, 255, 170, 0.15), rgba(0, 200, 255, 0.15));
+  border: 1px solid rgba(0, 255, 170, 0.3);
+  border-radius: 8px;
+  color: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.event-trigger-button:hover:not(:disabled) {
+  background: linear-gradient(135deg, rgba(0, 255, 170, 0.25), rgba(0, 200, 255, 0.25));
+  border-color: rgba(0, 255, 170, 0.5);
+  transform: translateY(-1px);
+}
+
+.event-trigger-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.event-handler-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.event-handler-card {
+  display: flex;
+  flex-direction: column;
+  padding: 14px;
+  background: rgba(0, 12, 22, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  transition: border-color 0.2s;
+}
+
+.event-handler-card:hover {
+  border-color: rgba(0, 255, 170, 0.3);
+}
+
+.event-handler-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.event-handler-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.event-handler-trigger-badge {
+  padding: 4px 10px;
+  background: rgba(0, 170, 255, 0.2);
+  border: 1px solid rgba(0, 170, 255, 0.4);
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.event-handler-action-label {
+  font-size: 12px;
+  opacity: 0.7;
+  font-style: italic;
+}
+
+.event-handler-remove {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 68, 68, 0.15);
+  border: 1px solid rgba(255, 68, 68, 0.3);
+  border-radius: 6px;
+  color: #ff4444;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.event-handler-remove:hover {
+  background: rgba(255, 68, 68, 0.25);
+  transform: scale(1.05);
+}
+
+.event-handler-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.event-handler-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.event-handler-field span {
+  font-size: 11px;
+  font-weight: 500;
+  opacity: 0.75;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.event-handler-field input,
+.event-handler-field select,
+.event-handler-field textarea {
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  color: inherit;
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.event-handler-field input:focus,
+.event-handler-field select:focus,
+.event-handler-field textarea:focus {
+  outline: none;
+  border-color: rgba(0, 255, 194, 0.5);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.event-handler-field textarea {
+  font-family: 'Courier New', monospace;
+  resize: vertical;
+  min-height: 80px;
+}
+
+.event-handler-field small {
+  font-size: 10px;
+  opacity: 0.6;
+  line-height: 1.4;
+}
+
+.event-handler-field small code {
+  padding: 2px 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  font-family: 'Courier New', monospace;
+  font-size: 10px;
+}
+
+.event-handler-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  font-size: 13px;
+}
+
+.event-handler-toggle input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+.event-handler-toggle span {
+  font-weight: 500;
 }
 </style>

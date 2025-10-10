@@ -2,6 +2,7 @@ import type { EntityId, EntityType, FieldType, Value } from '@/core/data/types';
 import { ValueHelpers, FieldSchemaHelpers, extractEntityType } from '@/core/data/types';
 import { useDataStore } from '@/stores/data';
 import type { BindingMode } from '../types';
+import { logger } from './logger';
 
 export type DataStore = ReturnType<typeof useDataStore>;
 
@@ -39,6 +40,14 @@ export interface FaceplateScriptModule {
 export interface FaceplateConfiguration {
   layout: FaceplateLayoutItem[];
   bindings: FaceplateBindingDefinition[];
+  eventHandlers?: Array<{
+    id: string;
+    componentId: string;
+    trigger: string;
+    action: Record<string, unknown>;
+    description?: string;
+    enabled?: boolean;
+  }>;
   metadata?: Record<string, unknown>;
 }
 
@@ -259,6 +268,73 @@ export class FaceplateDataService {
 
   async readBindingLibrary(bindingIds: EntityId[]): Promise<FaceplateBindingLibraryRecord[]> {
     return Promise.all(bindingIds.map((id) => this.readBinding(id)));
+  }
+
+  /**
+   * Write a value to a field, automatically determining the correct Value type
+   */
+  async writeValue(entityId: EntityId, fieldName: string, value: any): Promise<void> {
+    const fieldType = await this.getFieldType(fieldName);
+    
+    // Convert value to appropriate Value type
+    let valueObj: Value;
+    if (typeof value === 'boolean') {
+      valueObj = ValueHelpers.bool(value);
+    } else if (typeof value === 'number') {
+      valueObj = Number.isInteger(value) ? ValueHelpers.int(value) : ValueHelpers.float(value);
+    } else if (typeof value === 'string') {
+      valueObj = ValueHelpers.string(value);
+    } else if (Array.isArray(value) && value.every(v => typeof v === 'number' && Number.isInteger(v))) {
+      valueObj = ValueHelpers.entityList(value);
+    } else {
+      // Default to string for complex types
+      valueObj = ValueHelpers.string(JSON.stringify(value));
+    }
+    
+    await this.dataStore.write(entityId, [fieldType], valueObj);
+  }
+
+  /**
+   * Write a value using an indirect field path (e.g., "Parent->Name")
+   */
+  async writeValueIndirect(entityId: EntityId, fieldPath: string, value: any): Promise<void> {
+    const INDIRECTION_DELIMITER = '->';
+    
+    if (!fieldPath.includes(INDIRECTION_DELIMITER)) {
+      // No indirection, just write directly
+      return this.writeValue(entityId, fieldPath, value);
+    }
+
+    // Resolve the field path
+    const segments = fieldPath.split(INDIRECTION_DELIMITER).map(s => s.trim());
+    const fieldTypes: FieldType[] = [];
+    
+    for (const segment of segments) {
+      const fieldType = await this.getFieldType(segment);
+      fieldTypes.push(fieldType);
+    }
+
+    // Navigate to the target entity
+    let currentEntityId = entityId;
+    for (let i = 0; i < fieldTypes.length - 1; i++) {
+      const readResult = await this.dataStore.read(currentEntityId, [fieldTypes[i]]);
+      if (!readResult) {
+        throw new Error(`Failed to read field at segment ${segments[i]}`);
+      }
+      const [value] = readResult;
+      if (!ValueHelpers.isEntityRef(value)) {
+        throw new Error(`Field at segment ${segments[i]} is not an entity reference`);
+      }
+      const nextEntityId = value.EntityReference;
+      if (nextEntityId === null) {
+        throw new Error(`Null entity reference at segment ${segments[i]}`);
+      }
+      currentEntityId = nextEntityId;
+    }
+
+    // Write to the final field
+    const finalFieldName = segments[segments.length - 1];
+    await this.writeValue(currentEntityId, finalFieldName, value);
   }
 
   async writeString(entityId: EntityId, fieldName: string, value: string): Promise<void> {

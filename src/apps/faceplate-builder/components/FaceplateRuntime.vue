@@ -200,11 +200,16 @@ const canvasComponents = computed<CanvasComponent[]>(() => {
     console.log('FaceplateRuntime - RenderedSlots:', renderedSlots.value.map(s => ({ id: s.id, name: s.name, type: s.type })));
   }
   
-  // First pass: create components with parentId
+  // First pass: create components with parentId and eventHandlers
+  const eventHandlersFromConfig = faceplate.value.configuration.eventHandlers || [];
+  
   const components = renderedSlots.value.map(slot => {
     // Find parent ID from layout data
     const layoutItem = layout.find(item => item.component === String(slot.id));
     const parentId = layoutItem?.parentId || null;
+    
+    // Find event handlers for this component
+    const handlers = eventHandlersFromConfig.filter((h: any) => String(h.componentId) === String(slot.id));
     
     if (import.meta.env.DEV && parentId) {
       console.log(`FaceplateRuntime - Component ${slot.id} has parentId: ${parentId}`);
@@ -224,6 +229,7 @@ const canvasComponents = computed<CanvasComponent[]>(() => {
       config: slot.config,
       bindings: slot.bindings,
       parentId: parentId,
+      eventHandlers: handlers.length > 0 ? handlers : undefined,
     };
   });
   
@@ -981,6 +987,122 @@ function ensureArray<T>(value: T[] | T | null | undefined): T[] {
   return Array.isArray(value) ? value : [value];
 }
 
+// Event handler execution
+async function handleEventTriggered(payload: { handler: any; value?: any; nativeEvent?: Event }) {
+  const { handler, value, nativeEvent } = payload;
+  
+  if (!handler || handler.enabled === false) {
+    return;
+  }
+
+  logger.debug('Event triggered:', handler.trigger, 'on component', handler.componentId, 'value:', value);
+
+  try {
+    if (handler.action.type === 'writeField') {
+      await executeWriteFieldAction(handler.action, value);
+    } else if (handler.action.type === 'script') {
+      await executeScriptAction(handler.action, value, nativeEvent);
+    } else if (handler.action.type === 'navigate') {
+      await executeNavigateAction(handler.action);
+    }
+  } catch (error) {
+    logger.error('Event handler execution failed:', error);
+  }
+}
+
+async function executeWriteFieldAction(action: any, componentValue: any) {
+  const targetEntityId = props.entityId;
+  if (!targetEntityId) {
+    logger.warn('Cannot write field: no bound entity');
+    return;
+  }
+
+  const fieldPath = action.fieldPath;
+  if (!fieldPath) {
+    logger.warn('Cannot write field: no field path specified');
+    return;
+  }
+
+  // Determine the value to write
+  let valueToWrite: any;
+  if (action.valueSource === 'component') {
+    valueToWrite = componentValue;
+  } else if (action.valueSource === 'literal') {
+    valueToWrite = action.value;
+  } else if (action.valueSource === 'expression') {
+    // Evaluate expression
+    try {
+      const func = new Function('value', `return ${action.value}`);
+      valueToWrite = func(componentValue);
+    } catch (error) {
+      logger.error('Failed to evaluate value expression:', error);
+      return;
+    }
+  }
+
+  // Write the value
+  try {
+    // Determine if path is indirect
+    if (fieldPath.includes('->')) {
+      await service.writeValueIndirect(targetEntityId, fieldPath, valueToWrite);
+    } else {
+      await service.writeValue(targetEntityId, fieldPath, valueToWrite);
+    }
+    logger.debug('Successfully wrote value:', valueToWrite, 'to', fieldPath);
+  } catch (error) {
+    logger.error('Failed to write field:', error);
+  }
+}
+
+async function executeScriptAction(action: any, componentValue: any, nativeEvent?: Event) {
+  const code = action.code;
+  if (!code) {
+    logger.warn('Cannot execute script: no code specified');
+    return;
+  }
+
+  // Create execution context
+  const context = {
+    get: (path: string) => service.readValue(props.entityId!, path),
+    getCached: (path: string) => expressionValueMap[path],
+    set: (path: string, value: any) => {
+      if (path.includes('->')) {
+        return service.writeValueIndirect(props.entityId!, path, value);
+      }
+      return service.writeValue(props.entityId!, path, value);
+    },
+    setState: (key: string, value: unknown) => {
+      const stateKey = `script-${props.faceplateId}-state`;
+      if (!scriptState.has(stateKey)) {
+        scriptState.set(stateKey, {});
+      }
+      scriptState.get(stateKey)![key] = value;
+    },
+    getState: (key: string) => {
+      const stateKey = `script-${props.faceplateId}-state`;
+      return scriptState.get(stateKey)?.[key];
+    },
+  };
+
+  const helpers = {
+    clamp: (value: number, min: number, max: number) => Math.max(min, Math.min(max, value)),
+    lerp: (a: number, b: number, t: number) => a + (b - a) * t,
+    colorRamp: (value: number, colors: string[]) => colors[Math.floor(value * (colors.length - 1))],
+  };
+
+  try {
+    const func = new Function('event', 'value', 'context', 'helpers', code);
+    await func(nativeEvent, componentValue, context, helpers);
+  } catch (error) {
+    logger.error('Script execution failed:', error);
+  }
+}
+
+async function executeNavigateAction(action: any) {
+  logger.warn('Navigate action not yet implemented:', action);
+  // TODO: Implement navigation when window system supports it
+}
+
 watch(
   () => [props.faceplateId, props.faceplateData],
   async () => {
@@ -1042,6 +1164,7 @@ defineExpose({
       :edit-mode="false"
       :show-grid="false"
       :show-viewport-boundary="false"
+      @event-triggered="handleEventTriggered"
     />
   </div>
 </template>

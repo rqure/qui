@@ -17,6 +17,7 @@ export interface CanvasComponent {
   bindings?: Record<string, unknown>;
   parentId?: string | number | null;
   children?: CanvasComponent[];
+  eventHandlers?: any[]; // Event handlers for this component
 }
 
 interface Props {
@@ -48,6 +49,7 @@ const emit = defineEmits<{
   (event: 'component-drag-start', payload: { id: string | number; event: PointerEvent }): void;
   (event: 'component-drag', payload: { id: string | number; position: { x: number; y: number } }): void;
   (event: 'component-drag-end', payload: { id: string | number; position: { x: number; y: number } }): void;
+  (event: 'event-triggered', payload: any): void;
 }>();
 
 const GRID_SIZE = 120;
@@ -362,6 +364,8 @@ const ComponentNode = {
         :config="component.config"
         :bindings="component.bindings"
         :edit-mode="editMode"
+        :event-handlers="component.eventHandlers"
+        @event-triggered="$emit('event-triggered', $event)"
       >
         <!-- Render children inside container -->
         <template v-if="isContainerType && layoutChildren.length">

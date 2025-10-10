@@ -25,6 +25,7 @@ import type {
   PrimitiveDefinition,
   PrimitivePropertyDefinition,
   Vector2,
+  EventHandler,
 } from './types';
 
 type InspectorBindingPayload = {
@@ -582,6 +583,48 @@ function handleInspectorBindingRemove(payload: { nodeId: string; property: strin
   }
 }
 
+// Event Handler Management
+function handleEventHandlerCreate(payload: { nodeId: string; handler: EventHandler }) {
+  const node = nodes.value.find((item) => item.id === payload.nodeId);
+  if (!node) return;
+
+  const eventHandlers = node.eventHandlers || [];
+  const updatedHandlers = [...eventHandlers, payload.handler];
+
+  nodes.value = nodes.value.map((n) =>
+    n.id === payload.nodeId ? { ...n, eventHandlers: updatedHandlers } : n
+  );
+  pushHistory();
+}
+
+function handleEventHandlerUpdate(payload: { nodeId: string; handler: EventHandler }) {
+  const node = nodes.value.find((item) => item.id === payload.nodeId);
+  if (!node || !node.eventHandlers) return;
+
+  const updatedHandlers = node.eventHandlers.map((h) =>
+    h.id === payload.handler.id ? payload.handler : h
+  );
+
+  nodes.value = nodes.value.map((n) =>
+    n.id === payload.nodeId ? { ...n, eventHandlers: updatedHandlers } : n
+  );
+  pushHistory();
+}
+
+function handleEventHandlerRemove(payload: { nodeId: string; handlerId: string }) {
+  const node = nodes.value.find((item) => item.id === payload.nodeId);
+  if (!node || !node.eventHandlers) return;
+
+  const updatedHandlers = node.eventHandlers.filter((h) => h.id !== payload.handlerId);
+
+  nodes.value = nodes.value.map((n) =>
+    n.id === payload.nodeId
+      ? { ...n, eventHandlers: updatedHandlers.length > 0 ? updatedHandlers : undefined }
+      : n
+  );
+  pushHistory();
+}
+
 function handleInspectorNodeDelete(payload: { nodeId: string }) {
   deleteNodesByIds([payload.nodeId]);
 }
@@ -841,13 +884,38 @@ async function loadFaceplateData(faceplateId: EntityId) {
     }
   });
   
-  // Assign children arrays to containers
+  // Load event handlers from configuration
+  const eventHandlersFromConfig = faceplate.configuration.eventHandlers || [];
+  const eventHandlersByComponent = new Map<string, EventHandler[]>();
+  
+  eventHandlersFromConfig.forEach((handlerData: any) => {
+    const componentName = handlerData.componentId; // componentId is actually the component name
+    if (!eventHandlersByComponent.has(componentName)) {
+      eventHandlersByComponent.set(componentName, []);
+    }
+    eventHandlersByComponent.get(componentName)!.push({
+      id: handlerData.id,
+      componentId: '', // Will be set when we map to nodes
+      trigger: handlerData.trigger,
+      action: handlerData.action,
+      description: handlerData.description,
+      enabled: handlerData.enabled !== false,
+    });
+  });
+
+  // Assign children arrays and event handlers to nodes
   nodes.value = tempNodes.map(node => {
     const children = childrenMap.get(node.id);
-    if (children && children.length > 0) {
-      return { ...node, children };
-    }
-    return node;
+    const eventHandlers = eventHandlersByComponent.get(node.name);
+    
+    // Update event handler componentId to match node ID
+    const updatedHandlers = eventHandlers?.map(h => ({ ...h, componentId: node.id }));
+    
+    return {
+      ...node,
+      children: children && children.length > 0 ? children : undefined,
+      eventHandlers: updatedHandlers && updatedHandlers.length > 0 ? updatedHandlers : undefined,
+    };
   });
   
   // Convert bindings - b.component is now a name, find node by name
@@ -966,6 +1034,20 @@ async function saveWorkspace() {
       };
     }).filter((item): item is NonNullable<typeof item> => item !== null);
 
+    // Build event handlers configuration using component names
+    const eventHandlersData = nodes.value
+      .filter(node => node.eventHandlers && node.eventHandlers.length > 0)
+      .flatMap(node => 
+        (node.eventHandlers || []).map(handler => ({
+          id: handler.id,
+          componentId: node.name, // Use component name, not ID
+          trigger: handler.trigger,
+          action: handler.action,
+          description: handler.description,
+          enabled: handler.enabled !== false,
+        }))
+      );
+
     const metadata = {
       ...faceplateMetadata.value,
       viewport: {
@@ -979,7 +1061,12 @@ async function saveWorkspace() {
       id: currentFaceplateId.value,
       name: currentFaceplateName.value,
       targetEntityType: currentTargetEntityType.value,
-      configuration: { layout, bindings: bindingsData, metadata },
+      configuration: { 
+        layout, 
+        bindings: bindingsData, 
+        eventHandlers: eventHandlersData.length > 0 ? eventHandlersData : undefined,
+        metadata 
+      },
       components: componentIds,
       notificationChannels: currentNotificationChannels.value,
       scriptModules: currentScriptModules.value,
@@ -1169,6 +1256,9 @@ onMounted(async () => {
         @binding-create="handleInspectorBindingCreate"
         @binding-update="handleInspectorBindingUpdate"
         @binding-remove="handleInspectorBindingRemove"
+        @event-handler-create="handleEventHandlerCreate"
+        @event-handler-update="handleEventHandlerUpdate"
+        @event-handler-remove="handleEventHandlerRemove"
         @delete-node="handleInspectorNodeDelete"
         @bring-forward="handleBringForward"
         @send-backward="handleSendBackward"
