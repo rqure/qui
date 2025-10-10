@@ -82,7 +82,7 @@ const service = new FaceplateDataService(dataStore);
 
 const faceplate = ref<FaceplateRecord | null>(null);
 const components = ref<FaceplateComponentRecord[]>([]);
-const loading = ref(true);
+const loading = ref(false);
 const error = ref<string | null>(null);
 const scriptCompilationErrors = ref<Array<{ module: string; error: string; timestamp: number }>>([]);
 const scriptRuntimeErrors = ref<Array<{ context: string; error: string; timestamp: number }>>([]);
@@ -1394,12 +1394,6 @@ watch(
     await registerNotifications();
   },
 );
-
-onMounted(async () => {
-  if (!faceplate.value) {
-    await initialize();
-  }
-});
 
 onBeforeUnmount(async () => {
   await cleanupNotifications();
