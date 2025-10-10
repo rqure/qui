@@ -1278,6 +1278,21 @@ function handleScriptUpdate(handler: EventHandler, code: string) {
   padding-right: 26px;
 }
 
+/* Fix dropdown option colors - critical UX issue */
+.property-card__control select option,
+.event-handler-field select option,
+.inspector__select option {
+  background: rgba(8, 16, 24, 0.98);
+  color: #ffffff;
+  padding: 8px;
+}
+
+.property-card__control select option:hover,
+.event-handler-field select option:hover,
+.inspector__select option:hover {
+  background: rgba(0, 255, 194, 0.2);
+}
+
 .property-card__control input:disabled,
 .property-card__control select:disabled {
   opacity: 0.45;

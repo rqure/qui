@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { ref } from 'vue';
+import KeyboardShortcutsHelp from './KeyboardShortcutsHelp.vue';
+
 const props = defineProps<{
   canUndo: boolean;
   canRedo: boolean;
@@ -19,6 +22,8 @@ const emit = defineEmits<{
   (event: 'load'): void;
   (event: 'viewport-resize', payload: { width: number; height: number }): void;
 }>();
+
+const shortcutsHelp = ref<InstanceType<typeof KeyboardShortcutsHelp> | null>(null);
 
 function handleViewportInput(axis: 'width' | 'height', event: Event) {
   const value = Number((event.target as HTMLInputElement | null)?.value ?? 0);
@@ -60,6 +65,8 @@ function handleViewportInput(axis: 'width' | 'height', event: Event) {
       <button type="button" :disabled="!props.canRedo" @click="emit('redo')">Redo</button>
       <span class="toolbar__divider" aria-hidden="true"></span>
       <button type="button" class="toolbar__primary" :disabled="!props.dirty && props.faceplateId != null" @click="emit('save')">Save</button>
+      <span class="toolbar__divider" aria-hidden="true"></span>
+      <KeyboardShortcutsHelp ref="shortcutsHelp" />
     </div>
   </header>
 </template>

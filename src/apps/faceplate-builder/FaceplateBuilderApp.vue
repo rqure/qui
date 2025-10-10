@@ -266,6 +266,8 @@ function pushHistory() {
   history.stack.splice(history.index + 1);
   history.stack.push(cloneState());
   history.index = history.stack.length - 1;
+  // Schedule auto-save after change
+  scheduleAutoSave();
 }
 
 function applyState(snapshot: {
@@ -350,6 +352,19 @@ function handleNodesMoveEnd(updates: Array<{ nodeId: string; position: Vector2 }
     return;
   }
   applyNodePositionUpdates(updates);
+  pushHistory();
+}
+
+function handleNodeResized(payload: { nodeId: string; size: Vector2 }) {
+  nodes.value = nodes.value.map((node) =>
+    node.id === payload.nodeId
+      ? { ...node, size: { ...payload.size } }
+      : node,
+  );
+}
+
+function handleNodeResizeEnd(payload: { nodeId: string; size: Vector2 }) {
+  handleNodeResized(payload);
   pushHistory();
 }
 
@@ -777,11 +792,143 @@ function handleClearContainer(payload: { containerId: string }) {
   clearContainerChildren(payload.containerId);
 }
 
-function handleKeyDown(event: KeyboardEvent) {
-  if (!selectedNodeIds.value.size) {
-    return;
-  }
+// Clipboard for copy/paste operations
+const clipboard = ref<{
+  nodes: CanvasNode[];
+  bindings: Binding[];
+} | null>(null);
 
+// Auto-save timer
+const autoSaveTimer = ref<number | null>(null);
+const AUTO_SAVE_DELAY_MS = 30000; // 30 seconds
+
+function scheduleAutoSave() {
+  if (autoSaveTimer.value !== null) {
+    window.clearTimeout(autoSaveTimer.value);
+  }
+  autoSaveTimer.value = window.setTimeout(() => {
+    if (dirty.value && currentFaceplateId.value) {
+      logger.debug('Auto-saving faceplate...');
+      saveWorkspace().catch(err => {
+        logger.warn('Auto-save failed:', err);
+      });
+    }
+  }, AUTO_SAVE_DELAY_MS);
+}
+
+function duplicateSelectedNodes() {
+  if (!selectedNodeIds.value.size) return;
+
+  const nodesToDuplicate = nodes.value.filter(node => selectedNodeIds.value.has(node.id));
+  const bindingsToDuplicate = bindings.value.filter(b => selectedNodeIds.value.has(b.componentId));
+  
+  const idMapping = new Map<string, string>();
+  const newNodes: CanvasNode[] = [];
+  const newBindings: Binding[] = [];
+  
+  // Create new nodes with offset position
+  for (const node of nodesToDuplicate) {
+    const newId = generateId('node');
+    idMapping.set(node.id, newId);
+    
+    const newNode: CanvasNode = {
+      ...node,
+      id: newId,
+      name: `${node.name} (Copy)`,
+      position: { x: node.position.x + 20, y: node.position.y + 20 },
+      selected: false,
+      // If node has a parent, keep the parent reference
+      parentId: node.parentId,
+      children: undefined, // Will be recalculated
+    };
+    newNodes.push(newNode);
+  }
+  
+  // Duplicate bindings
+  for (const binding of bindingsToDuplicate) {
+    const newComponentId = idMapping.get(binding.componentId);
+    if (!newComponentId) continue;
+    
+    const newBinding: Binding = {
+      ...binding,
+      id: generateId('binding'),
+      componentId: newComponentId,
+      componentName: nodes.value.find(n => n.id === newComponentId)?.name || binding.componentName,
+    };
+    newBindings.push(newBinding);
+  }
+  
+  nodes.value = [...nodes.value, ...newNodes];
+  bindings.value = [...bindings.value, ...newBindings];
+  
+  // Select the newly created nodes
+  applySelection(newNodes.map(n => n.id), newNodes[0]?.id);
+  pushHistory();
+}
+
+function copySelectedNodes() {
+  if (!selectedNodeIds.value.size) return;
+  
+  const nodesToCopy = nodes.value.filter(node => selectedNodeIds.value.has(node.id));
+  const bindingsToCopy = bindings.value.filter(b => selectedNodeIds.value.has(b.componentId));
+  
+  clipboard.value = {
+    nodes: nodesToCopy.map(node => ({ ...node })),
+    bindings: bindingsToCopy.map(b => ({ ...b })),
+  };
+  
+  logger.debug(`Copied ${nodesToCopy.length} node(s) to clipboard`);
+}
+
+function pasteNodes() {
+  if (!clipboard.value) return;
+  
+  const idMapping = new Map<string, string>();
+  const newNodes: CanvasNode[] = [];
+  const newBindings: Binding[] = [];
+  
+  // Create new nodes with offset position
+  for (const node of clipboard.value.nodes) {
+    const newId = generateId('node');
+    idMapping.set(node.id, newId);
+    
+    const newNode: CanvasNode = {
+      ...node,
+      id: newId,
+      name: `${node.name} (Paste)`,
+      position: { x: node.position.x + 30, y: node.position.y + 30 },
+      selected: false,
+      parentId: node.parentId, // Preserve parent if any
+      children: undefined,
+    };
+    newNodes.push(newNode);
+  }
+  
+  // Create new bindings
+  for (const binding of clipboard.value.bindings) {
+    const newComponentId = idMapping.get(binding.componentId);
+    if (!newComponentId) continue;
+    
+    const newBinding: Binding = {
+      ...binding,
+      id: generateId('binding'),
+      componentId: newComponentId,
+      componentName: newNodes.find(n => n.id === newComponentId)?.name || binding.componentName,
+    };
+    newBindings.push(newBinding);
+  }
+  
+  nodes.value = [...nodes.value, ...newNodes];
+  bindings.value = [...bindings.value, ...newBindings];
+  
+  // Select the newly pasted nodes
+  applySelection(newNodes.map(n => n.id), newNodes[0]?.id);
+  pushHistory();
+  logger.debug(`Pasted ${newNodes.length} node(s)`);
+}
+
+function handleKeyDown(event: KeyboardEvent) {
+  // Check if user is typing in a form field
   const target = event.target as HTMLElement | null;
   if (target) {
     const tag = target.tagName;
@@ -791,14 +938,74 @@ function handleKeyDown(event: KeyboardEvent) {
     }
   }
 
-  const isDeleteKey = event.key === 'Delete';
-  const isBackspace = event.key === 'Backspace' && !event.metaKey && !event.ctrlKey && !event.altKey;
-  if (!isDeleteKey && !isBackspace) {
+  const isMod = event.metaKey || event.ctrlKey;
+  const isShift = event.shiftKey;
+
+  // Undo/Redo: Cmd/Ctrl + Z / Cmd/Ctrl + Shift + Z
+  if (isMod && event.key === 'z') {
+    event.preventDefault();
+    if (isShift) {
+      redo();
+    } else {
+      undo();
+    }
     return;
   }
 
-  event.preventDefault();
-  handleDeleteSelectedNodes();
+  // Redo alternative: Cmd/Ctrl + Y
+  if (isMod && event.key === 'y') {
+    event.preventDefault();
+    redo();
+    return;
+  }
+
+  // Save: Cmd/Ctrl + S
+  if (isMod && event.key === 's') {
+    event.preventDefault();
+    if (currentFaceplateId.value) {
+      saveWorkspace();
+    }
+    return;
+  }
+
+  // Copy: Cmd/Ctrl + C
+  if (isMod && event.key === 'c' && selectedNodeIds.value.size) {
+    event.preventDefault();
+    copySelectedNodes();
+    return;
+  }
+
+  // Paste: Cmd/Ctrl + V
+  if (isMod && event.key === 'v' && clipboard.value) {
+    event.preventDefault();
+    pasteNodes();
+    return;
+  }
+
+  // Duplicate: Cmd/Ctrl + D
+  if (isMod && event.key === 'd' && selectedNodeIds.value.size) {
+    event.preventDefault();
+    duplicateSelectedNodes();
+    return;
+  }
+
+  // Select All: Cmd/Ctrl + A
+  if (isMod && event.key === 'a') {
+    event.preventDefault();
+    applySelection(nodes.value.map(n => n.id), nodes.value[0]?.id);
+    return;
+  }
+
+  // Delete: Delete or Backspace
+  if (selectedNodeIds.value.size) {
+    const isDeleteKey = event.key === 'Delete';
+    const isBackspace = event.key === 'Backspace' && !isMod && !event.altKey;
+    if (isDeleteKey || isBackspace) {
+      event.preventDefault();
+      handleDeleteSelectedNodes();
+      return;
+    }
+  }
 }
 
 
@@ -1159,12 +1366,26 @@ async function handleSelectorNew(faceplateId: EntityId) {
 
 // Custom components have been removed from this implementation
 
+function handleBeforeUnload(event: BeforeUnloadEvent) {
+  if (dirty.value) {
+    const message = 'You have unsaved changes. Are you sure you want to leave?';
+    event.preventDefault();
+    event.returnValue = message;
+    return message;
+  }
+}
+
 onMounted(() => {
   window.addEventListener('keydown', handleKeyDown);
+  window.addEventListener('beforeunload', handleBeforeUnload);
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleKeyDown);
+  window.removeEventListener('beforeunload', handleBeforeUnload);
+  if (autoSaveTimer.value !== null) {
+    window.clearTimeout(autoSaveTimer.value);
+  }
 });
 
 // Initialize with an empty baseline state.
@@ -1225,6 +1446,8 @@ onMounted(async () => {
             @node-selected="handleNodeSelected"
             @nodes-updated="handleNodesUpdated"
             @nodes-move-end="handleNodesMoveEnd"
+            @node-resized="handleNodeResized"
+            @node-resize-end="handleNodeResizeEnd"
             @canvas-clicked="handleCanvasClick"
             @drag-select-complete="handleDragSelectComplete"
             @add-to-container="handleAddToContainer"

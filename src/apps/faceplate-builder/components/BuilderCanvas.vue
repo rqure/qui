@@ -22,6 +22,8 @@ const emit = defineEmits<{
   (event: 'node-requested', payload: CanvasDropPayload): void;
   (event: 'nodes-updated', updates: Array<{ nodeId: string; position: Vector2 }>): void;
   (event: 'nodes-move-end', updates: Array<{ nodeId: string; position: Vector2 }>): void;
+  (event: 'node-resized', payload: { nodeId: string; size: Vector2 }): void;
+  (event: 'node-resize-end', payload: { nodeId: string; size: Vector2 }): void;
   (event: 'canvas-clicked'): void;
   (event: 'drag-select-complete', selectedIds: string[]): void;
   (event: 'add-to-container', payload: { nodeIds: string[]; containerId: string }): void;
@@ -34,6 +36,14 @@ type DragState = {
   origins: Map<string, Vector2>;
 };
 
+type ResizeState = {
+  nodeId: string;
+  handle: string; // 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w'
+  pointerStart: Vector2;
+  originalPosition: Vector2;
+  originalSize: Vector2;
+};
+
 type SelectBoxState = {
   start: Vector2;
   current: Vector2;
@@ -41,6 +51,7 @@ type SelectBoxState = {
 };
 
 const dragState = reactive<{ current: DragState | null }>({ current: null });
+const resizeState = reactive<{ current: ResizeState | null }>({ current: null });
 const selectBoxState = reactive<SelectBoxState>({ start: { x: 0, y: 0 }, current: { x: 0, y: 0 }, isActive: false });
 const canvasRef = ref<InstanceType<typeof FaceplateCanvas> | null>(null);
 const wrapperRef = ref<HTMLElement | null>(null);
@@ -55,6 +66,9 @@ const panOrigin = ref({ x: 0, y: 0 });
 
 // Snapping state
 const snapToGridEnabled = ref(true);
+
+// Computed for multi-select check
+const hasMultipleSelected = computed(() => (props.selectedNodeIds?.size ?? 0) > 1);
 
 // Convert CanvasNode to CanvasComponent format (preserving parent-child relationships)
 const canvasComponents = computed<CanvasComponent[]>(() => {
@@ -199,6 +213,24 @@ function handleWheel(event: WheelEvent) {
   zoom.value = newZoom;
 }
 
+function handleResizeHandlePointerDown(event: PointerEvent, nodeId: string, handle: string) {
+  event.stopPropagation();
+  event.preventDefault();
+  
+  const node = props.nodes.find(n => n.id === nodeId);
+  if (!node) return;
+  
+  resizeState.current = {
+    nodeId,
+    handle,
+    pointerStart: { x: event.clientX, y: event.clientY },
+    originalPosition: { ...node.position },
+    originalSize: { ...node.size },
+  };
+  
+  (event.target as HTMLElement).setPointerCapture(event.pointerId);
+}
+
 function handleComponentClick(payload: { id: string | number; event: PointerEvent; isMultiSelect: boolean }) {
   const nodeId = String(payload.id);
   const isMultiSelect = payload.isMultiSelect;
@@ -287,6 +319,45 @@ function handlePointerMove(event: PointerEvent) {
     return;
   }
   
+  // Handle resize
+  if (resizeState.current) {
+    const { nodeId, handle, pointerStart, originalPosition, originalSize } = resizeState.current;
+    const deltaX = (event.clientX - pointerStart.x) / zoom.value;
+    const deltaY = (event.clientY - pointerStart.y) / zoom.value;
+    
+    let newPos = { ...originalPosition };
+    let newSize = { ...originalSize };
+    
+    // Calculate new size and position based on handle
+    if (handle.includes('w')) {
+      newPos.x = originalPosition.x + deltaX;
+      newSize.x = Math.max(80, originalSize.x - deltaX);
+    }
+    if (handle.includes('e')) {
+      newSize.x = Math.max(80, originalSize.x + deltaX);
+    }
+    if (handle.includes('n')) {
+      newPos.y = originalPosition.y + deltaY;
+      newSize.y = Math.max(60, originalSize.y - deltaY);
+    }
+    if (handle.includes('s')) {
+      newSize.y = Math.max(60, originalSize.y + deltaY);
+    }
+    
+    // Apply snapping
+    const snappedPos = snapToGrid(newPos);
+    const snappedSize = snapToGrid(newSize);
+    
+    emit('nodes-updated', [{
+      nodeId,
+      position: snappedPos,
+    }]);
+    
+    // Also emit size update
+    emit('node-resized', { nodeId, size: snappedSize });
+    return;
+  }
+  
   // Handle drag-select box
   if (selectBoxState.isActive && canvasRef.value?.canvasRef) {
     const canvasEl = canvasRef.value.canvasRef;
@@ -353,6 +424,17 @@ function handlePointerUp(event: PointerEvent) {
   // Handle pan end
   if (isPanning.value) {
     isPanning.value = false;
+    return;
+  }
+  
+  // Handle resize end
+  if (resizeState.current) {
+    const { nodeId } = resizeState.current;
+    const node = props.nodes.find(n => n.id === nodeId);
+    if (node) {
+      emit('node-resize-end', { nodeId, size: node.size });
+    }
+    resizeState.current = null;
     return;
   }
   
@@ -457,14 +539,40 @@ function boxesIntersect(
   );
 }
 
+function handleCanvasKeyDown(event: KeyboardEvent) {
+  const isMod = event.metaKey || event.ctrlKey;
+  
+  // Zoom shortcuts: Cmd/Ctrl + Plus/Minus
+  if (isMod && (event.key === '=' || event.key === '+')) {
+    event.preventDefault();
+    handleZoomIn();
+    return;
+  }
+  
+  if (isMod && (event.key === '-' || event.key === '_')) {
+    event.preventDefault();
+    handleZoomOut();
+    return;
+  }
+  
+  // Reset zoom: Cmd/Ctrl + 0
+  if (isMod && event.key === '0') {
+    event.preventDefault();
+    handleZoomReset();
+    return;
+  }
+}
+
 function setupListeners() {
   document.addEventListener('pointermove', handlePointerMove);
   document.addEventListener('pointerup', handlePointerUp);
+  document.addEventListener('keydown', handleCanvasKeyDown);
 }
 
 function teardownListeners() {
   document.removeEventListener('pointermove', handlePointerMove);
   document.removeEventListener('pointerup', handlePointerUp);
+  document.removeEventListener('keydown', handleCanvasKeyDown);
 }
 
 onMounted(setupListeners);
@@ -551,6 +659,31 @@ onBeforeUnmount(teardownListeners);
         height: `${Math.abs(selectBoxState.current.y - selectBoxState.start.y) * zoom}px`,
       }"
     ></div>
+    
+    <!-- Resize handles for single selected node -->
+    <template v-if="selectedNodeId && !hasMultipleSelected">
+      <template v-for="node in nodes" :key="`resize-${node.id}`">
+        <div 
+          v-if="node.id === selectedNodeId"
+          class="resize-handles"
+          :style="{
+            left: `${node.position.x * zoom + pan.x}px`,
+            top: `${node.position.y * zoom + pan.y}px`,
+            width: `${node.size.x * zoom}px`,
+            height: `${node.size.y * zoom}px`,
+            pointerEvents: 'none',
+          }"
+        >
+          <div 
+            v-for="handle in ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w']" 
+            :key="handle"
+            :class="['resize-handle', `resize-handle-${handle}`]"
+            :style="{ pointerEvents: 'auto' }"
+            @pointerdown.stop="handleResizeHandlePointerDown($event, node.id, handle)"
+          ></div>
+        </div>
+      </template>
+    </template>
   </section>
 </template>
 
@@ -641,6 +774,82 @@ onBeforeUnmount(teardownListeners);
   font-size: 11px;
   color: var(--qui-text-secondary);
   opacity: 0.7;
+}
+
+/* Resize handles */
+.resize-handles {
+  position: absolute;
+  pointer-events: none;
+  z-index: 1000;
+}
+
+.resize-handle {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: rgba(0, 255, 194, 0.9);
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  border-radius: 2px;
+  pointer-events: auto;
+  transition: all 0.2s;
+}
+
+.resize-handle:hover {
+  background: rgba(0, 255, 255, 1);
+  transform: scale(1.3);
+  box-shadow: 0 0 8px rgba(0, 255, 194, 0.8);
+}
+
+.resize-handle-nw {
+  top: -5px;
+  left: -5px;
+  cursor: nw-resize;
+}
+
+.resize-handle-n {
+  top: -5px;
+  left: 50%;
+  transform: translateX(-50%);
+  cursor: n-resize;
+}
+
+.resize-handle-ne {
+  top: -5px;
+  right: -5px;
+  cursor: ne-resize;
+}
+
+.resize-handle-e {
+  top: 50%;
+  right: -5px;
+  transform: translateY(-50%);
+  cursor: e-resize;
+}
+
+.resize-handle-se {
+  bottom: -5px;
+  right: -5px;
+  cursor: se-resize;
+}
+
+.resize-handle-s {
+  bottom: -5px;
+  left: 50%;
+  transform: translateX(-50%);
+  cursor: s-resize;
+}
+
+.resize-handle-sw {
+  bottom: -5px;
+  left: -5px;
+  cursor: sw-resize;
+}
+
+.resize-handle-w {
+  top: 50%;
+  left: -5px;
+  transform: translateY(-50%);
+  cursor: w-resize;
 }
 
 .builder-canvas-wrapper__select-box {
