@@ -1567,6 +1567,7 @@ onMounted(async () => {
             @nodes-move-end="handleNodesMoveEnd"
             @canvas-clicked="handleCanvasClick"
             @drag-select-complete="handleDragSelectComplete"
+            @add-to-container="handleAddToContainer"
           />
           <div v-if="!hasFaceplateSelected" class="workspace__overlay">
             <div class="workspace__overlay-content">

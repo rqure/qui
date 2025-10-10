@@ -486,6 +486,11 @@ const ComponentNode = {
   transition: border 0.18s ease, box-shadow 0.18s ease;
 }
 
+/* In runtime mode, make button wrapper transparent to pointer events */
+.faceplate-canvas:not(.faceplate-canvas--edit-mode) .faceplate-canvas__component {
+  pointer-events: none;
+}
+
 .faceplate-canvas__component--interactive {
   cursor: grab;
 }
@@ -516,6 +521,11 @@ const ComponentNode = {
   border-radius: inherit;
 }
 
+/* Enable pointer events for runtime mode */
+.faceplate-canvas:not(.faceplate-canvas--edit-mode) .faceplate-canvas__component-content {
+  pointer-events: auto;
+}
+
 /* Container specific styles */
 .faceplate-canvas__component--container .faceplate-canvas__component-content {
   position: relative;
@@ -536,12 +546,13 @@ const ComponentNode = {
 /* In edit mode, keep absolute positioning for manual layout */
 .faceplate-canvas--edit-mode .faceplate-canvas__component--inside-container {
   position: absolute;
+  opacity: 0.85;
+  border: 1px dashed rgba(100, 150, 255, 0.4);
 }
 
 /* Drop target highlighting during drag-to-contain */
 .faceplate-canvas__component--drop-target {
   box-shadow: inset 0 0 0 3px rgba(0, 255, 194, 0.6), 0 0 12px rgba(0, 255, 194, 0.4) !important;
-  background-color: rgba(0, 255, 194, 0.08) !important;
   animation: pulse-glow 1.5s ease-in-out infinite;
 }
 

@@ -246,7 +246,7 @@ export const PRIMITIVE_REGISTRY: PrimitiveDefinition[] = [
     category: 'Layout',
     defaultSize: { x: 300, y: 240 },
     defaultProps: {
-      backgroundColor: 'rgba(0, 0, 0, 0.2)',
+      backgroundColor: 'transparent',
       borderColor: 'rgba(255, 255, 255, 0.1)',
       borderWidth: 1,
       cornerRadius: 12,
@@ -261,7 +261,7 @@ export const PRIMITIVE_REGISTRY: PrimitiveDefinition[] = [
       opacity: 1,
     },
     propertySchema: [
-      { key: 'backgroundColor', label: 'Background', type: 'color', default: 'rgba(0, 0, 0, 0.2)' },
+      { key: 'backgroundColor', label: 'Background', type: 'color', default: 'transparent' },
       { key: 'borderColor', label: 'Border Color', type: 'color', default: 'rgba(255, 255, 255, 0.1)' },
       { key: 'borderWidth', label: 'Border Width', type: 'number', default: 1, min: 0, max: 10 },
       { key: 'cornerRadius', label: 'Corner Radius', type: 'number', default: 12, min: 0, max: 50 },
@@ -330,7 +330,7 @@ export const PRIMITIVE_REGISTRY: PrimitiveDefinition[] = [
     category: 'Layout',
     defaultSize: { x: 400, y: 300 },
     defaultProps: {
-      backgroundColor: 'rgba(0, 0, 0, 0.2)',
+      backgroundColor: 'transparent',
       borderColor: 'rgba(255, 255, 255, 0.1)',
       borderWidth: 1,
       cornerRadius: 12,
@@ -349,7 +349,7 @@ export const PRIMITIVE_REGISTRY: PrimitiveDefinition[] = [
       ],
     },
     propertySchema: [
-      { key: 'backgroundColor', label: 'Background', type: 'color', default: 'rgba(0, 0, 0, 0.2)' },
+      { key: 'backgroundColor', label: 'Background', type: 'color', default: 'transparent' },
       { key: 'borderColor', label: 'Border Color', type: 'color', default: 'rgba(255, 255, 255, 0.1)' },
       { key: 'borderWidth', label: 'Border Width', type: 'number', default: 1, min: 0, max: 10 },
       { key: 'cornerRadius', label: 'Corner Radius', type: 'number', default: 12, min: 0, max: 50 },
