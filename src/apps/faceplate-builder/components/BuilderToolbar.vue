@@ -8,6 +8,7 @@ const props = defineProps<{
   targetEntityType?: string;
   viewportWidth?: number;
   viewportHeight?: number;
+  isSaving?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -38,7 +39,8 @@ function handleViewportInput(axis: 'width' | 'height', event: Event) {
         <span v-if="props.targetEntityType" class="toolbar__badge toolbar__badge--type">{{ props.targetEntityType }}</span>
       </div>
       <span v-else class="toolbar__badge toolbar__badge--warning">No faceplate selected</span>
-      <span v-if="props.dirty" class="toolbar__badge">Unsaved</span>
+      <span v-if="props.isSaving" class="toolbar__badge toolbar__badge--saving">Saving...</span>
+      <span v-else-if="props.dirty" class="toolbar__badge">Unsaved</span>
       <div class="toolbar__viewport">
         <label>
           <span>W:</span>
@@ -101,6 +103,17 @@ function handleViewportInput(axis: 'width' | 'height', event: Event) {
 .toolbar__badge--warning {
   background: rgba(255, 150, 0, 0.16);
   border-color: rgba(255, 150, 0, 0.32);
+}
+
+.toolbar__badge--saving {
+  background: rgba(0, 170, 255, 0.16);
+  border-color: rgba(0, 170, 255, 0.32);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
 }
 
 .toolbar__faceplate-info {

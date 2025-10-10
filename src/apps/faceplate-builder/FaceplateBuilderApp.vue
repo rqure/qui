@@ -788,6 +788,7 @@ async function saveWorkspace() {
   
   try {
     isSaving.value = true;
+    console.log('Starting faceplate save...');
     
     // Show selector with new form if new faceplate
     if (!currentFaceplateId.value) {
@@ -797,6 +798,7 @@ async function saveWorkspace() {
     }
     
     // Delete old components before creating new ones
+    console.log('Deleting old components...');
     const existingFaceplate = await faceplateService.readFaceplate(currentFaceplateId.value);
     if (existingFaceplate.components.length > 0) {
       await Promise.all(existingFaceplate.components.map(compId => 
@@ -1132,6 +1134,7 @@ onMounted(async () => {
       :target-entity-type="currentTargetEntityType"
       :viewport-width="viewportSize.x"
       :viewport-height="viewportSize.y"
+      :is-saving="isSaving"
       @undo="undo"
       @redo="redo"
       @save="saveWorkspace"

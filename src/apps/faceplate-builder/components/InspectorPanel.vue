@@ -364,11 +364,11 @@ function updateTabName(tabId: string, newName: string) {
         <div class="inspector__grid">
           <label class="inspector__field">
             <span>Width (px)</span>
-            <input type="number" min="60" step="20" :value="node.size.x" @input="handleSizeChange('x', $event)" />
+            <input type="number" min="10" step="5" :value="node.size.x" @input="handleSizeChange('x', $event)" />
           </label>
           <label class="inspector__field">
             <span>Height (px)</span>
-            <input type="number" min="60" step="20" :value="node.size.y" @input="handleSizeChange('y', $event)" />
+            <input type="number" min="10" step="5" :value="node.size.y" @input="handleSizeChange('y', $event)" />
           </label>
         </div>
         <div class="inspector__actions">
@@ -532,6 +532,9 @@ function updateTabName(tabId: string, newName: string) {
                   <input
                     type="number"
                     :value="Number(node?.props?.[row.definition.key] ?? row.definition.default ?? 0)"
+                    :min="row.definition.min"
+                    :max="row.definition.max"
+                    :step="row.definition.step ?? 1"
                     :disabled="Boolean(row.binding)"
                     @input="handlePropInput(row.definition, $event)"
                   />

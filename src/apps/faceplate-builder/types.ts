@@ -6,10 +6,13 @@ export type Vector2 = {
 export type PrimitivePropertyDefinition = {
   key: string;
   label: string;
-  type: 'string' | 'number' | 'boolean' | 'option';
+  type: 'string' | 'number' | 'boolean' | 'option' | 'color';
   description?: string;
   options?: Array<{ label: string; value: string }>;
   default?: unknown;
+  min?: number;
+  max?: number;
+  step?: number;
 };
 
 export type PrimitiveDefinition = {

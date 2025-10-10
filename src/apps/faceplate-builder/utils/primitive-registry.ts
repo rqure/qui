@@ -374,6 +374,150 @@ export const PRIMITIVE_REGISTRY: PrimitiveDefinition[] = [
       { key: 'opacity', label: 'Opacity', type: 'number', default: 1, min: 0, max: 1, step: 0.1 },
     ],
   },
+
+  // Line Shape
+  {
+    id: 'primitive.shape.line',
+    label: 'Line',
+    description: 'Straight line with configurable stroke.',
+    icon: '➖',
+    category: 'Shapes',
+    defaultSize: { x: 200, y: 2 },
+    defaultProps: {
+      strokeColor: 'rgba(255, 255, 255, 0.8)',
+      strokeWidth: 2,
+      lineStyle: 'solid',
+      lineCap: 'butt',
+    },
+    propertySchema: [
+      { key: 'strokeColor', label: 'Stroke Color', type: 'color', default: 'rgba(255, 255, 255, 0.8)' },
+      { key: 'strokeWidth', label: 'Stroke Width', type: 'number', default: 2, min: 1, max: 20 },
+      {
+        key: 'lineStyle',
+        label: 'Line Style',
+        type: 'option',
+        default: 'solid',
+        options: [
+          { label: 'Solid', value: 'solid' },
+          { label: 'Dashed', value: 'dashed' },
+          { label: 'Dotted', value: 'dotted' },
+        ],
+      },
+      {
+        key: 'lineCap',
+        label: 'Line Cap',
+        type: 'option',
+        default: 'butt',
+        options: [
+          { label: 'Butt', value: 'butt' },
+          { label: 'Round', value: 'round' },
+          { label: 'Square', value: 'square' },
+        ],
+      },
+    ],
+  },
+
+  // Polygon Shape
+  {
+    id: 'primitive.shape.polygon',
+    label: 'Polygon',
+    description: 'Regular polygon with configurable number of sides.',
+    icon: '⬡',
+    category: 'Shapes',
+    defaultSize: { x: 120, y: 120 },
+    defaultProps: {
+      sides: 6,
+      fillColor: 'rgba(255, 100, 200, 0.5)',
+      borderColor: 'rgba(255, 255, 255, 0.2)',
+      borderWidth: 1,
+      rotation: 0,
+    },
+    propertySchema: [
+      { key: 'sides', label: 'Number of Sides', type: 'number', default: 6, min: 3, max: 20 },
+      { key: 'fillColor', label: 'Fill Color', type: 'color', default: 'rgba(255, 100, 200, 0.5)' },
+      { key: 'borderColor', label: 'Border Color', type: 'color', default: 'rgba(255, 255, 255, 0.2)' },
+      { key: 'borderWidth', label: 'Border Width', type: 'number', default: 1, min: 0, max: 10 },
+      { key: 'rotation', label: 'Rotation', type: 'number', default: 0, min: 0, max: 360 },
+    ],
+  },
+
+  // Arc Shape
+  {
+    id: 'primitive.shape.arc',
+    label: 'Arc',
+    description: 'Circular arc with configurable start and end angles.',
+    icon: '◜',
+    category: 'Shapes',
+    defaultSize: { x: 120, y: 120 },
+    defaultProps: {
+      startAngle: 0,
+      endAngle: 180,
+      strokeColor: 'rgba(100, 200, 255, 0.8)',
+      strokeWidth: 3,
+      fillColor: 'transparent',
+    },
+    propertySchema: [
+      { key: 'startAngle', label: 'Start Angle', type: 'number', default: 0, min: 0, max: 360 },
+      { key: 'endAngle', label: 'End Angle', type: 'number', default: 180, min: 0, max: 360 },
+      { key: 'strokeColor', label: 'Stroke Color', type: 'color', default: 'rgba(100, 200, 255, 0.8)' },
+      { key: 'strokeWidth', label: 'Stroke Width', type: 'number', default: 3, min: 1, max: 20 },
+      { key: 'fillColor', label: 'Fill Color', type: 'color', default: 'transparent' },
+    ],
+  },
+
+  // Image
+  {
+    id: 'primitive.media.image',
+    label: 'Image',
+    description: 'Display image from URL with fit/fill options.',
+    icon: '🖼️',
+    category: 'Data',
+    defaultSize: { x: 200, y: 200 },
+    defaultProps: {
+      url: '',
+      alt: 'Image',
+      objectFit: 'contain',
+      opacity: 1,
+    },
+    propertySchema: [
+      { key: 'url', label: 'Image URL', type: 'string', default: '' },
+      { key: 'alt', label: 'Alt Text', type: 'string', default: 'Image' },
+      {
+        key: 'objectFit',
+        label: 'Object Fit',
+        type: 'option',
+        default: 'contain',
+        options: [
+          { label: 'Contain', value: 'contain' },
+          { label: 'Cover', value: 'cover' },
+          { label: 'Fill', value: 'fill' },
+          { label: 'None', value: 'none' },
+          { label: 'Scale Down', value: 'scale-down' },
+        ],
+      },
+      { key: 'opacity', label: 'Opacity', type: 'number', default: 1, min: 0, max: 1, step: 0.1 },
+    ],
+  },
+
+  // Group (Logical grouping)
+  {
+    id: 'primitive.group',
+    label: 'Group',
+    description: 'Logical grouping for combined transforms and visibility control.',
+    icon: '📁',
+    category: 'Layout',
+    defaultSize: { x: 300, y: 240 },
+    defaultProps: {
+      visible: true,
+      opacity: 1,
+      rotation: 0,
+    },
+    propertySchema: [
+      { key: 'visible', label: 'Visible', type: 'boolean', default: true },
+      { key: 'opacity', label: 'Opacity', type: 'number', default: 1, min: 0, max: 1, step: 0.1 },
+      { key: 'rotation', label: 'Rotation', type: 'number', default: 0, min: 0, max: 360 },
+    ],
+  },
 ];
 
 /**

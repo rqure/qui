@@ -224,6 +224,102 @@ const normalizedType = computed(() => props.type.toLowerCase());
       </div>
     </div>
 
+    <!-- Line Shape -->
+    <svg v-else-if="normalizedType === 'primitive.shape.line'" 
+      class="shape-line" 
+      width="100%" 
+      height="100%" 
+      preserveAspectRatio="none">
+      <line 
+        x1="0" 
+        y1="50%" 
+        x2="100%" 
+        y2="50%" 
+        :stroke="config.strokeColor"
+        :stroke-width="config.strokeWidth"
+        :stroke-dasharray="config.lineStyle === 'dashed' ? '8,4' : config.lineStyle === 'dotted' ? '2,2' : 'none'"
+        :stroke-linecap="config.lineCap" />
+    </svg>
+
+    <!-- Polygon Shape -->
+    <svg v-else-if="normalizedType === 'primitive.shape.polygon'" 
+      class="shape-polygon" 
+      width="100%" 
+      height="100%" 
+      :viewBox="`0 0 100 100`">
+      <polygon 
+        :points="(() => {
+          const sides = config.sides || 6;
+          const cx = 50, cy = 50, r = 45;
+          const rotation = (config.rotation || 0) * Math.PI / 180;
+          return Array.from({ length: sides }, (_, i) => {
+            const angle = (2 * Math.PI * i / sides) - Math.PI / 2 + rotation;
+            const x = cx + r * Math.cos(angle);
+            const y = cy + r * Math.sin(angle);
+            return `${x},${y}`;
+          }).join(' ');
+        })()"
+        :fill="config.fillColor"
+        :stroke="config.borderColor"
+        :stroke-width="config.borderWidth" />
+    </svg>
+
+    <!-- Arc Shape -->
+    <svg v-else-if="normalizedType === 'primitive.shape.arc'" 
+      class="shape-arc" 
+      width="100%" 
+      height="100%" 
+      :viewBox="`0 0 100 100`">
+      <path 
+        :d="(() => {
+          const cx = 50, cy = 50, r = 45;
+          const startAngle = (config.startAngle || 0) * Math.PI / 180;
+          const endAngle = (config.endAngle || 180) * Math.PI / 180;
+          const x1 = cx + r * Math.cos(startAngle - Math.PI / 2);
+          const y1 = cy + r * Math.sin(startAngle - Math.PI / 2);
+          const x2 = cx + r * Math.cos(endAngle - Math.PI / 2);
+          const y2 = cy + r * Math.sin(endAngle - Math.PI / 2);
+          const largeArc = (endAngle - startAngle) > Math.PI ? 1 : 0;
+          return `M ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2}`;
+        })()"
+        :fill="config.fillColor"
+        :stroke="config.strokeColor"
+        :stroke-width="config.strokeWidth"
+        stroke-linecap="round" />
+    </svg>
+
+    <!-- Image -->
+    <div v-else-if="normalizedType === 'primitive.media.image'" class="image-primitive"
+      :style="{ opacity: config.opacity || 1 }">
+      <img 
+        v-if="config.url" 
+        :src="config.url" 
+        :alt="config.alt || 'Image'"
+        :style="{ 
+          width: '100%', 
+          height: '100%', 
+          objectFit: config.objectFit || 'contain' 
+        }" />
+      <div v-else class="image-placeholder">
+        <span>🖼️</span>
+        <span>No image URL</span>
+      </div>
+    </div>
+
+    <!-- Group -->
+    <div v-else-if="normalizedType === 'primitive.group'"
+      v-show="getValue('visible', true)"
+      class="group-primitive"
+      :style="{ 
+        opacity: getValue('opacity', 1),
+        transform: `rotate(${config.rotation || 0}deg)`,
+        transformOrigin: 'center'
+      }">
+      <slot>
+        <span v-if="editMode" class="container-placeholder">Empty Group</span>
+      </slot>
+    </div>
+
     <!-- Fallback -->
     <div v-else class="primitive-fallback">
       <div class="fallback-type">{{ type }}</div>
@@ -431,6 +527,42 @@ const normalizedType = computed(() => props.type.toLowerCase());
   align-items: center;
   justify-content: center;
   overflow: auto;
+}
+
+.shape-line,
+.shape-polygon,
+.shape-arc {
+  width: 100%;
+  height: 100%;
+}
+
+.image-primitive {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.image-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  opacity: 0.5;
+  font-size: 14px;
+}
+
+.image-placeholder span:first-child {
+  font-size: 32px;
+}
+
+.group-primitive {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .primitive-fallback {

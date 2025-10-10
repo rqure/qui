@@ -99,7 +99,7 @@ export class IndirectFieldNotifier {
         this.onValueChange(extractedValue);
       } else {
         // Intermediate segment - check if entity reference changed
-        if (ValueHelpers.isEntityRef(value)) {
+        if (value && ValueHelpers.isEntityRef(value)) {
           const newEntityId = value.EntityReference;
 
           // If the entity reference changed, cleanup and re-register downstream path
