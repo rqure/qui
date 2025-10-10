@@ -4,6 +4,7 @@ import type { EntityId } from '@/core/data/types';
 import { useDataStore } from '@/stores/data';
 import { FaceplateDataService } from '@/apps/faceplate-builder/utils/faceplate-data';
 import FaceplateRuntime from './FaceplateRuntime.vue';
+import { logger } from '@/apps/faceplate-builder/utils/logger';
 
 const props = defineProps<{
   faceplateId: EntityId;
@@ -34,8 +35,7 @@ async function loadFaceplateMeta() {
     const record = await service.readFaceplate(props.faceplateId);
     faceplateName.value = record.name;
   } catch (err) {
-    console.warn('Failed to load faceplate metadata', err);
-    faceplateName.value = `Faceplate ${props.faceplateId}`;
+    logger.warn('Failed to load faceplate metadata:', err);
   }
 }
 
@@ -44,7 +44,7 @@ async function loadEntityName(entityId: EntityId) {
     const name = await service.readString(entityId, 'Name', `Entity ${entityId}`);
     entityName.value = name;
   } catch (err) {
-    console.warn('Failed to read entity name', err);
+    logger.warn('Failed to read entity name:', err);
     entityName.value = `Entity ${entityId}`;
   }
 }

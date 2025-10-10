@@ -7,6 +7,7 @@ import FaceplateCanvas, { type CanvasComponent } from './FaceplateCanvas.vue';
 import { FaceplateDataService, type FaceplateComponentRecord, type FaceplateRecord, type FaceplateBindingDefinition, type FaceplateScriptModule } from '@/apps/faceplate-builder/utils/faceplate-data';
 import type { BindingMode } from '@/apps/faceplate-builder/types';
 import { IndirectFieldNotifier } from '@/apps/faceplate-builder/utils/indirect-field-notifier';
+import { logger } from '@/apps/faceplate-builder/utils/logger';
 
 interface RenderSlot {
   id: EntityId;
@@ -83,6 +84,7 @@ const faceplate = ref<FaceplateRecord | null>(null);
 const components = ref<FaceplateComponentRecord[]>([]);
 const loading = ref(true);
 const error = ref<string | null>(null);
+const scriptCompilationErrors = ref<Array<{ module: string; error: string }>>([]);
 const isLive = computed(() => props.live !== false);
 
 const bindingValueMap = reactive<Record<string, unknown>>({});
@@ -330,7 +332,7 @@ async function initialize() {
       registerNotifications()
     ]);
   } catch (err) {
-    console.error('FaceplateRuntime initialization failed', err);
+    logger.error('FaceplateRuntime initialization failed:', err);
     error.value = err instanceof Error ? err.message : 'Failed to load faceplate';
   } finally {
     loading.value = false;
@@ -380,6 +382,8 @@ function collectBindingDependencies(
 
 function compileFaceplateScriptModules(modules: FaceplateScriptModule[]) {
   scriptModuleExports.clear();
+  scriptCompilationErrors.value = [];
+  
   modules.forEach((moduleDef, index) => {
     const name = moduleDef?.name?.trim() || `module-${index + 1}`;
     const code = moduleDef?.code ?? '';
@@ -400,7 +404,9 @@ function compileFaceplateScriptModules(modules: FaceplateScriptModule[]) {
       const exports = moduleObj.exports || exportsRef;
       scriptModuleExports.set(name, exports as Record<string, unknown>);
     } catch (error) {
-      console.warn(`Failed to compile faceplate script module ${name}`, error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      scriptCompilationErrors.value.push({ module: name, error: errorMessage });
+      logger.error(`Failed to compile faceplate script module "${name}":`, error);
     }
   });
 }
@@ -464,7 +470,7 @@ async function evaluateScriptExpression(expressionKey: string, source: string): 
     const result = await fn(context, getScriptHelpers());
     return result;
   } catch (error) {
-    console.warn('Faceplate script evaluation failed', error);
+    logger.warn('Faceplate script evaluation failed:', error);
     return null;
   }
 }
@@ -747,7 +753,7 @@ async function getFieldPath(expression: string): Promise<FieldType[]> {
       const fieldType = await service.getFieldType(segment);
       fieldTypes.push(fieldType);
     } catch (error) {
-      console.warn(`Unable to resolve field type for segment "${segment}" in expression "${expression}"`, error);
+      logger.warn(`Unable to resolve field type for segment "${segment}" in expression "${expression}":`, error);
       bindingPaths.set(expression, []);
       return [];
     }
@@ -817,7 +823,7 @@ function applyTransform(transform: string | null | undefined, value: unknown, co
     );
     return fn(value, context, context.helpers);
   } catch (error) {
-    console.warn('Failed to apply transform', transform, error);
+    logger.warn('Failed to apply transform:', transform, error);
     return value;
   }
 }
@@ -879,7 +885,7 @@ async function registerNotifications() {
                     updateBindingsForExpression(expressionKey, value);
                   })
                   .catch((error) => {
-                    console.warn('Failed to refresh binding after notification', error);
+                    logger.warn('Failed to refresh binding after notification:', error);
                   });
               }
             });
@@ -889,7 +895,7 @@ async function registerNotifications() {
         await notifier.start();
         indirectNotifiers.set(dependency, notifier);
       } catch (error) {
-        console.warn(`Failed to start IndirectFieldNotifier for dependency ${dependency}`, error);
+        logger.warn(`Failed to start IndirectFieldNotifier for dependency ${dependency}:`, error);
       }
       continue;
     }
@@ -900,7 +906,7 @@ async function registerNotifications() {
     
     // Skip if target is invalid or missing required fields
     if (!target || target.entityId == null || target.fieldType == null) {
-      console.warn(`Skipping notification registration for dependency ${dependency}: invalid target`, target);
+      logger.warn(`Skipping notification registration for dependency ${dependency}: invalid target`, target);
       continue;
     }
 
@@ -939,7 +945,7 @@ async function registerNotifications() {
               updateBindingsForExpression(expressionKey, value);
             })
             .catch((error) => {
-              console.warn('Failed to refresh binding after notification', error);
+              logger.warn('Failed to refresh binding after notification:', error);
             });
         }
       });
@@ -949,19 +955,25 @@ async function registerNotifications() {
       await dataStore.registerNotification(notifyConfig, callback);
       subscriptions.push({ config: notifyConfig, callback });
     } catch (error) {
-      console.warn(`Failed to register notification for dependency ${dependency}`, error);
+      logger.warn(`Failed to register notification for dependency ${dependency}:`, error);
     }
   }
 }
 
 async function cleanupNotifications() {
   // Stop all indirect field notifiers
-  const notifierStops = Array.from(indirectNotifiers.values()).map((notifier) => notifier.stop().catch(() => undefined));
+  const notifierStops = Array.from(indirectNotifiers.values()).map((notifier) => 
+    notifier.stop().catch((err) => {
+      logger.warn('Failed to stop IndirectFieldNotifier during cleanup:', err);
+    })
+  );
   indirectNotifiers.clear();
 
   // Unregister all direct notifications
   const subscriptionCleanup = subscriptions.map(({ config, callback }) => 
-    dataStore.unregisterNotification(config, callback).catch(() => undefined)
+    dataStore.unregisterNotification(config, callback).catch((err) => {
+      logger.warn('Failed to unregister notification during cleanup:', err);
+    })
   );
   subscriptions = [];
 
@@ -998,6 +1010,16 @@ onMounted(async () => {
 
 onBeforeUnmount(async () => {
   await cleanupNotifications();
+  
+  // Clear all caches to prevent memory leaks
+  scriptCache.clear();
+  scriptState.clear();
+  scriptModuleExports.clear();
+  bindingPaths.clear();
+  bindingTargets.clear();
+  expressionTargets.clear();
+  expressionMeta.clear();
+  dependencyIndex.clear();
 });
 
 defineExpose({
@@ -1011,6 +1033,12 @@ defineExpose({
     <div v-else-if="error" class="runtime-state error">{{ error }}</div>
     <div v-else-if="!faceplate" class="runtime-state empty">No faceplate selected</div>
     <div v-else-if="!entityId" class="runtime-state empty">Select an entity to drive this faceplate (entityId: {{ entityId }})</div>
+    <div v-else-if="scriptCompilationErrors.length > 0" class="script-errors">
+      <div class="script-errors__header">⚠️ Script Compilation Errors</div>
+      <div v-for="(err, idx) in scriptCompilationErrors" :key="idx" class="script-errors__item">
+        <strong>{{ err.module }}:</strong> {{ err.error }}
+      </div>
+    </div>
     <FaceplateCanvas
       v-else
       class="faceplate-runtime__canvas"
@@ -1052,5 +1080,39 @@ defineExpose({
   border: none;
   border-radius: 0;
   background: transparent;
+}
+
+.script-errors {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  max-width: 400px;
+  background: rgba(139, 0, 0, 0.95);
+  border: 1px solid rgba(255, 100, 100, 0.5);
+  border-radius: 8px;
+  padding: 12px 16px;
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.script-errors__header {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: #ffcccc;
+}
+
+.script-errors__item {
+  font-size: 12px;
+  font-family: 'Courier New', monospace;
+  margin: 6px 0;
+  padding: 6px 8px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
+  color: #ffdddd;
+}
+
+.script-errors__item strong {
+  color: #ffaaaa;
 }
 </style>

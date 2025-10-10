@@ -85,10 +85,9 @@ function safeParseJson<T>(input: string | null | undefined, fallback: T): T {
     return fallback;
   }
   try {
-    const parsed = JSON.parse(input);
-    return (parsed ?? fallback) as T;
+    return JSON.parse(input) as T;
   } catch (error) {
-    console.warn('Failed to parse JSON', input, error);
+    logger.warn('Failed to parse JSON:', input, error);
     return fallback;
   }
 }

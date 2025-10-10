@@ -13,6 +13,7 @@ import {
   MIN_VIEWPORT_WIDTH,
   MIN_VIEWPORT_HEIGHT,
 } from './constants';
+import { logger } from './utils/logger';
 import { PRIMITIVE_REGISTRY } from './utils/primitive-registry';
 import type { FaceplateNotificationChannel, FaceplateScriptModule } from './utils/faceplate-data';
 import type { EntityId } from '@/core/data/types';
@@ -867,7 +868,7 @@ async function saveWorkspace() {
   
   try {
     isSaving.value = true;
-    console.log('Starting faceplate save...');
+    logger.info('Starting faceplate save...');
     
     // Show selector with new form if new faceplate
     if (!currentFaceplateId.value) {
@@ -978,7 +979,7 @@ async function saveWorkspace() {
     if (oldComponentIds.length > 0) {
       await Promise.all(oldComponentIds.map(compId => 
         faceplateService.deleteComponent(compId).catch((err) => {
-          console.warn(`Failed to delete old component ${compId}:`, err);
+          logger.warn(`Failed to delete old component ${compId}:`, err);
         })
       ));
     }
@@ -986,7 +987,7 @@ async function saveWorkspace() {
     faceplateMetadata.value = metadata;
     markSaved();
   } catch (error) {
-    console.error('Failed to save faceplate:', error);
+    logger.error('Failed to save faceplate:', error);
   } finally {
     isSaving.value = false;
   }
@@ -1003,7 +1004,7 @@ async function handleSelectorSelect(faceplateId: EntityId) {
   try {
     await loadFaceplateData(faceplateId);
   } catch (error) {
-    console.error('Failed to load faceplate:', error);
+    logger.error('Failed to load faceplate:', error);
   }
 }
 
@@ -1020,7 +1021,7 @@ function findTemplateForPrimitive(primitiveId: string): string {
 
 function newWorkspace() {
   if (dirty.value) {
-    console.log('Warning: You have unsaved changes.');
+    logger.warn('Warning: You have unsaved changes.');
   }
   // Show selector in 'new' mode
   selectorStartInNewMode.value = true;
@@ -1053,9 +1054,9 @@ async function handleSelectorNew(faceplateId: EntityId) {
     
     pushHistory();
     markSaved();
-    console.log(`New faceplate "${faceplate.name}" ready for editing!`);
+    logger.info(`New faceplate "${faceplate.name}" ready for editing!`);
   } catch (error) {
-    console.error('Failed to initialize new faceplate:', error);
+    logger.error('Failed to initialize new faceplate:', error);
   }
 }
 
@@ -1081,7 +1082,7 @@ onMounted(async () => {
     try {
       await loadFaceplateData(props.faceplateId);
     } catch (error) {
-      console.error('Failed to load faceplate on mount:', error);
+      logger.error('Failed to load faceplate on mount:', error);
     }
   }
 });

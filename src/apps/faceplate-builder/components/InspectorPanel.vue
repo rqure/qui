@@ -280,6 +280,15 @@ function handleParentChange(event: Event) {
   }
 }
 
+// Quick add to container
+const quickAddContainerId = ref<string>('');
+
+function handleQuickAddToContainer() {
+  if (!props.node || !quickAddContainerId.value) return;
+  emit('add-to-container', { nodeIds: [props.node.id], containerId: quickAddContainerId.value });
+  quickAddContainerId.value = ''; // Reset selection after adding
+}
+
 // Tab Container management
 const isTabContainer = computed(() => {
   return props.node?.componentId === 'primitive.container.tabs';
@@ -385,6 +394,38 @@ function updateTabName(tabId: string, newName: string) {
           <button type="button" class="inspector__secondary" @click="handleSendBackward">Send Backward</button>
         </div>
         <button type="button" class="inspector__danger" @click="handleDeleteClick">Delete Component</button>
+      </section>
+
+      <!-- Quick Add to Container Section (shown when not in a container and containers exist) -->
+      <section v-if="!node.parentId && allContainers && allContainers.length > 0" class="inspector__section">
+        <header><h3>Quick Actions</h3></header>
+        <div class="quick-actions">
+          <label class="inspector__field">
+            <span>Add to Container</span>
+            <select 
+              v-model="quickAddContainerId"
+              class="inspector__select"
+            >
+              <option value="">Select a container...</option>
+              <option 
+                v-for="container in allContainers" 
+                :key="container.id" 
+                :value="container.id"
+                :disabled="container.id === node.id"
+              >
+                {{ container.name }}
+              </option>
+            </select>
+          </label>
+          <button 
+            type="button" 
+            class="inspector__primary"
+            :disabled="!quickAddContainerId"
+            @click="handleQuickAddToContainer"
+          >
+            Add to Container
+          </button>
+        </div>
       </section>
 
       <!-- Container Hierarchy Section -->
@@ -1064,6 +1105,57 @@ function updateTabName(tabId: string, newName: string) {
 
 .inspector__danger-link:hover {
   opacity: 0.8;
+}
+
+/* Quick Actions Styles */
+.quick-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.inspector__select {
+  width: 100%;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  color: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.inspector__select:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.inspector__select:focus {
+  outline: none;
+  border-color: rgba(0, 255, 170, 0.5);
+}
+
+.inspector__primary {
+  padding: 10px 16px;
+  background: linear-gradient(135deg, rgba(0, 255, 170, 0.25), rgba(0, 200, 255, 0.25));
+  border: 1px solid rgba(0, 255, 170, 0.4);
+  border-radius: 8px;
+  color: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.inspector__primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, rgba(0, 255, 170, 0.35), rgba(0, 200, 255, 0.35));
+  border-color: rgba(0, 255, 170, 0.6);
+  transform: translateY(-1px);
+}
+
+.inspector__primary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 /* Tab Management Styles */

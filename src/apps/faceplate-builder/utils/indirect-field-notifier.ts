@@ -9,6 +9,7 @@
 
 import type { EntityId, FieldType, NotifyConfig, Notification } from '@/core/data/types';
 import { ValueHelpers } from '@/core/data/types';
+import { logger } from './logger';
 
 // Type for the data store instance returned by useDataStore()
 type DataStoreInstance = ReturnType<typeof import('@/stores/data').useDataStore>;
@@ -50,7 +51,7 @@ export class IndirectFieldNotifier {
     try {
       await this.registerPath(this.startEntityId, 0);
     } catch (error) {
-      console.warn('Failed to start indirect field notifier:', error);
+      logger.warn('Failed to start indirect field notifier:', error);
       this.isActive = false;
     }
   }
