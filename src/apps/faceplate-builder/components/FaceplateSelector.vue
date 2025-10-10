@@ -129,14 +129,8 @@ async function handleCreate() {
 function handleCancelNew() {
   showNewForm.value = false;
   newFaceplateName.value = '';
-  newFaceplateType.value = '';
+  handleCancelNew();
 }
-
-onMounted(() => {
-  if (props.show) {
-    loadFaceplates();
-  }
-});
 
 watch(() => props.show, (newShow) => {
   if (newShow) {
@@ -147,7 +141,7 @@ watch(() => props.show, (newShow) => {
       showNewForm.value = false;
     }
   }
-});
+}, { immediate: true });
 </script>
 
 <template>
@@ -168,7 +162,7 @@ watch(() => props.show, (newShow) => {
         />
       </div>
       
-      <div v-if="loading" class="selector__loading">Loading faceplates...</div>
+      <div v-if="loading" class="selector__loading">s...</div>
       
       <div v-else-if="filteredFaceplates.length === 0" class="selector__empty">
         No faceplates found

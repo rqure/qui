@@ -1499,7 +1499,7 @@ defineExpose({
     </button>
     
     <FaceplateCanvas
-      v-if="faceplate && entityId"
+      v-if="!loading && !error && faceplate && entityId"
       class="faceplate-runtime__canvas"
       :components="canvasComponents"
       :viewport="viewportSize"
