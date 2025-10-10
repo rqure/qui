@@ -120,7 +120,35 @@ const allBindings = computed(() => {
     }));
   });
 
-  return [...fromConfig, ...fromRecord, ...componentLevel].filter((binding) => binding.component && binding.property && binding.expression);
+  // Normalize component references: if component field is a numeric ID, look up the name
+  const normalizeComponentRef = (binding: FaceplateBindingDefinition): FaceplateBindingDefinition => {
+    // Check if component is a numeric ID (as string or number)
+    const componentRef = String(binding.component || '');
+    if (/^\d+$/.test(componentRef)) {
+      // It's a numeric ID, look up the component name
+      const component = componentMap.value.get(componentRef);
+      if (component) {
+        return { ...binding, component: component.name };
+      }
+      logger.warn(`Binding references unknown component ID: ${componentRef}`);
+    }
+    return binding;
+  };
+
+  const allBindingsResult = [...fromConfig, ...fromRecord, ...componentLevel]
+    .filter((binding) => binding.component && binding.property && binding.expression)
+    .map(normalizeComponentRef);
+  
+  if (import.meta.env.DEV && allBindingsResult.length > 0) {
+    logger.debug('allBindings:', allBindingsResult.map(b => ({
+      component: b.component,
+      property: b.property,
+      expression: b.expression,
+      mode: b.mode
+    })));
+  }
+  
+  return allBindingsResult;
 });
 
 const componentMap = computed(() => {
@@ -686,6 +714,10 @@ async function evaluateAllBindings() {
     return;
   }
 
+  if (import.meta.env.DEV) {
+    logger.debug(`Evaluating ${expressionMeta.size} binding expressions`);
+  }
+
   // Evaluate all bindings in parallel for faster initialization
   const entries = Array.from(expressionMeta.entries());
   await Promise.all(
@@ -694,31 +726,12 @@ async function evaluateAllBindings() {
       updateBindingsForExpression(key, value);
     })
   );
-}
 
-async function evaluateExpression(expression: string): Promise<unknown> {
-  const literal = tryEvaluateLiteral(expression);
-  if (literal.found) {
-    expressionValueMap[expression] = literal.value;
-    return literal.value;
+  if (import.meta.env.DEV) {
+    logger.debug('Binding evaluation complete. bindingValueMap:', Object.fromEntries(
+      Object.entries(bindingValueMap).slice(0, 10) // Show first 10 for debugging
+    ));
   }
-
-  if (!props.entityId) {
-    expressionValueMap[expression] = null;
-    return null;
-  }
-
-  const path = await getFieldPath(expression);
-  if (path.length === 0) {
-    expressionValueMap[expression] = null;
-    return null;
-  }
-
-  const [value] = await dataStore.read(props.entityId, path);
-  const extracted = ValueHelpers.extract(value);
-  expressionValueMap[expression] = extracted;
-  await resolveBindingTarget(expression, path);
-  return extracted;
 }
 
 function tryEvaluateLiteral(expression: string): { found: boolean; value: unknown } {
@@ -777,7 +790,12 @@ async function resolveBindingTarget(expression: string, fieldPath: FieldType[]) 
 }
 
 function updateBindingsForExpression(expressionKey: string, value: unknown) {
-  if (!expressionTargets.has(expressionKey)) return;
+  if (!expressionTargets.has(expressionKey)) {
+    if (import.meta.env.DEV) {
+      logger.debug(`No targets found for expression key: ${expressionKey}`);
+    }
+    return;
+  }
 
   const targets = expressionTargets.get(expressionKey)!;
   targets.forEach((target) => {
@@ -793,6 +811,10 @@ function updateBindingsForExpression(expressionKey: string, value: unknown) {
       modules: () => Object.fromEntries(scriptModuleExports.entries()),
     });
     bindingValueMap[key] = transformed;
+
+    if (import.meta.env.DEV) {
+      logger.debug(`Updated binding: ${key} = ${JSON.stringify(transformed)}`);
+    }
 
     if (!componentLastUpdated[target.component]) {
       componentLastUpdated[target.component] = {};
