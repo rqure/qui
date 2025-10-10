@@ -254,7 +254,7 @@ const ComponentNode = {
     isInsideContainer: { type: Boolean, default: false },
     dropTargetContainerId: { type: [String, Number], default: null },
   },
-  emits: ['component-click', 'component-drag-start', 'component-contextmenu'],
+  emits: ['component-click', 'component-drag-start', 'component-contextmenu', 'event-triggered'],
   setup(props: any, { emit }: any) {
     const isContainerType = computed(() => {
       return isContainer(props.component.type);
@@ -405,6 +405,7 @@ const ComponentNode = {
             @component-click="$emit('component-click', $event)"
             @component-drag-start="$emit('component-drag-start', $event)"
             @component-contextmenu="$emit('component-contextmenu', $event)"
+            @event-triggered="$emit('event-triggered', $event)"
           />
         </template>
       </PrimitiveRenderer>
@@ -449,6 +450,7 @@ const ComponentNode = {
           @component-click="emit('component-click', $event)"
           @component-drag-start="emit('component-drag-start', $event)"
           @component-contextmenu="emit('component-contextmenu', $event)"
+          @event-triggered="emit('event-triggered', $event)"
         />
       </template>
 

@@ -219,8 +219,8 @@ const canvasComponents = computed<CanvasComponent[]>(() => {
     const layoutItem = layout.find(item => item.component === String(slot.id));
     const parentId = layoutItem?.parentId || null;
     
-    // Find event handlers for this component
-    const handlers = eventHandlersFromConfig.filter((h: any) => String(h.componentId) === String(slot.id));
+    // Find event handlers for this component (using component name, not ID)
+    const handlers = eventHandlersFromConfig.filter((h: any) => String(h.componentId) === slot.name);
     
     // Add automatic event handlers for twoWay bindings
     const componentBindings = allBindings.value.filter((b: any) => String(b.componentId) === String(slot.id));
@@ -1263,7 +1263,13 @@ async function executeScriptAction(action: any, componentValue: any, nativeEvent
 
   // Create execution context
   const context = {
-    get: (path: string) => service.readValue(props.entityId!, path),
+    get: (path: string) => {
+      if (path.includes('->')) {
+        return service.readValueIndirect(props.entityId!, path);
+      }
+      const value = service.readValue(props.entityId!, path);
+      return value.then(v => v ? ValueHelpers.extract(v) : null);
+    },
     getCached: (path: string) => expressionValueMap[path],
     set: (path: string, value: any) => {
       if (path.includes('->')) {
@@ -1291,7 +1297,8 @@ async function executeScriptAction(action: any, componentValue: any, nativeEvent
   };
 
   try {
-    const func = new Function('event', 'value', 'context', 'helpers', code);
+    // Create an async function to support await in user scripts
+    const func = new Function('event', 'value', 'context', 'helpers', `return (async () => { ${code} })();`);
     await func(nativeEvent, componentValue, context, helpers);
   } catch (error) {
     logger.error('Script execution failed:', error);

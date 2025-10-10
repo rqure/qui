@@ -295,8 +295,31 @@ export class FaceplateDataService {
   }
 
   /**
-   * Write a value using an indirect field path (e.g., "Parent->Name")
+   * Read a value using an indirect field path (e.g., "Parent->Name")
    */
+  async readValueIndirect(entityId: EntityId, fieldPath: string): Promise<any> {
+    const INDIRECTION_DELIMITER = '->';
+    
+    if (!fieldPath.includes(INDIRECTION_DELIMITER)) {
+      // No indirection, just read directly
+      const value = await this.readValue(entityId, fieldPath);
+      return value ? ValueHelpers.extract(value) : null;
+    }
+
+    // Resolve the field path to an array of FieldTypes
+    const segments = fieldPath.split(INDIRECTION_DELIMITER).map(s => s.trim());
+    const fieldTypes: FieldType[] = [];
+    
+    for (const segment of segments) {
+      const fieldType = await this.getFieldType(segment);
+      fieldTypes.push(fieldType);
+    }
+
+    // Use dataStore.read with the full field type array for indirect path
+    const [value] = await this.dataStore.read(entityId, fieldTypes);
+    return value ? ValueHelpers.extract(value) : null;
+  }
+
   async writeValueIndirect(entityId: EntityId, fieldPath: string, value: any): Promise<void> {
     const INDIRECTION_DELIMITER = '->';
     
