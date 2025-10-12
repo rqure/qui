@@ -17,6 +17,7 @@ import {
 } from './constants';
 import { logger } from './utils/logger';
 import { PRIMITIVE_REGISTRY } from './utils/primitive-registry';
+import { generateId } from './utils/helpers';
 import type { FaceplateNotificationChannel, FaceplateScriptModule } from './utils/faceplate-data';
 import type { EntityId } from '@/core/data/types';
 import type {
@@ -176,10 +177,6 @@ const canUndo = computed(() => history.index > 0);
 const canRedo = computed(() => history.index < history.stack.length - 1);
 const dirty = computed(() => history.index !== savedIndex.value);
 const hasFaceplateSelected = computed(() => currentFaceplateId.value !== null);
-
-function generateId(prefix: string) {
-  return `${prefix}-${Math.random().toString(36).slice(2, 8)}`;
-}
 
 function applySelection(ids: Iterable<string>, preferred?: string | null) {
   const next = new Set(ids);
@@ -1626,13 +1623,13 @@ async function handleSelectorSelect(faceplateId: EntityId) {
 
 function findTemplateForPrimitive(primitiveId: string): string {
   // Find a template that uses this primitive
-  for (const template of componentLibrary.value) {
-    if (template.primitiveId === primitiveId) {
-      return template.id;
-    }
+  const template = componentLibrary.value.find(t => t.primitiveId === primitiveId);
+  if (!template) {
+    logger.warn(`No template found for primitive: ${primitiveId}`);
+    // Return first available template as emergency fallback
+    return componentLibrary.value[0]?.id || 'unknown';
   }
-  // Return first template as fallback
-  return componentLibrary.value[0]?.id || 'component-gauge-default';
+  return template.id;
 }
 
 function newWorkspace() {

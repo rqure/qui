@@ -18,7 +18,15 @@ export const MIN_COMPONENT_WIDTH = 80;
 export const MIN_COMPONENT_HEIGHT = 60;
 
 // Default sizes
-export const DEFAULT_VIEWPORT_WIDTH = 1280;
-export const DEFAULT_VIEWPORT_HEIGHT = 800;
+export const DEFAULT_VIEWPORT_WIDTH = 800;
+export const DEFAULT_VIEWPORT_HEIGHT = 600;
 export const DEFAULT_COMPONENT_WIDTH = 240;
 export const DEFAULT_COMPONENT_HEIGHT = 180;
+
+// UI Constants
+export const ALIGNMENT_THRESHOLD = 5; // pixels for snapping to alignment guides
+export const CONTAINER_PADDING = 16; // Default padding inside containers
+export const RESIZE_HANDLE_SIZE = 8; // Size of resize handles in pixels
+export const ANIMATION_DURATION_SHORT = 150; // milliseconds
+export const ANIMATION_DURATION_MEDIUM = 300; // milliseconds
+export const ANIMATION_DURATION_LONG = 500; // milliseconds

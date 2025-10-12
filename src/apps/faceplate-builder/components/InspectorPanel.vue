@@ -154,6 +154,22 @@ watchEffect(() => {
   }
 });
 
+// Label mappings for event triggers and action types (extracted as constants)
+const EVENT_TRIGGER_LABELS: Record<EventTrigger, string> = {
+  onClick: 'Click',
+  onChange: 'Change',
+  onInput: 'Input',
+  onSubmit: 'Submit',
+  onFocus: 'Focus',
+  onBlur: 'Blur',
+};
+
+const ACTION_TYPE_LABELS: Record<string, string> = {
+  writeField: 'Write Field',
+  script: 'Run Script',
+  navigate: 'Navigate',
+};
+
 function validateComponentName(name: string): string | null {
   if (!name.trim()) {
     return 'Name cannot be empty';
@@ -565,25 +581,12 @@ function handleEventHandlerRemove(handlerId: string) {
 
 // Get user-friendly label for event trigger
 function getEventTriggerLabel(trigger: EventTrigger): string {
-  const labels: Record<EventTrigger, string> = {
-    onClick: 'Click',
-    onChange: 'Change',
-    onInput: 'Input',
-    onSubmit: 'Submit',
-    onFocus: 'Focus',
-    onBlur: 'Blur',
-  };
-  return labels[trigger] || trigger;
+  return EVENT_TRIGGER_LABELS[trigger] || trigger;
 }
 
 // Get user-friendly label for action type
 function getActionTypeLabel(actionType: string): string {
-  const labels: Record<string, string> = {
-    writeField: 'Write Field',
-    script: 'Run Script',
-    navigate: 'Navigate',
-  };
-  return labels[actionType] || actionType;
+  return ACTION_TYPE_LABELS[actionType] || actionType;
 }
 
 // Event handler action type change

@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import FaceplateCanvas, { type CanvasComponent } from './FaceplateCanvas.vue';
 import ContextMenu from './ContextMenu.vue';
 import type { CanvasNode, PaletteTemplate, Vector2 } from '../types';
-import { GRID_SIZE_FINE, ZOOM_MIN, ZOOM_MAX, ZOOM_STEP } from '../constants';
+import { GRID_SIZE_FINE, ZOOM_MIN, ZOOM_MAX, ZOOM_STEP, ALIGNMENT_THRESHOLD } from '../constants';
 
 type CanvasDropPayload = {
   componentId: string;
@@ -52,9 +52,9 @@ type SelectBoxState = {
   isActive: boolean;
 };
 
-const dragState = reactive<{ current: DragState | null }>({ current: null });
-const resizeState = reactive<{ current: ResizeState | null }>({ current: null });
-const selectBoxState = reactive<SelectBoxState>({ start: { x: 0, y: 0 }, current: { x: 0, y: 0 }, isActive: false });
+const dragState = ref<DragState | null>(null);
+const resizeState = ref<ResizeState | null>(null);
+const selectBoxState = ref<SelectBoxState>({ start: { x: 0, y: 0 }, current: { x: 0, y: 0 }, isActive: false });
 const canvasRef = ref<InstanceType<typeof FaceplateCanvas> | null>(null);
 const wrapperRef = ref<HTMLElement | null>(null);
 const dropTargetContainerId = ref<string | null>(null);
@@ -75,7 +75,6 @@ const alignmentGuides = ref<Array<{
   position: number;
   label: string;
 }>>([]);
-const ALIGNMENT_THRESHOLD = 5; // pixels
 
 // Context menu state
 const contextMenu = reactive<{
@@ -317,7 +316,11 @@ function handleZoomReset() {
 }
 
 function handleZoomFit() {
-  if (!props.viewport || !canvasRef.value?.canvasRef) return;
+  if (!props.viewport || !canvasRef.value?.canvasRef) {
+    // Fallback to reset if viewport not available
+    handleZoomReset();
+    return;
+  }
   const canvasEl = canvasRef.value.canvasRef;
   const containerWidth = canvasEl.clientWidth;
   const containerHeight = canvasEl.clientHeight;
@@ -363,7 +366,7 @@ function handleResizeHandlePointerDown(event: PointerEvent, nodeId: string, hand
   // Don't allow resizing locked nodes
   if (node.locked) return;
   
-  resizeState.current = {
+  resizeState.value = {
     nodeId,
     handle,
     pointerStart: { x: event.clientX, y: event.clientY },
@@ -424,7 +427,7 @@ function handleComponentClick(payload: { id: string | number; event: PointerEven
   const target = payload.event.currentTarget as HTMLElement | null;
   if (!target) return;
 
-  dragState.current = {
+  dragState.value = {
     pointerStart: { x: payload.event.clientX, y: payload.event.clientY },
     element: target,
     selection: unlockedSelection,
@@ -463,9 +466,9 @@ function handleCanvasPointerDown(event: PointerEvent) {
     y: (event.clientY - rect.top - pan.value.y) / zoom.value + canvasEl.scrollTop,
   };
   
-  selectBoxState.start = point;
-  selectBoxState.current = point;
-  selectBoxState.isActive = true;
+  selectBoxState.value.start = point;
+  selectBoxState.value.current = point;
+  selectBoxState.value.isActive = true;
 }
 
 
@@ -481,8 +484,8 @@ function handlePointerMove(event: PointerEvent) {
   }
   
   // Handle resize
-  if (resizeState.current) {
-    const { nodeId, handle, pointerStart, originalPosition, originalSize } = resizeState.current;
+  if (resizeState.value) {
+    const { nodeId, handle, pointerStart, originalPosition, originalSize } = resizeState.value;
     const deltaX = (event.clientX - pointerStart.x) / zoom.value;
     const deltaY = (event.clientY - pointerStart.y) / zoom.value;
     
@@ -531,10 +534,10 @@ function handlePointerMove(event: PointerEvent) {
   }
   
   // Handle drag-select box
-  if (selectBoxState.isActive && canvasRef.value?.canvasRef) {
+  if (selectBoxState.value.isActive && canvasRef.value?.canvasRef) {
     const canvasEl = canvasRef.value.canvasRef;
     const rect = canvasEl.getBoundingClientRect();
-    selectBoxState.current = {
+    selectBoxState.value.current = {
       x: (event.clientX - rect.left - pan.value.x) / zoom.value + canvasEl.scrollLeft,
       y: (event.clientY - rect.top - pan.value.y) / zoom.value + canvasEl.scrollTop,
     };
@@ -542,9 +545,9 @@ function handlePointerMove(event: PointerEvent) {
   }
   
   // Handle node dragging
-  if (!dragState.current) return;
+  if (!dragState.value) return;
 
-  const { origins, selection, pointerStart } = dragState.current;
+  const { origins, selection, pointerStart } = dragState.value;
   const primaryOrigin = origins.get(selection[0]);
   if (!primaryOrigin) {
     return;
@@ -618,18 +621,18 @@ function handlePointerUp(event: PointerEvent) {
   }
   
   // Handle resize end
-  if (resizeState.current) {
-    const { nodeId } = resizeState.current;
+  if (resizeState.value) {
+    const { nodeId } = resizeState.value;
     const node = props.nodes.find(n => n.id === nodeId);
     if (node) {
       emit('node-resize-end', { nodeId, size: node.size });
     }
-    resizeState.current = null;
+    resizeState.value = null;
     return;
   }
   
   // Handle drag-select completion
-  if (selectBoxState.isActive) {
+  if (selectBoxState.value.isActive) {
     const box = getSelectBox();
     const selectedIds: string[] = [];
     
@@ -652,13 +655,13 @@ function handlePointerUp(event: PointerEvent) {
       emit('drag-select-complete', selectedIds);
     }
     
-    selectBoxState.isActive = false;
+    selectBoxState.value.isActive = false;
     return;
   }
   
   // Handle node drag completion
-  if (!dragState.current) return;
-  const { element, selection, origins, pointerStart } = dragState.current;
+  if (!dragState.value) return;
+  const { element, selection, origins, pointerStart } = dragState.value;
   element.releasePointerCapture(event.pointerId);
 
   const primaryOrigin = origins.get(selection[0]);
@@ -721,15 +724,15 @@ function handlePointerUp(event: PointerEvent) {
   }
 
   dropTargetContainerId.value = null;
-  dragState.current = null;
+  dragState.value = null;
   alignmentGuides.value = []; // Clear alignment guides
 }
 
 function getSelectBox() {
-  const minX = Math.min(selectBoxState.start.x, selectBoxState.current.x);
-  const minY = Math.min(selectBoxState.start.y, selectBoxState.current.y);
-  const maxX = Math.max(selectBoxState.start.x, selectBoxState.current.x);
-  const maxY = Math.max(selectBoxState.start.y, selectBoxState.current.y);
+  const minX = Math.min(selectBoxState.value.start.x, selectBoxState.value.current.x);
+  const minY = Math.min(selectBoxState.value.start.y, selectBoxState.value.current.y);
+  const maxX = Math.max(selectBoxState.value.start.x, selectBoxState.value.current.x);
+  const maxY = Math.max(selectBoxState.value.start.y, selectBoxState.value.current.y);
   
   return {
     x: minX,
