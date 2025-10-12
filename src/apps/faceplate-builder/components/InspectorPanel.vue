@@ -197,37 +197,6 @@ function handlePropertyReset(definition: PrimitivePropertyDefinition) {
   emit('prop-updated', { nodeId: props.node.id, key: definition.key, value: defaultValue });
 }
 
-// Property validation
-function validateProperty(definition: PrimitivePropertyDefinition, value: unknown): string | null {
-  if (definition.type === 'number') {
-    const numValue = Number(value);
-    
-    if (isNaN(numValue)) {
-      return 'Must be a valid number';
-    }
-    
-    if (definition.min !== undefined && numValue < definition.min) {
-      return `Must be at least ${definition.min}`;
-    }
-    
-    if (definition.max !== undefined && numValue > definition.max) {
-      return `Must be at most ${definition.max}`;
-    }
-  }
-  
-  if (definition.type === 'color' && typeof value === 'string') {
-    // Basic color validation
-    const colorPattern = /^(#[0-9a-fA-F]{3,8}|rgba?\([^)]+\)|[a-zA-Z]+|transparent)$/;
-    if (!colorPattern.test(value.trim())) {
-      return 'Invalid color format';
-    }
-  }
-  
-  return null;
-}
-
-const propertyErrors = ref<Record<string, string | null>>({});
-
 const bindingAdvanced = ref<Record<string, boolean>>({});
 
 watchEffect(() => {
@@ -406,17 +375,8 @@ function handlePropInput(definition: PrimitivePropertyDefinition, event: Event) 
     value = (event.target as HTMLInputElement | HTMLTextAreaElement | null)?.value ?? '';
   }
   
-  // Validate the value
-  const validationError = validateProperty(definition, value);
-  propertyErrors.value = {
-    ...propertyErrors.value,
-    [definition.key]: validationError,
-  };
-  
-  // Only emit if validation passes
-  if (!validationError) {
-    emit('prop-updated', { nodeId: props.node.id, key: definition.key, value });
-  }
+  // Emit property update
+  emit('prop-updated', { nodeId: props.node.id, key: definition.key, value });
 }
 
 function handleDeleteClick() {
@@ -1018,7 +978,6 @@ function handleScriptUpdate(handler: EventHandler, code: string) {
                     <input
                       type="number"
                       class="number-input"
-                      :class="{ 'input-error': propertyErrors[row.definition.key] }"
                       :value="Number(node?.props?.[row.definition.key] ?? row.definition.default ?? 0)"
                       :min="row.definition.min"
                       :max="row.definition.max"
@@ -1027,7 +986,6 @@ function handleScriptUpdate(handler: EventHandler, code: string) {
                       @input="handlePropInput(row.definition, $event)"
                     />
                   </div>
-                  <small v-if="propertyErrors[row.definition.key]" class="error-message">{{ propertyErrors[row.definition.key] }}</small>
                 </template>
                 <template v-else-if="row.definition.type === 'option'">
                   <select

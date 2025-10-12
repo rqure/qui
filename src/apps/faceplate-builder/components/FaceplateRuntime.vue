@@ -115,14 +115,7 @@ const scriptModuleExports = new Map<string, Record<string, unknown>>();
 const allBindings = computed(() => {
   if (!faceplate.value) return [] as FaceplateBindingDefinition[];
 
-  const fromConfig = Array.isArray(faceplate.value.configuration.bindings)
-    ? faceplate.value.configuration.bindings
-    : [];
-
-  const fromRecord = Array.isArray(faceplate.value.bindings)
-    ? faceplate.value.bindings
-    : [];
-
+  // Component-level bindings are the primary pattern
   const componentLevel = components.value.flatMap((component) => {
     if (!Array.isArray(component.bindings)) return [] as FaceplateBindingDefinition[];
     return component.bindings.map((binding) => ({
@@ -131,7 +124,7 @@ const allBindings = computed(() => {
     }));
   });
 
-  return [...fromConfig, ...fromRecord, ...componentLevel]
+  return componentLevel
     .filter((binding) => binding.component && binding.property && binding.expression);
 });
 

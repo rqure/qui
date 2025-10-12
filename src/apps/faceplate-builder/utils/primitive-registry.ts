@@ -271,6 +271,8 @@ export const PRIMITIVE_REGISTRY: PrimitiveDefinition[] = [
       { key: 'maxLength', label: 'Max Length', type: 'number', default: 100, min: 0 },
       { key: 'pattern', label: 'Validation Pattern (regex)', type: 'string', default: '' },
       { key: 'required', label: 'Required', type: 'boolean', default: false },
+      ...COMMON_BEHAVIOR_PROPERTIES,
+      ...COMMON_ANIMATION_PROPERTIES,
     ],
   },
 
@@ -367,6 +369,8 @@ export const PRIMITIVE_REGISTRY: PrimitiveDefinition[] = [
           { label: 'Large', value: 'large' },
         ],
       },
+      ...COMMON_BEHAVIOR_PROPERTIES,
+      ...COMMON_ANIMATION_PROPERTIES,
     ],
   },
 
@@ -403,6 +407,8 @@ export const PRIMITIVE_REGISTRY: PrimitiveDefinition[] = [
       { key: 'boxShadow', label: 'Box Shadow', type: 'string', default: '' },
       { key: 'opacity', label: 'Opacity', type: 'number', default: 1, min: 0, max: 1, step: 0.1 },
       { key: 'rotation', label: 'Rotation (degrees)', type: 'number', default: 0, min: -180, max: 180 },
+      ...COMMON_BEHAVIOR_PROPERTIES,
+      ...COMMON_ANIMATION_PROPERTIES,
     ],
   },
 
@@ -436,6 +442,8 @@ export const PRIMITIVE_REGISTRY: PrimitiveDefinition[] = [
       },
       { key: 'boxShadow', label: 'Box Shadow', type: 'string', default: '' },
       { key: 'opacity', label: 'Opacity', type: 'number', default: 1, min: 0, max: 1, step: 0.1 },
+      ...COMMON_BEHAVIOR_PROPERTIES,
+      ...COMMON_ANIMATION_PROPERTIES,
     ],
   },
 
@@ -616,6 +624,8 @@ export const PRIMITIVE_REGISTRY: PrimitiveDefinition[] = [
           { label: 'Square', value: 'square' },
         ],
       },
+      ...COMMON_BEHAVIOR_PROPERTIES,
+      ...COMMON_ANIMATION_PROPERTIES,
     ],
   },
 
@@ -640,6 +650,8 @@ export const PRIMITIVE_REGISTRY: PrimitiveDefinition[] = [
       { key: 'borderColor', label: 'Border Color', type: 'color', default: 'rgba(255, 255, 255, 0.2)' },
       { key: 'borderWidth', label: 'Border Width', type: 'number', default: 1, min: 0, max: 10 },
       { key: 'rotation', label: 'Rotation', type: 'number', default: 0, min: 0, max: 360 },
+      ...COMMON_BEHAVIOR_PROPERTIES,
+      ...COMMON_ANIMATION_PROPERTIES,
     ],
   },
 
@@ -664,6 +676,8 @@ export const PRIMITIVE_REGISTRY: PrimitiveDefinition[] = [
       { key: 'strokeColor', label: 'Stroke Color', type: 'color', default: 'rgba(100, 200, 255, 0.8)' },
       { key: 'strokeWidth', label: 'Stroke Width', type: 'number', default: 3, min: 1, max: 20 },
       { key: 'fillColor', label: 'Fill Color', type: 'color', default: 'transparent' },
+      ...COMMON_BEHAVIOR_PROPERTIES,
+      ...COMMON_ANIMATION_PROPERTIES,
     ],
   },
 
@@ -698,6 +712,8 @@ export const PRIMITIVE_REGISTRY: PrimitiveDefinition[] = [
         ],
       },
       { key: 'opacity', label: 'Opacity', type: 'number', default: 1, min: 0, max: 1, step: 0.1 },
+      ...COMMON_BEHAVIOR_PROPERTIES,
+      ...COMMON_ANIMATION_PROPERTIES,
     ],
   },
 
@@ -718,6 +734,7 @@ export const PRIMITIVE_REGISTRY: PrimitiveDefinition[] = [
       { key: 'visible', label: 'Visible', type: 'boolean', default: true },
       { key: 'opacity', label: 'Opacity', type: 'number', default: 1, min: 0, max: 1, step: 0.1 },
       { key: 'rotation', label: 'Rotation', type: 'number', default: 0, min: 0, max: 360 },
+      ...COMMON_ANIMATION_PROPERTIES,
     ],
   },
 ];
