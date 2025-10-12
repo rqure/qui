@@ -710,7 +710,7 @@ function handleScriptUpdate(handler: EventHandler, code: string) {
       </section>
     </div>
 
-    <form v-else class="inspector__content" @submit.prevent>
+    <form v-else-if="node" class="inspector__content" @submit.prevent>
       <section class="inspector__section">
         <header><h3>General</h3></header>
         <div class="inspector__grid">
