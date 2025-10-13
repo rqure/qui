@@ -60,6 +60,9 @@ export function useHistoryManager() {
     bindings.splice(0, bindings.length, ...state.bindings.map((binding) => ({ ...binding })));
     viewport.x = state.viewport.x;
     viewport.y = state.viewport.y;
+    // Clear all existing properties first
+    Object.keys(metadata).forEach(key => delete metadata[key]);
+    // Then assign the historical state
     Object.assign(metadata, state.metadata);
   }
 
