@@ -187,7 +187,7 @@ const canvasComponents = computed<CanvasComponent[]>(() => {
   
   const components = renderedSlots.value.map(slot => {
     // Find parent ID from layout data
-    const layoutItem = layout.find(item => item.component === String(slot.id));
+    const layoutItem = layout.find(item => item.component === slot.name);
     const parentId = layoutItem?.parentId || null;
     
     // Find event handlers for this component (using component name, not ID)
