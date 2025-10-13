@@ -2,9 +2,9 @@ import { ref } from 'vue';
 import type { EntityId, FieldType, NotifyConfig, Notification } from '@/core/data/types';
 import { ValueHelpers } from '@/core/data/types';
 import { logger } from '@/apps/faceplate-builder/utils/logger';
-import { BindingEvaluationStrategyFactory } from '@/apps/faceplate-builder/utils/binding-evaluation-strategies';
+import { BindingService } from '@/apps/faceplate-builder/utils/binding-service';
 import { IndirectFieldNotifier } from '@/apps/faceplate-builder/utils/indirect-field-notifier';
-import type { FaceplateDataService, FaceplateRecord } from '@/apps/faceplate-builder/utils/faceplate-data';
+import type { FaceplateDataService, FaceplateRecord, FaceplateBindingDefinition } from '@/apps/faceplate-builder/utils/faceplate-data';
 import type { NotificationSubscription } from '../components/types/faceplate-runtime';
 
 export function useNotifications(
@@ -12,61 +12,56 @@ export function useNotifications(
   service: FaceplateDataService,
   entityId: () => EntityId | null,
   faceplate: () => FaceplateRecord | null,
-  expressionMeta: Map<string, any>,
-  dependencyIndex: Map<string, Set<string>>,
-  expressionValueMap: Record<string, unknown>,
-  updateBindingsForExpression: (key: string, value: unknown) => void,
-  evaluateBindingExpression: (key: string, meta: any, entityId: EntityId | null, faceplateId: EntityId | null) => Promise<unknown>
+  bindings: FaceplateBindingDefinition[],
+  onBindingsChanged: () => void
 ) {
   const subscriptions = ref<NotificationSubscription[]>([]);
   const indirectNotifiers = ref(new Map<string, IndirectFieldNotifier>());
+  const bindingService = new BindingService(dataStore, service, {}, new Map(), []);
 
   async function registerNotifications() {
     await cleanupNotifications();
     if (!isLive() || !entityId()) return;
 
+    // Collect all field dependencies from bindings
     const dependencySet = new Set<string>();
 
-    expressionMeta.forEach((meta) => {
-      if (meta.mode === 'field') {
-        dependencySet.add(meta.expression);
+    for (const binding of bindings) {
+      if (binding.mode === 'field' || !binding.mode) {
+        dependencySet.add(binding.expression);
       }
-      meta.dependencies.forEach((dep: string) => dependencySet.add(dep));
-    });
+      // Add dependencies if they exist
+      if (binding.dependencies && Array.isArray(binding.dependencies)) {
+        binding.dependencies.forEach(dep => dependencySet.add(dep));
+      }
+    }
 
+    // Add notification channel fields
     if (faceplate()) {
       const channels = Array.isArray(faceplate()!.notificationChannels)
         ? faceplate()!.notificationChannels
         : [];
       channels.forEach((channel) => {
-        ensureArray(channel?.fields).forEach((field) => dependencySet.add(field));
+        ensureArray(channel?.fields).forEach((field: string) => dependencySet.add(field));
       });
     }
 
+    // Register notifications for each dependency
     for (const dependency of dependencySet) {
-      const literalStrategy = new (BindingEvaluationStrategyFactory.getStrategy('literal') as any).constructor();
-      const literal = (literalStrategy as any).tryEvaluateLiteral(dependency);
-      if (literal.found) continue;
+      // Skip literals
+      if (isLiteral(dependency)) continue;
 
-      const fieldStrategy = new (BindingEvaluationStrategyFactory.getStrategy('field') as any).constructor();
-      const path = await (fieldStrategy as any).getFieldPath(dependency, {
-        entityId: entityId(),
-        faceplateId: faceplate()?.id ?? null,
-        dataStore,
-        service,
-        expressionValueMap,
-        scriptHelpers: null as any, // Will be injected
-        scriptModuleExports: new Map(),
-        scriptState: new Map(),
-        scriptCache: new Map(),
-        scriptRuntimeErrors: [],
-      });
-      if (!path.length) continue;
+      try {
+        const path = await bindingService['getFieldPath'](dependency);
+        if (!path.length) continue;
 
-      if (path.length > 1) {
-        await registerIndirectNotification(dependency, path);
-      } else {
-        await registerDirectNotification(dependency, path[0]);
+        if (path.length > 1) {
+          await registerIndirectNotification(dependency, path);
+        } else {
+          await registerDirectNotification(dependency, path[0]);
+        }
+      } catch (error) {
+        logger.warn(`Failed to register notification for ${dependency}:`, error);
       }
     }
   }
@@ -77,7 +72,7 @@ export function useNotifications(
         dataStore,
         entityId()!,
         path,
-        (value) => handleIndirectNotification(dependency, value)
+        (value) => handleNotification(dependency, value)
       );
 
       await notifier.start();
@@ -98,7 +93,8 @@ export function useNotifications(
     };
 
     const callback = (notification: Notification) => {
-      handleDirectNotification(dependency, notification);
+      handleNotification(dependency, notification.current?.value ?
+        ValueHelpers.extract(notification.current.value) : null);
     };
 
     try {
@@ -109,62 +105,10 @@ export function useNotifications(
     }
   }
 
-  function handleIndirectNotification(dependency: string, value: unknown) {
-    const subscribers = dependencyIndex.get(dependency);
-    if (!subscribers || !subscribers.size) {
-      evaluateAllBindings();
-      return;
-    }
-
-    subscribers.forEach((expressionKey) => {
-      const meta = expressionMeta.get(expressionKey);
-      if (!meta) return;
-
-      if (meta.mode === 'field' && meta.expression === dependency) {
-        expressionValueMap[expressionKey] = value;
-        updateBindingsForExpression(expressionKey, value);
-      } else {
-        evaluateBindingExpression(expressionKey, meta, entityId(), faceplate()?.id ?? null)
-          .then((value) => {
-            updateBindingsForExpression(expressionKey, value);
-          })
-          .catch((error) => {
-            logger.warn('Failed to refresh binding after notification:', error);
-          });
-      }
-    });
-  }
-
-  function handleDirectNotification(dependency: string, notification: Notification) {
-    if (!notification.current) return;
-    let updatedValue: unknown = null;
-    if (notification.current.value) {
-      updatedValue = ValueHelpers.extract(notification.current.value);
-    }
-
-    const subscribers = dependencyIndex.get(dependency);
-    if (!subscribers || !subscribers.size) {
-      evaluateAllBindings();
-      return;
-    }
-
-    subscribers.forEach((expressionKey) => {
-      const meta = expressionMeta.get(expressionKey);
-      if (!meta) return;
-
-      if (meta.mode === 'field' && meta.expression === dependency && notification.current?.value !== undefined) {
-        expressionValueMap[expressionKey] = updatedValue;
-        updateBindingsForExpression(expressionKey, updatedValue);
-      } else {
-        evaluateBindingExpression(expressionKey, meta, entityId(), faceplate()?.id ?? null)
-          .then((value) => {
-            updateBindingsForExpression(expressionKey, value);
-          })
-          .catch((error) => {
-            logger.warn('Failed to refresh binding after notification:', error);
-          });
-      }
-    });
+  function handleNotification(dependency: string, value: unknown) {
+    // When any field changes, re-evaluate all bindings
+    // This is simpler than tracking complex dependencies
+    onBindingsChanged();
   }
 
   async function cleanupNotifications() {
@@ -189,8 +133,14 @@ export function useNotifications(
     return true; // Will be controlled by props
   }
 
-  function evaluateAllBindings() {
-    // Will be injected from binding evaluation composable
+  function isLiteral(expression: string): boolean {
+    const trimmed = expression.trim();
+    return (
+      (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+      (trimmed.startsWith("'") && trimmed.endsWith("'")) ||
+      /^\d+(\.\d+)?$/.test(trimmed) ||
+      ['true', 'false', 'null'].includes(trimmed)
+    );
   }
 
   function ensureArray<T>(value: T[] | T | null | undefined): T[] {

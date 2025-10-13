@@ -8,7 +8,7 @@ import { FaceplateDataService, type FaceplateComponentRecord, type FaceplateReco
 import type { BindingMode } from '@/apps/faceplate-builder/types';
 import { logger } from '@/apps/faceplate-builder/utils/logger';
 import { useScriptExecution } from '@/apps/faceplate-builder/composables/useScriptExecution';
-import { useBindingEvaluation } from '@/apps/faceplate-builder/composables/useBindingEvaluation';
+import { useBindings } from '@/apps/faceplate-builder/composables/useBindings';
 import { useEventHandling } from '@/apps/faceplate-builder/composables/useEventHandling';
 import { useNotifications } from '@/apps/faceplate-builder/composables/useNotifications';
 import type { RenderSlot, NotificationSubscription, BindingTargetEntry, TransformContext, EventPayload } from './types/faceplate-runtime';
@@ -38,22 +38,21 @@ const {
   clearScriptState,
 } = scriptComposable;
 
-const bindingComposable = useBindingEvaluation(
+// Use simplified binding composable
+const bindingComposable = useBindings(
   dataStore,
   service,
   getScriptHelpers,
   scriptModuleExports.value,
-  scriptState.value,
-  scriptCache.value,
-  [...scriptRuntimeErrors.value]
+  scriptRuntimeErrors.value
 );
 const {
   bindingValueMap,
   expressionValueMap,
   componentLastUpdated,
-  buildBindingMaps,
-  evaluateAllBindings: evaluateBindings,
-  updateBindingsForExpression,
+  evaluateBindings,
+  executeScript,
+  clearCaches,
 } = bindingComposable;
 
 const { handleEventTriggered } = useEventHandling(
@@ -62,19 +61,6 @@ const { handleEventTriggered } = useEventHandling(
   () => props.entityId ?? null,
   scriptRuntimeErrors.value
 );
-
-const notificationComposable = useNotifications(
-  dataStore,
-  service,
-  () => props.entityId ?? null,
-  () => faceplate.value,
-  bindingComposable.expressionMeta.value,
-  bindingComposable.dependencyIndex.value,
-  expressionValueMap,
-  updateBindingsForExpression,
-  (key, meta, entityId, faceplateId) => bindingComposable.evaluateBindingExpression(key, meta, entityId, faceplateId)
-);
-const { registerNotifications, cleanupNotifications } = notificationComposable;
 
 // Reactive state
 const faceplate = ref<FaceplateRecord | null>(null);
@@ -108,6 +94,18 @@ const allBindings = computed(() => {
     .filter((binding) => binding.component && binding.property && binding.expression);
 });
 
+// Initialize notifications after allBindings is defined
+const notificationComposable = useNotifications(
+  dataStore,
+  service,
+  () => props.entityId ?? null,
+  () => faceplate.value,
+  allBindings.value,
+  () => bindingComposable.evaluateBindings(allBindings.value, props.entityId ?? null, faceplate.value?.id ?? null)
+);
+const { registerNotifications, cleanupNotifications } = notificationComposable;
+
+// Component map for efficient lookups
 const componentMap = computed(() => {
   const map = new Map<string, FaceplateComponentRecord>();
   components.value.forEach((component) => {
@@ -340,12 +338,7 @@ async function initialize() {
       scriptComposable.compileFaceplateScriptModules([]);
     }
 
-    bindingComposable.buildBindingMaps(allBindings.value);
-
-    await Promise.all([
-      bindingComposable.evaluateAllBindings(props.entityId ?? null, faceplate.value?.id ?? null),
-      notificationComposable.registerNotifications()
-    ]);
+    bindingComposable.evaluateBindings(allBindings.value, props.entityId ?? null, faceplate.value?.id ?? null);
   } catch (err) {
     logger.error('FaceplateRuntime initialization failed:', err);
     error.value = err instanceof Error ? err.message : 'Failed to load faceplate';
@@ -365,21 +358,21 @@ watch(
 watch(
   () => props.entityId,
   async () => {
-    await bindingComposable.evaluateAllBindings(props.entityId ?? null, faceplate.value?.id ?? null);
+    await bindingComposable.evaluateBindings(allBindings.value, props.entityId ?? null, faceplate.value?.id ?? null);
     await notificationComposable.registerNotifications();
   },
 );
 
 onBeforeUnmount(async () => {
   await notificationComposable.cleanupNotifications();
-  
-  // Clear all caches to prevent memory leaks
+
+  // Clear caches to prevent memory leaks
   scriptComposable.clearScriptState();
-  bindingComposable.clearBindingMaps();
+  bindingComposable.clearCaches();
 });
 
 defineExpose({
-  refresh: () => bindingComposable.evaluateAllBindings(props.entityId ?? null, faceplate.value?.id ?? null),
+  refresh: () => bindingComposable.evaluateBindings(allBindings.value, props.entityId ?? null, faceplate.value?.id ?? null),
 });
 </script>
 

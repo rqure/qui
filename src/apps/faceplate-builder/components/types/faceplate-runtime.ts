@@ -37,7 +37,7 @@ export interface TransformContext {
   expressionKey: string;
   entityId: EntityId | null;
   faceplateId: EntityId | null;
-  helpers: import('@/apps/faceplate-builder/utils/binding-evaluation-strategies').ScriptHelpers;
+  helpers: import('@/apps/faceplate-builder/utils/binding-service').ScriptHelpers;
   module(name: string): Record<string, unknown> | undefined;
   modules(): Record<string, Record<string, unknown>>;
 }

@@ -18,6 +18,8 @@ import {
 import { logger } from './utils/logger';
 import { PRIMITIVE_REGISTRY } from './utils/primitive-registry';
 import { generateId, createNodeMap, createBindingMap } from './utils/helpers';
+import { useWorkspaceState } from './composables/useWorkspaceState';
+import { useFaceplateOperations } from './composables/useFaceplateOperations';
 import { useHistoryManager } from './composables/useHistoryManager';
 import { useClipboard } from './composables/useClipboard';
 import { useContainerManagement } from './composables/useContainerManagement';
@@ -141,65 +143,57 @@ const paletteItems = computed(() =>
   }),
 );
 
-const nodes = ref<CanvasNode[]>([]);
-const bindings = ref<Binding[]>([]);
-const selectedNodeId = ref<string | null>(null);
-const selectedNodeIds = ref<Set<string>>(new Set()); // Multi-selection support
-const currentFaceplateId = ref<EntityId | null>(props.faceplateId ?? null);
-const currentFaceplateName = ref<string>('');
-const currentTargetEntityType = ref<string>('');
-const isSaving = ref(false);
-const viewportSize = ref<Vector2>({ ...DEFAULT_VIEWPORT });
-const faceplateMetadata = ref<Record<string, unknown>>({});
-const showFaceplateSelector = ref(false);
-const selectorStartInNewMode = ref(false);
-const currentScriptModules = ref<FaceplateScriptModule[]>([]);
-const currentNotificationChannels = ref<FaceplateNotificationChannel[]>([]);
-
 // Initialize composables
+const workspaceState = useWorkspaceState();
+const faceplateOps = useFaceplateOperations(dataStore, faceplateService, workspaceState);
 const { history, canUndo, canRedo, dirty, pushHistory, undo: undoHistory, redo: redoHistory, markSaved, reset: resetHistory } = useHistoryManager();
 const { copySelectedNodes, pasteNodes: pasteNodesFromClipboard, duplicateSelectedNodes } = useClipboard();
 const { isContainer, getAllContainers, getContainerChildren, addToContainer, removeFromContainer, clearContainerChildren, groupSelectedNodes, ungroupSelectedNode, getAbsolutePosition, isAncestor } = useContainerManagement();
 
-const selectedNode = computed(() => nodes.value.find((node) => node.id === selectedNodeId.value) ?? null);
-const selectedTemplate = computed(() =>
-  selectedNode.value ? templateMap.value[selectedNode.value.componentId] ?? null : null,
-);
-const selectedNodes = computed(() => nodes.value.filter((node) => selectedNodeIds.value.has(node.id)));
+// Destructure state from composables
+const {
+  nodes,
+  bindings,
+  selectedNodeId,
+  selectedNodeIds,
+  currentFaceplateId,
+  currentFaceplateName,
+  currentTargetEntityType,
+  viewportSize,
+  faceplateMetadata,
+  selectedNode,
+  selectedNodes,
+  hasFaceplateSelected,
+  applySelection,
+  clearSelection,
+  resetWorkspace,
+  updateNodes,
+  updateBindings,
+} = workspaceState;
+
+const { isSaving, loadFaceplate, saveFaceplate } = faceplateOps;
+
+// Additional state not in composables
+const currentScriptModules = ref<FaceplateScriptModule[]>([]);
+const currentNotificationChannels = ref<FaceplateNotificationChannel[]>([]);
+
+// UI state
+const showFaceplateSelector = ref(false);
+const selectorStartInNewMode = ref(false);
 const selectedNodeBindings = computed(() =>
   selectedNodeId.value
     ? bindings.value.filter((binding) => binding.componentId === selectedNodeId.value)
     : [],
 );
+
 // Efficient lookup maps
 const nodeMap = computed(() => createNodeMap(nodes.value));
 const bindingMap = computed(() => createBindingMap(bindings.value));
 
-const hasFaceplateSelected = computed(() => currentFaceplateId.value !== null);
-
-function applySelection(ids: Iterable<string>, preferred?: string | null) {
-  const next = new Set(ids);
-  selectedNodeIds.value = next;
-
-  if (!next.size) {
-    selectedNodeId.value = null;
-    return;
-  }
-
-  if (preferred && next.has(preferred)) {
-    selectedNodeId.value = preferred;
-    return;
-  }
-
-  const current = selectedNodeId.value;
-  if (current && next.has(current)) {
-    selectedNodeId.value = current;
-    return;
-  }
-
-  const first = next.values().next().value ?? null;
-  selectedNodeId.value = first ?? null;
-}
+// Computed properties for templates
+const selectedTemplate = computed(() =>
+  selectedNode.value ? templateMap.value[selectedNode.value.componentId] : null
+);
 
 function getComponentName(componentId: string): string {
   return nodeMap.value.get(componentId)?.name ?? componentId;
@@ -933,21 +927,6 @@ function undo() {
 
 function redo() {
   redoHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value);
-}
-
-function resetWorkspace() {
-  nodes.value = [];
-  bindings.value = [];
-  currentFaceplateId.value = null;
-  currentFaceplateName.value = '';
-  currentTargetEntityType.value = '';
-  currentScriptModules.value = [];
-  currentNotificationChannels.value = [];
-  viewportSize.value = { ...DEFAULT_VIEWPORT };
-  faceplateMetadata.value = {};
-  applySelection([], null);
-  pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value);
-  markSaved();
 }
 
 /**

@@ -1,10 +1,32 @@
 import { ref, readonly } from 'vue';
 import type { EntityId } from '@/core/data/types';
 import { logger } from '@/apps/faceplate-builder/utils/logger';
-import { BindingEvaluationStrategyFactory, type ScriptHelpers, type ScriptExecutionContext } from '@/apps/faceplate-builder/utils/binding-evaluation-strategies';
-import { UnifiedBindingEvaluationService, type UnifiedBindingContext } from '@/apps/faceplate-builder/utils/unified-binding-evaluation';
+import { BindingService } from '@/apps/faceplate-builder/utils/binding-service';
 import type { FaceplateRecord, FaceplateScriptModule } from '@/apps/faceplate-builder/utils/faceplate-data';
 import type { ScriptError } from '../components/types/faceplate-runtime';
+
+// Define the types that were in binding-evaluation-strategies.ts
+export interface ScriptHelpers {
+  clamp(value: number, min: number, max: number): number;
+  lerp(start: number, end: number, t: number): number;
+  round(value: number, precision?: number): number;
+  format(value: unknown, digits?: number): string;
+  colorRamp(value: number, stops: Array<{ stop: number; color: string }>): string;
+}
+
+export interface ScriptExecutionContext {
+  entityId: EntityId | null;
+  faceplateId: EntityId | null;
+  expressionKey: string;
+  get(path: string): Promise<unknown>;
+  getCached(expressionKey: string): unknown;
+  getBindingValue(componentId: string, property: string): unknown;
+  setState(key: string, value: unknown): void;
+  getState<T>(key: string, defaultValue?: T): T | undefined;
+  bindingsSnapshot(): Record<string, unknown>;
+  module(name: string): Record<string, unknown> | undefined;
+  modules(): Record<string, Record<string, unknown>>;
+}
 
 export function useScriptExecution() {
   const scriptCompilationErrors = ref<ScriptError[]>([]);
@@ -107,7 +129,8 @@ export function useScriptExecution() {
     entityId: EntityId | null,
     faceplateId: EntityId | null,
     expressionValueMap: Record<string, unknown>,
-    bindingValueMap: Record<string, unknown>
+    bindingValueMap: Record<string, unknown>,
+    bindingService?: BindingService
   ): ScriptExecutionContext {
     const state = getOrCreateScriptStateBucket(expressionKey);
 
@@ -116,24 +139,15 @@ export function useScriptExecution() {
       faceplateId,
       expressionKey,
       async get(path: string) {
-        const fieldStrategy = new (BindingEvaluationStrategyFactory.getStrategy('field') as any).constructor();
-        const value = await fieldStrategy.evaluate(path, {
-          entityId,
-          faceplateId,
-          dataStore: null as any, // Will be injected
-          service: null as any, // Will be injected
-          expressionValueMap,
-          scriptHelpers: getScriptHelpers(),
-          scriptModuleExports: scriptModuleExports.value,
-          scriptState: scriptState.value,
-          scriptCache: scriptCache.value,
-          scriptRuntimeErrors: scriptRuntimeErrors.value,
-        });
-        const fieldKey = makeExpressionKey(path, 'field');
-        if (!(fieldKey in expressionValueMap)) {
-          expressionValueMap[fieldKey] = value;
+        if (bindingService) {
+          const value = await bindingService.evaluate(path, 'field', entityId, faceplateId);
+          const fieldKey = makeExpressionKey(path, 'field');
+          if (!(fieldKey in expressionValueMap)) {
+            expressionValueMap[fieldKey] = value;
+          }
+          return value;
         }
-        return value;
+        return null;
       },
       getCached(targetKey: string) {
         return expressionValueMap[targetKey];
