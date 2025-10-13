@@ -6,48 +6,12 @@ import { useDataStore } from '@/stores/data';
 import FaceplateCanvas, { type CanvasComponent } from './FaceplateCanvas.vue';
 import { FaceplateDataService, type FaceplateComponentRecord, type FaceplateRecord, type FaceplateBindingDefinition, type FaceplateScriptModule } from '@/apps/faceplate-builder/utils/faceplate-data';
 import type { BindingMode } from '@/apps/faceplate-builder/types';
-import { IndirectFieldNotifier } from '@/apps/faceplate-builder/utils/indirect-field-notifier';
 import { logger } from '@/apps/faceplate-builder/utils/logger';
-import { BindingEvaluationStrategyFactory, type BindingEvaluationContext, type ScriptHelpers, type ScriptExecutionContext } from '@/apps/faceplate-builder/utils/binding-evaluation-strategies';
-import { UnifiedBindingEvaluationService, type BindingMeta, type BindingTarget, type UnifiedBindingContext } from '@/apps/faceplate-builder/utils/unified-binding-evaluation';
-
-interface RenderSlot {
-  id: EntityId;
-  name: string;
-  type: string;
-  config: Record<string, any>;
-  bindings: Record<string, unknown>;
-  animationClasses: string[];
-  lastUpdated: Record<string, number>;
-  position: {
-    x: number;
-    y: number;
-    w: number;
-    h: number;
-  };
-}
-
-interface NotificationSubscription {
-  config: NotifyConfig;
-  callback: (notification: Notification) => void;
-}
-
-type BindingTargetEntry = {
-  component: string;
-  property: string;
-  transform?: string | null;
-};
-
-type TransformContext = {
-  component: string;
-  property: string;
-  expressionKey: string;
-  entityId: EntityId | null;
-  faceplateId: EntityId | null;
-  helpers: ScriptHelpers;
-  module(name: string): Record<string, unknown> | undefined;
-  modules(): Record<string, Record<string, unknown>>;
-};
+import { useScriptExecution } from '@/apps/faceplate-builder/composables/useScriptExecution';
+import { useBindingEvaluation } from '@/apps/faceplate-builder/composables/useBindingEvaluation';
+import { useEventHandling } from '@/apps/faceplate-builder/composables/useEventHandling';
+import { useNotifications } from '@/apps/faceplate-builder/composables/useNotifications';
+import type { RenderSlot, NotificationSubscription, BindingTargetEntry, TransformContext, EventPayload } from './types/faceplate-runtime';
 
 const props = defineProps<{
   faceplateId?: EntityId | null;
@@ -60,13 +24,63 @@ const props = defineProps<{
 const dataStore = useDataStore();
 const service = new FaceplateDataService(dataStore);
 
+// Use composables for different concerns
+const scriptComposable = useScriptExecution();
+const {
+  scriptCompilationErrors,
+  scriptRuntimeErrors,
+  scriptCache,
+  scriptState,
+  scriptModuleExports,
+  getScriptHelpers,
+  compileFaceplateScriptModules,
+  createScriptExecutionContext,
+  clearScriptState,
+} = scriptComposable;
+
+const bindingComposable = useBindingEvaluation(
+  dataStore,
+  service,
+  getScriptHelpers,
+  scriptModuleExports.value,
+  scriptState.value,
+  scriptCache.value,
+  [...scriptRuntimeErrors.value]
+);
+const {
+  bindingValueMap,
+  expressionValueMap,
+  componentLastUpdated,
+  buildBindingMaps,
+  evaluateAllBindings: evaluateBindings,
+  updateBindingsForExpression,
+} = bindingComposable;
+
+const { handleEventTriggered } = useEventHandling(
+  dataStore,
+  service,
+  () => props.entityId ?? null,
+  scriptRuntimeErrors.value
+);
+
+const notificationComposable = useNotifications(
+  dataStore,
+  service,
+  () => props.entityId ?? null,
+  () => faceplate.value,
+  bindingComposable.expressionMeta.value,
+  bindingComposable.dependencyIndex.value,
+  expressionValueMap,
+  updateBindingsForExpression,
+  (key, meta, entityId, faceplateId) => bindingComposable.evaluateBindingExpression(key, meta, entityId, faceplateId)
+);
+const { registerNotifications, cleanupNotifications } = notificationComposable;
+
+// Reactive state
 const faceplate = ref<FaceplateRecord | null>(null);
 const components = ref<FaceplateComponentRecord[]>([]);
 const loading = ref(false);
 const error = ref<string | null>(null);
-const scriptCompilationErrors = ref<Array<{ module: string; error: string; timestamp: number }>>([]);
-const scriptRuntimeErrors = ref<Array<{ context: string; error: string; timestamp: number }>>([]);
-const isLive = computed(() => props.live !== false);
 const showErrorPanel = ref(true);
 
 // Format timestamp for error display
@@ -77,37 +91,6 @@ function formatTimestamp(timestamp: number): string {
   const seconds = date.getSeconds().toString().padStart(2, '0');
   return `${hours}:${minutes}:${seconds}`;
 }
-
-const bindingValueMap = reactive<Record<string, unknown>>({});
-const expressionValueMap = reactive<Record<string, unknown>>({});
-const bindingPaths = new Map<string, FieldType[]>();
-const bindingTargets = new Map<string, { entityId: EntityId; fieldType: FieldType }>();
-const expressionTargets = new Map<string, BindingTargetEntry[]>();
-const expressionMeta = new Map<string, { expression: string; mode: BindingMode; dependencies: string[]; description?: string }>();
-const dependencyIndex = new Map<string, Set<string>>();
-const componentLastUpdated = reactive<Record<string, Record<string, number>>>({});
-let subscriptions: NotificationSubscription[] = [];
-const indirectNotifiers = new Map<string, IndirectFieldNotifier>();
-const scriptCache = new Map<string, (context: ScriptExecutionContext, helpers: ScriptHelpers) => Promise<unknown>>();
-const scriptState = new Map<string, Record<string, unknown>>();
-const scriptModuleExports = new Map<string, Record<string, unknown>>();
-
-// Create unified binding evaluation service
-const bindingEvaluationService = computed(() => {
-  const context: UnifiedBindingContext = {
-    entityId: props.entityId ?? null,
-    faceplateId: faceplate.value?.id ?? null,
-    dataStore,
-    service,
-    expressionValueMap,
-    scriptHelpers: getScriptHelpers(),
-    scriptModuleExports,
-    scriptState,
-    scriptCache,
-    scriptRuntimeErrors: scriptRuntimeErrors.value,
-  };
-  return new UnifiedBindingEvaluationService(context);
-});
 
 const allBindings = computed(() => {
   if (!faceplate.value) return [] as FaceplateBindingDefinition[];
@@ -338,7 +321,6 @@ async function initialize() {
   error.value = null;
 
   try {
-    // Load faceplate data if needed
     if (props.faceplateData) {
       faceplate.value = props.faceplateData;
     } else if (props.faceplateId) {
@@ -348,793 +330,27 @@ async function initialize() {
     }
 
     if (faceplate.value) {
-      // Load components and compile scripts in parallel
       const [componentsData] = await Promise.all([
         service.readComponents(faceplate.value.components),
-        Promise.resolve(compileFaceplateScriptModules(faceplate.value.scriptModules ?? []))
+        Promise.resolve(scriptComposable.compileFaceplateScriptModules(faceplate.value.scriptModules ?? []))
       ]);
       components.value = componentsData;
     } else {
       components.value = [];
-      compileFaceplateScriptModules([]);
+      scriptComposable.compileFaceplateScriptModules([]);
     }
 
-    // Build binding maps synchronously
-    buildBindingMaps();
-    
-    // Evaluate bindings and register notifications in parallel
+    bindingComposable.buildBindingMaps(allBindings.value);
+
     await Promise.all([
-      evaluateAllBindings(),
-      registerNotifications()
+      bindingComposable.evaluateAllBindings(props.entityId ?? null, faceplate.value?.id ?? null),
+      notificationComposable.registerNotifications()
     ]);
   } catch (err) {
     logger.error('FaceplateRuntime initialization failed:', err);
     error.value = err instanceof Error ? err.message : 'Failed to load faceplate';
   } finally {
     loading.value = false;
-  }
-}
-
-function determineBindingMode(binding: FaceplateBindingDefinition): BindingMode {
-  if (binding.mode) {
-    return binding.mode;
-  }
-  const trimmed = (binding.expression || '').trim();
-  const literalStrategy = new (BindingEvaluationStrategyFactory.getStrategy('literal') as any).constructor();
-  const literal = (literalStrategy as any).tryEvaluateLiteral(trimmed);
-  if (literal.found) {
-    return 'literal';
-  }
-  return 'field';
-}
-
-function sanitizeBindingExpression(expression: string, mode: BindingMode): string {
-  if (mode === 'script' && expression.trim().startsWith('script:')) {
-    return expression.trim().slice('script:'.length);
-  }
-  return expression;
-}
-
-function makeExpressionKey(expression: string, mode: BindingMode): string {
-  // Normalize whitespace to prevent duplicate keys from formatting differences
-  const normalized = expression.trim().replace(/\s+/g, ' ');
-  return `${mode}::${normalized}`;
-}
-
-function collectBindingDependencies(
-  binding: FaceplateBindingDefinition,
-  mode: BindingMode,
-  expression: string,
-): string[] {
-  if (mode === 'field') {
-    // For computed expressions, extract all field references
-    if (isComputedExpression(expression)) {
-      const fieldPattern = /\b([A-Za-z_][\w]*(?:->[A-Za-z_][\w]*)*)\b(?!\s*\()/g;
-      const fields = new Set<string>();
-      let match;
-      while ((match = fieldPattern.exec(expression)) !== null) {
-        fields.add(match[1]);
-      }
-      return Array.from(fields);
-    }
-    // For simple field references, return the expression itself
-    return [expression];
-  }
-  if (mode === 'script') {
-    const deps = Array.isArray(binding.dependencies) ? binding.dependencies : [];
-    return deps.map((dep) => dep.trim()).filter(Boolean);
-  }
-  return [];
-}
-
-function compileFaceplateScriptModules(modules: FaceplateScriptModule[]) {
-  scriptModuleExports.clear();
-  scriptCompilationErrors.value = [];
-  
-  modules.forEach((moduleDef, index) => {
-    const name = moduleDef?.name?.trim() || `module-${index + 1}`;
-    const code = moduleDef?.code ?? '';
-    if (!code.trim()) {
-      return;
-    }
-
-    try {
-      const factory = new Function(
-        'helpers',
-        'module',
-        'exports',
-        '"use strict";\n' + code + '\n',
-      );
-      const moduleObj: { exports: Record<string, unknown> } = { exports: {} };
-      const exportsRef = moduleObj.exports;
-      factory(getScriptHelpers(), moduleObj, exportsRef);
-      const exports = moduleObj.exports || exportsRef;
-      scriptModuleExports.set(name, exports as Record<string, unknown>);
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      scriptCompilationErrors.value.push({ module: name, error: errorMessage, timestamp: Date.now() });
-      logger.error(`Failed to compile faceplate script module "${name}":`, error);
-    }
-  });
-}
-
-// Track evaluation depth per call chain to detect true circular dependencies
-const MAX_EVALUATION_DEPTH = 50;
-// Cache ongoing evaluations to prevent duplicate work and false circular dependency errors
-const ongoingEvaluations = new Map<string, Promise<unknown>>();
-
-async function evaluateBindingExpression(
-  expressionKey: string,
-  meta: { expression: string; mode: BindingMode; dependencies: string[] },
-  evaluationStack: Set<string> = new Set(),
-): Promise<unknown> {
-  return bindingEvaluationService.value.evaluateExpression(expressionKey, meta, evaluationStack);
-}
-
-// Check if expression contains computed operators
-function isComputedExpression(expression: string): boolean {
-  return /[+\-*/%()]/.test(expression) && !/^[A-Za-z_][\w]*(?:->[A-Za-z_][\w]*)*$/.test(expression);
-}
-
-
-
-const sharedScriptHelpers: ScriptHelpers = {
-  clamp(value: number, min: number, max: number) {
-    const v = Number(value);
-    return Math.min(Math.max(v, min), max);
-  },
-  lerp(start: number, end: number, t: number) {
-    return start + (end - start) * t;
-  },
-  round(value: number, precision: number = 0) {
-    const factor = Math.pow(10, precision);
-    return Math.round(Number(value) * factor) / factor;
-  },
-  format(value: unknown, digits: number = 2) {
-    if (value === null || value === undefined) {
-      return '';
-    }
-    if (typeof value === 'number') {
-      if (!Number.isFinite(value)) {
-        return String(value);
-      }
-      return value.toFixed(digits);
-    }
-    if (value instanceof Date) {
-      return value.toISOString();
-    }
-    return String(value);
-  },
-  colorRamp(value: number, stops: Array<{ stop: number; color: string }>) {
-    if (!stops.length) {
-      return '#ffffff';
-    }
-    const sorted = [...stops].sort((a, b) => a.stop - b.stop);
-    if (value <= sorted[0].stop) {
-      return sorted[0].color;
-    }
-    if (value >= sorted[sorted.length - 1].stop) {
-      return sorted[sorted.length - 1].color;
-    }
-    for (let i = 0; i < sorted.length - 1; i += 1) {
-      const current = sorted[i];
-      const next = sorted[i + 1];
-      if (value >= current.stop && value <= next.stop) {
-        const ratio = (value - current.stop) / (next.stop - current.stop);
-        return ratio < 0.5 ? current.color : next.color;
-      }
-    }
-    return sorted[sorted.length - 1].color;
-  },
-};
-
-function getScriptHelpers(): ScriptHelpers {
-  return sharedScriptHelpers;
-}
-
-function buildBindingMaps() {
-  clearBindingMaps();
-  processBindingExpressions();
-}
-
-function clearBindingMaps() {
-  expressionTargets.clear();
-  expressionMeta.clear();
-  dependencyIndex.clear();
-  Object.keys(bindingValueMap).forEach((key) => delete bindingValueMap[key]);
-  Object.keys(expressionValueMap).forEach((key) => delete expressionValueMap[key]);
-  bindingPaths.clear();
-  bindingTargets.clear();
-  Object.keys(componentLastUpdated).forEach((key) => delete componentLastUpdated[key]);
-  scriptState.clear();
-  ongoingEvaluations.clear();
-}
-
-function processBindingExpressions() {
-  for (const binding of allBindings.value) {
-    const componentName = binding.component || '';
-    const property = binding.property || '';
-    const expression = binding.expression || '';
-    if (!componentName || !property || !expression) continue;
-
-    const mode = determineBindingMode(binding);
-    const normalizedExpression = sanitizeBindingExpression(expression, mode);
-    const expressionKey = makeExpressionKey(normalizedExpression, mode);
-    const dependencies = collectBindingDependencies(binding, mode, normalizedExpression);
-
-    updateExpressionMeta(expressionKey, {
-      expression: normalizedExpression,
-      mode,
-      dependencies: [...dependencies],
-      description: binding.description,
-    });
-
-    addExpressionTarget(expressionKey, {
-      component: componentName,
-      property,
-      transform: binding.transform ?? null,
-    });
-
-    initializeBindingValueMap(componentName, property);
-
-    registerDependencies(dependencies, expressionKey);
-  }
-}
-
-function updateExpressionMeta(expressionKey: string, meta: BindingMeta) {
-  if (!expressionMeta.has(expressionKey)) {
-    expressionMeta.set(expressionKey, meta);
-  } else {
-    const existing = expressionMeta.get(expressionKey)!;
-    const merged = new Set([...existing.dependencies, ...meta.dependencies]);
-    existing.dependencies = Array.from(merged);
-  }
-}
-
-function addExpressionTarget(expressionKey: string, target: BindingTarget) {
-  if (!expressionTargets.has(expressionKey)) {
-    expressionTargets.set(expressionKey, []);
-  }
-  expressionTargets.get(expressionKey)!.push(target);
-}
-
-function initializeBindingValueMap(componentName: string, property: string) {
-  const bindingSlotKey = `${componentName}:${property}`;
-  if (!bindingValueMap[bindingSlotKey]) {
-    bindingValueMap[bindingSlotKey] = null;
-  }
-
-  if (!componentLastUpdated[componentName]) {
-    componentLastUpdated[componentName] = {};
-  }
-}
-
-function registerDependencies(dependencies: string[], expressionKey: string) {
-  dependencies.forEach((dependency) => {
-    if (!dependencyIndex.has(dependency)) {
-      dependencyIndex.set(dependency, new Set());
-    }
-    dependencyIndex.get(dependency)!.add(expressionKey);
-  });
-}
-
-async function evaluateAllBindings() {
-  if (!faceplate.value || !props.entityId) {
-    Object.keys(bindingValueMap).forEach((key) => (bindingValueMap[key] = null));
-    Object.keys(expressionValueMap).forEach((key) => (expressionValueMap[key] = null));
-    return;
-  }
-
-  if (import.meta.env.DEV) {
-    logger.debug(`Evaluating ${expressionMeta.size} binding expressions`);
-  }
-
-  // Evaluate all bindings in parallel for faster initialization
-  const entries = Array.from(expressionMeta.entries());
-  await Promise.all(
-    entries.map(async ([key, meta]) => {
-      const value = await evaluateBindingExpression(key, meta);
-      updateBindingsForExpression(key, value);
-    })
-  );
-
-  if (import.meta.env.DEV) {
-    logger.debug('Binding evaluation complete. bindingValueMap:', Object.fromEntries(
-      Object.entries(bindingValueMap).slice(0, 10) // Show first 10 for debugging
-    ));
-  }
-}
-
-
-
-async function resolveBindingTarget(expression: string, fieldPath: FieldType[]) {
-  if (bindingTargets.has(expression)) return;
-  if (!props.entityId) return;
-  if (!fieldPath.length) return;
-
-  // Backend handles indirection for all field paths (direct and indirect)
-  // Store the starting entity and the first field in the path
-  bindingTargets.set(expression, { 
-    entityId: props.entityId, 
-    fieldType: fieldPath[0] 
-  });
-}
-
-function updateBindingsForExpression(expressionKey: string, value: unknown) {
-  if (!expressionTargets.has(expressionKey)) {
-    if (import.meta.env.DEV) {
-      logger.debug(`No targets found for expression key: ${expressionKey}`);
-    }
-    return;
-  }
-
-  const targets = expressionTargets.get(expressionKey)!;
-  targets.forEach((target) => {
-    const key = `${target.component}:${target.property}`;
-    const transformed = applyTransform(target.transform, value, {
-      component: target.component,
-      property: target.property,
-      expressionKey,
-      entityId: props.entityId ?? null,
-      faceplateId: faceplate.value?.id ?? null,
-      helpers: getScriptHelpers(),
-      module: (name: string) => scriptModuleExports.get(name),
-      modules: () => Object.fromEntries(scriptModuleExports.entries()),
-    });
-    bindingValueMap[key] = transformed;
-
-    if (import.meta.env.DEV) {
-      logger.debug(`Updated binding: ${key} = ${JSON.stringify(transformed)}`);
-    }
-
-    if (!componentLastUpdated[target.component]) {
-      componentLastUpdated[target.component] = {};
-    }
-    componentLastUpdated[target.component][target.property] = Date.now();
-  });
-}
-
-function applyTransform(transform: string | null | undefined, value: unknown, context: TransformContext): unknown {
-  if (!transform) return value;
-  const raw = transform.trim();
-  if (!raw) return value;
-
-  try {
-    if (raw.includes('=>')) {
-      const factory = new Function(`return (${raw});`);
-      const transformer = factory();
-      if (typeof transformer === 'function') {
-        return transformer(value, context, context.helpers);
-      }
-    }
-
-    const fn = new Function(
-      'value',
-      'context',
-      'helpers',
-      '"use strict"; ' + raw,
-    );
-    return fn(value, context, context.helpers);
-  } catch (error) {
-    logger.warn('Failed to apply transform:', transform, error);
-    return value;
-  }
-}
-
-function getOrCreateScriptStateBucket(expressionKey: string): Record<string, unknown> {
-  if (!scriptState.has(expressionKey)) {
-    scriptState.set(expressionKey, {});
-  }
-  return scriptState.get(expressionKey)!;
-}
-
-function createScriptExecutionContext(expressionKey: string): ScriptExecutionContext {
-  const state = getOrCreateScriptStateBucket(expressionKey);
-
-  return {
-    entityId: props.entityId ?? null,
-    faceplateId: faceplate.value?.id ?? null,
-    expressionKey,
-    async get(path: string) {
-      const fieldStrategy = new (BindingEvaluationStrategyFactory.getStrategy('field') as any).constructor();
-      const value = await fieldStrategy.evaluate(path, {
-        entityId: props.entityId,
-        faceplateId: faceplate.value?.id ?? null,
-        dataStore,
-        service,
-        expressionValueMap,
-        scriptHelpers: getScriptHelpers(),
-        scriptModuleExports,
-        scriptState,
-        scriptCache,
-        scriptRuntimeErrors: scriptRuntimeErrors.value,
-      });
-      const fieldKey = makeExpressionKey(path, 'field');
-      if (!expressionMeta.has(fieldKey)) {
-        expressionValueMap[fieldKey] = value;
-      }
-      return value;
-    },
-    getCached(targetKey: string) {
-      return expressionValueMap[targetKey];
-    },
-    getBindingValue(componentId: string, property: string) {
-      return bindingValueMap[`${componentId}:${property}`];
-    },
-    setState(key: string, value: unknown) {
-      state[key] = value;
-    },
-    getState<T>(key: string, defaultValue?: T) {
-      if (Object.prototype.hasOwnProperty.call(state, key)) {
-        return state[key] as T;
-      }
-      return defaultValue;
-    },
-    bindingsSnapshot() {
-      return { ...bindingValueMap };
-    },
-    module(name: string) {
-      return scriptModuleExports.get(name);
-    },
-    modules() {
-      return Object.fromEntries(scriptModuleExports.entries());
-    },
-  };
-}
-
-async function registerNotifications() {
-  await cleanupNotifications();
-  if (!isLive.value || !props.entityId) return;
-
-  const dependencySet = new Set<string>();
-
-  expressionMeta.forEach((meta) => {
-    if (meta.mode === 'field') {
-      dependencySet.add(meta.expression);
-    }
-    meta.dependencies.forEach((dep) => dependencySet.add(dep));
-  });
-
-  if (faceplate.value) {
-    const channels = Array.isArray(faceplate.value.notificationChannels)
-      ? faceplate.value.notificationChannels
-      : [];
-    channels.forEach((channel) => {
-      ensureArray(channel?.fields).forEach((field) => dependencySet.add(field));
-    });
-  }
-
-  for (const dependency of dependencySet) {
-    const literalStrategy = new (BindingEvaluationStrategyFactory.getStrategy('literal') as any).constructor();
-    const literal = (literalStrategy as any).tryEvaluateLiteral(dependency);
-    if (literal.found) continue;
-
-    const fieldStrategy = new (BindingEvaluationStrategyFactory.getStrategy('field') as any).constructor();
-    const path = await (fieldStrategy as any).getFieldPath(dependency, {
-      entityId: props.entityId,
-      faceplateId: faceplate.value?.id ?? null,
-      dataStore,
-      service,
-      expressionValueMap,
-      scriptHelpers: getScriptHelpers(),
-      scriptModuleExports,
-      scriptState,
-      scriptCache,
-      scriptRuntimeErrors: scriptRuntimeErrors.value,
-    });
-    if (!path.length) continue;
-
-    // For indirect paths (e.g., "Parent->Name"), use IndirectFieldNotifier
-    if (path.length > 1) {
-      try {
-        const notifier = new IndirectFieldNotifier(
-          dataStore,
-          props.entityId!,
-          path,
-          (value) => {
-            // Handle final value changes
-            const subscribers = dependencyIndex.get(dependency);
-            if (!subscribers || !subscribers.size) {
-              void evaluateAllBindings();
-              return;
-            }
-
-            subscribers.forEach((expressionKey) => {
-              const meta = expressionMeta.get(expressionKey);
-              if (!meta) return;
-
-              if (meta.mode === 'field' && meta.expression === dependency) {
-                expressionValueMap[expressionKey] = value;
-                updateBindingsForExpression(expressionKey, value);
-              } else {
-                void evaluateBindingExpression(expressionKey, meta)
-                  .then((value) => {
-                    updateBindingsForExpression(expressionKey, value);
-                  })
-                  .catch((error) => {
-                    logger.warn('Failed to refresh binding after notification:', error);
-                  });
-              }
-            });
-          }
-        );
-
-        await notifier.start();
-        indirectNotifiers.set(dependency, notifier);
-      } catch (error) {
-        logger.warn(`Failed to start IndirectFieldNotifier for dependency ${dependency}:`, error);
-      }
-      continue;
-    }
-
-    // For direct paths (single field), use simple notification
-    await resolveBindingTarget(dependency, path);
-    const target = bindingTargets.get(dependency);
-    
-    // Skip if target is invalid or missing required fields
-    if (!target || target.entityId == null || target.fieldType == null) {
-      logger.warn(`Skipping notification registration for dependency ${dependency}: invalid target`, target);
-      continue;
-    }
-
-    const notifyConfig: NotifyConfig = {
-      EntityId: {
-        entity_id: target.entityId,
-        field_type: target.fieldType,
-        trigger_on_change: true,
-        context: [],
-      },
-    };
-
-    const callback = (notification: Notification) => {
-      if (!notification.current) return;
-      let updatedValue: unknown = null;
-      if (notification.current.value) {
-        updatedValue = ValueHelpers.extract(notification.current.value);
-      }
-
-      const subscribers = dependencyIndex.get(dependency);
-      if (!subscribers || !subscribers.size) {
-        void evaluateAllBindings();
-        return;
-      }
-
-      subscribers.forEach((expressionKey) => {
-        const meta = expressionMeta.get(expressionKey);
-        if (!meta) return;
-
-        if (meta.mode === 'field' && meta.expression === dependency && notification.current?.value !== undefined) {
-          expressionValueMap[expressionKey] = updatedValue;
-          updateBindingsForExpression(expressionKey, updatedValue);
-        } else {
-          void evaluateBindingExpression(expressionKey, meta)
-            .then((value) => {
-              updateBindingsForExpression(expressionKey, value);
-            })
-            .catch((error) => {
-              logger.warn('Failed to refresh binding after notification:', error);
-            });
-        }
-      });
-    };
-
-    try {
-      await dataStore.registerNotification(notifyConfig, callback);
-      subscriptions.push({ config: notifyConfig, callback });
-    } catch (error) {
-      logger.warn(`Failed to register notification for dependency ${dependency}:`, error);
-    }
-  }
-}
-
-async function cleanupNotifications() {
-  // Stop all indirect field notifiers
-  const notifierStops = Array.from(indirectNotifiers.values()).map((notifier) => 
-    notifier.stop().catch((err) => {
-      logger.warn('Failed to stop IndirectFieldNotifier during cleanup:', err);
-    })
-  );
-  indirectNotifiers.clear();
-
-  // Unregister all direct notifications
-  const subscriptionCleanup = subscriptions.map(({ config, callback }) => 
-    dataStore.unregisterNotification(config, callback).catch((err) => {
-      logger.warn('Failed to unregister notification during cleanup:', err);
-    })
-  );
-  subscriptions = [];
-
-  // Wait for all cleanup operations
-  await Promise.all([...notifierStops, ...subscriptionCleanup]);
-}
-
-function ensureArray<T>(value: T[] | T | null | undefined): T[] {
-  if (!value) return [];
-  return Array.isArray(value) ? value : [value];
-}
-
-// Event handler execution queue to prevent race conditions
-const eventHandlerQueue = ref<Array<{ handler: any; value?: any; nativeEvent?: Event }>>([]);
-const isProcessingEventQueue = ref(false);
-
-async function processEventQueue() {
-  if (isProcessingEventQueue.value || eventHandlerQueue.value.length === 0) {
-    return;
-  }
-  
-  isProcessingEventQueue.value = true;
-  
-  while (eventHandlerQueue.value.length > 0) {
-    const payload = eventHandlerQueue.value.shift();
-    if (!payload) continue;
-    
-    const { handler, value, nativeEvent } = payload;
-    
-    if (!handler || handler.enabled === false) {
-      continue;
-    }
-
-    logger.debug('Event triggered:', handler.trigger, 'on component', handler.componentId, 'value:', value);
-
-    try {
-      if (handler.action.type === 'writeField') {
-        await executeWriteFieldAction(handler.action, value);
-      } else if (handler.action.type === 'script') {
-        await executeScriptAction(handler.action, value, nativeEvent);
-      } else if (handler.action.type === 'navigate') {
-        await executeNavigateAction(handler.action);
-      }
-    } catch (error) {
-      logger.error('Event handler execution failed:', error);
-      scriptRuntimeErrors.value.push({
-        context: `Event handler ${handler.trigger}`,
-        error: String(error),
-        timestamp: Date.now(),
-      });
-    }
-  }
-  
-  isProcessingEventQueue.value = false;
-}
-
-// Event handler execution
-async function handleEventTriggered(payload: { handler: any; value?: any; nativeEvent?: Event }) {
-  // Add to queue and process sequentially to prevent race conditions
-  eventHandlerQueue.value.push(payload);
-  await processEventQueue();
-}
-
-async function executeWriteFieldAction(action: any, componentValue: any) {
-  const targetEntityId = props.entityId;
-  if (!targetEntityId) {
-    logger.warn('Cannot write field: no bound entity');
-    return;
-  }
-
-  const fieldPath = action.fieldPath;
-  if (!fieldPath) {
-    logger.warn('Cannot write field: no field path specified');
-    return;
-  }
-
-  // Determine the value to write
-  let valueToWrite: any;
-  if (action.valueSource === 'component') {
-    valueToWrite = componentValue;
-  } else if (action.valueSource === 'literal') {
-    valueToWrite = action.value;
-  } else if (action.valueSource === 'expression') {
-    // Evaluate expression
-    try {
-      const func = new Function('value', `return ${action.value}`);
-      valueToWrite = func(componentValue);
-    } catch (error) {
-      logger.error('Failed to evaluate value expression:', error);
-      return;
-    }
-  }
-
-  // Write the value
-  try {
-    // Determine if path is indirect
-    if (fieldPath.includes('->')) {
-      await service.writeValueIndirect(targetEntityId, fieldPath, valueToWrite);
-    } else {
-      await service.writeValue(targetEntityId, fieldPath, valueToWrite);
-    }
-    logger.debug('Successfully wrote value:', valueToWrite, 'to', fieldPath);
-  } catch (error) {
-    logger.error('Failed to write field:', error);
-  }
-}
-
-async function executeScriptAction(action: any, componentValue: any, nativeEvent?: Event) {
-  const code = action.code;
-  if (!code) {
-    logger.warn('Cannot execute script: no code specified');
-    return;
-  }
-
-  // Create execution context
-  const context = {
-    get: (path: string) => {
-      if (path.includes('->')) {
-        return service.readValueIndirect(props.entityId!, path);
-      }
-      const value = service.readValue(props.entityId!, path);
-      return value.then(v => v ? ValueHelpers.extract(v) : null);
-    },
-    getCached: (path: string) => expressionValueMap[path],
-    set: (path: string, value: any) => {
-      if (path.includes('->')) {
-        return service.writeValueIndirect(props.entityId!, path, value);
-      }
-      return service.writeValue(props.entityId!, path, value);
-    },
-    setState: (key: string, value: unknown) => {
-      const stateKey = `script-${props.faceplateId}-state`;
-      if (!scriptState.has(stateKey)) {
-        scriptState.set(stateKey, {});
-      }
-      scriptState.get(stateKey)![key] = value;
-    },
-    getState: (key: string) => {
-      const stateKey = `script-${props.faceplateId}-state`;
-      return scriptState.get(stateKey)?.[key];
-    },
-  };
-
-  const helpers = {
-    clamp: (value: number, min: number, max: number) => Math.max(min, Math.min(max, value)),
-    lerp: (a: number, b: number, t: number) => a + (b - a) * t,
-    colorRamp: (value: number, colors: string[]) => colors[Math.floor(value * (colors.length - 1))],
-  };
-
-  try {
-    // Create an async function to support await in user scripts
-    const func = new Function('event', 'value', 'context', 'helpers', `return (async () => { ${code} })();`);
-    await func(nativeEvent, componentValue, context, helpers);
-  } catch (error) {
-    logger.error('Script execution failed:', error);
-  }
-}
-
-async function executeNavigateAction(action: any) {
-  const targetFaceplate = action.targetFaceplate;
-  if (!targetFaceplate) {
-    logger.warn('Cannot navigate: no target faceplate specified');
-    return;
-  }
-  
-  try {
-    // Determine entity context for navigation
-    let contextEntityId = props.entityId;
-    if (action.entityContext) {
-      // Evaluate entity context expression
-      try {
-        const context = createScriptExecutionContext('navigate-context');
-        const helpers = getScriptHelpers();
-        const func = new Function('context', 'helpers', `return ${action.entityContext}`);
-        contextEntityId = func(context, helpers);
-      } catch (error) {
-        logger.error('Failed to evaluate entity context:', error);
-        contextEntityId = props.entityId;
-      }
-    }
-    
-    // Emit navigation event for the window manager to handle
-    // This allows the parent application to open a new window or navigate
-    logger.info('Navigate to faceplate:', targetFaceplate, 'with entity:', contextEntityId);
-    
-    // For now, we'll just log it as window system integration is needed
-    // In the future, this could emit an event or use a navigation service
-    console.log('Navigation requested:', {
-      targetFaceplate,
-      entityId: contextEntityId,
-      action,
-    });
-  } catch (error) {
-    logger.error('Navigation failed:', error);
   }
 }
 
@@ -1149,28 +365,21 @@ watch(
 watch(
   () => props.entityId,
   async () => {
-    await evaluateAllBindings();
-    await registerNotifications();
+    await bindingComposable.evaluateAllBindings(props.entityId ?? null, faceplate.value?.id ?? null);
+    await notificationComposable.registerNotifications();
   },
 );
 
 onBeforeUnmount(async () => {
-  await cleanupNotifications();
+  await notificationComposable.cleanupNotifications();
   
   // Clear all caches to prevent memory leaks
-  scriptCache.clear();
-  scriptState.clear();
-  scriptModuleExports.clear();
-  bindingPaths.clear();
-  bindingTargets.clear();
-  expressionTargets.clear();
-  expressionMeta.clear();
-  dependencyIndex.clear();
-  ongoingEvaluations.clear();
+  scriptComposable.clearScriptState();
+  bindingComposable.clearBindingMaps();
 });
 
 defineExpose({
-  refresh: () => evaluateAllBindings(),
+  refresh: () => bindingComposable.evaluateAllBindings(props.entityId ?? null, faceplate.value?.id ?? null),
 });
 </script>
 

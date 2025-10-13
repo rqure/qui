@@ -14,13 +14,13 @@ import {
 export interface UnifiedBindingContext {
   entityId: EntityId | null;
   faceplateId: EntityId | null;
-  dataStore: ReturnType<typeof useDataStore>;
+  dataStore: any;
   service: FaceplateDataService;
   expressionValueMap: Record<string, unknown>;
-  scriptHelpers: ScriptHelpers;
+  scriptHelpers: any;
   scriptModuleExports: Map<string, Record<string, unknown>>;
   scriptState: Map<string, Record<string, unknown>>;
-  scriptCache: Map<string, (context: ScriptExecutionContext, helpers: ScriptHelpers) => Promise<unknown>>;
+  scriptCache: Map<string, any>;
   scriptRuntimeErrors: Array<{ context: string; error: string; timestamp: number }>;
 }
 
