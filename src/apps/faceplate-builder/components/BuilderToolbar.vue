@@ -1,30 +1,72 @@
 <script setup lang="ts">
+import { ref } from 'vue';
+import KeyboardShortcutsHelp from './KeyboardShortcutsHelp.vue';
+
 const props = defineProps<{
   canUndo: boolean;
   canRedo: boolean;
   dirty: boolean;
+  faceplateId?: string | null;
+  faceplateName?: string;
+  targetEntityType?: string;
+  viewportWidth?: number;
+  viewportHeight?: number;
+  isSaving?: boolean;
 }>();
 
 const emit = defineEmits<{
   (event: 'undo'): void;
   (event: 'redo'): void;
   (event: 'save'): void;
-  (event: 'reset'): void;
+  (event: 'new'): void;
+  (event: 'load'): void;
+  (event: 'viewport-resize', payload: { width: number; height: number }): void;
 }>();
+
+const shortcutsHelp = ref<InstanceType<typeof KeyboardShortcutsHelp> | null>(null);
+
+function handleViewportInput(axis: 'width' | 'height', event: Event) {
+  const value = Number((event.target as HTMLInputElement | null)?.value ?? 0);
+  if (!Number.isFinite(value) || value < 320) return;
+  
+  emit('viewport-resize', {
+    width: axis === 'width' ? value : props.viewportWidth ?? 1280,
+    height: axis === 'height' ? value : props.viewportHeight ?? 800,
+  });
+}
 </script>
 
 <template>
   <header class="toolbar">
     <div class="toolbar__left">
-      <h1>Faceplate Builder</h1>
-      <span v-if="props.dirty" class="toolbar__badge">Unsaved changes</span>
+      <div v-if="props.faceplateId" class="toolbar__faceplate-info">
+        <span class="toolbar__badge toolbar__badge--name">{{ props.faceplateName || 'Untitled' }}</span>
+        <span v-if="props.targetEntityType" class="toolbar__badge toolbar__badge--type">{{ props.targetEntityType }}</span>
+      </div>
+      <span v-else class="toolbar__badge toolbar__badge--warning">No faceplate selected</span>
+      <span v-if="props.isSaving" class="toolbar__badge toolbar__badge--saving">Saving...</span>
+      <span v-else-if="props.dirty" class="toolbar__badge">Unsaved</span>
+      <div class="toolbar__viewport">
+        <label>
+          <span>W:</span>
+          <input type="number" min="320" step="20" :value="props.viewportWidth ?? 1280" @change="handleViewportInput('width', $event)" />
+        </label>
+        <label>
+          <span>H:</span>
+          <input type="number" min="240" step="20" :value="props.viewportHeight ?? 800" @change="handleViewportInput('height', $event)" />
+        </label>
+      </div>
     </div>
     <div class="toolbar__actions">
+      <button type="button" @click="emit('new')">New</button>
+      <button type="button" @click="emit('load')">Load</button>
+      <span class="toolbar__divider" aria-hidden="true"></span>
       <button type="button" :disabled="!props.canUndo" @click="emit('undo')">Undo</button>
       <button type="button" :disabled="!props.canRedo" @click="emit('redo')">Redo</button>
       <span class="toolbar__divider" aria-hidden="true"></span>
-      <button type="button" class="toolbar__ghost" @click="emit('reset')">Reset</button>
-      <button type="button" class="toolbar__primary" @click="emit('save')">Save</button>
+      <button type="button" class="toolbar__primary" :disabled="!props.dirty && props.faceplateId != null" @click="emit('save')">Save</button>
+      <span class="toolbar__divider" aria-hidden="true"></span>
+      <KeyboardShortcutsHelp ref="shortcutsHelp" />
     </div>
   </header>
 </template>
@@ -46,19 +88,70 @@ const emit = defineEmits<{
   gap: 12px;
 }
 
-.toolbar h1 {
-  margin: 0;
-  font-size: 18px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-
 .toolbar__badge {
   padding: 4px 10px;
   border-radius: 999px;
   font-size: 12px;
   background: rgba(0, 255, 194, 0.16);
   border: 1px solid rgba(0, 255, 194, 0.32);
+}
+
+.toolbar__badge--name {
+  background: rgba(100, 150, 255, 0.16);
+  border-color: rgba(100, 150, 255, 0.32);
+}
+
+.toolbar__badge--type {
+  background: rgba(150, 100, 255, 0.16);
+  border-color: rgba(150, 100, 255, 0.32);
+  font-family: monospace;
+}
+
+.toolbar__badge--warning {
+  background: rgba(255, 150, 0, 0.16);
+  border-color: rgba(255, 150, 0, 0.32);
+}
+
+.toolbar__badge--saving {
+  background: rgba(0, 170, 255, 0.16);
+  border-color: rgba(0, 170, 255, 0.32);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.toolbar__faceplate-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.toolbar__viewport {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: 12px;
+}
+
+.toolbar__viewport label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.toolbar__viewport input {
+  width: 80px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.35);
+  color: inherit;
+  font-size: 12px;
 }
 
 .toolbar__actions {
@@ -91,10 +184,6 @@ const emit = defineEmits<{
   background: rgba(0, 255, 194, 0.18);
   border-color: rgba(0, 255, 194, 0.34);
   color: inherit;
-}
-
-.toolbar__ghost {
-  border-style: dashed;
 }
 
 .toolbar__divider {

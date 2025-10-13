@@ -11,7 +11,7 @@ const props = defineProps<{
   components: PaletteComponent[];
 }>();
 
-defineEmits<{
+const emit = defineEmits<{
   (event: 'create-request', componentId: string): void;
 }>();
 
@@ -35,8 +35,8 @@ function handleDragStart(event: DragEvent, componentId: string) {
         class="palette__item"
         draggable="true"
         type="button"
-        @dragstart="handleDragStart($event, item.id)"
-        @click="$emit('create-request', item.id)"
+  @dragstart="handleDragStart($event, item.id)"
+  @click="emit('create-request', item.id)"
       >
         <span class="palette__icon" aria-hidden="true">{{ item.icon }}</span>
         <span class="palette__body">
@@ -65,6 +65,10 @@ function handleDragStart(event: DragEvent, componentId: string) {
 .palette__header {
   padding: 14px 16px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .palette__header h2 {

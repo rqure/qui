@@ -176,13 +176,34 @@ function openEntityInWindow(entityId: EntityId, entityName: string) {
   emit('open-in-window', { entityId, entityName });
 }
 
-function openFaceplateWindow(entity: EntityItem, faceplate: EntityFaceplateRef) {
+async function openFaceplateWindow(entity: EntityItem, faceplate: EntityFaceplateRef) {
+  // Try to load faceplate dimensions
+  let width = 960;
+  let height = 720;
+  
+  try {
+    const configFieldType = await dataStore.getFieldType('Configuration');
+    const [configValue] = await dataStore.read(faceplate.id, [configFieldType]);
+    
+    if (configValue && typeof configValue === 'object' && 'String' in configValue) {
+      const config = JSON.parse(configValue.String);
+      if (config.metadata?.viewport) {
+        width = config.metadata.viewport.width || width;
+        height = config.metadata.viewport.height || height;
+        // Add some padding for window chrome
+        height += 80;
+      }
+    }
+  } catch (err) {
+    console.warn('Could not load faceplate dimensions, using defaults', err);
+  }
+  
   windowStore.createWindow({
     title: `${faceplate.name} · ${entity.name}`,
     component: markRaw(FaceplateViewerWindow),
     icon: faceplateBuilderApp.manifest.icon,
-    width: 960,
-    height: 720,
+    width,
+    height,
     props: {
       faceplateId: faceplate.id,
       entityId: entity.id
@@ -190,17 +211,40 @@ function openFaceplateWindow(entity: EntityItem, faceplate: EntityFaceplateRef) 
   });
 }
 
-function openFaceplateBuilder(entity: EntityItem, faceplateId?: EntityId) {
+async function openFaceplateBuilder(entity: EntityItem, faceplateId?: EntityId) {
   const defaultSize = faceplateBuilderApp.manifest.defaultWindowSize || { width: 1200, height: 800 };
+  let width = defaultSize.width;
+  let height = defaultSize.height;
+  
+  // If opening an existing faceplate, try to load its dimensions
+  if (faceplateId) {
+    try {
+      const configFieldType = await dataStore.getFieldType('Configuration');
+      const [configValue] = await dataStore.read(faceplateId, [configFieldType]);
+      
+      if (configValue && typeof configValue === 'object' && 'String' in configValue) {
+        const config = JSON.parse(configValue.String);
+        if (config.metadata?.viewport) {
+          width = config.metadata.viewport.width || width;
+          height = config.metadata.viewport.height || height;
+          // Add some padding for window chrome and toolbars
+          height += 120;
+        }
+      }
+    } catch (err) {
+      console.warn('Could not load faceplate dimensions for builder, using defaults', err);
+    }
+  }
+  
   windowStore.createWindow({
     title: 'Faceplate Builder',
     component: faceplateBuilderApp.component.default,
     icon: faceplateBuilderApp.manifest.icon,
-    width: defaultSize.width,
-    height: defaultSize.height,
+    width,
+    height,
     props: {
-      initialEntityId: entity.id,
-      initialFaceplateId: faceplateId ?? null
+      entityId: entity.id,
+      faceplateId: faceplateId ?? null
     }
   });
 }

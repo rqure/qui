@@ -1,0 +1,513 @@
+<script setup lang="ts">
+import { computed, ref } from 'vue';
+import PrimitiveRenderer from './PrimitiveRenderer.vue';
+import ComponentNode from './ComponentNode.vue';
+import { useComponentNode } from '../composables/useComponentNode';
+
+export interface CanvasComponent {
+  id: string | number;
+  type: string;
+  position: {
+    x: number;
+    y: number;
+  };
+  size: {
+    x: number;
+    y: number;
+  };
+  config: Record<string, any>;
+  bindings?: Record<string, unknown>;
+  parentId?: string | number | null;
+  children?: CanvasComponent[];
+  eventHandlers?: any[]; // Event handlers for this component
+  locked?: boolean; // Whether component is locked (prevents editing/moving)
+}
+
+interface Props {
+  components: CanvasComponent[];
+  viewport?: { x: number; y: number };
+  editMode?: boolean;
+  selectedComponentId?: string | number | null;
+  selectedComponentIds?: Set<string | number>;
+  dropTargetContainerId?: string | number | null; // Container being hovered during drag
+  showGrid?: boolean;
+  showViewportBoundary?: boolean;
+  zoom?: number;
+  pan?: { x: number; y: number };
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  editMode: false,
+  selectedComponentId: null,
+  dropTargetContainerId: null,
+  showGrid: true,
+  showViewportBoundary: false,
+  zoom: 1,
+  pan: () => ({ x: 0, y: 0 }),
+});
+
+const emit = defineEmits<{
+  (event: 'component-click', payload: { id: string | number; event: PointerEvent; isMultiSelect: boolean }): void;
+  (event: 'canvas-click', pointerEvent: PointerEvent): void;
+  (event: 'component-drag-start', payload: { id: string | number; event: PointerEvent }): void;
+  (event: 'component-drag', payload: { id: string | number; position: { x: number; y: number } }): void;
+  (event: 'component-drag-end', payload: { id: string | number; position: { x: number; y: number } }): void;
+  (event: 'event-triggered', payload: any): void;
+  (event: 'component-contextmenu', payload: { id: string | number; event: MouseEvent }): void;
+}>();
+
+const GRID_SIZE = 120;
+
+const canvasRef = ref<HTMLDivElement | null>(null);
+
+
+// In edit mode: use fixed viewport dimensions with zoom/pan transforms
+// In runtime mode: use 100% to fill container naturally without transforms
+const surfaceStyle = computed(() => {
+  if (props.editMode) {
+    // Builder mode: fixed size with zoom/pan
+    const width = props.viewport?.x ?? GRID_SIZE * 8;
+    const height = props.viewport?.y ?? GRID_SIZE * 6;
+    return {
+      width: `${width}px`,
+      height: `${height}px`,
+      transform: `scale(${props.zoom}) translate(${props.pan.x}px, ${props.pan.y}px)`,
+      transformOrigin: 'top left',
+    };
+  } else {
+    // Runtime mode: fill container at 100%
+    return {
+      width: '100%',
+      height: '100%',
+    };
+  }
+});
+
+const viewportBoundaryStyle = computed(() => {
+  if (!props.viewport) return {};
+  return {
+    width: `${props.viewport.x}px`,
+    height: `${props.viewport.y}px`,
+  };
+});
+
+// Build component tree with parent-child relationships
+const componentTree = computed(() => {
+  const componentsById = new Map<string | number, CanvasComponent>();
+  const rootComponents: CanvasComponent[] = [];
+  
+  // First pass: clone all components and index by ID, preserving existing children arrays
+  props.components.forEach(comp => {
+    componentsById.set(comp.id, { ...comp, children: comp.children || [] });
+  });
+  
+  // Second pass: build tree structure (only if children aren't already provided)
+  props.components.forEach(comp => {
+    const component = componentsById.get(comp.id)!;
+    
+    // If component already has children from input, skip tree building for it
+    if (comp.children && comp.children.length > 0) {
+      // Component already has its children, just add to root if no parent
+      if (!comp.parentId) {
+        rootComponents.push(component);
+      }
+      return;
+    }
+    
+    if (comp.parentId && componentsById.has(comp.parentId)) {
+      const parent = componentsById.get(comp.parentId)!;
+      if (!parent.children) parent.children = [];
+      parent.children.push(component);
+    } else {
+      rootComponents.push(component);
+    }
+  });
+  
+  if (import.meta.env.DEV) {
+    console.log('FaceplateCanvas - componentTree:', rootComponents);
+    console.log('FaceplateCanvas - componentsById:', Array.from(componentsById.entries()));
+  }
+  
+  return rootComponents;
+});
+
+// Check if component is a container
+function isContainer(type: string): boolean {
+  return type === 'primitive.container' || type === 'primitive.container.tabs';
+}
+
+// Calculate automatic child layout within container
+function calculateChildLayout(container: CanvasComponent, children: CanvasComponent[]): CanvasComponent[] {
+  if (!children || children.length === 0) return [];
+  
+  const config = container.config || {};
+  const padding = Number(config.padding) || 16;
+  const gap = Number(config.gap) || 12;
+  const direction = config.layoutDirection === 'horizontal' ? 'horizontal' : 'vertical';
+  const wrap = Boolean(config.wrap);
+  
+  const containerWidth = container.size.x;
+  const containerHeight = container.size.y;
+  const availableWidth = containerWidth - (padding * 2);
+  const availableHeight = containerHeight - (padding * 2);
+  
+  let currentX = padding;
+  let currentY = padding;
+  let rowMaxHeight = 0;
+  let colMaxWidth = 0;
+  
+  return children.map(child => {
+    const childWidth = child.size.x;
+    const childHeight = child.size.y;
+    
+    // Calculate position based on layout direction
+    if (direction === 'horizontal') {
+      // Check if we need to wrap
+      if (wrap && currentX + childWidth > availableWidth + padding && currentX > padding) {
+        currentX = padding;
+        currentY += rowMaxHeight + gap;
+        rowMaxHeight = 0;
+      }
+      
+      const position = { x: currentX, y: currentY };
+      currentX += childWidth + gap;
+      rowMaxHeight = Math.max(rowMaxHeight, childHeight);
+      
+      return { ...child, position };
+    } else {
+      // Vertical layout
+      if (wrap && currentY + childHeight > availableHeight + padding && currentY > padding) {
+        currentY = padding;
+        currentX += colMaxWidth + gap;
+        colMaxWidth = 0;
+      }
+      
+      const position = { x: currentX, y: currentY };
+      currentY += childHeight + gap;
+      colMaxWidth = Math.max(colMaxWidth, childWidth);
+      
+      return { ...child, position };
+    }
+  });
+}
+
+function getComponentStyle(component: CanvasComponent) {
+  return {
+    left: `${component.position.x}px`,
+    top: `${component.position.y}px`,
+    width: `${component.size.x}px`,
+    height: `${component.size.y}px`,
+  };
+}
+
+function isComponentSelected(id: string | number): boolean {
+  if (props.selectedComponentIds && props.selectedComponentIds.size > 0) {
+    return props.selectedComponentIds.has(id);
+  }
+  return props.selectedComponentId === id;
+}
+
+function isComponentMultiSelected(id: string | number): boolean {
+  return props.selectedComponentIds ? props.selectedComponentIds.has(id) : false;
+}
+
+function handleComponentPointerDown(event: PointerEvent, id: string | number) {
+  if (!props.editMode) return;
+  
+  // Don't stopPropagation - let it bubble to BuilderCanvas for drag handling
+  const isMultiSelect = event.shiftKey || event.ctrlKey || event.metaKey;
+  emit('component-click', { id, event, isMultiSelect });
+  emit('component-drag-start', { id, event });
+}
+
+function handleCanvasPointerDown(event: PointerEvent) {
+  if (event.target === canvasRef.value || (event.target as HTMLElement).classList.contains('faceplate-canvas__surface')) {
+    emit('canvas-click', event);
+  }
+}
+
+defineExpose({
+  canvasRef,
+});
+</script>
+
+<template>
+  <section 
+    ref="canvasRef"
+    class="faceplate-canvas" 
+    :class="{ 'faceplate-canvas--edit-mode': editMode }"
+    @pointerdown="handleCanvasPointerDown"
+  >
+    <div 
+      class="faceplate-canvas__surface" 
+      :style="surfaceStyle"
+    >
+      <!-- Grid overlay (builder only) -->
+      <div v-if="showGrid && editMode" class="faceplate-canvas__grid"></div>
+
+      <!-- Viewport boundary indicator (builder only) -->
+      <div 
+        v-if="showViewportBoundary && viewport && editMode" 
+        class="faceplate-canvas__viewport-boundary"
+        :style="viewportBoundaryStyle"
+      ></div>
+
+      <!-- Components (recursive tree rendering) -->
+      <template v-for="component in componentTree" :key="component.id">
+        <ComponentNode
+          :component="component"
+          :edit-mode="editMode"
+          :is-selected="isComponentSelected(component.id)"
+          :is-multi-selected="isComponentMultiSelected(component.id)"
+          :drop-target-container-id="dropTargetContainerId"
+          @component-click="emit('component-click', $event)"
+          @component-drag-start="emit('component-drag-start', $event)"
+          @component-contextmenu="emit('component-contextmenu', $event)"
+          @event-triggered="emit('event-triggered', $event)"
+        />
+      </template>
+
+      <!-- Hint for empty canvas -->
+      <div v-if="!components.length && editMode" class="faceplate-canvas__hint">
+        Drag components here or drop them from the palette.
+      </div>
+    </div>
+  </section>
+</template>
+
+<style scoped>
+.faceplate-canvas {
+  position: relative;
+  flex: 1;
+  border: 1px dashed rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.24);
+}
+
+/* In edit mode, allow scrolling for zoom/pan navigation */
+.faceplate-canvas.faceplate-canvas--edit-mode {
+  overflow: auto;
+}
+
+/* In runtime, hide overflow to prevent scrollbars */
+.faceplate-canvas:not(.faceplate-canvas--edit-mode) {
+  overflow: hidden;
+}
+
+.faceplate-canvas__surface {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(135deg, rgba(12, 22, 32, 0.85), rgba(6, 12, 20, 0.92));
+  transition: transform 0.2s ease-out;
+  overflow: visible;
+}
+
+.faceplate-canvas__grid {
+  position: absolute;
+  inset: 0;
+  background-image: 
+    /* Major grid (every 10 cells = 100px) */
+    linear-gradient(to right, rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+    /* Minor grid (every cell = 10px) */
+    linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  background-size: 100px 100px, 100px 100px, 10px 10px, 10px 10px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.faceplate-canvas__viewport-boundary {
+  position: absolute;
+  top: 0;
+  left: 0;
+  border: 2px dashed rgba(0, 255, 194, 0.4);
+  background: rgba(0, 255, 194, 0.02);
+  pointer-events: none;
+  z-index: 1;
+  box-shadow: inset 0 0 0 1px rgba(0, 255, 194, 0.2);
+}
+
+.faceplate-canvas__component {
+  position: absolute;
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+  padding: 0;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: transparent;
+  transition: border 0.18s ease, box-shadow 0.18s ease;
+  pointer-events: auto;
+}
+
+.faceplate-canvas__component--interactive {
+  cursor: grab;
+}
+
+.faceplate-canvas__component--interactive:active {
+  cursor: grabbing;
+}
+
+.faceplate-canvas__component--selected {
+  border-color: rgba(0, 255, 194, 0.6);
+  box-shadow: 0 0 0 3px rgba(0, 255, 194, 0.18);
+}
+
+.faceplate-canvas__component--multi-selected {
+  border-color: rgba(100, 150, 255, 0.6);
+  box-shadow: 0 0 0 3px rgba(100, 150, 255, 0.18);
+}
+
+.faceplate-canvas__component--locked {
+  border-color: rgba(255, 200, 100, 0.5) !important;
+  box-shadow: 0 0 0 3px rgba(255, 200, 100, 0.15) !important;
+  cursor: not-allowed !important;
+  opacity: 0.8;
+}
+
+.faceplate-canvas__component--interactive:focus-visible {
+  outline: none;
+  border-color: rgba(0, 200, 255, 0.7);
+}
+
+.faceplate-canvas__lock-indicator {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 24px;
+  height: 24px;
+  background: rgba(255, 200, 100, 0.95);
+  border: 1px solid rgba(255, 180, 60, 0.8);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  pointer-events: none;
+  z-index: 10;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.faceplate-canvas__component-content {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+}
+
+/* In edit mode, prevent interactions with component internals so we can drag/select the wrapper */
+.faceplate-canvas--edit-mode .faceplate-canvas__component-content {
+  pointer-events: none;
+}
+
+/* Container specific styles */
+.faceplate-canvas__component--container .faceplate-canvas__component-content {
+  position: relative;
+  /* Allow the PrimitiveRenderer to use flex layout */
+  display: flex;
+  flex-direction: column;
+}
+
+/* Components inside containers use flexbox positioning, not absolute */
+/* Only apply in runtime (when not in edit mode) */
+.faceplate-canvas:not(.faceplate-canvas--edit-mode) .faceplate-canvas__component--inside-container {
+  /* Don't override position - let it be default for flexbox */
+  position: static;
+  /* flex-shrink: 0 prevents children from shrinking below their specified size */
+  flex-shrink: 0;
+}
+
+/* In edit mode, keep absolute positioning for manual layout */
+.faceplate-canvas--edit-mode .faceplate-canvas__component--inside-container {
+  position: absolute;
+  opacity: 0.85;
+  border: 1px dashed rgba(100, 150, 255, 0.4);
+}
+
+/* Drop target highlighting during drag-to-contain */
+.faceplate-canvas__component--drop-target {
+  box-shadow: inset 0 0 0 3px rgba(0, 255, 194, 0.6), 0 0 12px rgba(0, 255, 194, 0.4) !important;
+  animation: pulse-glow 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: inset 0 0 0 3px rgba(0, 255, 194, 0.6), 0 0 12px rgba(0, 255, 194, 0.4);
+  }
+  50% {
+    box-shadow: inset 0 0 0 3px rgba(0, 255, 194, 0.8), 0 0 16px rgba(0, 255, 194, 0.6);
+  }
+}
+
+.faceplate-canvas__drop-zone-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 255, 194, 0.15);
+  backdrop-filter: blur(4px);
+  border: 3px dashed rgba(0, 255, 194, 0.8);
+  border-radius: 8px;
+  z-index: 1000;
+  pointer-events: none;
+  animation: drop-zone-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes drop-zone-pulse {
+  0%, 100% {
+    background: rgba(0, 255, 194, 0.15);
+    border-color: rgba(0, 255, 194, 0.8);
+  }
+  50% {
+    background: rgba(0, 255, 194, 0.25);
+    border-color: rgba(0, 255, 194, 1);
+  }
+}
+
+.faceplate-canvas__drop-zone-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 24px;
+  background: rgba(0, 20, 15, 0.85);
+  border-radius: 12px;
+  border: 2px solid rgba(0, 255, 194, 0.5);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.faceplate-canvas__drop-zone-icon {
+  font-size: 48px;
+  animation: drop-zone-icon-bounce 1s ease-in-out infinite;
+}
+
+@keyframes drop-zone-icon-bounce {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-8px) scale(1.1);
+  }
+}
+
+.faceplate-canvas__drop-zone-text {
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(0, 255, 194, 1);
+  text-align: center;
+  letter-spacing: 0.05em;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+.faceplate-canvas__hint {
+  position: absolute;
+  inset: auto 16px 16px 16px;
+  text-align: center;
+  font-size: 13px;
+  opacity: 0.55;
+  pointer-events: none;
+}
+</style>

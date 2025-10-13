@@ -1,115 +1,66 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue';
+import { computed, reactive, ref, onMounted, onBeforeUnmount } from 'vue';
 import BuilderCanvas from './components/BuilderCanvas.vue';
 import ComponentPalette from './components/ComponentPalette.vue';
-import ComponentComposerPanel from './components/ComponentComposerPanel.vue';
 import InspectorPanel from './components/InspectorPanel.vue';
-import BindingsPanel from './components/BindingsPanel.vue';
-import FaceplatePreview from './components/FaceplatePreview.vue';
 import BuilderToolbar from './components/BuilderToolbar.vue';
+import FaceplateSelector from './components/FaceplateSelector.vue';
+import LayersPanel from './components/LayersPanel.vue';
+import { useDataStore } from '@/stores/data';
+import { useWindowStore } from '@/stores/windows';
+import { FaceplateDataService } from './utils/faceplate-data';
+import {
+  DEFAULT_VIEWPORT_WIDTH,
+  DEFAULT_VIEWPORT_HEIGHT,
+  MIN_VIEWPORT_WIDTH,
+  MIN_VIEWPORT_HEIGHT,
+} from './constants';
+import { logger } from './utils/logger';
+import { PRIMITIVE_REGISTRY } from './utils/primitive-registry';
+import { generateId, createNodeMap, createBindingMap } from './utils/helpers';
+import { useWorkspaceState } from './composables/useWorkspaceState';
+import { useFaceplateOperations } from './composables/useFaceplateOperations';
+import { useHistoryManager } from './composables/useHistoryManager';
+import { useClipboard } from './composables/useClipboard';
+import { useContainerManagement } from './composables/useContainerManagement';
+import { ContainerManagementService } from './utils/container-management';
+import type { FaceplateNotificationChannel, FaceplateScriptModule } from './utils/faceplate-data';
+import type { EntityId } from '@/core/data/types';
 import type {
   Binding,
+  BindingMode,
   CanvasNode,
   PaletteTemplate,
   PrimitiveDefinition,
   PrimitivePropertyDefinition,
   Vector2,
+  EventHandler,
 } from './types';
 
-const primitiveCatalog: PrimitiveDefinition[] = [
-  {
-    id: 'primitive.gauge.arc',
-    label: 'Arc Gauge',
-    description: 'Circular gauge with dial indicator and numeric readout.',
-    icon: '🧭',
-    category: 'Indicators',
-    defaultSize: { x: 260, y: 200 },
-    defaultProps: { label: 'Gauge', value: 58, min: 0, max: 100, unit: '%', precision: 1, suffix: '' },
-    propertySchema: [
-      { key: 'label', label: 'Label', type: 'string', default: 'Gauge Label' },
-      { key: 'value', label: 'Value', type: 'number', default: 58, description: 'Bind this field to live data.' },
-      { key: 'min', label: 'Minimum', type: 'number', default: 0 },
-      { key: 'max', label: 'Maximum', type: 'number', default: 100 },
-      { key: 'unit', label: 'Unit', type: 'string', default: '%' },
-      { key: 'precision', label: 'Precision', type: 'number', default: 1 },
-      { key: 'suffix', label: 'Suffix', type: 'string', default: '' },
-    ],
-    previewProps: { label: 'Arc Gauge', value: 72, unit: '%' },
-  },
-  {
-    id: 'primitive.status.pill',
-    label: 'Status Pill',
-    description: 'Boolean indicator pill with customizable labels.',
-    icon: '🟢',
-    category: 'Indicators',
-    defaultSize: { x: 240, y: 160 },
-    defaultProps: { label: 'Status', status: true, trueLabel: 'Running', falseLabel: 'Stopped' },
-    propertySchema: [
-      { key: 'label', label: 'Label', type: 'string', default: 'Status Indicator' },
-      { key: 'status', label: 'State', type: 'boolean', default: true, description: 'Bind to a boolean or alarm status.' },
-      { key: 'trueLabel', label: 'True Label', type: 'string', default: 'Running' },
-      { key: 'falseLabel', label: 'False Label', type: 'string', default: 'Stopped' },
-    ],
-    previewProps: { label: 'System', status: true, trueLabel: 'Online', falseLabel: 'Offline' },
-  },
-  {
-    id: 'primitive.trend.sparkline',
-    label: 'Trend Sparkline',
-    description: 'Compact trend visualization with window controls.',
-    icon: '📈',
-    category: 'Analytics',
-    defaultSize: { x: 360, y: 220 },
-    defaultProps: { label: 'Trend', window: '15m', showThreshold: false },
-    propertySchema: [
-      { key: 'label', label: 'Label', type: 'string', default: 'Trend' },
-      { key: 'window', label: 'Window', type: 'string', default: '15m' },
-      { key: 'showThreshold', label: 'Show Threshold', type: 'boolean', default: false },
-    ],
-    previewProps: { label: 'Trend', window: '15m' },
-  },
-  {
-    id: 'primitive.text.block',
-    label: 'Text Block',
-    description: 'Static or data-bound text with alignment options.',
-    icon: '🔖',
-    category: 'Text',
-    defaultSize: { x: 220, y: 120 },
-    defaultProps: { label: 'Label', text: 'Sample Text', align: 'center' },
-    propertySchema: [
-      { key: 'text', label: 'Text', type: 'string', default: 'Sample Text' },
-      {
-        key: 'align',
-        label: 'Alignment',
-        type: 'option',
-        default: 'center',
-        options: [
-          { label: 'Left', value: 'left' },
-          { label: 'Center', value: 'center' },
-          { label: 'Right', value: 'right' },
-        ],
-      },
-    ],
-    previewProps: { text: 'Hierarchy: Line A', align: 'left' },
-  },
-  {
-    id: 'primitive.form.field',
-    label: 'Form Field',
-    description: 'Input-style primitive for acknowledging values or setting targets.',
-    icon: '📝',
-    category: 'Controls',
-    defaultSize: { x: 260, y: 160 },
-    defaultProps: { label: 'Setpoint', placeholder: 'Enter value', required: false },
-    propertySchema: [
-      { key: 'label', label: 'Label', type: 'string', default: 'Form Field' },
-      { key: 'placeholder', label: 'Placeholder', type: 'string', default: 'Enter value' },
-      { key: 'required', label: 'Required', type: 'boolean', default: false },
-    ],
-    previewProps: { label: 'Target', placeholder: 'Enter new target' },
-  },
-];
+type InspectorBindingPayload = {
+  nodeId: string;
+  property: string;
+  mode: BindingMode;
+  expression: string;
+  transform: string | null;
+  dependencies: string[];
+  description?: string;
+};
+
+// Props for optional pre-loaded faceplate
+const props = defineProps<{
+  faceplateId?: EntityId | null;
+  entityId?: EntityId | null;
+}>();
+
+const dataStore = useDataStore();
+const faceplateService = new FaceplateDataService(dataStore);
+const windowStore = useWindowStore();
+
+const DEFAULT_VIEWPORT: Vector2 = { x: DEFAULT_VIEWPORT_WIDTH, y: DEFAULT_VIEWPORT_HEIGHT };
 
 const primitiveMap = Object.fromEntries(
-  primitiveCatalog.map((primitive) => [primitive.id, primitive]),
+  PRIMITIVE_REGISTRY.map((primitive) => [primitive.id, primitive]),
 ) as Record<string, PrimitiveDefinition>;
 
 function cloneSchema(schema: PrimitivePropertyDefinition[]): PrimitivePropertyDefinition[] {
@@ -151,63 +102,24 @@ function buildTemplate(options: {
       },
     },
     propertySchema: cloneSchema(primitive.propertySchema),
-    previewProps: primitive.previewProps,
     source: options.source,
   };
 }
 
-const componentLibrary = ref<PaletteTemplate[]>([
-  buildTemplate({
-    id: 'component-gauge-default',
-    primitiveId: 'primitive.gauge.arc',
-    label: 'Process Gauge',
-    description: 'Dial gauge tuned for live process values.',
-    icon: '🧭',
-    props: { label: 'Process Value', unit: '%', precision: 1, suffix: '' },
-    size: { x: 280, y: 200 },
-    source: 'built-in',
-  }),
-  buildTemplate({
-    id: 'component-status-default',
-    primitiveId: 'primitive.status.pill',
-    label: 'Status Tile',
-    description: 'Boolean status pill with customizable labels.',
-    icon: '🟢',
-    props: { label: 'System Status', trueLabel: 'Active', falseLabel: 'Inactive' },
-    size: { x: 240, y: 160 },
-    source: 'built-in',
-  }),
-  buildTemplate({
-    id: 'component-trend-default',
-    primitiveId: 'primitive.trend.sparkline',
-    label: 'Trend Card',
-    description: 'Sparkline preview for rolling metrics.',
-    icon: '📈',
-    props: { label: 'Throughput', window: '30m' },
-    size: { x: 360, y: 220 },
-    source: 'built-in',
-  }),
-  buildTemplate({
-    id: 'component-label-default',
-    primitiveId: 'primitive.text.block',
-    label: 'Hierarchy Label',
-    description: 'Text block for contextual labeling.',
-    icon: '🔖',
-    props: { text: 'Line A / Cell 4', align: 'left' },
-    size: { x: 240, y: 120 },
-    source: 'built-in',
-  }),
-  buildTemplate({
-    id: 'component-form-default',
-    primitiveId: 'primitive.form.field',
-    label: 'Setpoint Field',
-    description: 'Operator input for targets with validation flag.',
-    icon: '�',
-    props: { label: 'Setpoint', placeholder: 'Enter target' },
-    size: { x: 260, y: 160 },
-    source: 'built-in',
-  }),
-]);
+const componentLibrary = ref<PaletteTemplate[]>(
+  PRIMITIVE_REGISTRY.map((primitive) =>
+    buildTemplate({
+      id: primitive.id,
+      primitiveId: primitive.id,
+      label: primitive.label,
+      description: primitive.description,
+      icon: primitive.icon,
+      props: primitive.defaultProps,
+      size: primitive.defaultSize,
+      source: 'built-in',
+    }),
+  ),
+);
 
 const templateMap = computed(() => {
   const map: Record<string, PaletteTemplate> = {};
@@ -231,81 +143,125 @@ const paletteItems = computed(() =>
   }),
 );
 
-const nodes = ref<CanvasNode[]>([]);
-const bindings = ref<Binding[]>([]);
-const selectedNodeId = ref<string | null>(null);
+// Initialize composables
+const workspaceState = useWorkspaceState();
+const faceplateOps = useFaceplateOperations(dataStore, faceplateService, workspaceState);
+const { history, canUndo, canRedo, dirty, pushHistory, undo: undoHistory, redo: redoHistory, markSaved, reset: resetHistory } = useHistoryManager();
+const { copySelectedNodes, pasteNodes: pasteNodesFromClipboard, duplicateSelectedNodes } = useClipboard();
+const { isContainer, getAllContainers, getContainerChildren, addToContainer, removeFromContainer, clearContainerChildren, groupSelectedNodes, ungroupSelectedNode, getAbsolutePosition, isAncestor } = useContainerManagement();
 
-const history = reactive<{ stack: Array<{ nodes: CanvasNode[]; bindings: Binding[] }>; index: number }>({
-  stack: [],
-  index: -1,
-});
-const savedIndex = ref(-1);
+// Destructure state from composables
+const {
+  nodes,
+  bindings,
+  selectedNodeId,
+  selectedNodeIds,
+  currentFaceplateId,
+  currentFaceplateName,
+  currentTargetEntityType,
+  viewportSize,
+  faceplateMetadata,
+  selectedNode,
+  selectedNodes,
+  hasFaceplateSelected,
+  applySelection,
+  clearSelection,
+  resetWorkspace,
+  updateNodes,
+  updateBindings,
+} = workspaceState;
 
-const selectedNode = computed(() => nodes.value.find((node) => node.id === selectedNodeId.value) ?? null);
-const selectedTemplate = computed(() =>
-  selectedNode.value ? templateMap.value[selectedNode.value.componentId] ?? null : null,
+const { isSaving, loadFaceplate, saveFaceplate } = faceplateOps;
+
+// Additional state not in composables
+const currentScriptModules = ref<FaceplateScriptModule[]>([]);
+const currentNotificationChannels = ref<FaceplateNotificationChannel[]>([]);
+
+// UI state
+const showFaceplateSelector = ref(false);
+const selectorStartInNewMode = ref(false);
+const selectedNodeBindings = computed(() =>
+  selectedNodeId.value
+    ? bindings.value.filter((binding) => binding.componentId === selectedNodeId.value)
+    : [],
 );
-const canUndo = computed(() => history.index > 0);
-const canRedo = computed(() => history.index < history.stack.length - 1);
-const dirty = computed(() => history.index !== savedIndex.value);
 
-function generateId(prefix: string) {
-  return `${prefix}-${Math.random().toString(36).slice(2, 8)}`;
+// Efficient lookup maps
+const nodeMap = computed(() => createNodeMap(nodes.value));
+const bindingMap = computed(() => createBindingMap(bindings.value));
+
+// Computed properties for templates
+const selectedTemplate = computed(() =>
+  selectedNode.value ? templateMap.value[selectedNode.value.componentId] : null
+);
+
+function getComponentName(componentId: string): string {
+  return nodeMap.value.get(componentId)?.name ?? componentId;
 }
 
-function slugify(value: string): string {
-  const slug = value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .replace(/-{2,}/g, '-');
-  return slug.length ? slug : 'component';
-}
-
-function ensureTemplateId(label: string): string {
-  const slug = slugify(label);
-  const existing = new Set(componentLibrary.value.map((item) => item.id));
-  let candidate = `component-${slug}`;
-  let index = 2;
-  while (existing.has(candidate)) {
-    candidate = `component-${slug}-${index}`;
-    index += 1;
+function normalizeViewport(value: unknown): Vector2 | null {
+  if (!value || typeof value !== 'object') {
+    return null;
   }
-  return candidate;
-}
 
-function cloneState(): { nodes: CanvasNode[]; bindings: Binding[] } {
+  const candidate = value as Record<string, unknown>;
+  const widthRaw = candidate.width ?? candidate.x;
+  const heightRaw = candidate.height ?? candidate.y;
+  const width = Number(widthRaw);
+  const height = Number(heightRaw);
+
+  if (!Number.isFinite(width) || !Number.isFinite(height)) {
+    return null;
+  }
+
   return {
-    nodes: nodes.value.map((node) => ({
-      ...node,
-      position: { ...node.position },
-      size: { ...node.size },
-      props: { ...node.props },
-    })),
-    bindings: bindings.value.map((binding) => ({ ...binding })),
+    x: Math.max(MIN_VIEWPORT_WIDTH, Math.round(width)),
+    y: Math.max(MIN_VIEWPORT_HEIGHT, Math.round(height)),
   };
 }
 
-function pushHistory() {
-  history.stack.splice(history.index + 1);
-  history.stack.push(cloneState());
-  history.index = history.stack.length - 1;
+function applyViewportMetadata(metadata: Record<string, unknown> | undefined) {
+  const viewport = metadata ? normalizeViewport((metadata as Record<string, unknown>).viewport) : null;
+  faceplateMetadata.value = metadata
+    ? {
+        ...metadata,
+        ...(viewport
+          ? {
+              viewport: {
+                width: viewport.x,
+                height: viewport.y,
+              },
+            }
+          : {}),
+      }
+    : {};
+  viewportSize.value = viewport ?? { ...DEFAULT_VIEWPORT };
 }
 
-function applyState(snapshot: { nodes: CanvasNode[]; bindings: Binding[] }) {
+function applyState(snapshot: {
+  nodes: CanvasNode[];
+  bindings: Binding[];
+  viewport: Vector2;
+  metadata: Record<string, unknown>;
+}) {
   nodes.value = snapshot.nodes.map((node) => ({
     ...node,
     position: { ...node.position },
     size: { ...node.size },
     props: { ...node.props },
+    parentId: node.parentId || null,
+    children: node.children ? [...node.children] : undefined,
+    zIndex: node.zIndex,
   }));
   bindings.value = snapshot.bindings.map((binding) => ({ ...binding }));
+  viewportSize.value = snapshot.viewport ? { ...snapshot.viewport } : { ...DEFAULT_VIEWPORT };
+  faceplateMetadata.value = snapshot.metadata ? { ...snapshot.metadata } : {};
   if (selectedNodeId.value && !nodes.value.some((node) => node.id === selectedNodeId.value)) {
     selectedNodeId.value = null;
   }
 }
 
-function handleNodeRequest(payload: { componentId: string; position: Vector2 }) {
+async function handleNodeRequest(payload: { componentId: string; position: Vector2 }) {
   const template = templateMap.value[payload.componentId];
   if (!template) return;
 
@@ -326,30 +282,89 @@ function handleNodeRequest(payload: { componentId: string; position: Vector2 }) 
       props: defaultProps,
     },
   ];
-  selectedNodeId.value = nodeId;
-  pushHistory();
+  applySelection([nodeId], nodeId);
+  pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value);
 }
 
-function handleNodeUpdate(payload: { nodeId: string; position: Vector2 }) {
+function applyNodePositionUpdates(updates: Array<{ nodeId: string; position: Vector2 }>) {
+  if (!updates.length) {
+    return;
+  }
+
+  const positionMap = new Map<string, Vector2>();
+  updates.forEach((update) => {
+    positionMap.set(update.nodeId, { ...update.position });
+  });
+
+  nodes.value = nodes.value.map((node) => {
+    const nextPosition = positionMap.get(node.id);
+    if (!nextPosition) {
+      return node;
+    }
+    return {
+      ...node,
+      position: {
+        x: nextPosition.x,
+        y: nextPosition.y,
+      },
+    };
+  });
+}
+
+function handleNodesUpdated(updates: Array<{ nodeId: string; position: Vector2 }>) {
+  applyNodePositionUpdates(updates);
+}
+
+function handleNodesMoveEnd(updates: Array<{ nodeId: string; position: Vector2 }>) {
+  if (!updates.length) {
+    return;
+  }
+  applyNodePositionUpdates(updates);
+  pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value);
+}
+
+function handleNodeResized(payload: { nodeId: string; size: Vector2 }) {
   nodes.value = nodes.value.map((node) =>
-    node.id === payload.nodeId ? { ...node, position: { ...payload.position } } : node,
+    node.id === payload.nodeId
+      ? { ...node, size: { ...payload.size } }
+      : node,
   );
 }
 
-function handleNodeMoveEnd(payload: { nodeId: string; position: Vector2 }) {
-  handleNodeUpdate(payload);
-  pushHistory();
+function handleNodeResizeEnd(payload: { nodeId: string; size: Vector2 }) {
+  handleNodeResized(payload);
+  pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value);
 }
 
-function handleNodeSelected(nodeId: string) {
-  selectedNodeId.value = nodeId;
+function handleNodeSelected(payload: { nodeId: string; isMultiSelect: boolean }) {
+  const current = selectedNodeIds.value;
+  const next = new Set(current);
+
+  if (payload.isMultiSelect) {
+    if (next.has(payload.nodeId)) {
+      next.delete(payload.nodeId);
+    } else {
+      next.add(payload.nodeId);
+    }
+    if (!next.size) {
+      applySelection([payload.nodeId], payload.nodeId);
+      return;
+    }
+    applySelection(next, payload.nodeId);
+    return;
+  }
+
+  applySelection([payload.nodeId], payload.nodeId);
 }
 
-function handleRename(payload: { nodeId: string; name: string }) {
-  nodes.value = nodes.value.map((node) =>
-    node.id === payload.nodeId ? { ...node, name: payload.name } : node,
-  );
-  pushHistory();
+function handleCanvasClick() {
+  // Clear all selections when clicking on empty canvas
+  applySelection([], null);
+}
+
+function handleDragSelectComplete(selectedIds: string[]) {
+  // Replace current selection with drag-selected nodes
+  applySelection(selectedIds, selectedIds[0] ?? null);
 }
 
 function handleResize(payload: { nodeId: string; size: Vector2 }) {
@@ -364,7 +379,57 @@ function handleResize(payload: { nodeId: string; size: Vector2 }) {
         }
       : node,
   );
-  pushHistory();
+  pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value);
+}
+
+function handleViewportUpdate(payload: { width: number; height: number }) {
+  const width = Math.max(320, Math.round(payload.width));
+  const height = Math.max(240, Math.round(payload.height));
+
+  if (viewportSize.value.x === width && viewportSize.value.y === height) {
+    return;
+  }
+
+  viewportSize.value = { x: width, y: height };
+  faceplateMetadata.value = {
+    ...faceplateMetadata.value,
+    viewport: { width, height },
+  };
+  
+  // Resize the builder window to match the viewport (with padding for toolbars)
+  resizeWindowToViewport(width, height);
+  
+  pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value);
+}
+
+function resizeWindowToViewport(viewportWidth: number, viewportHeight: number) {
+  // Find our window by checking if any window has this component
+  const ourWindow = windowStore.windows.find(w => {
+    // Check if window component matches our builder
+    return w.title.includes('Faceplate Builder') || w.title === 'Faceplate Builder';
+  });
+  
+  if (ourWindow) {
+    // Add padding for toolbar and chrome (approximately 120px)
+    const windowHeight = viewportHeight + 120;
+    const windowWidth = viewportWidth;
+    
+    windowStore.updateWindowSize(ourWindow.id, windowWidth, windowHeight);
+  }
+}
+
+function handleViewportInput(axis: 'x' | 'y', event: Event) {
+  const value = Number((event.target as HTMLInputElement | null)?.value ?? 0);
+  if (!Number.isFinite(value)) {
+    return;
+  }
+  const width = axis === 'x' ? value : viewportSize.value.x;
+  const height = axis === 'y' ? value : viewportSize.value.y;
+  handleViewportUpdate({ width, height });
+}
+
+function resetViewportDimensions() {
+  handleViewportUpdate({ width: DEFAULT_VIEWPORT.x, height: DEFAULT_VIEWPORT.y });
 }
 
 function handlePropUpdated(payload: { nodeId: string; key: string; value: unknown }) {
@@ -379,97 +444,861 @@ function handlePropUpdated(payload: { nodeId: string; key: string; value: unknow
         }
       : node,
   );
-  pushHistory();
+  pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value);
 }
 
-function handleBindingCreate() {
-  if (!selectedNode.value) return;
-  const bindingId = generateId('binding');
-  bindings.value = [
-    ...bindings.value,
-    {
-      id: bindingId,
-      componentId: selectedNode.value.id,
-      componentName: selectedNode.value.name,
-      property: 'value',
-      expression: 'Parent->Name',
-    },
-  ];
-  pushHistory();
+function deleteNodesByIds(ids: string[]) {
+  if (!ids.length) {
+    return;
+  }
+
+  const idSet = new Set(ids);
+  
+  // Also delete all descendants
+  const getAllDescendants = (nodeId: string): string[] => {
+    const children = getContainerChildren(nodeId, nodes.value);
+    const descendants: string[] = [];
+    for (const child of children) {
+      descendants.push(child.id);
+      descendants.push(...getAllDescendants(child.id));
+    }
+    return descendants;
+  };
+  
+  // Collect all nodes to delete (original + descendants)
+  const allIdsToDelete = new Set(ids);
+  for (const id of ids) {
+    getAllDescendants(id).forEach(descId => allIdsToDelete.add(descId));
+  }
+  
+  // Remove from parent containers
+  for (const id of allIdsToDelete) {
+    const node = nodeMap.value.get(id);
+    if (node && node.parentId) {
+      // Use the service to remove from container
+      nodes.value = ContainerManagementService.removeFromContainer([id], nodes.value);
+    }
+  }
+  
+  const beforeNodeCount = nodes.value.length;
+  nodes.value = nodes.value.filter((node) => !allIdsToDelete.has(node.id));
+
+  const beforeBindingCount = bindings.value.length;
+  bindings.value = bindings.value.filter((binding) => !allIdsToDelete.has(binding.componentId));
+
+  const nextSelection = new Set(selectedNodeIds.value);
+  allIdsToDelete.forEach((id) => nextSelection.delete(id));
+  applySelection(nextSelection, selectedNodeId.value);
+
+  if (beforeNodeCount !== nodes.value.length || beforeBindingCount !== bindings.value.length) {
+    pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value);
+  }
 }
 
-function handleBindingEdit(bindingId: string) {
-  const binding = bindings.value.find((item) => item.id === bindingId);
-  if (!binding) return;
-  const samples = ['Parent->Name', 'Parent->Parent->Status', 'Temperature', 'CustomLiteral'];
-  const currentIndex = samples.indexOf(binding.expression);
-  const nextExpression = samples[(currentIndex + 1) % samples.length];
-  bindings.value = bindings.value.map((item) =>
-    item.id === bindingId ? { ...item, expression: nextExpression } : item,
-  );
-  pushHistory();
+function handleDeleteSelectedNodes() {
+  if (!selectedNodeIds.value.size) {
+    return;
+  }
+  deleteNodesByIds(Array.from(selectedNodeIds.value.values()));
 }
 
-function handleBindingRemove(bindingId: string) {
-  bindings.value = bindings.value.filter((item) => item.id !== bindingId);
-  pushHistory();
+function handleInspectorBindingCreate(payload: InspectorBindingPayload) {
+  const node = nodeMap.value.get(payload.nodeId);
+  if (!node) return;
+
+  const existing = bindingMap.value.get(payload.nodeId)?.get(payload.property);
+  if (existing) {
+    handleInspectorBindingUpdate(payload);
+    return;
+  }
+
+  const dependencies = payload.dependencies.filter(Boolean);
+  const description = payload.description?.trim() ? payload.description.trim() : undefined;
+  const transform = payload.transform ?? null;
+
+  const binding: Binding = {
+    id: generateId('binding'),
+    componentId: payload.nodeId,
+    componentName: node.name,
+    property: payload.property,
+    expression: payload.expression,
+    mode: payload.mode ?? 'field',
+    transform,
+    dependencies: dependencies.length ? dependencies : undefined,
+    description,
+  };
+
+  bindings.value = [...bindings.value, binding];
+  pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value);
 }
 
-function handleComponentCreated(payload: {
-  label: string;
-  description: string;
-  icon: string;
-  primitiveId: string;
-  size: Vector2;
-  props: Record<string, unknown>;
-}) {
-  const id = ensureTemplateId(payload.label || 'component');
-  const template = buildTemplate({
-    id,
-    primitiveId: payload.primitiveId,
-    label: payload.label,
-    description: payload.description,
-    icon: payload.icon,
-    size: payload.size,
-    props: payload.props,
-    source: 'custom',
+function handleInspectorBindingUpdate(payload: InspectorBindingPayload) {
+  const dependencies = payload.dependencies.filter(Boolean);
+  const normalizedDependencies = dependencies.length ? dependencies : undefined;
+  const normalizedDescription = payload.description?.trim() ? payload.description.trim() : undefined;
+  const transform = payload.transform ?? null;
+  const componentName = getComponentName(payload.nodeId);
+
+  let updated = false;
+  bindings.value = bindings.value.map((binding) => {
+    if (binding.componentId !== payload.nodeId || binding.property !== payload.property) {
+      return binding;
+    }
+
+    const mode = payload.mode ?? 'field';
+    const next: Binding = {
+      ...binding,
+      componentName,
+      mode,
+      expression: payload.expression,
+      transform,
+      dependencies: normalizedDependencies,
+      description: normalizedDescription,
+    };
+
+    if (
+      (binding.mode ?? 'field') !== (next.mode ?? 'field') ||
+      binding.expression !== next.expression ||
+      (binding.transform ?? null) !== (next.transform ?? null) ||
+      JSON.stringify(binding.dependencies ?? []) !== JSON.stringify(next.dependencies ?? []) ||
+      binding.description !== next.description ||
+      binding.componentName !== next.componentName
+    ) {
+      updated = true;
+    }
+
+    return next;
   });
-  componentLibrary.value = [...componentLibrary.value, template];
+
+  if (updated) {
+    pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value);
+  }
 }
+
+function handleInspectorBindingRemove(payload: { nodeId: string; property: string }) {
+  const before = bindings.value.length;
+  bindings.value = bindings.value.filter(
+    (binding) => !(binding.componentId === payload.nodeId && binding.property === payload.property),
+  );
+  if (bindings.value.length !== before) {
+    pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value);
+  }
+}
+
+// Event Handler Management
+function handleEventHandlerCreate(payload: { nodeId: string; handler: EventHandler }) {
+  const node = nodeMap.value.get(payload.nodeId);
+  if (!node) return;
+
+  const eventHandlers = node.eventHandlers || [];
+  const updatedHandlers = [...eventHandlers, payload.handler];
+
+  nodes.value = nodes.value.map((n) =>
+    n.id === payload.nodeId ? { ...n, eventHandlers: updatedHandlers } : n
+  );
+  pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value);
+}
+
+function handleEventHandlerUpdate(payload: { nodeId: string; handler: EventHandler }) {
+  const node = nodeMap.value.get(payload.nodeId);
+  if (!node || !node.eventHandlers) return;
+
+  const updatedHandlers = node.eventHandlers.map((h) =>
+    h.id === payload.handler.id ? payload.handler : h
+  );
+
+  nodes.value = nodes.value.map((n) =>
+    n.id === payload.nodeId ? { ...n, eventHandlers: updatedHandlers } : n
+  );
+  pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value);
+}
+
+function handleEventHandlerRemove(payload: { nodeId: string; handlerId: string }) {
+  const node = nodeMap.value.get(payload.nodeId);
+  if (!node || !node.eventHandlers) return;
+
+  const updatedHandlers = node.eventHandlers.filter((h) => h.id !== payload.handlerId);
+
+  nodes.value = nodes.value.map((n) =>
+    n.id === payload.nodeId
+      ? { ...n, eventHandlers: updatedHandlers.length > 0 ? updatedHandlers : undefined }
+      : n
+  );
+  pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value);
+}
+
+function handleInspectorNodeDelete(payload: { nodeId: string }) {
+  deleteNodesByIds([payload.nodeId]);
+}
+
+function handleBringForward(payload: { nodeId: string }) {
+  const index = nodes.value.findIndex((node) => node.id === payload.nodeId);
+  if (index < 0 || index >= nodes.value.length - 1) return;
+  
+  const updated = [...nodes.value];
+  const [node] = updated.splice(index, 1);
+  updated.splice(index + 1, 0, node);
+  nodes.value = updated;
+  pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value);
+}
+
+function handleSendBackward(payload: { nodeId: string }) {
+  const index = nodes.value.findIndex((node) => node.id === payload.nodeId);
+  if (index <= 0) return;
+  
+  const updated = [...nodes.value];
+  const [node] = updated.splice(index, 1);
+  updated.splice(index - 1, 0, node);
+  nodes.value = updated;
+  pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value);
+}
+
+function handleToggleLock(payload: { nodeId: string }) {
+  const node = nodeMap.value.get(payload.nodeId);
+  if (!node) return;
+  
+  nodes.value = nodes.value.map(n => 
+    n.id === payload.nodeId ? { ...n, locked: !n.locked } : n
+  );
+  pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value);
+}
+
+function handleToggleVisibility(payload: { nodeId: string }) {
+  const node = nodeMap.value.get(payload.nodeId);
+  if (!node) return;
+  
+  nodes.value = nodes.value.map(n => 
+    n.id === payload.nodeId ? { ...n, hidden: !n.hidden } : n
+  );
+  pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value);
+  logger.info(`Toggled visibility for node ${payload.nodeId}: ${node.hidden ? 'shown' : 'hidden'}`);
+}
+
+// Context menu action handler
+function handleContextMenuAction(payload: { action: string; nodeId?: string }) {
+  switch (payload.action) {
+    case 'duplicate':
+      if (payload.nodeId) {
+        // Select the node first if not selected
+        if (!selectedNodeIds.value.has(payload.nodeId)) {
+          applySelection([payload.nodeId], payload.nodeId);
+        }
+        duplicateSelectedNodes(selectedNodeIds.value, nodes.value, bindings.value, applySelection, () => pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value));
+      }
+      break;
+    case 'copy':
+      if (payload.nodeId) {
+        // Select the node first if not selected
+        if (!selectedNodeIds.value.has(payload.nodeId)) {
+          applySelection([payload.nodeId], payload.nodeId);
+        }
+        copySelectedNodes(selectedNodeIds.value, nodes.value, bindings.value);
+      }
+      break;
+    case 'paste':
+      pasteNodesFromClipboard(nodes.value, bindings.value, { x: 30, y: 30 }, applySelection, () => pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value));
+      break;
+    case 'delete':
+      if (payload.nodeId) {
+        handleInspectorNodeDelete({ nodeId: payload.nodeId });
+      }
+      break;
+    case 'toggle-lock':
+      if (payload.nodeId) {
+        handleToggleLock({ nodeId: payload.nodeId });
+      }
+      break;
+    case 'toggle-visibility':
+      if (payload.nodeId) {
+        handleToggleVisibility({ nodeId: payload.nodeId });
+      }
+      break;
+    case 'bring-forward':
+      if (payload.nodeId) {
+        handleBringForward({ nodeId: payload.nodeId });
+      }
+      break;
+    case 'send-backward':
+      if (payload.nodeId) {
+        handleSendBackward({ nodeId: payload.nodeId });
+      }
+      break;
+  }
+}
+
+// Layer management functions
+function handleLayerReorder(payload: { nodeId: string; newIndex: number; newParentId?: string | null }) {
+  const node = nodeMap.value.get(payload.nodeId);
+  if (!node) return;
+  
+  // If moving to a new parent, use the service
+  if (payload.newParentId !== node.parentId) {
+    if (node.parentId) {
+      // Remove from old parent
+      nodes.value = ContainerManagementService.removeFromContainer([payload.nodeId], nodes.value);
+    }
+    if (payload.newParentId) {
+      // Add to new parent
+      nodes.value = ContainerManagementService.addToContainer([payload.nodeId], payload.newParentId, nodes.value, convertTemplateMap());
+    }
+  }
+  
+  // Update the node's parent reference
+  const updatedNode = {
+    ...node,
+    parentId: payload.newParentId ?? null,
+  };
+  
+  // Update the node in the array
+  nodes.value = nodes.value.map(n => 
+    n.id === payload.nodeId ? updatedNode : n
+  );
+  
+  // Reorder in the nodes array if no parent (root level)
+  if (!payload.newParentId) {
+    const currentIndex = nodes.value.findIndex(n => n.id === payload.nodeId);
+    if (currentIndex !== -1) {
+      const updated = [...nodes.value];
+      const [movedNode] = updated.splice(currentIndex, 1);
+      updated.splice(payload.newIndex, 0, movedNode);
+      nodes.value = updated;
+    }
+  }
+  
+  pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value);
+}
+
+function handleLayerVisibilityToggle(payload: { nodeId: string }) {
+  handleToggleVisibility(payload);
+}
+
+// Container management functions
+function convertTemplateMap(): Map<string, { id: string; primitiveId: string }> {
+  return new Map(Object.entries(templateMap.value).map(([id, template]) => [id, { id, primitiveId: template.primitiveId }]));
+}
+
+function handleAddToContainer(payload: { nodeIds: string[]; containerId: string }) {
+  addToContainer(payload.nodeIds, payload.containerId, nodes.value, templateMap.value, () => pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value));
+}
+
+function handleRemoveFromContainer(payload: { nodeIds: string[] }) {
+  removeFromContainer(payload.nodeIds, nodes.value, () => pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value));
+}
+
+function handleClearContainer(payload: { containerId: string }) {
+  clearContainerChildren(payload.containerId, nodes.value, () => pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value));
+}
+
+function handleGroupSelected() {
+  if (selectedNodeIds.value.size >= 2) {
+    groupSelectedNodes(selectedNodeIds.value, nodes.value, templateMap.value, applySelection, () => pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value));
+  }
+}
+
+function handleUngroupSelected() {
+  if (selectedNodeIds.value.size === 1) {
+    ungroupSelectedNode(selectedNodeIds.value, nodes.value, bindings.value, templateMap.value, applySelection, () => pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value));
+  }
+}
+
+// Clipboard for copy/paste operations
+const clipboard = ref<{
+  nodes: CanvasNode[];
+  bindings: Binding[];
+} | null>(null);
+
+// Auto-save timer
+const autoSaveTimer = ref<number | null>(null);
+const AUTO_SAVE_DELAY_MS = 30000; // 30 seconds
+
+function scheduleAutoSave() {
+  if (autoSaveTimer.value !== null) {
+    window.clearTimeout(autoSaveTimer.value);
+  }
+  autoSaveTimer.value = window.setTimeout(() => {
+    if (dirty.value && currentFaceplateId.value) {
+      logger.debug('Auto-saving faceplate...');
+      saveWorkspace().catch(err => {
+        logger.warn('Auto-save failed:', err);
+      });
+    }
+  }, AUTO_SAVE_DELAY_MS);
+}
+
+function handleKeyDown(event: KeyboardEvent) {
+  // Check if user is typing in a form field
+  const target = event.target as HTMLElement | null;
+  if (target) {
+    const tag = target.tagName;
+    const isFormField = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+    if (isFormField || target.isContentEditable) {
+      return;
+    }
+  }
+
+  const isMod = event.metaKey || event.ctrlKey;
+  const isShift = event.shiftKey;
+
+  // Undo/Redo: Cmd/Ctrl + Z / Cmd/Ctrl + Shift + Z
+  if (isMod && event.key === 'z') {
+    event.preventDefault();
+    if (isShift) {
+      redo();
+    } else {
+      undo();
+    }
+    return;
+  }
+
+  // Redo alternative: Cmd/Ctrl + Y
+  if (isMod && event.key === 'y') {
+    event.preventDefault();
+    redo();
+    return;
+  }
+
+  // Save: Cmd/Ctrl + S
+  if (isMod && event.key === 's') {
+    event.preventDefault();
+    if (currentFaceplateId.value) {
+      saveWorkspace();
+    }
+    return;
+  }
+
+  // Copy: Cmd/Ctrl + C
+  if (isMod && event.key === 'c' && selectedNodeIds.value.size) {
+    event.preventDefault();
+    copySelectedNodes(selectedNodeIds.value, nodes.value, bindings.value);
+    return;
+  }
+
+  // Paste: Cmd/Ctrl + V
+  if (isMod && event.key === 'v' && clipboard.value) {
+    event.preventDefault();
+    pasteNodesFromClipboard(nodes.value, bindings.value, { x: 30, y: 30 }, applySelection, () => pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value));
+    return;
+  }
+
+  // Duplicate: Cmd/Ctrl + D
+  if (isMod && event.key === 'd' && selectedNodeIds.value.size) {
+    event.preventDefault();
+    duplicateSelectedNodes(selectedNodeIds.value, nodes.value, bindings.value, applySelection, () => pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value));
+    return;
+  }
+
+  // Group: Cmd/Ctrl + G
+  if (isMod && event.key === 'g' && selectedNodeIds.value.size >= 2) {
+    event.preventDefault();
+    groupSelectedNodes(selectedNodeIds.value, nodes.value, templateMap.value, applySelection, () => pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value));
+    return;
+  }
+
+  // Ungroup: Cmd/Ctrl + Shift + G
+  if (isMod && isShift && event.key === 'g' && selectedNodeIds.value.size === 1) {
+    event.preventDefault();
+    ungroupSelectedNode(selectedNodeIds.value, nodes.value, bindings.value, templateMap.value, applySelection, () => pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value));
+    return;
+  }
+
+  // Select All: Cmd/Ctrl + A
+  if (isMod && event.key === 'a') {
+    event.preventDefault();
+    applySelection(nodes.value.map(n => n.id), nodes.value[0]?.id);
+    return;
+  }
+
+  // Delete: Delete or Backspace
+  if (selectedNodeIds.value.size) {
+    const isDeleteKey = event.key === 'Delete';
+    const isBackspace = event.key === 'Backspace' && !isMod && !event.altKey;
+    if (isDeleteKey || isBackspace) {
+      event.preventDefault();
+      handleDeleteSelectedNodes();
+      return;
+    }
+  }
+}
+
 
 function undo() {
-  if (!canUndo.value) return;
-  history.index -= 1;
-  applyState(history.stack[history.index]);
+  undoHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value);
 }
 
 function redo() {
-  if (!canRedo.value) return;
-  history.index += 1;
-  applyState(history.stack[history.index]);
+  redoHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value);
 }
 
-function markSaved() {
-  savedIndex.value = history.index;
-}
+/**
+ * Shared function to load faceplate data and update component state
+ * Eliminates code duplication between onMounted and handleSelectorSelect
+ */
+async function loadFaceplateData(faceplateId: EntityId) {
+  const faceplate = await faceplateService.readFaceplate(faceplateId);
+  currentFaceplateId.value = faceplateId;
+  currentFaceplateName.value = faceplate.name;
+  currentTargetEntityType.value = faceplate.targetEntityType;
+  currentScriptModules.value = faceplate.scriptModules ?? [];
+  currentNotificationChannels.value = faceplate.notificationChannels ?? [];
+  
+  // Load components
+  const components = await faceplateService.readComponents(faceplate.components);
+  
+  // Convert to canvas nodes with parent-child relationships
+  const tempNodes = faceplate.configuration.layout.map((layoutItem) => {
+    const component = components.find((c) => c.name === layoutItem.component);
+    if (!component) return null;
+    
+    // Find parent component ID if parentId (name) is specified
+    let parentComponentId: string | null = null;
+    if (layoutItem.parentId) {
+      const parentComponent = components.find((c) => c.name === layoutItem.parentId);
+      parentComponentId = parentComponent ? String(parentComponent.id) : null;
+    }
+    
+    const node: CanvasNode = {
+      id: String(component.id),
+      componentId: findTemplateForPrimitive(component.componentType),
+      name: component.name,
+      position: { x: layoutItem.x, y: layoutItem.y },
+      size: { x: layoutItem.w || 4, y: layoutItem.h || 3 },
+      props: component.configuration,
+      parentId: parentComponentId,
+    };
+    
+    return node;
+  }).filter((n): n is CanvasNode => n !== null);
+  
+  // Build children arrays for containers
+  const childrenMap = new Map<string, string[]>();
+  tempNodes.forEach(node => {
+    if (node.parentId) {
+      if (!childrenMap.has(node.parentId)) {
+        childrenMap.set(node.parentId, []);
+      }
+      childrenMap.get(node.parentId)!.push(node.id);
+    }
+  });
+  
+  // Load event handlers from configuration
+  const eventHandlersFromConfig = faceplate.configuration.eventHandlers || [];
+  const eventHandlersByComponent = new Map<string, EventHandler[]>();
+  
+  eventHandlersFromConfig.forEach((handlerData: any) => {
+    const componentName = handlerData.componentId; // componentId is actually the component name
+    if (!eventHandlersByComponent.has(componentName)) {
+      eventHandlersByComponent.set(componentName, []);
+    }
+    eventHandlersByComponent.get(componentName)!.push({
+      id: handlerData.id,
+      componentId: '', // Will be set when we map to nodes
+      trigger: handlerData.trigger,
+      action: handlerData.action,
+      description: handlerData.description,
+      enabled: handlerData.enabled !== false,
+    });
+  });
 
-function resetWorkspace() {
-  nodes.value = [];
-  bindings.value = [];
-  selectedNodeId.value = null;
-  pushHistory();
+  // Assign children arrays and event handlers to nodes
+  nodes.value = tempNodes.map(node => {
+    const children = childrenMap.get(node.id);
+    const eventHandlers = eventHandlersByComponent.get(node.name);
+    
+    // Update event handler componentId to match node ID
+    const updatedHandlers = eventHandlers?.map(h => ({ ...h, componentId: node.id }));
+    
+    return {
+      ...node,
+      children: children && children.length > 0 ? children : undefined,
+      eventHandlers: updatedHandlers && updatedHandlers.length > 0 ? updatedHandlers : undefined,
+    };
+  });
+  
+  // Convert bindings - b.component is now a name, find node by name
+  bindings.value = faceplate.configuration.bindings.map((b, idx) => {
+    const node = nodes.value.find((n) => n.name === b.component);
+    return {
+      id: `binding-${idx}`,
+      componentId: node?.id || '',
+      componentName: b.component,
+      property: b.property,
+      expression: b.expression,
+      mode: b.mode ?? (b.expression?.trim()?.startsWith('script:') ? 'script' : 'field'),
+      transform: b.transform ?? null,
+      dependencies: Array.isArray(b.dependencies) ? b.dependencies : undefined,
+      description: b.description,
+    };
+  });
+  
+  applyViewportMetadata(faceplate.configuration.metadata as Record<string, unknown> | undefined);
+  applySelection([], null);
+  
+  // Resize window to match viewport
+  resizeWindowToViewport(viewportSize.value.x, viewportSize.value.y);
+  
+  pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value);
   markSaved();
 }
 
-function saveWorkspace() {
-  markSaved();
+async function saveWorkspace() {
+  if (isSaving.value) return;
+  
+  try {
+    isSaving.value = true;
+    logger.info('Starting faceplate save...');
+    
+    // Show selector with new form if new faceplate
+    if (!currentFaceplateId.value) {
+      showFaceplateSelector.value = true;
+      isSaving.value = false;
+      return;
+    }
+    
+    // Get existing components to delete after new ones are created (avoid race condition)
+    const existingFaceplate = await faceplateService.readFaceplate(currentFaceplateId.value);
+    const oldComponentIds = existingFaceplate.components;
+    
+    // Build NEW component entities with fresh IDs
+    const componentIds: EntityId[] = [];
+    const nodeIdToComponentId = new Map<string, EntityId>();
+    
+    for (const node of nodes.value) {
+      const template = templateMap.value[node.componentId];
+      if (!template) continue;
+      
+      // Always create a NEW component with fresh ID
+      const componentId = await faceplateService.createComponent(
+        currentFaceplateId.value,
+        node.name,
+        template.primitiveId
+      );
+      componentIds.push(componentId);
+      nodeIdToComponentId.set(node.id, componentId);
+      
+      // Find bindings for this node and save with component name (not ID)
+      const nodeBindings = bindings.value.filter((b) => b.componentId === node.id);
+      const bindingsData = nodeBindings.map((b) => ({
+        component: node.name,
+        property: b.property,
+        expression: b.expression,
+        mode: b.mode ?? 'field',
+        transform: b.transform ?? undefined,
+        dependencies: b.dependencies?.length ? b.dependencies : undefined,
+        description: b.description,
+      }));
+      
+      // Update component data
+      await faceplateService.writeComponent({
+        id: componentId,
+        name: node.name,
+        componentType: template.primitiveId,
+        configuration: node.props,
+        configurationRaw: JSON.stringify(node.props),
+        bindings: bindingsData,
+        bindingsRaw: JSON.stringify(bindingsData),
+        animationRules: [],
+        animationRulesRaw: '[]',
+      });
+    }
+    
+    // Build layout configuration using component names
+    const layout = nodes.value.map((node) => {
+      const componentId = nodeIdToComponentId.get(node.id);
+      if (!componentId) return null;
+      
+      // Map parent node ID to parent component name
+      const parentNode = node.parentId ? nodeMap.value.get(node.parentId) : null;
+      
+      return {
+        component: node.name,
+        x: node.position.x,
+        y: node.position.y,
+        w: node.size.x,
+        h: node.size.y,
+        parentId: parentNode ? parentNode.name : null,
+      };
+    }).filter((item): item is NonNullable<typeof item> => item !== null);
+
+    const bindingsData = bindings.value.map((b) => {
+      const node = nodeMap.value.get(b.componentId);
+      if (!node) return null;
+      return {
+        component: b.componentName,
+        property: b.property,
+        expression: b.expression,
+        mode: b.mode ?? 'field',
+        transform: b.transform ?? undefined,
+        dependencies: b.dependencies?.length ? b.dependencies : undefined,
+        description: b.description,
+      };
+    }).filter((item): item is NonNullable<typeof item> => item !== null);
+
+    // Build event handlers configuration using component names
+    const eventHandlersData = nodes.value
+      .filter(node => node.eventHandlers && node.eventHandlers.length > 0)
+      .flatMap(node => 
+        (node.eventHandlers || []).map(handler => ({
+          id: handler.id,
+          componentId: node.name, // Use component name, not ID
+          trigger: handler.trigger,
+          action: handler.action,
+          description: handler.description,
+          enabled: handler.enabled !== false,
+        }))
+      );
+
+    const metadata = {
+      ...faceplateMetadata.value,
+      viewport: {
+        width: viewportSize.value.x,
+        height: viewportSize.value.y,
+      },
+    };
+    
+    // Save faceplate configuration
+    await faceplateService.writeFaceplate({
+      id: currentFaceplateId.value,
+      name: currentFaceplateName.value,
+      targetEntityType: currentTargetEntityType.value,
+      configuration: { 
+        layout, 
+        bindings: bindingsData, 
+        eventHandlers: eventHandlersData.length > 0 ? eventHandlersData : undefined,
+        metadata 
+      },
+      components: componentIds,
+      notificationChannels: currentNotificationChannels.value,
+      scriptModules: currentScriptModules.value,
+    });
+    
+    // NOW delete old components after successful save (prevents race condition)
+    if (oldComponentIds.length > 0) {
+      await Promise.all(oldComponentIds.map(compId => 
+        faceplateService.deleteComponent(compId).catch((err) => {
+          logger.warn(`Failed to delete old component ${compId}:`, err);
+        })
+      ));
+    }
+    
+    faceplateMetadata.value = metadata;
+    markSaved();
+  } catch (error) {
+    logger.error('Failed to save faceplate:', error);
+  } finally {
+    isSaving.value = false;
+  }
 }
+
+async function loadWorkspace() {
+  selectorStartInNewMode.value = false;
+  showFaceplateSelector.value = true;
+}
+
+async function handleSelectorSelect(faceplateId: EntityId) {
+  showFaceplateSelector.value = false;
+  
+  try {
+    await loadFaceplateData(faceplateId);
+  } catch (error) {
+    logger.error('Failed to load faceplate:', error);
+  }
+}
+
+function findTemplateForPrimitive(primitiveId: string): string {
+  // Find a template that uses this primitive
+  const template = componentLibrary.value.find(t => t.primitiveId === primitiveId);
+  if (!template) {
+    logger.warn(`No template found for primitive: ${primitiveId}`);
+    // Return first available template as emergency fallback
+    return componentLibrary.value[0]?.id || 'unknown';
+  }
+  return template.id;
+}
+
+function newWorkspace() {
+  if (dirty.value) {
+    logger.warn('Warning: You have unsaved changes.');
+  }
+  // Show selector in 'new' mode
+  selectorStartInNewMode.value = true;
+  showFaceplateSelector.value = true;
+}
+
+function handleSelectorClose() {
+  showFaceplateSelector.value = false;
+  selectorStartInNewMode.value = false;
+}
+
+async function handleSelectorNew(faceplateId: EntityId) {
+  showFaceplateSelector.value = false;
+  selectorStartInNewMode.value = false;
+  
+  try {
+    const faceplate = await faceplateService.readFaceplate(faceplateId);
+    currentFaceplateId.value = faceplateId;
+    currentFaceplateName.value = faceplate.name;
+    currentTargetEntityType.value = faceplate.targetEntityType;
+    currentScriptModules.value = faceplate.scriptModules ?? [];
+    currentNotificationChannels.value = faceplate.notificationChannels ?? [];
+    
+    // Start with empty canvas for new faceplate
+    nodes.value = [];
+    bindings.value = [];
+    
+    applyViewportMetadata(faceplate.configuration.metadata as Record<string, unknown> | undefined);
+    applySelection([], null);
+    
+    // Resize window to match viewport
+    resizeWindowToViewport(viewportSize.value.x, viewportSize.value.y);
+    
+    pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value);
+    markSaved();
+    logger.info(`New faceplate "${faceplate.name}" ready for editing!`);
+  } catch (error) {
+    logger.error('Failed to initialize new faceplate:', error);
+  }
+}
+
+// Custom components have been removed from this implementation
+
+function handleBeforeUnload(event: BeforeUnloadEvent) {
+  if (dirty.value) {
+    const message = 'You have unsaved changes. Are you sure you want to leave?';
+    event.preventDefault();
+    event.returnValue = message;
+    return message;
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', handleKeyDown);
+  window.addEventListener('beforeunload', handleBeforeUnload);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleKeyDown);
+  window.removeEventListener('beforeunload', handleBeforeUnload);
+  if (autoSaveTimer.value !== null) {
+    window.clearTimeout(autoSaveTimer.value);
+  }
+});
 
 // Initialize with an empty baseline state.
-if (!history.stack.length) {
-  pushHistory();
-  markSaved();
-}
+onMounted(async () => {
+  if (!history.stack.length) {
+    pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value);
+    markSaved();
+  }
+  
+  // If a faceplate ID was provided, load it
+  if (props.faceplateId) {
+    try {
+      await loadFaceplateData(props.faceplateId);
+    } catch (error) {
+      logger.error('Failed to load faceplate on mount:', error);
+    }
+  }
+});
 </script>
 
 <template>
@@ -478,10 +1307,18 @@ if (!history.stack.length) {
       :can-undo="canUndo"
       :can-redo="canRedo"
       :dirty="dirty"
+      :faceplate-id="currentFaceplateId ? String(currentFaceplateId) : null"
+      :faceplate-name="currentFaceplateName"
+      :target-entity-type="currentTargetEntityType"
+      :viewport-width="viewportSize.x"
+      :viewport-height="viewportSize.y"
+      :is-saving="isSaving"
       @undo="undo"
       @redo="redo"
-      @reset="resetWorkspace"
       @save="saveWorkspace"
+      @new="newWorkspace"
+      @load="loadWorkspace"
+      @viewport-resize="handleViewportUpdate"
     />
 
     <div class="faceplate-builder__body">
@@ -490,42 +1327,88 @@ if (!history.stack.length) {
           :components="paletteItems"
           @create-request="(id) => handleNodeRequest({ componentId: id, position: { x: 40, y: 40 } })"
         />
-        <ComponentComposerPanel
-          :primitives="primitiveCatalog"
-          @create-component="handleComponentCreated"
-        />
       </aside>
 
       <main class="workspace">
-        <BuilderCanvas
-          :nodes="nodes"
-          :selected-node-id="selectedNodeId"
-          :templates="templateMap"
-          @node-requested="handleNodeRequest"
-          @node-selected="handleNodeSelected"
-          @node-updated="handleNodeUpdate"
-          @node-move-end="handleNodeMoveEnd"
-        />
-
-        <BindingsPanel
-          class="workspace__bindings"
-          :items="bindings"
-          @create="handleBindingCreate"
-          @edit="handleBindingEdit"
-          @remove="handleBindingRemove"
-        />
-
-        <FaceplatePreview class="workspace__preview" :nodes="nodes" :templates="templateMap" />
+        <div class="workspace__canvas">
+          <BuilderCanvas
+            :nodes="nodes"
+            :selected-node-id="selectedNodeId"
+            :selected-node-ids="selectedNodeIds"
+            :templates="templateMap"
+            :viewport="viewportSize"
+            @node-requested="handleNodeRequest"
+            @node-selected="handleNodeSelected"
+            @nodes-updated="handleNodesUpdated"
+            @nodes-move-end="handleNodesMoveEnd"
+            @node-resized="handleNodeResized"
+            @node-resize-end="handleNodeResizeEnd"
+            @canvas-clicked="handleCanvasClick"
+            @drag-select-complete="handleDragSelectComplete"
+            @add-to-container="handleAddToContainer"
+            @context-menu-action="handleContextMenuAction"
+          />
+          <div v-if="!hasFaceplateSelected" class="workspace__overlay">
+            <div class="workspace__overlay-content">
+              <div class="workspace__overlay-icon">📋</div>
+              <h3>No Faceplate Selected</h3>
+              <p>Create a new faceplate or load an existing one to start editing</p>
+              <div class="workspace__overlay-actions">
+                <button type="button" class="workspace__overlay-button" @click="newWorkspace">Create New</button>
+                <button type="button" class="workspace__overlay-button workspace__overlay-button--primary" @click="loadWorkspace">Load Existing</button>
+              </div>
+            </div>
+          </div>
+        </div>
       </main>
+
+      <LayersPanel
+        :nodes="nodes"
+        :selected-node-ids="selectedNodeIds"
+        @select-node="(nodeId, isMultiSelect) => handleNodeSelected({ nodeId, isMultiSelect })"
+        @toggle-visibility="handleLayerVisibilityToggle"
+        @reorder="handleLayerReorder"
+        @bring-to-front="(nodeId) => handleBringForward({ nodeId })"
+        @send-to-back="(nodeId) => handleSendBackward({ nodeId })"
+      />
 
       <InspectorPanel
         :node="selectedNode"
         :template="selectedTemplate"
-        @rename="handleRename"
+        :bindings="selectedNodeBindings"
+        :all-nodes="nodes"
+        :all-containers="getAllContainers(nodes, templateMap)"
+        :container-children="selectedNode ? getContainerChildren(selectedNode.id, nodes) : []"
+        :is-container="selectedNode ? isContainer(selectedNode.id, nodes, templateMap) : false"
+        :selected-count="selectedNodeIds.size"
         @resize="handleResize"
         @prop-updated="handlePropUpdated"
+        @binding-create="handleInspectorBindingCreate"
+        @binding-update="handleInspectorBindingUpdate"
+        @binding-remove="handleInspectorBindingRemove"
+        @event-handler-create="handleEventHandlerCreate"
+        @event-handler-update="handleEventHandlerUpdate"
+        @event-handler-remove="handleEventHandlerRemove"
+        @delete-node="handleInspectorNodeDelete"
+        @bring-forward="handleBringForward"
+        @send-backward="handleSendBackward"
+        @add-to-container="handleAddToContainer"
+        @remove-from-container="handleRemoveFromContainer"
+        @clear-container="handleClearContainer"
+        @toggle-lock="handleToggleLock"
+        @toggle-visibility="handleToggleVisibility"
+        @group-selected="handleGroupSelected"
+        @ungroup-selected="handleUngroupSelected"
       />
     </div>
+
+    <FaceplateSelector
+      :show="showFaceplateSelector"
+      :start-in-new-mode="selectorStartInNewMode"
+      @select="handleSelectorSelect"
+      @new="handleSelectorNew"
+      @close="handleSelectorClose"
+    />
   </div>
 </template>
 
@@ -533,16 +1416,20 @@ if (!history.stack.length) {
 .faceplate-builder {
   display: flex;
   flex-direction: column;
+  width: 100%;
   height: 100%;
+  overflow: hidden;
   background: radial-gradient(circle at top, rgba(0, 16, 24, 0.78), rgba(0, 0, 0, 0.9));
   color: var(--qui-text-primary);
 }
 
 .faceplate-builder__body {
   display: grid;
-  grid-template-columns: 300px 1fr 320px;
+  grid-template-columns: 300px minmax(0, 1fr) 280px 320px;
   gap: 0;
   flex: 1;
+  min-height: 0;
+  height: 100%;
   overflow: hidden;
 }
 
@@ -552,6 +1439,8 @@ if (!history.stack.length) {
   background: rgba(4, 12, 18, 0.72);
   border-right: 1px solid rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(18px);
+  overflow-y: auto;
+  min-height: 0;
 }
 
 .faceplate-builder__sidebar :deep(.palette) {
@@ -568,19 +1457,127 @@ if (!history.stack.length) {
 .workspace {
   display: flex;
   flex-direction: column;
-  padding: 24px;
-  gap: 24px;
-  overflow: auto;
+  padding: 0;
+  gap: 0;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
 }
 
-.workspace__bindings,
-.workspace__preview {
-  flex: none;
+.workspace__canvas {
+  position: relative;
+}
+
+.workspace__overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 6, 10, 0.92);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.workspace__overlay-content {
+  text-align: center;
+  max-width: 420px;
+  padding: 48px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+}
+
+.workspace__overlay-icon {
+  font-size: 64px;
+  margin-bottom: 20px;
+  opacity: 0.6;
+}
+
+.workspace__overlay-content h3 {
+  margin: 0 0 12px 0;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.workspace__overlay-content p {
+  margin: 0 0 32px 0;
+  font-size: 15px;
+  opacity: 0.7;
+  line-height: 1.5;
+}
+
+.workspace__overlay-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.workspace__overlay-button {
+  padding: 12px 24px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  color: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.workspace__overlay-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: translateY(-1px);
+}
+
+.workspace__overlay-button--primary {
+  background: rgba(0, 255, 194, 0.18);
+  border-color: rgba(0, 255, 194, 0.34);
+}
+
+.workspace__overlay-button--primary:hover {
+  background: rgba(0, 255, 194, 0.28);
 }
 
 @media (max-width: 1480px) {
   .faceplate-builder__body {
     grid-template-columns: 260px 1fr 300px;
+  }
+}
+
+@media (max-width: 1280px) {
+  .faceplate-builder__body {
+    grid-template-columns: 240px minmax(0, 1fr) 280px;
+  }
+
+  .workspace {
+    padding: 20px;
+  }
+}
+
+@media (max-width: 1080px) {
+  .faceplate-builder__body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-auto-rows: minmax(0, auto);
+    overflow: auto;
+  }
+
+  .faceplate-builder__sidebar {
+    grid-column: 1 / -1;
+    max-height: 320px;
+    border-right: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .workspace {
+    grid-column: 1 / -1;
+    padding: 18px;
+  }
+
+  :deep(.inspector) {
+    grid-column: 1 / -1;
+    width: 100%;
+    border-left: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
   }
 }
 </style>

@@ -3,29 +3,15 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import type { EntityId, FieldType, NotifyConfig, Notification } from '@/core/data/types';
 import { ValueHelpers } from '@/core/data/types';
 import { useDataStore } from '@/stores/data';
-import FaceplateComponentRenderer from './FaceplateComponentRenderer.vue';
-import { FaceplateDataService, type FaceplateComponentRecord, type FaceplateRecord, type FaceplateBindingDefinition } from '@/apps/faceplate-builder/utils/faceplate-data';
-
-interface RenderSlot {
-  id: EntityId;
-  name: string;
-  type: string;
-  config: Record<string, any>;
-  bindings: Record<string, unknown>;
-  animationClasses: string[];
-  lastUpdated: Record<string, number>;
-  position: {
-    x: number;
-    y: number;
-    w: number;
-    h: number;
-  };
-}
-
-interface NotificationSubscription {
-  config: NotifyConfig;
-  callback: (notification: Notification) => void;
-}
+import FaceplateCanvas, { type CanvasComponent } from './FaceplateCanvas.vue';
+import { FaceplateDataService, type FaceplateComponentRecord, type FaceplateRecord, type FaceplateBindingDefinition, type FaceplateScriptModule } from '@/apps/faceplate-builder/utils/faceplate-data';
+import type { BindingMode } from '@/apps/faceplate-builder/types';
+import { logger } from '@/apps/faceplate-builder/utils/logger';
+import { useScriptExecution } from '@/apps/faceplate-builder/composables/useScriptExecution';
+import { useBindings } from '@/apps/faceplate-builder/composables/useBindings';
+import { useEventHandling } from '@/apps/faceplate-builder/composables/useEventHandling';
+import { useNotifications } from '@/apps/faceplate-builder/composables/useNotifications';
+import type { RenderSlot, NotificationSubscription, BindingTargetEntry, TransformContext, EventPayload } from './types/faceplate-runtime';
 
 const props = defineProps<{
   faceplateId?: EntityId | null;
@@ -38,31 +24,64 @@ const props = defineProps<{
 const dataStore = useDataStore();
 const service = new FaceplateDataService(dataStore);
 
+// Use composables for different concerns
+const scriptComposable = useScriptExecution();
+const {
+  scriptCompilationErrors,
+  scriptRuntimeErrors,
+  scriptCache,
+  scriptState,
+  scriptModuleExports,
+  getScriptHelpers,
+  compileFaceplateScriptModules,
+  createScriptExecutionContext,
+  clearScriptState,
+} = scriptComposable;
+
+// Use simplified binding composable
+const bindingComposable = useBindings(
+  dataStore,
+  service,
+  getScriptHelpers,
+  scriptModuleExports.value,
+  scriptRuntimeErrors.value
+);
+const {
+  bindingValueMap,
+  expressionValueMap,
+  componentLastUpdated,
+  evaluateBindings,
+  executeScript,
+  clearCaches,
+} = bindingComposable;
+
+const { handleEventTriggered } = useEventHandling(
+  dataStore,
+  service,
+  () => props.entityId ?? null,
+  scriptRuntimeErrors.value
+);
+
+// Reactive state
 const faceplate = ref<FaceplateRecord | null>(null);
 const components = ref<FaceplateComponentRecord[]>([]);
-const loading = ref(true);
+const loading = ref(false);
 const error = ref<string | null>(null);
-const isLive = computed(() => props.live !== false);
+const showErrorPanel = ref(true);
 
-const bindingValueMap = reactive<Record<string, unknown>>({});
-const expressionValueMap = reactive<Record<string, unknown>>({});
-const bindingPaths = new Map<string, FieldType[]>();
-const bindingTargets = new Map<string, { entityId: EntityId; fieldType: FieldType }>();
-const expressionToBindings = new Map<string, Array<{ component: string; property: string; transform?: string }>>();
-const componentLastUpdated = reactive<Record<string, Record<string, number>>>({});
-let subscriptions: NotificationSubscription[] = [];
+// Format timestamp for error display
+function formatTimestamp(timestamp: number): string {
+  const date = new Date(timestamp);
+  const hours = date.getHours().toString().padStart(2, '0');
+  const minutes = date.getMinutes().toString().padStart(2, '0');
+  const seconds = date.getSeconds().toString().padStart(2, '0');
+  return `${hours}:${minutes}:${seconds}`;
+}
 
 const allBindings = computed(() => {
   if (!faceplate.value) return [] as FaceplateBindingDefinition[];
 
-  const fromConfig = Array.isArray(faceplate.value.configuration.bindings)
-    ? faceplate.value.configuration.bindings
-    : [];
-
-  const fromRecord = Array.isArray(faceplate.value.bindings)
-    ? faceplate.value.bindings
-    : [];
-
+  // Component-level bindings are the primary pattern
   const componentLevel = components.value.flatMap((component) => {
     if (!Array.isArray(component.bindings)) return [] as FaceplateBindingDefinition[];
     return component.bindings.map((binding) => ({
@@ -71,12 +90,27 @@ const allBindings = computed(() => {
     }));
   });
 
-  return [...fromConfig, ...fromRecord, ...componentLevel].filter((binding) => binding.component && binding.property && binding.expression);
+  return componentLevel
+    .filter((binding) => binding.component && binding.property && binding.expression);
 });
 
+// Initialize notifications after allBindings is defined
+const notificationComposable = useNotifications(
+  dataStore,
+  service,
+  () => props.entityId ?? null,
+  () => faceplate.value,
+  allBindings.value,
+  () => bindingComposable.evaluateBindings(allBindings.value, props.entityId ?? null, faceplate.value?.id ?? null)
+);
+const { registerNotifications, cleanupNotifications } = notificationComposable;
+
+// Component map for efficient lookups
 const componentMap = computed(() => {
   const map = new Map<string, FaceplateComponentRecord>();
   components.value.forEach((component) => {
+    // Map by both ID (for layout lookups) and name (for binding lookups)
+    map.set(String(component.id), component);
     map.set(component.name, component);
   });
   return map;
@@ -88,10 +122,12 @@ const renderedSlots = computed<RenderSlot[]>(() => {
     ? faceplate.value.configuration.layout
     : [];
 
-  return layout
+  const slots = layout
     .map((slot) => {
       const component = componentMap.value.get(slot.component);
-      if (!component) return null;
+      if (!component) {
+        return null;
+      }
 
       const bindings: Record<string, unknown> = {};
       const lastUpdated = componentLastUpdated[component.name] || {};
@@ -129,14 +165,130 @@ const renderedSlots = computed<RenderSlot[]>(() => {
       } as RenderSlot;
     })
     .filter((slot): slot is RenderSlot => Boolean(slot));
+  
+  return slots;
 });
 
-const gridTemplateColumns = computed(() => {
-  if (renderedSlots.value.length === 0) {
-    return 'repeat(1, minmax(220px, 1fr))';
+// Convert renderedSlots to CanvasComponent format (preserving hierarchy)
+const canvasComponents = computed<CanvasComponent[]>(() => {
+  if (!faceplate.value) return [];
+  
+  const layout = Array.isArray(faceplate.value.configuration.layout)
+    ? faceplate.value.configuration.layout
+    : [];
+  
+  if (import.meta.env.DEV && layout.length > 0) {
+    console.log('FaceplateRuntime - Layout items:', layout);
+    console.log('FaceplateRuntime - RenderedSlots:', renderedSlots.value.map(s => ({ id: s.id, name: s.name, type: s.type })));
   }
-  const columns = Math.max(...renderedSlots.value.map((slot) => slot.position.x + slot.position.w), 1);
-  return `repeat(${columns}, minmax(220px, 1fr))`;
+  
+  // First pass: create components with parentId and eventHandlers
+  const eventHandlersFromConfig = faceplate.value.configuration.eventHandlers || [];
+  
+  const components = renderedSlots.value.map(slot => {
+    // Find parent ID from layout data
+    const layoutItem = layout.find(item => item.component === String(slot.id));
+    const parentId = layoutItem?.parentId || null;
+    
+    // Find event handlers for this component (using component name, not ID)
+    const handlers = eventHandlersFromConfig.filter((h: any) => String(h.componentId) === slot.name);
+    
+    // Add automatic event handlers for twoWay bindings
+    const componentBindings = allBindings.value.filter((b: any) => String(b.componentId) === String(slot.id));
+    const twoWayBindings = componentBindings.filter((b: any) => b.mode === 'twoWay');
+    
+    // For each twoWay binding, create an automatic write handler
+    twoWayBindings.forEach((binding: any) => {
+      // Check if there's already a handler for this event
+      const hasExistingHandler = handlers.some((h: any) => 
+        h.trigger === 'onChange' || h.trigger === 'onInput'
+      );
+      
+      if (!hasExistingHandler) {
+        // Create automatic write handler
+        handlers.push({
+          id: `auto-twoway-${binding.id}`,
+          componentId: String(slot.id),
+          trigger: 'onChange',
+          action: {
+            type: 'writeField',
+            fieldPath: binding.expression,
+            valueSource: 'component',
+          },
+          enabled: true,
+          description: `Auto-generated for two-way binding to ${binding.expression}`,
+        });
+      }
+    });
+    
+    if (import.meta.env.DEV && parentId) {
+      console.log(`FaceplateRuntime - Component ${slot.id} has parentId: ${parentId}`);
+    }
+    
+    return {
+      id: slot.id,
+      type: slot.type,
+      position: {
+        x: slot.position.x,
+        y: slot.position.y,
+      },
+      size: {
+        x: slot.position.w,
+        y: slot.position.h,
+      },
+      config: slot.config,
+      bindings: slot.bindings,
+      parentId: parentId,
+      eventHandlers: handlers.length > 0 ? handlers : undefined,
+    };
+  });
+  
+  // Second pass: build children arrays for hierarchical rendering
+  const childrenMap = new Map<string | number, CanvasComponent[]>();
+  components.forEach(component => {
+    if (component.parentId) {
+      // Normalize parentId to string for consistent Map keys
+      const parentKey = String(component.parentId);
+      if (!childrenMap.has(parentKey)) {
+        childrenMap.set(parentKey, []);
+      }
+      childrenMap.get(parentKey)!.push(component);
+    }
+  });
+  
+  // Third pass: attach children arrays to their parents and filter to root only
+  const allComponents = components.map(component => {
+    // Normalize component ID to string for Map lookup
+    const componentKey = String(component.id);
+    const children = childrenMap.get(componentKey);
+    
+    if (import.meta.env.DEV && children && children.length > 0) {
+      console.log(`FaceplateRuntime - Component ${component.id} (${component.type}) has ${children.length} children:`, children.map(c => ({ id: c.id, type: c.type })));
+    }
+    
+    return {
+      ...component,
+      children: children || undefined,
+    };
+  });
+  
+  // Only return root-level components (those without a parent)
+  const result = allComponents.filter(component => !component.parentId);
+  
+  if (import.meta.env.DEV) {
+    console.log('FaceplateRuntime - Final canvasComponents (root only):', result);
+  }
+  
+  return result;
+});
+
+const viewportSize = computed(() => {
+  const viewport = faceplate.value?.configuration?.metadata?.viewport as { width?: number; height?: number } | undefined;
+  if (!viewport) return undefined;
+  return {
+    x: viewport.width ?? 960,
+    y: viewport.height ?? 720,
+  };
 });
 
 function computeAnimationClasses(component: FaceplateComponentRecord, bindings: Record<string, unknown>): string[] {
@@ -176,248 +328,23 @@ async function initialize() {
     }
 
     if (faceplate.value) {
-      components.value = await service.readComponents(faceplate.value.components);
+      const [componentsData] = await Promise.all([
+        service.readComponents(faceplate.value.components),
+        Promise.resolve(scriptComposable.compileFaceplateScriptModules(faceplate.value.scriptModules ?? []))
+      ]);
+      components.value = componentsData;
     } else {
       components.value = [];
+      scriptComposable.compileFaceplateScriptModules([]);
     }
 
-    buildBindingMaps();
-    await evaluateAllBindings();
-    await registerNotifications();
+    bindingComposable.evaluateBindings(allBindings.value, props.entityId ?? null, faceplate.value?.id ?? null);
   } catch (err) {
-    console.error('FaceplateRuntime initialization failed', err);
+    logger.error('FaceplateRuntime initialization failed:', err);
     error.value = err instanceof Error ? err.message : 'Failed to load faceplate';
   } finally {
     loading.value = false;
   }
-}
-
-function buildBindingMaps() {
-  expressionToBindings.clear();
-  Object.keys(bindingValueMap).forEach((key) => delete bindingValueMap[key]);
-  bindingPaths.clear();
-  bindingTargets.clear();
-  Object.keys(componentLastUpdated).forEach((key) => delete componentLastUpdated[key]);
-
-  for (const binding of allBindings.value) {
-    const componentName = binding.component || '';
-    const property = binding.property || '';
-    const expression = binding.expression || '';
-    if (!componentName || !property || !expression) continue;
-
-    const key = `${componentName}:${property}`;
-    if (!expressionToBindings.has(expression)) {
-      expressionToBindings.set(expression, []);
-    }
-    expressionToBindings.get(expression)!.push({ component: componentName, property, transform: binding.transform });
-
-    if (!bindingValueMap[key]) {
-      bindingValueMap[key] = null;
-    }
-
-    if (!componentLastUpdated[componentName]) {
-      componentLastUpdated[componentName] = {};
-    }
-  }
-}
-
-async function evaluateAllBindings() {
-  if (!faceplate.value || !props.entityId) {
-    Object.keys(bindingValueMap).forEach((key) => (bindingValueMap[key] = null));
-    return;
-  }
-
-  const expressions = Array.from(expressionToBindings.keys());
-  for (const expression of expressions) {
-    const value = await evaluateExpression(expression);
-    updateBindingsForExpression(expression, value);
-  }
-}
-
-async function evaluateExpression(expression: string): Promise<unknown> {
-  const literal = tryEvaluateLiteral(expression);
-  if (literal.found) {
-    expressionValueMap[expression] = literal.value;
-    return literal.value;
-  }
-
-  if (!props.entityId) {
-    expressionValueMap[expression] = null;
-    return null;
-  }
-
-  const path = await getFieldPath(expression);
-  if (path.length === 0) {
-    expressionValueMap[expression] = null;
-    return null;
-  }
-
-  const [value] = await dataStore.read(props.entityId, path);
-  const extracted = ValueHelpers.extract(value);
-  expressionValueMap[expression] = extracted;
-  await resolveBindingTarget(expression, path);
-  return extracted;
-}
-
-function tryEvaluateLiteral(expression: string): { found: boolean; value: unknown } {
-  if (!expression) return { found: false, value: null };
-  const trimmed = expression.trim();
-
-  if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith('\'') && trimmed.endsWith('\''))) {
-    return { found: true, value: trimmed.slice(1, -1) };
-  }
-
-  if (/^\d+(\.\d+)?$/.test(trimmed)) {
-    return { found: true, value: Number(trimmed) };
-  }
-
-  if (trimmed === 'true') return { found: true, value: true };
-  if (trimmed === 'false') return { found: true, value: false };
-  if (trimmed === 'null') return { found: true, value: null };
-
-  return { found: false, value: null };
-}
-
-async function getFieldPath(expression: string): Promise<FieldType[]> {
-  if (bindingPaths.has(expression)) {
-    return bindingPaths.get(expression)!;
-  }
-
-  const segments = expression.split('->').map((segment) => segment.trim()).filter(Boolean);
-  const fieldTypes: FieldType[] = [];
-
-  for (const segment of segments) {
-    try {
-      const fieldType = await service.getFieldType(segment);
-      fieldTypes.push(fieldType);
-    } catch (error) {
-      console.warn(`Unable to resolve field type for segment "${segment}" in expression "${expression}"`, error);
-      bindingPaths.set(expression, []);
-      return [];
-    }
-  }
-
-  bindingPaths.set(expression, fieldTypes);
-  return fieldTypes;
-}
-
-async function resolveBindingTarget(expression: string, fieldPath: FieldType[]) {
-  if (bindingTargets.has(expression)) return;
-  if (!props.entityId) return;
-
-  try {
-    const [resolvedEntity, resolvedFieldType] = await dataStore.resolveIndirection(props.entityId, fieldPath);
-    bindingTargets.set(expression, { entityId: resolvedEntity, fieldType: resolvedFieldType });
-  } catch (err) {
-    console.warn(`Failed to resolve indirection for expression ${expression}`, err);
-  }
-}
-
-function updateBindingsForExpression(expression: string, value: unknown) {
-  if (!expressionToBindings.has(expression)) return;
-
-  const bindings = expressionToBindings.get(expression)!;
-  bindings.forEach(({ component, property, transform }) => {
-    const key = `${component}:${property}`;
-    const transformed = applyTransform(transform, value);
-    bindingValueMap[key] = transformed;
-
-    if (!componentLastUpdated[component]) {
-      componentLastUpdated[component] = {};
-    }
-    componentLastUpdated[component][property] = Date.now();
-  });
-}
-
-function applyTransform(transform: string | undefined, value: unknown): unknown {
-  if (!transform) return value;
-  try {
-    const fn = new Function('value', `return (${transform});`);
-    return fn(value);
-  } catch (error) {
-    console.warn('Failed to apply transform', transform, error);
-    return value;
-  }
-}
-
-async function registerNotifications() {
-  await cleanupNotifications();
-  if (!isLive.value || !props.entityId) return;
-
-  const expressionSet = new Set<string>(expressionToBindings.keys());
-
-  if (faceplate.value) {
-    faceplate.value.notificationChannels.forEach((channel) => {
-      ensureArray(channel?.fields).forEach((field) => expressionSet.add(field));
-    });
-  }
-
-  for (const expression of expressionSet) {
-    const literal = tryEvaluateLiteral(expression);
-    if (literal.found) continue;
-
-    const path = await getFieldPath(expression);
-    if (!path.length) continue;
-
-    await resolveBindingTarget(expression, path);
-    const target = bindingTargets.get(expression);
-    if (!target) continue;
-
-    const notifyConfig: NotifyConfig = {
-      EntityId: {
-        entity_id: target.entityId,
-        field_type: target.fieldType,
-        trigger_on_change: true,
-        context: [],
-      },
-    };
-
-    const callback = (notification: Notification) => {
-      if (!notification.current) return;
-      let updatedValue: unknown = null;
-      if (notification.current.value) {
-        updatedValue = ValueHelpers.extract(notification.current.value);
-      }
-
-      expressionValueMap[expression] = updatedValue;
-
-      if (expressionToBindings.has(expression)) {
-        updateBindingsForExpression(expression, updatedValue);
-      } else {
-        // This expression is tracked for relationship changes (e.g., Parent). Re-evaluate all bindings.
-        void evaluateAllBindings();
-      }
-    };
-
-    try {
-      await dataStore.registerNotification(notifyConfig, callback);
-      subscriptions.push({ config: notifyConfig, callback });
-    } catch (error) {
-      console.warn(`Failed to register notification for expression ${expression}`, error);
-    }
-  }
-}
-
-async function cleanupNotifications() {
-  if (!subscriptions.length) return;
-  await Promise.all(
-    subscriptions.map(({ config, callback }) => dataStore.unregisterNotification(config, callback).catch(() => undefined)),
-  );
-  subscriptions = [];
-}
-
-function ensureArray<T>(value: T[] | T | null | undefined): T[] {
-  if (!value) return [];
-  return Array.isArray(value) ? value : [value];
-}
-
-function getSlotStyle(slot: RenderSlot) {
-  return {
-    gridColumnStart: String(slot.position.x + 1),
-    gridColumnEnd: `span ${Math.max(slot.position.w, 1)}`,
-    gridRowStart: String(slot.position.y + 1),
-    gridRowEnd: `span ${Math.max(slot.position.h, 1)}`,
-  };
 }
 
 watch(
@@ -431,23 +358,21 @@ watch(
 watch(
   () => props.entityId,
   async () => {
-    await evaluateAllBindings();
-    await registerNotifications();
+    await bindingComposable.evaluateBindings(allBindings.value, props.entityId ?? null, faceplate.value?.id ?? null);
+    await notificationComposable.registerNotifications();
   },
 );
 
-onMounted(async () => {
-  if (!faceplate.value) {
-    await initialize();
-  }
-});
-
 onBeforeUnmount(async () => {
-  await cleanupNotifications();
+  await notificationComposable.cleanupNotifications();
+
+  // Clear caches to prevent memory leaks
+  scriptComposable.clearScriptState();
+  bindingComposable.clearCaches();
 });
 
 defineExpose({
-  refresh: () => evaluateAllBindings(),
+  refresh: () => bindingComposable.evaluateBindings(allBindings.value, props.entityId ?? null, faceplate.value?.id ?? null),
 });
 </script>
 
@@ -456,29 +381,106 @@ defineExpose({
     <div v-if="loading" class="runtime-state loading">Loading faceplate…</div>
     <div v-else-if="error" class="runtime-state error">{{ error }}</div>
     <div v-else-if="!faceplate" class="runtime-state empty">No faceplate selected</div>
-    <div v-else-if="!entityId" class="runtime-state empty">Select an entity to drive this faceplate</div>
-    <div v-else class="runtime-grid" :style="{ gridTemplateColumns: gridTemplateColumns }">
-      <div
-        v-for="slot in renderedSlots"
-        :key="slot.id"
-        class="runtime-slot"
-        :style="getSlotStyle(slot)"
-      >
-        <FaceplateComponentRenderer :component="slot" />
+    <div v-else-if="!entityId" class="runtime-state empty">Select an entity to drive this faceplate (entityId: {{ entityId }})</div>
+    
+    <!-- Enhanced error panel for script errors -->
+    <div 
+      v-if="(scriptCompilationErrors.length > 0 || scriptRuntimeErrors.length > 0) && showErrorPanel && faceplate"
+      class="error-panel"
+    >
+      <div class="error-panel__header">
+        <div class="error-panel__title">
+          <span class="error-panel__icon">⚠️</span>
+          <span>Script Errors ({{ scriptCompilationErrors.length + scriptRuntimeErrors.length }})</span>
+        </div>
+        <button 
+          type="button" 
+          class="error-panel__close"
+          @click="showErrorPanel = false"
+        >
+          ✕
+        </button>
+      </div>
+      
+      <div class="error-panel__content">
+        <!-- Compilation Errors -->
+        <div v-if="scriptCompilationErrors.length > 0" class="error-panel__section">
+          <div class="error-panel__section-title">Compilation Errors</div>
+          <div 
+            v-for="(err, idx) in scriptCompilationErrors" 
+            :key="`compile-${idx}`" 
+            class="error-panel__item error-panel__item--compile"
+          >
+            <div class="error-panel__item-header">
+              <span class="error-panel__item-badge">Module</span>
+              <span class="error-panel__item-module">{{ err.module }}</span>
+              <span class="error-panel__item-time">{{ formatTimestamp(err.timestamp) }}</span>
+            </div>
+            <div class="error-panel__item-message">{{ err.error }}</div>
+          </div>
+        </div>
+        
+        <!-- Runtime Errors -->
+        <div v-if="scriptRuntimeErrors.length > 0" class="error-panel__section">
+          <div class="error-panel__section-title">Runtime Errors</div>
+          <div 
+            v-for="(err, idx) in scriptRuntimeErrors.slice(-10)" 
+            :key="`runtime-${idx}`" 
+            class="error-panel__item error-panel__item--runtime"
+          >
+            <div class="error-panel__item-header">
+              <span class="error-panel__item-badge">Context</span>
+              <span class="error-panel__item-context">{{ err.context }}</span>
+              <span class="error-panel__item-time">{{ formatTimestamp(err.timestamp) }}</span>
+            </div>
+            <div class="error-panel__item-message">{{ err.error }}</div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="error-panel__footer">
+        <button 
+          type="button" 
+          class="error-panel__action"
+          @click="scriptCompilationErrors = []; scriptRuntimeErrors = []"
+        >
+          Clear All
+        </button>
       </div>
     </div>
+    
+    <!-- Show button to reopen error panel if hidden -->
+    <button
+      v-if="(scriptCompilationErrors.length > 0 || scriptRuntimeErrors.length > 0) && !showErrorPanel && faceplate"
+      type="button"
+      class="error-panel__reopen"
+      @click="showErrorPanel = true"
+    >
+      ⚠️ {{ scriptCompilationErrors.length + scriptRuntimeErrors.length }} Errors
+    </button>
+    
+    <FaceplateCanvas
+      v-if="!loading && !error && faceplate && entityId"
+      class="faceplate-runtime__canvas"
+      :components="canvasComponents"
+      :viewport="viewportSize"
+      :edit-mode="false"
+      :show-grid="false"
+      :show-viewport-boundary="false"
+      @event-triggered="handleEventTriggered"
+    />
   </div>
 </template>
 
 <style scoped>
 .faceplate-runtime {
+  position: relative;
   display: flex;
   flex-direction: column;
   width: 100%;
   height: 100%;
-  padding: 16px;
   background: radial-gradient(circle at top, rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0.65));
-  overflow: auto;
+  overflow: hidden;
 }
 
 .runtime-state {
@@ -495,13 +497,250 @@ defineExpose({
   color: var(--qui-danger-color);
 }
 
-.runtime-grid {
-  display: grid;
-  grid-auto-rows: minmax(160px, auto);
-  gap: 18px;
+.faceplate-runtime__canvas {
+  flex: 1;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  overflow: hidden;
 }
 
-.runtime-slot {
-  min-height: 160px;
+/* Enhanced Error Panel */
+.error-panel {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  width: 480px;
+  max-height: 600px;
+  display: flex;
+  flex-direction: column;
+  background: rgba(20, 0, 0, 0.96);
+  border: 2px solid rgba(255, 80, 80, 0.6);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  z-index: 10000;
+  animation: error-panel-slide-in 0.3s ease-out;
+  pointer-events: auto;
+}
+
+@keyframes error-panel-slide-in {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.error-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid rgba(255, 80, 80, 0.3);
+  background: rgba(255, 50, 50, 0.15);
+}
+
+.error-panel__title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #ffcccc;
+  letter-spacing: 0.03em;
+}
+
+.error-panel__icon {
+  font-size: 18px;
+  animation: error-icon-pulse 2s ease-in-out infinite;
+}
+
+@keyframes error-icon-pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.2);
+  }
+}
+
+.error-panel__close {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  border-radius: 6px;
+  color: #ffcccc;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.error-panel__close:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+}
+
+.error-panel__content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+.error-panel__section {
+  margin-bottom: 16px;
+}
+
+.error-panel__section:last-child {
+  margin-bottom: 0;
+}
+
+.error-panel__section-title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255, 200, 200, 0.8);
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 80, 80, 0.2);
+}
+
+.error-panel__item {
+  margin-bottom: 10px;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 8px;
+  border-left: 3px solid rgba(255, 100, 100, 0.6);
+}
+
+.error-panel__item--compile {
+  border-left-color: rgba(255, 150, 0, 0.8);
+}
+
+.error-panel__item--runtime {
+  border-left-color: rgba(255, 50, 50, 0.8);
+}
+
+.error-panel__item-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.error-panel__item-badge {
+  padding: 2px 8px;
+  background: rgba(255, 100, 100, 0.3);
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(255, 200, 200, 0.9);
+}
+
+.error-panel__item-module,
+.error-panel__item-context {
+  font-size: 12px;
+  font-weight: 600;
+  color: #ffaaaa;
+  font-family: 'Courier New', monospace;
+}
+
+.error-panel__item-time {
+  margin-left: auto;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  font-family: 'Courier New', monospace;
+}
+
+.error-panel__item-message {
+  font-size: 12px;
+  font-family: 'Courier New', monospace;
+  color: #ffdddd;
+  line-height: 1.5;
+  word-break: break-word;
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
+}
+
+.error-panel__footer {
+  padding: 12px 18px;
+  border-top: 1px solid rgba(255, 80, 80, 0.3);
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.error-panel__action {
+  padding: 8px 16px;
+  background: rgba(255, 100, 100, 0.2);
+  border: 1px solid rgba(255, 100, 100, 0.4);
+  border-radius: 6px;
+  color: #ffcccc;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.error-panel__action:hover {
+  background: rgba(255, 100, 100, 0.3);
+  border-color: rgba(255, 100, 100, 0.6);
+  color: #ffffff;
+}
+
+.error-panel__reopen {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  padding: 10px 16px;
+  background: rgba(20, 0, 0, 0.96);
+  border: 2px solid rgba(255, 80, 80, 0.6);
+  border-radius: 8px;
+  color: #ffcccc;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  z-index: 9999;
+  transition: all 0.2s;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  pointer-events: auto;
+}
+
+.error-panel__reopen:hover {
+  background: rgba(40, 0, 0, 1);
+  border-color: rgba(255, 80, 80, 0.8);
+  transform: scale(1.05);
+}
+
+/* Custom scrollbar for error panel */
+.error-panel__content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.error-panel__content::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
+}
+
+.error-panel__content::-webkit-scrollbar-thumb {
+  background: rgba(255, 100, 100, 0.4);
+  border-radius: 4px;
+}
+
+.error-panel__content::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 100, 100, 0.6);
 }
 </style>
