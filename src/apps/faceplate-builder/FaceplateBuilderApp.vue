@@ -1259,18 +1259,8 @@ async function handleSelectorNew(faceplateId: EntityId) {
   }
 }
 
-function handleBeforeUnload(event: BeforeUnloadEvent) {
-  if (dirty.value) {
-    const message = 'You have unsaved changes. Are you sure you want to leave?';
-    event.preventDefault();
-    event.returnValue = message;
-    return message;
-  }
-}
-
 onMounted(async () => {
   window.addEventListener('keydown', handleKeyDown);
-  window.addEventListener('beforeunload', handleBeforeUnload);
 
   // Initialize with an empty baseline state.
   if (!history.stack.length) {
@@ -1290,7 +1280,6 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleKeyDown);
-  window.removeEventListener('beforeunload', handleBeforeUnload);
   if (autoSaveTimer.value !== null) {
     window.clearTimeout(autoSaveTimer.value);
   }
