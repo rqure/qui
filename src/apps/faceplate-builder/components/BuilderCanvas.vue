@@ -60,6 +60,9 @@ const canvasRef = ref<InstanceType<typeof FaceplateCanvas> | null>(null);
 const wrapperRef = ref<HTMLElement | null>(null);
 const dropTargetContainerId = ref<string | null>(null);
 
+// Track active resize for immediate visual feedback
+const resizingNodeData = ref<{ nodeId: string; size: Vector2; position: Vector2 } | null>(null);
+
 // Zoom and pan state
 const zoom = ref(1);
 const pan = ref({ x: 0, y: 0 });
@@ -93,10 +96,28 @@ const contextMenu = reactive<{
 // Computed for multi-select check
 const hasMultipleSelected = computed(() => (props.selectedNodeIds?.size ?? 0) > 1);
 
+// Merge nodes with active resize data for visual feedback during resize
+const visualNodes = computed<CanvasNode[]>(() => {
+  if (!resizingNodeData.value) {
+    return props.nodes;
+  }
+  
+  return props.nodes.map(node => {
+    if (node.id === resizingNodeData.value?.nodeId) {
+      return {
+        ...node,
+        size: { ...resizingNodeData.value.size },
+        position: { ...resizingNodeData.value.position },
+      };
+    }
+    return node;
+  });
+});
+
 // Convert CanvasNode to CanvasComponent format (preserving parent-child relationships)
 // Filter out hidden nodes (they won't render in builder but will at runtime)
 const canvasComponents = computed<CanvasComponent[]>(() => {
-  return props.nodes
+  return visualNodes.value
     .filter(node => !node.hidden) // Hide components marked as hidden
     .map(node => ({
       id: node.id,
@@ -112,6 +133,81 @@ const canvasComponents = computed<CanvasComponent[]>(() => {
 // Helper to check if a component is a container
 function isContainerType(componentId: string): boolean {
   return ContainerManagementService.isContainerType(componentId);
+}
+
+// Calculate absolute position for a node, accounting for parent container layouts
+function getAbsolutePosition(node: CanvasNode, nodes: CanvasNode[]): Vector2 {
+  if (!node.parentId) {
+    return node.position;
+  }
+  
+  // Find parent
+  const parent = nodes.find(n => n.id === node.parentId);
+  if (!parent) {
+    return node.position;
+  }
+  
+  // Get parent's absolute position (recursively)
+  const parentAbsPos = getAbsolutePosition(parent, nodes);
+  
+  // Calculate child's layout position within parent
+  const parentChildren = nodes.filter(n => n.parentId === node.parentId);
+  const childIndex = parentChildren.findIndex(n => n.id === node.id);
+  
+  if (childIndex === -1) {
+    return node.position;
+  }
+  
+  // Replicate container layout logic
+  const config = parent.props || {};
+  const padding = Number(config.padding) || 16;
+  const gap = Number(config.gap) || 12;
+  const direction = config.layoutDirection === 'horizontal' ? 'horizontal' : 'vertical';
+  const wrap = Boolean(config.wrap);
+  
+  const containerWidth = parent.size.x;
+  const containerHeight = parent.size.y;
+  const availableWidth = containerWidth - (padding * 2);
+  const availableHeight = containerHeight - (padding * 2);
+  
+  let offsetX = padding;
+  let offsetY = padding;
+  let rowMaxHeight = 0;
+  let colMaxWidth = 0;
+  
+  // Calculate position based on siblings before this one
+  for (let i = 0; i < childIndex; i++) {
+    const sibling = parentChildren[i];
+    const siblingWidth = sibling.size.x;
+    const siblingHeight = sibling.size.y;
+    
+    if (direction === 'horizontal') {
+      // Check if we need to wrap
+      if (wrap && offsetX + siblingWidth > availableWidth + padding && offsetX > padding) {
+        offsetX = padding;
+        offsetY += rowMaxHeight + gap;
+        rowMaxHeight = 0;
+      }
+      
+      offsetX += siblingWidth + gap;
+      rowMaxHeight = Math.max(rowMaxHeight, siblingHeight);
+    } else {
+      // Vertical layout
+      if (wrap && offsetY + siblingHeight > availableHeight + padding && offsetY > padding) {
+        offsetY = padding;
+        offsetX += colMaxWidth + gap;
+        colMaxWidth = 0;
+      }
+      
+      offsetY += siblingHeight + gap;
+      colMaxWidth = Math.max(colMaxWidth, siblingWidth);
+    }
+  }
+  
+  return {
+    x: parentAbsPos.x + offsetX,
+    y: parentAbsPos.y + offsetY,
+  };
 }
 
 // Find container at given position during drag
@@ -467,15 +563,19 @@ function handlePointerMove(event: PointerEvent) {
     
     // Calculate new size and position based on handle
     if (handle.includes('w')) {
-      newPos.x = originalPosition.x + deltaX;
+      // Keep right edge fixed when resizing from west
+      const rightEdge = originalPosition.x + originalSize.x;
       newSize.x = Math.max(80, originalSize.x - deltaX);
+      newPos.x = rightEdge - newSize.x;
     }
     if (handle.includes('e')) {
       newSize.x = Math.max(80, originalSize.x + deltaX);
     }
     if (handle.includes('n')) {
-      newPos.y = originalPosition.y + deltaY;
+      // Keep bottom edge fixed when resizing from north
+      const bottomEdge = originalPosition.y + originalSize.y;
       newSize.y = Math.max(60, originalSize.y - deltaY);
+      newPos.y = bottomEdge - newSize.y;
     }
     if (handle.includes('s')) {
       newSize.y = Math.max(60, originalSize.y + deltaY);
@@ -484,6 +584,13 @@ function handlePointerMove(event: PointerEvent) {
     // Apply snapping
     const snappedPos = snapToGrid(newPos);
     const snappedSize = snapToGrid(newSize);
+    
+    // Store resizing data for immediate visual feedback
+    resizingNodeData.value = {
+      nodeId,
+      size: snappedSize,
+      position: snappedPos,
+    };
     
     // Detect alignment guides during resize for visual feedback
     const resizingNode = props.nodes.find(n => n.id === nodeId);
@@ -601,6 +708,7 @@ function handlePointerUp(event: PointerEvent) {
       emit('node-resize-end', { nodeId, size: node.size });
     }
     resizeState.value = null;
+    resizingNodeData.value = null; // Clear visual feedback state
     return;
   }
   
@@ -903,13 +1011,13 @@ onBeforeUnmount(teardownListeners);
     
     <!-- Resize handles for single selected node -->
     <template v-if="selectedNodeId && !hasMultipleSelected">
-      <template v-for="node in nodes" :key="`resize-${node.id}`">
+      <template v-for="node in visualNodes" :key="`resize-${node.id}`">
         <div 
           v-if="node.id === selectedNodeId"
           class="resize-handles"
           :style="{
-            left: `${node.position.x * zoom + pan.x}px`,
-            top: `${node.position.y * zoom + pan.y}px`,
+            left: `${getAbsolutePosition(node, visualNodes).x * zoom + pan.x}px`,
+            top: `${getAbsolutePosition(node, visualNodes).y * zoom + pan.y}px`,
             width: `${node.size.x * zoom}px`,
             height: `${node.size.y * zoom}px`,
             pointerEvents: 'none',
