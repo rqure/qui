@@ -25,7 +25,6 @@ export type PrimitiveDefinition = {
   defaultSize: Vector2;
   defaultProps: Record<string, unknown>;
   propertySchema: PrimitivePropertyDefinition[];
-  previewProps?: Record<string, unknown>;
 };
 
 export type PaletteTemplate = {
@@ -39,9 +38,8 @@ export type PaletteTemplate = {
     props: Record<string, unknown>;
   };
   propertySchema: PrimitivePropertyDefinition[];
-  previewProps?: Record<string, unknown>;
   source: 'built-in' | 'custom';
-  customComponentId?: string; // Reference to custom component entity if source is 'custom'
+  customComponentId?: string; /* Lines 44-45 omitted */
 };
 
 export type CanvasNode = {

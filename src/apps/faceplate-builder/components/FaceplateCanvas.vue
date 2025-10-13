@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import PrimitiveRenderer from './PrimitiveRenderer.vue';
+import { useComponentNode } from '../composables/useComponentNode';
 
 export interface CanvasComponent {
   id: string | number;
@@ -245,89 +246,51 @@ const ComponentNode = {
   },
   emits: ['component-click', 'component-drag-start', 'component-contextmenu', 'event-triggered'],
   setup(props: any, { emit }: any) {
-    const isContainerType = computed(() => {
-      return isContainer(props.component.type);
+    const {
+      isContainerType,
+      isDropTarget,
+      isVisible,
+      effectiveOpacity,
+      componentStyle,
+    } = useComponentNode({
+      component: props.component,
+      editMode: props.editMode,
+      parentVisible: props.parentVisible,
+      parentOpacity: props.parentOpacity,
+      isInsideContainer: props.isInsideContainer,
+      dropTargetContainerId: props.dropTargetContainerId,
     });
-    
-    const isDropTarget = computed(() => {
-      return isContainerType.value && props.dropTargetContainerId === props.component.id;
-    });
-    
-    // Check if this component should be visible (cascades from parent)
-    const isVisible = computed(() => {
-      if (!props.parentVisible) return false;
-      // Check if component has visible property (for containers and other components)
-      const visible = props.component.config?.visible ?? true;
-      // Also check bindings if present
-      if (props.component.bindings?.visible !== undefined) {
-        return props.component.bindings.visible && visible;
-      }
-      return visible;
-    });
-    
-    // Calculate effective opacity (cascades from parent)
-    const effectiveOpacity = computed(() => {
-      const componentOpacity = props.component.config?.opacity ?? 1;
-      const bindingOpacity = props.component.bindings?.opacity ?? 1;
-      return props.parentOpacity * componentOpacity * bindingOpacity;
-    });
-    
+
     const layoutChildren = computed(() => {
       // When rendering in runtime (not edit mode), just return children as-is
       // Flexbox will handle the layout based on container config
       if (!isContainerType.value || !props.component.children?.length) {
         return props.component.children || [];
       }
-      
+
       // In edit mode, we still calculate positions for absolute positioning
       // In runtime/view mode, we just return the children and let flexbox position them
       if (!props.editMode) {
         return props.component.children;
       }
-      
+
       return calculateChildLayout(props.component, props.component.children);
     });
-    
-    const componentStyle = computed(() => {
-      // If inside a container (in runtime/view mode), don't use absolute positioning
-      // Let flexbox handle it
-      if (props.isInsideContainer && !props.editMode) {
-        const style: Record<string, any> = {
-          width: `${props.component.size.x}px`,
-          height: `${props.component.size.y}px`,
-          // Don't set position - let it be default (static) for flexbox
-        };
-        if (effectiveOpacity.value !== 1) {
-          style.opacity = effectiveOpacity.value;
-        }
-        return style;
-      }
-      
-      // Top-level components or edit mode use absolute positioning
-      const baseStyle = getComponentStyle(props.component);
-      if (effectiveOpacity.value !== 1) {
-        return {
-          ...baseStyle,
-          opacity: effectiveOpacity.value,
-        };
-      }
-      return baseStyle;
-    });
-    
+
     const handlePointerDown = (event: PointerEvent) => {
       if (!props.editMode) return;
       const isMultiSelect = event.shiftKey || event.ctrlKey || event.metaKey;
       emit('component-click', { id: props.component.id, event, isMultiSelect });
       emit('component-drag-start', { id: props.component.id, event });
     };
-    
+
     const handleContextMenu = (event: MouseEvent) => {
       if (!props.editMode) return;
       event.preventDefault();
       event.stopPropagation();
       emit('component-contextmenu', { id: props.component.id, event });
     };
-    
+
     return {
       isContainerType,
       isDropTarget,

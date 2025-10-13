@@ -1,3 +1,5 @@
+import type { CanvasNode, Binding } from '../types';
+
 /**
  * Utility helper functions for Faceplate Builder
  */
@@ -68,4 +70,31 @@ export function debounce<T extends (...args: any[]) => any>(
     if (timeoutId) clearTimeout(timeoutId);
     timeoutId = setTimeout(() => fn(...args), delay);
   };
+}
+
+/**
+ * Create a Map for efficient node lookups by ID
+ * @param nodes - Array of canvas nodes
+ * @returns Map of node ID to node
+ */
+export function createNodeMap(nodes: CanvasNode[]): Map<string, CanvasNode> {
+  return new Map(nodes.map(node => [node.id, node]));
+}
+
+/**
+ * Create a Map for efficient binding lookups by component ID and property
+ * @param bindings - Array of bindings
+ * @returns Map of componentId -> Map of property -> binding
+ */
+export function createBindingMap(bindings: Binding[]): Map<string, Map<string, Binding>> {
+  const bindingMap = new Map<string, Map<string, Binding>>();
+  
+  for (const binding of bindings) {
+    if (!bindingMap.has(binding.componentId)) {
+      bindingMap.set(binding.componentId, new Map());
+    }
+    bindingMap.get(binding.componentId)!.set(binding.property, binding);
+  }
+  
+  return bindingMap;
 }

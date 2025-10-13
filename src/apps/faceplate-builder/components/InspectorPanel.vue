@@ -151,6 +151,7 @@ const nameError = ref<string | null>(null);
 watchEffect(() => {
   if (props.node) {
     componentName.value = props.node.name || props.node.componentId;
+    nameError.value = null; // Clear any previous validation errors when node changes
   }
 });
 

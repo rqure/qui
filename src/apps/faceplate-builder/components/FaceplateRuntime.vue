@@ -8,6 +8,7 @@ import { FaceplateDataService, type FaceplateComponentRecord, type FaceplateReco
 import type { BindingMode } from '@/apps/faceplate-builder/types';
 import { IndirectFieldNotifier } from '@/apps/faceplate-builder/utils/indirect-field-notifier';
 import { logger } from '@/apps/faceplate-builder/utils/logger';
+import { BindingEvaluationStrategyFactory, type BindingEvaluationContext, type ScriptHelpers, type ScriptExecutionContext } from '@/apps/faceplate-builder/utils/binding-evaluation-strategies';
 
 interface RenderSlot {
   id: EntityId;
@@ -34,28 +35,6 @@ type BindingTargetEntry = {
   component: string;
   property: string;
   transform?: string | null;
-};
-
-type ScriptHelpers = {
-  clamp(value: number, min: number, max: number): number;
-  lerp(start: number, end: number, t: number): number;
-  round(value: number, precision?: number): number;
-  format(value: unknown, digits?: number): string;
-  colorRamp(value: number, stops: Array<{ stop: number; color: string }>): string;
-};
-
-type ScriptExecutionContext = {
-  entityId: EntityId | null;
-  faceplateId: EntityId | null;
-  expressionKey: string;
-  get(path: string): Promise<unknown>;
-  getCached(expressionKey: string): unknown;
-  getBindingValue(componentId: string, property: string): unknown;
-  setState(key: string, value: unknown): void;
-  getState<T>(key: string, defaultValue?: T): T | undefined;
-  bindingsSnapshot(): Record<string, unknown>;
-  module(name: string): Record<string, unknown> | undefined;
-  modules(): Record<string, Record<string, unknown>>;
 };
 
 type TransformContext = {
@@ -383,10 +362,8 @@ function determineBindingMode(binding: FaceplateBindingDefinition): BindingMode 
     return binding.mode;
   }
   const trimmed = (binding.expression || '').trim();
-  if (trimmed.startsWith('script:')) {
-    return 'script';
-  }
-  const literal = tryEvaluateLiteral(trimmed);
+  const literalStrategy = new (BindingEvaluationStrategyFactory.getStrategy('literal') as any).constructor();
+  const literal = (literalStrategy as any).tryEvaluateLiteral(trimmed);
   if (literal.found) {
     return 'literal';
   }
@@ -473,11 +450,6 @@ async function evaluateBindingExpression(
   meta: { expression: string; mode: BindingMode; dependencies: string[] },
   evaluationStack: Set<string> = new Set(),
 ): Promise<unknown> {
-  if (!props.entityId) {
-    expressionValueMap[expressionKey] = null;
-    return null;
-  }
-
   // If this expression is already being evaluated, wait for that evaluation to complete
   if (ongoingEvaluations.has(expressionKey)) {
     if (import.meta.env.DEV) {
@@ -514,31 +486,27 @@ async function evaluateBindingExpression(
   // Create a new stack for this evaluation path
   const newStack = new Set(evaluationStack);
   newStack.add(expressionKey);
-  
+
   // Create and cache the evaluation promise
   const evaluationPromise = (async () => {
     try {
-      switch (meta.mode) {
-      case 'literal': {
-        const literal = tryEvaluateLiteral(meta.expression);
-        const value = literal.found ? literal.value : meta.expression;
-        expressionValueMap[expressionKey] = value;
-        return value;
-      }
-      case 'field': {
-        const value = await evaluateFieldExpression(meta.expression);
-        expressionValueMap[expressionKey] = value;
-        return value;
-      }
-      case 'script': {
-        const value = await evaluateScriptExpression(expressionKey, meta.expression);
-        expressionValueMap[expressionKey] = value;
-        return value;
-      }
-      default:
-        expressionValueMap[expressionKey] = null;
-        return null;
-      }
+      const strategy = BindingEvaluationStrategyFactory.getStrategy(meta.mode);
+      const context: BindingEvaluationContext = {
+        entityId: props.entityId ?? null,
+        faceplateId: faceplate.value?.id ?? null,
+        dataStore,
+        service,
+        expressionValueMap,
+        scriptHelpers: getScriptHelpers(),
+        scriptModuleExports,
+        scriptState,
+        scriptCache,
+        scriptRuntimeErrors: scriptRuntimeErrors.value,
+      };
+
+      const value = await strategy.evaluate(meta.expression, context);
+      expressionValueMap[expressionKey] = value;
+      return value;
     } catch (error) {
       // Catch any unexpected errors during evaluation
       logger.error(`Unexpected error evaluating expression ${expressionKey}:`, error);
@@ -554,10 +522,10 @@ async function evaluateBindingExpression(
       ongoingEvaluations.delete(expressionKey);
     }
   })();
-  
+
   // Cache the promise so parallel evaluations can reuse it
   ongoingEvaluations.set(expressionKey, evaluationPromise);
-  
+
   return evaluationPromise;
 }
 
@@ -566,207 +534,7 @@ function isComputedExpression(expression: string): boolean {
   return /[+\-*/%()]/.test(expression) && !/^[A-Za-z_][\w]*(?:->[A-Za-z_][\w]*)*$/.test(expression);
 }
 
-// Evaluate computed expressions like "Temperature * 1.8 + 32"
-async function evaluateComputedExpression(expression: string): Promise<number | null> {
-  if (!props.entityId) {
-    return null;
-  }
 
-  // Extract field references from the expression (words not followed by parentheses)
-  const fieldPattern = /\b([A-Za-z_][\w]*(?:->[A-Za-z_][\w]*)*)\b(?!\s*\()/g;
-  const fields = new Set<string>();
-  let match;
-  while ((match = fieldPattern.exec(expression)) !== null) {
-    fields.add(match[1]);
-  }
-
-  // Read all field values
-  const fieldValues = new Map<string, number>();
-  for (const field of fields) {
-    const path = await getFieldPath(field);
-    if (!path.length) {
-      logger.warn(`Field not found in computed expression: ${field}`);
-      return null;
-    }
-    
-    const [value] = await dataStore.read(props.entityId, path);
-    const extracted = ValueHelpers.extract(value);
-    
-    // Convert to number
-    const numValue = typeof extracted === 'number' ? extracted : 
-                     typeof extracted === 'string' ? parseFloat(extracted) :
-                     typeof extracted === 'boolean' ? (extracted ? 1 : 0) :
-                     null;
-    
-    if (numValue === null || isNaN(numValue)) {
-      logger.warn(`Field value is not numeric in computed expression: ${field} = ${extracted}`);
-      return null;
-    }
-    
-    fieldValues.set(field, numValue);
-  }
-
-  // Replace field names with their values in the expression
-  let evaluableExpression = expression;
-  for (const [field, value] of fieldValues) {
-    // Use word boundaries to avoid partial replacements
-    const regex = new RegExp(`\\b${field.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&')}\\b`, 'g');
-    evaluableExpression = evaluableExpression.replace(regex, String(value));
-  }
-
-  // Evaluate the mathematical expression safely
-  try {
-    // Only allow numbers, operators, and parentheses
-    if (!/^[\d\s+\-*/%().]+$/.test(evaluableExpression)) {
-      logger.warn(`Invalid computed expression after substitution: ${evaluableExpression}`);
-      return null;
-    }
-    
-    // Use Function constructor for safe evaluation (better than eval)
-    const result = new Function(`'use strict'; return (${evaluableExpression})`)();
-    
-    if (typeof result !== 'number' || isNaN(result)) {
-      logger.warn(`Computed expression did not evaluate to a number: ${result}`);
-      return null;
-    }
-    
-    return result;
-  } catch (error) {
-    logger.warn('Failed to evaluate computed expression:', error);
-    return null;
-  }
-}
-
-async function evaluateFieldExpression(expression: string): Promise<unknown> {
-  if (!props.entityId) {
-    return null;
-  }
-
-  // Check if this is a computed expression
-  if (isComputedExpression(expression)) {
-    return await evaluateComputedExpression(expression);
-  }
-
-  // Simple field reference
-  const path = await getFieldPath(expression);
-  if (!path.length) {
-    return null;
-  }
-
-  const [value] = await dataStore.read(props.entityId, path);
-  const extracted = ValueHelpers.extract(value);
-  await resolveBindingTarget(expression, path);
-  return extracted;
-}
-
-async function evaluateScriptExpression(expressionKey: string, source: string): Promise<unknown> {
-  if (!props.entityId) {
-    return null;
-  }
-
-  try {
-    const fn = getOrCreateScriptFunction(source);
-    const context = createScriptExecutionContext(expressionKey);
-    const result = await fn(context, getScriptHelpers());
-    return result;
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    scriptRuntimeErrors.value.push({
-      context: `Script binding evaluation`,
-      error: errorMessage,
-      timestamp: Date.now()
-    });
-    logger.warn('Faceplate script evaluation failed:', error);
-    return null;
-  }
-}
-
-function normalizeScriptBody(source: string): string {
-  const trimmed = source.trim();
-  if (!trimmed) {
-    return 'return null;';
-  }
-
-  const hasReturn = /\breturn\b/.test(trimmed);
-  if (hasReturn) {
-    return trimmed;
-  }
-
-  if (trimmed.endsWith(';')) {
-    return `${trimmed} return undefined;`;
-  }
-
-  return `return (${trimmed});`;
-}
-
-function getOrCreateScriptFunction(source: string) {
-  const cached = scriptCache.get(source);
-  if (cached) {
-    return cached;
-  }
-
-  const body = normalizeScriptBody(source);
-  const factory = new Function(
-    'context',
-    'helpers',
-    '"use strict"; return (async () => {\n' + body + '\n})();',
-  );
-
-  const executor = (context: ScriptExecutionContext, helpers: ScriptHelpers) =>
-    Promise.resolve(factory(context, helpers));
-
-  scriptCache.set(source, executor);
-  return executor;
-}
-
-function getOrCreateScriptStateBucket(expressionKey: string): Record<string, unknown> {
-  if (!scriptState.has(expressionKey)) {
-    scriptState.set(expressionKey, {});
-  }
-  return scriptState.get(expressionKey)!;
-}
-
-function createScriptExecutionContext(expressionKey: string): ScriptExecutionContext {
-  const state = getOrCreateScriptStateBucket(expressionKey);
-
-  return {
-    entityId: props.entityId ?? null,
-    faceplateId: faceplate.value?.id ?? null,
-    expressionKey,
-    async get(path: string) {
-      const value = await evaluateFieldExpression(path);
-      const fieldKey = makeExpressionKey(path, 'field');
-      if (!expressionMeta.has(fieldKey)) {
-        expressionValueMap[fieldKey] = value;
-      }
-      return value;
-    },
-    getCached(targetKey: string) {
-      return expressionValueMap[targetKey];
-    },
-    getBindingValue(componentId: string, property: string) {
-      return bindingValueMap[`${componentId}:${property}`];
-    },
-    setState(key: string, value: unknown) {
-      state[key] = value;
-    },
-    getState<T>(key: string, defaultValue?: T) {
-      if (Object.prototype.hasOwnProperty.call(state, key)) {
-        return state[key] as T;
-      }
-      return defaultValue;
-    },
-    bindingsSnapshot() {
-      return { ...bindingValueMap };
-    },
-    module(name: string) {
-      return scriptModuleExports.get(name);
-    },
-    modules() {
-      return Object.fromEntries(scriptModuleExports.entries());
-    },
-  };
-}
 
 const sharedScriptHelpers: ScriptHelpers = {
   clamp(value: number, min: number, max: number) {
@@ -913,47 +681,7 @@ async function evaluateAllBindings() {
   }
 }
 
-function tryEvaluateLiteral(expression: string): { found: boolean; value: unknown } {
-  if (!expression) return { found: false, value: null };
-  const trimmed = expression.trim();
 
-  if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith('\'') && trimmed.endsWith('\''))) {
-    return { found: true, value: trimmed.slice(1, -1) };
-  }
-
-  if (/^\d+(\.\d+)?$/.test(trimmed)) {
-    return { found: true, value: Number(trimmed) };
-  }
-
-  if (trimmed === 'true') return { found: true, value: true };
-  if (trimmed === 'false') return { found: true, value: false };
-  if (trimmed === 'null') return { found: true, value: null };
-
-  return { found: false, value: null };
-}
-
-async function getFieldPath(expression: string): Promise<FieldType[]> {
-  if (bindingPaths.has(expression)) {
-    return bindingPaths.get(expression)!;
-  }
-
-  const segments = expression.split('->').map((segment) => segment.trim()).filter(Boolean);
-  const fieldTypes: FieldType[] = [];
-
-  for (const segment of segments) {
-    try {
-      const fieldType = await service.getFieldType(segment);
-      fieldTypes.push(fieldType);
-    } catch (error) {
-      logger.warn(`Unable to resolve field type for segment "${segment}" in expression "${expression}":`, error);
-      bindingPaths.set(expression, []);
-      return [];
-    }
-  }
-
-  bindingPaths.set(expression, fieldTypes);
-  return fieldTypes;
-}
 
 async function resolveBindingTarget(expression: string, fieldPath: FieldType[]) {
   if (bindingTargets.has(expression)) return;
@@ -1029,6 +757,67 @@ function applyTransform(transform: string | null | undefined, value: unknown, co
   }
 }
 
+function getOrCreateScriptStateBucket(expressionKey: string): Record<string, unknown> {
+  if (!scriptState.has(expressionKey)) {
+    scriptState.set(expressionKey, {});
+  }
+  return scriptState.get(expressionKey)!;
+}
+
+function createScriptExecutionContext(expressionKey: string): ScriptExecutionContext {
+  const state = getOrCreateScriptStateBucket(expressionKey);
+
+  return {
+    entityId: props.entityId ?? null,
+    faceplateId: faceplate.value?.id ?? null,
+    expressionKey,
+    async get(path: string) {
+      const fieldStrategy = new (BindingEvaluationStrategyFactory.getStrategy('field') as any).constructor();
+      const value = await fieldStrategy.evaluate(path, {
+        entityId: props.entityId,
+        faceplateId: faceplate.value?.id ?? null,
+        dataStore,
+        service,
+        expressionValueMap,
+        scriptHelpers: getScriptHelpers(),
+        scriptModuleExports,
+        scriptState,
+        scriptCache,
+        scriptRuntimeErrors: scriptRuntimeErrors.value,
+      });
+      const fieldKey = makeExpressionKey(path, 'field');
+      if (!expressionMeta.has(fieldKey)) {
+        expressionValueMap[fieldKey] = value;
+      }
+      return value;
+    },
+    getCached(targetKey: string) {
+      return expressionValueMap[targetKey];
+    },
+    getBindingValue(componentId: string, property: string) {
+      return bindingValueMap[`${componentId}:${property}`];
+    },
+    setState(key: string, value: unknown) {
+      state[key] = value;
+    },
+    getState<T>(key: string, defaultValue?: T) {
+      if (Object.prototype.hasOwnProperty.call(state, key)) {
+        return state[key] as T;
+      }
+      return defaultValue;
+    },
+    bindingsSnapshot() {
+      return { ...bindingValueMap };
+    },
+    module(name: string) {
+      return scriptModuleExports.get(name);
+    },
+    modules() {
+      return Object.fromEntries(scriptModuleExports.entries());
+    },
+  };
+}
+
 async function registerNotifications() {
   await cleanupNotifications();
   if (!isLive.value || !props.entityId) return;
@@ -1052,10 +841,23 @@ async function registerNotifications() {
   }
 
   for (const dependency of dependencySet) {
-    const literal = tryEvaluateLiteral(dependency);
+    const literalStrategy = new (BindingEvaluationStrategyFactory.getStrategy('literal') as any).constructor();
+    const literal = (literalStrategy as any).tryEvaluateLiteral(dependency);
     if (literal.found) continue;
 
-    const path = await getFieldPath(dependency);
+    const fieldStrategy = new (BindingEvaluationStrategyFactory.getStrategy('field') as any).constructor();
+    const path = await (fieldStrategy as any).getFieldPath(dependency, {
+      entityId: props.entityId,
+      faceplateId: faceplate.value?.id ?? null,
+      dataStore,
+      service,
+      expressionValueMap,
+      scriptHelpers: getScriptHelpers(),
+      scriptModuleExports,
+      scriptState,
+      scriptCache,
+      scriptRuntimeErrors: scriptRuntimeErrors.value,
+    });
     if (!path.length) continue;
 
     // For indirect paths (e.g., "Parent->Name"), use IndirectFieldNotifier

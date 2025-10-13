@@ -17,7 +17,11 @@ import {
 } from './constants';
 import { logger } from './utils/logger';
 import { PRIMITIVE_REGISTRY } from './utils/primitive-registry';
-import { generateId } from './utils/helpers';
+import { generateId, createNodeMap, createBindingMap } from './utils/helpers';
+import { useHistoryManager } from './composables/useHistoryManager';
+import { useClipboard } from './composables/useClipboard';
+import { useContainerManagement } from './composables/useContainerManagement';
+import { ContainerManagementService } from './utils/container-management';
 import type { FaceplateNotificationChannel, FaceplateScriptModule } from './utils/faceplate-data';
 import type { EntityId } from '@/core/data/types';
 import type {
@@ -96,7 +100,6 @@ function buildTemplate(options: {
       },
     },
     propertySchema: cloneSchema(primitive.propertySchema),
-    previewProps: primitive.previewProps,
     source: options.source,
   };
 }
@@ -153,14 +156,10 @@ const selectorStartInNewMode = ref(false);
 const currentScriptModules = ref<FaceplateScriptModule[]>([]);
 const currentNotificationChannels = ref<FaceplateNotificationChannel[]>([]);
 
-const history = reactive<{
-  stack: Array<{ nodes: CanvasNode[]; bindings: Binding[]; viewport: Vector2; metadata: Record<string, unknown> }>;
-  index: number;
-}>({
-  stack: [],
-  index: -1,
-});
-const savedIndex = ref(-1);
+// Initialize composables
+const { history, canUndo, canRedo, dirty, pushHistory, undo: undoHistory, redo: redoHistory, markSaved, reset: resetHistory } = useHistoryManager();
+const { copySelectedNodes, pasteNodes: pasteNodesFromClipboard, duplicateSelectedNodes } = useClipboard();
+const { isContainer, getAllContainers, getContainerChildren, addToContainer, removeFromContainer, clearContainerChildren, groupSelectedNodes, ungroupSelectedNode, getAbsolutePosition, isAncestor } = useContainerManagement();
 
 const selectedNode = computed(() => nodes.value.find((node) => node.id === selectedNodeId.value) ?? null);
 const selectedTemplate = computed(() =>
@@ -172,10 +171,10 @@ const selectedNodeBindings = computed(() =>
     ? bindings.value.filter((binding) => binding.componentId === selectedNodeId.value)
     : [],
 );
-const hasMultipleSelected = computed(() => selectedNodeIds.value.size > 1);
-const canUndo = computed(() => history.index > 0);
-const canRedo = computed(() => history.index < history.stack.length - 1);
-const dirty = computed(() => history.index !== savedIndex.value);
+// Efficient lookup maps
+const nodeMap = computed(() => createNodeMap(nodes.value));
+const bindingMap = computed(() => createBindingMap(bindings.value));
+
 const hasFaceplateSelected = computed(() => currentFaceplateId.value !== null);
 
 function applySelection(ids: Iterable<string>, preferred?: string | null) {
@@ -203,24 +202,7 @@ function applySelection(ids: Iterable<string>, preferred?: string | null) {
 }
 
 function getComponentName(componentId: string): string {
-  return nodes.value.find((node) => node.id === componentId)?.name ?? componentId;
-}
-
-function cloneState(): { nodes: CanvasNode[]; bindings: Binding[]; viewport: Vector2; metadata: Record<string, unknown> } {
-  return {
-    nodes: nodes.value.map((node) => ({
-      ...node,
-      position: { ...node.position },
-      size: { ...node.size },
-      props: { ...node.props },
-      parentId: node.parentId || null,
-      children: node.children ? [...node.children] : undefined,
-      zIndex: node.zIndex,
-    })),
-    bindings: bindings.value.map((binding) => ({ ...binding })),
-    viewport: { ...viewportSize.value },
-    metadata: { ...faceplateMetadata.value },
-  };
+  return nodeMap.value.get(componentId)?.name ?? componentId;
 }
 
 function normalizeViewport(value: unknown): Vector2 | null {
@@ -260,14 +242,6 @@ function applyViewportMetadata(metadata: Record<string, unknown> | undefined) {
       }
     : {};
   viewportSize.value = viewport ?? { ...DEFAULT_VIEWPORT };
-}
-
-function pushHistory() {
-  history.stack.splice(history.index + 1);
-  history.stack.push(cloneState());
-  history.index = history.stack.length - 1;
-  // Schedule auto-save after change
-  scheduleAutoSave();
 }
 
 function applyState(snapshot: {
@@ -315,7 +289,7 @@ async function handleNodeRequest(payload: { componentId: string; position: Vecto
     },
   ];
   applySelection([nodeId], nodeId);
-  pushHistory();
+  pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value);
 }
 
 function applyNodePositionUpdates(updates: Array<{ nodeId: string; position: Vector2 }>) {
@@ -352,7 +326,7 @@ function handleNodesMoveEnd(updates: Array<{ nodeId: string; position: Vector2 }
     return;
   }
   applyNodePositionUpdates(updates);
-  pushHistory();
+  pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value);
 }
 
 function handleNodeResized(payload: { nodeId: string; size: Vector2 }) {
@@ -365,7 +339,7 @@ function handleNodeResized(payload: { nodeId: string; size: Vector2 }) {
 
 function handleNodeResizeEnd(payload: { nodeId: string; size: Vector2 }) {
   handleNodeResized(payload);
-  pushHistory();
+  pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value);
 }
 
 function handleNodeSelected(payload: { nodeId: string; isMultiSelect: boolean }) {
@@ -411,7 +385,7 @@ function handleResize(payload: { nodeId: string; size: Vector2 }) {
         }
       : node,
   );
-  pushHistory();
+  pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value);
 }
 
 function handleViewportUpdate(payload: { width: number; height: number }) {
@@ -431,7 +405,7 @@ function handleViewportUpdate(payload: { width: number; height: number }) {
   // Resize the builder window to match the viewport (with padding for toolbars)
   resizeWindowToViewport(width, height);
   
-  pushHistory();
+  pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value);
 }
 
 function resizeWindowToViewport(viewportWidth: number, viewportHeight: number) {
@@ -476,7 +450,7 @@ function handlePropUpdated(payload: { nodeId: string; key: string; value: unknow
         }
       : node,
   );
-  pushHistory();
+  pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value);
 }
 
 function deleteNodesByIds(ids: string[]) {
@@ -488,7 +462,7 @@ function deleteNodesByIds(ids: string[]) {
   
   // Also delete all descendants
   const getAllDescendants = (nodeId: string): string[] => {
-    const children = getContainerChildren(nodeId);
+    const children = getContainerChildren(nodeId, nodes.value);
     const descendants: string[] = [];
     for (const child of children) {
       descendants.push(child.id);
@@ -505,9 +479,10 @@ function deleteNodesByIds(ids: string[]) {
   
   // Remove from parent containers
   for (const id of allIdsToDelete) {
-    const node = nodes.value.find(n => n.id === id);
+    const node = nodeMap.value.get(id);
     if (node && node.parentId) {
-      removeFromParentChildren(id, node.parentId);
+      // Use the service to remove from container
+      nodes.value = ContainerManagementService.removeFromContainer([id], nodes.value);
     }
   }
   
@@ -522,7 +497,7 @@ function deleteNodesByIds(ids: string[]) {
   applySelection(nextSelection, selectedNodeId.value);
 
   if (beforeNodeCount !== nodes.value.length || beforeBindingCount !== bindings.value.length) {
-    pushHistory();
+    pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value);
   }
 }
 
@@ -534,12 +509,10 @@ function handleDeleteSelectedNodes() {
 }
 
 function handleInspectorBindingCreate(payload: InspectorBindingPayload) {
-  const node = nodes.value.find((item) => item.id === payload.nodeId);
+  const node = nodeMap.value.get(payload.nodeId);
   if (!node) return;
 
-  const existing = bindings.value.find(
-    (binding) => binding.componentId === payload.nodeId && binding.property === payload.property,
-  );
+  const existing = bindingMap.value.get(payload.nodeId)?.get(payload.property);
   if (existing) {
     handleInspectorBindingUpdate(payload);
     return;
@@ -562,7 +535,7 @@ function handleInspectorBindingCreate(payload: InspectorBindingPayload) {
   };
 
   bindings.value = [...bindings.value, binding];
-  pushHistory();
+  pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value);
 }
 
 function handleInspectorBindingUpdate(payload: InspectorBindingPayload) {
@@ -604,7 +577,7 @@ function handleInspectorBindingUpdate(payload: InspectorBindingPayload) {
   });
 
   if (updated) {
-    pushHistory();
+    pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value);
   }
 }
 
@@ -614,13 +587,13 @@ function handleInspectorBindingRemove(payload: { nodeId: string; property: strin
     (binding) => !(binding.componentId === payload.nodeId && binding.property === payload.property),
   );
   if (bindings.value.length !== before) {
-    pushHistory();
+    pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value);
   }
 }
 
 // Event Handler Management
 function handleEventHandlerCreate(payload: { nodeId: string; handler: EventHandler }) {
-  const node = nodes.value.find((item) => item.id === payload.nodeId);
+  const node = nodeMap.value.get(payload.nodeId);
   if (!node) return;
 
   const eventHandlers = node.eventHandlers || [];
@@ -629,11 +602,11 @@ function handleEventHandlerCreate(payload: { nodeId: string; handler: EventHandl
   nodes.value = nodes.value.map((n) =>
     n.id === payload.nodeId ? { ...n, eventHandlers: updatedHandlers } : n
   );
-  pushHistory();
+  pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value);
 }
 
 function handleEventHandlerUpdate(payload: { nodeId: string; handler: EventHandler }) {
-  const node = nodes.value.find((item) => item.id === payload.nodeId);
+  const node = nodeMap.value.get(payload.nodeId);
   if (!node || !node.eventHandlers) return;
 
   const updatedHandlers = node.eventHandlers.map((h) =>
@@ -643,11 +616,11 @@ function handleEventHandlerUpdate(payload: { nodeId: string; handler: EventHandl
   nodes.value = nodes.value.map((n) =>
     n.id === payload.nodeId ? { ...n, eventHandlers: updatedHandlers } : n
   );
-  pushHistory();
+  pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value);
 }
 
 function handleEventHandlerRemove(payload: { nodeId: string; handlerId: string }) {
-  const node = nodes.value.find((item) => item.id === payload.nodeId);
+  const node = nodeMap.value.get(payload.nodeId);
   if (!node || !node.eventHandlers) return;
 
   const updatedHandlers = node.eventHandlers.filter((h) => h.id !== payload.handlerId);
@@ -657,7 +630,7 @@ function handleEventHandlerRemove(payload: { nodeId: string; handlerId: string }
       ? { ...n, eventHandlers: updatedHandlers.length > 0 ? updatedHandlers : undefined }
       : n
   );
-  pushHistory();
+  pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value);
 }
 
 function handleInspectorNodeDelete(payload: { nodeId: string }) {
@@ -672,7 +645,7 @@ function handleBringForward(payload: { nodeId: string }) {
   const [node] = updated.splice(index, 1);
   updated.splice(index + 1, 0, node);
   nodes.value = updated;
-  pushHistory();
+  pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value);
 }
 
 function handleSendBackward(payload: { nodeId: string }) {
@@ -683,27 +656,27 @@ function handleSendBackward(payload: { nodeId: string }) {
   const [node] = updated.splice(index, 1);
   updated.splice(index - 1, 0, node);
   nodes.value = updated;
-  pushHistory();
+  pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value);
 }
 
 function handleToggleLock(payload: { nodeId: string }) {
-  const node = nodes.value.find(n => n.id === payload.nodeId);
+  const node = nodeMap.value.get(payload.nodeId);
   if (!node) return;
   
   nodes.value = nodes.value.map(n => 
     n.id === payload.nodeId ? { ...n, locked: !n.locked } : n
   );
-  pushHistory();
+  pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value);
 }
 
 function handleToggleVisibility(payload: { nodeId: string }) {
-  const node = nodes.value.find(n => n.id === payload.nodeId);
+  const node = nodeMap.value.get(payload.nodeId);
   if (!node) return;
   
   nodes.value = nodes.value.map(n => 
     n.id === payload.nodeId ? { ...n, hidden: !n.hidden } : n
   );
-  pushHistory();
+  pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value);
   logger.info(`Toggled visibility for node ${payload.nodeId}: ${node.hidden ? 'shown' : 'hidden'}`);
 }
 
@@ -716,7 +689,7 @@ function handleContextMenuAction(payload: { action: string; nodeId?: string }) {
         if (!selectedNodeIds.value.has(payload.nodeId)) {
           applySelection([payload.nodeId], payload.nodeId);
         }
-        duplicateSelectedNodes();
+        duplicateSelectedNodes(selectedNodeIds.value, nodes.value, bindings.value, applySelection, () => pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value));
       }
       break;
     case 'copy':
@@ -725,11 +698,11 @@ function handleContextMenuAction(payload: { action: string; nodeId?: string }) {
         if (!selectedNodeIds.value.has(payload.nodeId)) {
           applySelection([payload.nodeId], payload.nodeId);
         }
-        copySelectedNodes();
+        copySelectedNodes(selectedNodeIds.value, nodes.value, bindings.value);
       }
       break;
     case 'paste':
-      pasteNodes();
+      pasteNodesFromClipboard(nodes.value, bindings.value, { x: 30, y: 30 }, applySelection, () => pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value));
       break;
     case 'delete':
       if (payload.nodeId) {
@@ -761,45 +734,34 @@ function handleContextMenuAction(payload: { action: string; nodeId?: string }) {
 
 // Layer management functions
 function handleLayerReorder(payload: { nodeId: string; newIndex: number; newParentId?: string | null }) {
-  const node = nodes.value.find(n => n.id === payload.nodeId);
+  const node = nodeMap.value.get(payload.nodeId);
   if (!node) return;
   
-  // Remove from old parent
-  if (node.parentId) {
-    removeFromParentChildren(payload.nodeId, node.parentId);
+  // If moving to a new parent, use the service
+  if (payload.newParentId !== node.parentId) {
+    if (node.parentId) {
+      // Remove from old parent
+      nodes.value = ContainerManagementService.removeFromContainer([payload.nodeId], nodes.value);
+    }
+    if (payload.newParentId) {
+      // Add to new parent
+      nodes.value = ContainerManagementService.addToContainer([payload.nodeId], payload.newParentId, nodes.value, convertTemplateMap());
+    }
   }
   
-  // Update node's parent
+  // Update the node's parent reference
   const updatedNode = {
     ...node,
     parentId: payload.newParentId ?? null,
   };
   
-  // If adding to a new parent, update parent's children array
-  if (payload.newParentId) {
-    const parent = nodes.value.find(n => n.id === payload.newParentId);
-    if (parent) {
-      const children = parent.children ?? [];
-      const newChildren = [...children];
-      newChildren.splice(payload.newIndex, 0, payload.nodeId);
-      
-      nodes.value = nodes.value.map(n => {
-        if (n.id === payload.newParentId) {
-          return { ...n, children: newChildren };
-        }
-        if (n.id === payload.nodeId) {
-          return updatedNode;
-        }
-        return n;
-      });
-    }
-  } else {
-    // Moving to root level - update the node in the array
-    nodes.value = nodes.value.map(n => 
-      n.id === payload.nodeId ? updatedNode : n
-    );
-    
-    // Reorder in the nodes array
+  // Update the node in the array
+  nodes.value = nodes.value.map(n => 
+    n.id === payload.nodeId ? updatedNode : n
+  );
+  
+  // Reorder in the nodes array if no parent (root level)
+  if (!payload.newParentId) {
     const currentIndex = nodes.value.findIndex(n => n.id === payload.nodeId);
     if (currentIndex !== -1) {
       const updated = [...nodes.value];
@@ -809,7 +771,7 @@ function handleLayerReorder(payload: { nodeId: string; newIndex: number; newPare
     }
   }
   
-  pushHistory();
+  pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value);
 }
 
 function handleLayerVisibilityToggle(payload: { nodeId: string }) {
@@ -817,271 +779,32 @@ function handleLayerVisibilityToggle(payload: { nodeId: string }) {
 }
 
 // Container management functions
-function isContainer(nodeId: string): boolean {
-  const node = nodes.value.find(n => n.id === nodeId);
-  if (!node) return false;
-  const template = templateMap.value[node.componentId];
-  if (!template) return false;
-  return template.primitiveId === 'primitive.container' || template.primitiveId === 'primitive.container.tabs';
-}
-
-function getContainerChildren(containerId: string): CanvasNode[] {
-  return nodes.value.filter(node => node.parentId === containerId);
-}
-
-function getAllContainers(): CanvasNode[] {
-  return nodes.value.filter(node => isContainer(node.id));
-}
-
-function addToContainer(nodeIds: string[], containerId: string) {
-  if (!isContainer(containerId)) return;
-  
-  const container = nodes.value.find(n => n.id === containerId);
-  if (!container) return;
-  
-  // Don't allow adding a container to itself or creating circular dependencies
-  for (const nodeId of nodeIds) {
-    if (nodeId === containerId) return;
-    if (isAncestor(nodeId, containerId)) return;
-  }
-  
-  nodes.value = nodes.value.map(node => {
-    if (!nodeIds.includes(node.id)) return node;
-    
-    // Remove from old parent if any
-    if (node.parentId) {
-      removeFromParentChildren(node.id, node.parentId);
-    }
-    
-    // Convert position to relative coordinates within container
-    const relativePosition = {
-      x: node.position.x - container.position.x,
-      y: node.position.y - container.position.y
-    };
-    
-    return {
-      ...node,
-      parentId: containerId,
-      position: relativePosition
-    };
-  });
-  
-  // Update container's children array
-  const existingChildren = container.children || [];
-  const newChildren = [...existingChildren, ...nodeIds.filter(id => !existingChildren.includes(id))];
-  nodes.value = nodes.value.map(node => 
-    node.id === containerId ? { ...node, children: newChildren } : node
-  );
-  
-  pushHistory();
-}
-
-function removeFromContainer(nodeIds: string[]) {
-  nodes.value = nodes.value.map(node => {
-    if (!nodeIds.includes(node.id) || !node.parentId) return node;
-    
-    const parent = nodes.value.find(n => n.id === node.parentId);
-    if (!parent) return node;
-    
-    // Convert position back to absolute coordinates
-    const absolutePosition = {
-      x: node.position.x + parent.position.x,
-      y: node.position.y + parent.position.y
-    };
-    
-    // Remove from parent's children array
-    removeFromParentChildren(node.id, node.parentId);
-    
-    return {
-      ...node,
-      parentId: null,
-      position: absolutePosition
-    };
-  });
-  
-  pushHistory();
-}
-
-function removeFromParentChildren(nodeId: string, parentId: string) {
-  nodes.value = nodes.value.map(node => {
-    if (node.id !== parentId) return node;
-    const children = node.children || [];
-    return {
-      ...node,
-      children: children.filter(id => id !== nodeId)
-    };
-  });
-}
-
-function isAncestor(potentialAncestorId: string, nodeId: string): boolean {
-  let current = nodes.value.find(n => n.id === nodeId);
-  while (current && current.parentId) {
-    if (current.parentId === potentialAncestorId) return true;
-    current = nodes.value.find(n => n.id === current!.parentId);
-  }
-  return false;
-}
-
-function clearContainerChildren(containerId: string) {
-  if (!isContainer(containerId)) return;
-  const children = getContainerChildren(containerId);
-  if (children.length > 0) {
-    removeFromContainer(children.map(c => c.id));
-  }
+function convertTemplateMap(): Map<string, { id: string; primitiveId: string }> {
+  return new Map(Object.entries(templateMap.value).map(([id, template]) => [id, { id, primitiveId: template.primitiveId }]));
 }
 
 function handleAddToContainer(payload: { nodeIds: string[]; containerId: string }) {
-  addToContainer(payload.nodeIds, payload.containerId);
+  addToContainer(payload.nodeIds, payload.containerId, nodes.value, templateMap.value, () => pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value));
 }
 
 function handleRemoveFromContainer(payload: { nodeIds: string[] }) {
-  removeFromContainer(payload.nodeIds);
+  removeFromContainer(payload.nodeIds, nodes.value, () => pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value));
 }
 
 function handleClearContainer(payload: { containerId: string }) {
-  clearContainerChildren(payload.containerId);
-}
-
-/**
- * Group selected nodes into a new container
- * Creates a container that encompasses all selected nodes and makes them children
- */
-function groupSelectedNodes() {
-  if (selectedNodeIds.value.size < 2) {
-    logger.warn('Need at least 2 nodes selected to group');
-    return;
-  }
-  
-  const nodesToGroup = nodes.value.filter(node => selectedNodeIds.value.has(node.id));
-  
-  // Calculate bounding box of selected nodes
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-  for (const node of nodesToGroup) {
-    const absPos = getAbsolutePosition(node);
-    minX = Math.min(minX, absPos.x);
-    minY = Math.min(minY, absPos.y);
-    maxX = Math.max(maxX, absPos.x + node.size.x);
-    maxY = Math.max(maxY, absPos.y + node.size.y);
-  }
-  
-  // Add padding around group
-  const padding = 20;
-  minX -= padding;
-  minY -= padding;
-  maxX += padding;
-  maxY += padding;
-  
-  // Find container template
-  const containerTemplate = componentLibrary.value.find(t => t.primitiveId === 'primitive.container');
-  if (!containerTemplate) {
-    logger.error('Container template not found');
-    return;
-  }
-  
-  // Create container node
-  const containerId = generateId('node');
-  const containerNode: CanvasNode = {
-    id: containerId,
-    componentId: containerTemplate.id,
-    name: 'Group Container',
-    position: { x: minX, y: minY },
-    size: { x: maxX - minX, y: maxY - minY },
-    props: {
-      ...containerTemplate.defaults.props,
-      backgroundColor: 'rgba(255, 255, 255, 0.05)',
-      borderColor: 'rgba(255, 255, 255, 0.2)',
-      borderWidth: 1,
-      cornerRadius: 8,
-      padding: padding,
-    },
-    children: [],
-    zIndex: Math.min(...nodesToGroup.map(n => n.zIndex ?? 0)) - 1, // Place container behind grouped nodes
-  };
-  
-  // Add container to nodes
-  nodes.value.push(containerNode);
-  
-  // Add selected nodes to container
-  addToContainer(Array.from(selectedNodeIds.value), containerId);
-  
-  // Select the new container
-  selectedNodeIds.value.clear();
-  selectedNodeIds.value.add(containerId);
-  selectedNodeId.value = containerId;
-  
-  pushHistory();
-  logger.info(`Grouped ${nodesToGroup.length} nodes into container ${containerId}`);
-}
-
-/**
- * Ungroup a container - extract its children back to root level
- */
-function ungroupSelectedNode() {
-  if (selectedNodeIds.value.size !== 1) {
-    logger.warn('Need exactly 1 container selected to ungroup');
-    return;
-  }
-  
-  const containerId = Array.from(selectedNodeIds.value)[0];
-  const container = nodes.value.find(n => n.id === containerId);
-  
-  if (!container) return;
-  
-  if (!isContainer(containerId)) {
-    logger.warn('Selected node is not a container');
-    return;
-  }
-  
-  const children = container.children || [];
-  if (children.length === 0) {
-    logger.warn('Container has no children to ungroup');
-    return;
-  }
-  
-  // Remove children from container (converts to absolute positions)
-  removeFromContainer(children);
-  
-  // Select the ungrouped children
-  selectedNodeIds.value.clear();
-  children.forEach(id => selectedNodeIds.value.add(id));
-  selectedNodeId.value = children[0] || null;
-  
-  // Delete the container
-  nodes.value = nodes.value.filter(n => n.id !== containerId);
-  
-  // Remove any bindings associated with the container
-  bindings.value = bindings.value.filter(b => b.componentId !== containerId);
-  
-  pushHistory();
-  logger.info(`Ungrouped container ${containerId}, extracted ${children.length} children`);
-}
-
-/**
- * Get absolute position of a node (accounting for parent containers)
- */
-function getAbsolutePosition(node: CanvasNode): Vector2 {
-  if (!node.parentId) {
-    return { ...node.position };
-  }
-  
-  const parent = nodes.value.find(n => n.id === node.parentId);
-  if (!parent) {
-    return { ...node.position };
-  }
-  
-  const parentAbsPos = getAbsolutePosition(parent);
-  return {
-    x: parentAbsPos.x + node.position.x,
-    y: parentAbsPos.y + node.position.y,
-  };
+  clearContainerChildren(payload.containerId, nodes.value, () => pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value));
 }
 
 function handleGroupSelected() {
-  groupSelectedNodes();
+  if (selectedNodeIds.value.size >= 2) {
+    groupSelectedNodes(selectedNodeIds.value, nodes.value, templateMap.value, applySelection, () => pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value));
+  }
 }
 
 function handleUngroupSelected() {
-  ungroupSelectedNode();
+  if (selectedNodeIds.value.size === 1) {
+    ungroupSelectedNode(selectedNodeIds.value, nodes.value, bindings.value, templateMap.value, applySelection, () => pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value));
+  }
 }
 
 // Clipboard for copy/paste operations
@@ -1106,117 +829,6 @@ function scheduleAutoSave() {
       });
     }
   }, AUTO_SAVE_DELAY_MS);
-}
-
-function duplicateSelectedNodes() {
-  if (!selectedNodeIds.value.size) return;
-
-  const nodesToDuplicate = nodes.value.filter(node => selectedNodeIds.value.has(node.id));
-  const bindingsToDuplicate = bindings.value.filter(b => selectedNodeIds.value.has(b.componentId));
-  
-  const idMapping = new Map<string, string>();
-  const newNodes: CanvasNode[] = [];
-  const newBindings: Binding[] = [];
-  
-  // Create new nodes with offset position
-  for (const node of nodesToDuplicate) {
-    const newId = generateId('node');
-    idMapping.set(node.id, newId);
-    
-    const newNode: CanvasNode = {
-      ...node,
-      id: newId,
-      name: `${node.name} (Copy)`,
-      position: { x: node.position.x + 20, y: node.position.y + 20 },
-      selected: false,
-      // If node has a parent, keep the parent reference
-      parentId: node.parentId,
-      children: undefined, // Will be recalculated
-    };
-    newNodes.push(newNode);
-  }
-  
-  // Duplicate bindings
-  for (const binding of bindingsToDuplicate) {
-    const newComponentId = idMapping.get(binding.componentId);
-    if (!newComponentId) continue;
-    
-    const newBinding: Binding = {
-      ...binding,
-      id: generateId('binding'),
-      componentId: newComponentId,
-      componentName: nodes.value.find(n => n.id === newComponentId)?.name || binding.componentName,
-    };
-    newBindings.push(newBinding);
-  }
-  
-  nodes.value = [...nodes.value, ...newNodes];
-  bindings.value = [...bindings.value, ...newBindings];
-  
-  // Select the newly created nodes
-  applySelection(newNodes.map(n => n.id), newNodes[0]?.id);
-  pushHistory();
-}
-
-function copySelectedNodes() {
-  if (!selectedNodeIds.value.size) return;
-  
-  const nodesToCopy = nodes.value.filter(node => selectedNodeIds.value.has(node.id));
-  const bindingsToCopy = bindings.value.filter(b => selectedNodeIds.value.has(b.componentId));
-  
-  clipboard.value = {
-    nodes: nodesToCopy.map(node => ({ ...node })),
-    bindings: bindingsToCopy.map(b => ({ ...b })),
-  };
-  
-  logger.debug(`Copied ${nodesToCopy.length} node(s) to clipboard`);
-}
-
-function pasteNodes() {
-  if (!clipboard.value) return;
-  
-  const idMapping = new Map<string, string>();
-  const newNodes: CanvasNode[] = [];
-  const newBindings: Binding[] = [];
-  
-  // Create new nodes with offset position
-  for (const node of clipboard.value.nodes) {
-    const newId = generateId('node');
-    idMapping.set(node.id, newId);
-    
-    const newNode: CanvasNode = {
-      ...node,
-      id: newId,
-      name: `${node.name} (Paste)`,
-      position: { x: node.position.x + 30, y: node.position.y + 30 },
-      selected: false,
-      parentId: node.parentId, // Preserve parent if any
-      children: undefined,
-    };
-    newNodes.push(newNode);
-  }
-  
-  // Create new bindings
-  for (const binding of clipboard.value.bindings) {
-    const newComponentId = idMapping.get(binding.componentId);
-    if (!newComponentId) continue;
-    
-    const newBinding: Binding = {
-      ...binding,
-      id: generateId('binding'),
-      componentId: newComponentId,
-      componentName: newNodes.find(n => n.id === newComponentId)?.name || binding.componentName,
-    };
-    newBindings.push(newBinding);
-  }
-  
-  nodes.value = [...nodes.value, ...newNodes];
-  bindings.value = [...bindings.value, ...newBindings];
-  
-  // Select the newly pasted nodes
-  applySelection(newNodes.map(n => n.id), newNodes[0]?.id);
-  pushHistory();
-  logger.debug(`Pasted ${newNodes.length} node(s)`);
 }
 
 function handleKeyDown(event: KeyboardEvent) {
@@ -1263,35 +875,35 @@ function handleKeyDown(event: KeyboardEvent) {
   // Copy: Cmd/Ctrl + C
   if (isMod && event.key === 'c' && selectedNodeIds.value.size) {
     event.preventDefault();
-    copySelectedNodes();
+    copySelectedNodes(selectedNodeIds.value, nodes.value, bindings.value);
     return;
   }
 
   // Paste: Cmd/Ctrl + V
   if (isMod && event.key === 'v' && clipboard.value) {
     event.preventDefault();
-    pasteNodes();
+    pasteNodesFromClipboard(nodes.value, bindings.value, { x: 30, y: 30 }, applySelection, () => pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value));
     return;
   }
 
   // Duplicate: Cmd/Ctrl + D
   if (isMod && event.key === 'd' && selectedNodeIds.value.size) {
     event.preventDefault();
-    duplicateSelectedNodes();
+    duplicateSelectedNodes(selectedNodeIds.value, nodes.value, bindings.value, applySelection, () => pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value));
     return;
   }
 
   // Group: Cmd/Ctrl + G
   if (isMod && event.key === 'g' && selectedNodeIds.value.size >= 2) {
     event.preventDefault();
-    groupSelectedNodes();
+    groupSelectedNodes(selectedNodeIds.value, nodes.value, templateMap.value, applySelection, () => pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value));
     return;
   }
 
   // Ungroup: Cmd/Ctrl + Shift + G
   if (isMod && isShift && event.key === 'g' && selectedNodeIds.value.size === 1) {
     event.preventDefault();
-    ungroupSelectedNode();
+    ungroupSelectedNode(selectedNodeIds.value, nodes.value, bindings.value, templateMap.value, applySelection, () => pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value));
     return;
   }
 
@@ -1316,19 +928,11 @@ function handleKeyDown(event: KeyboardEvent) {
 
 
 function undo() {
-  if (!canUndo.value) return;
-  history.index -= 1;
-  applyState(history.stack[history.index]);
+  undoHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value);
 }
 
 function redo() {
-  if (!canRedo.value) return;
-  history.index += 1;
-  applyState(history.stack[history.index]);
-}
-
-function markSaved() {
-  savedIndex.value = history.index;
+  redoHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value);
 }
 
 function resetWorkspace() {
@@ -1342,7 +946,7 @@ function resetWorkspace() {
   viewportSize.value = { ...DEFAULT_VIEWPORT };
   faceplateMetadata.value = {};
   applySelection([], null);
-  pushHistory();
+  pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value);
   markSaved();
 }
 
@@ -1453,7 +1057,7 @@ async function loadFaceplateData(faceplateId: EntityId) {
   // Resize window to match viewport
   resizeWindowToViewport(viewportSize.value.x, viewportSize.value.y);
   
-  pushHistory();
+  pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value);
   markSaved();
 }
 
@@ -1524,7 +1128,7 @@ async function saveWorkspace() {
       if (!componentId) return null;
       
       // Map parent node ID to parent component name
-      const parentNode = node.parentId ? nodes.value.find(n => n.id === node.parentId) : null;
+      const parentNode = node.parentId ? nodeMap.value.get(node.parentId) : null;
       
       return {
         component: node.name,
@@ -1537,7 +1141,7 @@ async function saveWorkspace() {
     }).filter((item): item is NonNullable<typeof item> => item !== null);
 
     const bindingsData = bindings.value.map((b) => {
-      const node = nodes.value.find(n => n.id === b.componentId);
+      const node = nodeMap.value.get(b.componentId);
       if (!node) return null;
       return {
         component: b.componentName,
@@ -1668,7 +1272,7 @@ async function handleSelectorNew(faceplateId: EntityId) {
     // Resize window to match viewport
     resizeWindowToViewport(viewportSize.value.x, viewportSize.value.y);
     
-    pushHistory();
+    pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value);
     markSaved();
     logger.info(`New faceplate "${faceplate.name}" ready for editing!`);
   } catch (error) {
@@ -1703,7 +1307,7 @@ onBeforeUnmount(() => {
 // Initialize with an empty baseline state.
 onMounted(async () => {
   if (!history.stack.length) {
-    pushHistory();
+    pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value);
     markSaved();
   }
   
@@ -1794,9 +1398,9 @@ onMounted(async () => {
         :template="selectedTemplate"
         :bindings="selectedNodeBindings"
         :all-nodes="nodes"
-        :all-containers="getAllContainers()"
-        :container-children="selectedNode ? getContainerChildren(selectedNode.id) : []"
-        :is-container="selectedNode ? isContainer(selectedNode.id) : false"
+        :all-containers="getAllContainers(nodes, templateMap)"
+        :container-children="selectedNode ? getContainerChildren(selectedNode.id, nodes) : []"
+        :is-container="selectedNode ? isContainer(selectedNode.id, nodes, templateMap) : false"
         :selected-count="selectedNodeIds.size"
         @resize="handleResize"
         @prop-updated="handlePropUpdated"

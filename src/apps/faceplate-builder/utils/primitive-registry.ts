@@ -131,7 +131,6 @@ export interface PrimitiveDefinition {
   defaultSize: { x: number; y: number };
   defaultProps: Record<string, any>;
   propertySchema: PropertySchema[];
-  previewProps?: Record<string, any>;
   
   // Runtime rendering
   renderComponent?: Component;
@@ -230,7 +229,6 @@ export const PRIMITIVE_REGISTRY: PrimitiveDefinition[] = [
       ...COMMON_BEHAVIOR_PROPERTIES,
       ...COMMON_ANIMATION_PROPERTIES,
     ],
-    previewProps: { text: 'Sample Text', align: 'center', textColor: '#ffffff' },
   },
 
   // Text Input
