@@ -208,7 +208,7 @@ const canvasComponents = computed<CanvasComponent[]>(() => {
         // Create automatic write handler
         handlers.push({
           id: `auto-twoway-${binding.id}`,
-          componentId: String(slot.id),
+          componentId: slot.name,
           trigger: 'onChange',
           action: {
             type: 'writeField',
