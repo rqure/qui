@@ -17,46 +17,141 @@ QUI represents a webtop application framework built with Vue 3, enabling develop
 ```sh
 src
 ├── App.vue
+├── apps
+│   ├── database-browser
+│   │   ├── components
+│   │   │   ├── ColumnBrowser.vue
+│   │   │   ├── EntityColumn.vue
+│   │   │   ├── EntityDetailsPanel.vue
+│   │   │   ├── ValueDisplay.vue
+│   │   │   └── ValueEditor.vue
+│   │   ├── styles
+│   │   │   └── global.css
+│   │   ├── utils
+│   │   │   └── formatters.ts
+│   │   ├── DatabaseBrowserApp.vue
+│   │   ├── README.md
+│   │   └── index.ts
+│   ├── faceplate-builder
+│   │   ├── components
+│   │   │   ├── types
+│   │   │   │   └── faceplate-runtime.ts
+│   │   │   ├── BuilderCanvas.vue
+│   │   │   ├── BuilderToolbar.vue
+│   │   │   ├── ColorPicker.vue
+│   │   │   ├── ComponentNode.vue
+│   │   │   ├── ComponentPalette.vue
+│   │   │   ├── ContextMenu.vue
+│   │   │   ├── CreateFaceplateDialog.vue
+│   │   │   ├── FaceplateCanvas.vue
+│   │   │   ├── FaceplateRuntime.vue
+│   │   │   ├── FaceplateSelector.vue
+│   │   │   ├── FaceplateViewerWindow.vue
+│   │   │   ├── InspectorPanel.vue
+│   │   │   ├── KeyboardShortcutsHelp.vue
+│   │   │   ├── LayersPanel.vue
+│   │   │   └── PrimitiveRenderer.vue
+│   │   ├── composables
+│   │   │   ├── useBindings.ts
+│   │   │   ├── useClipboard.ts
+│   │   │   ├── useComponentNode.ts
+│   │   │   ├── useContainerManagement.ts
+│   │   │   ├── useEventHandling.ts
+│   │   │   ├── useFaceplateOperations.ts
+│   │   │   ├── useHistoryManager.ts
+│   │   │   ├── useNotifications.ts
+│   │   │   ├── useScriptExecution.ts
+│   │   │   └── useWorkspaceState.ts
+│   │   ├── utils
+│   │   │   ├── animation-system.ts
+│   │   │   ├── binding-service.ts
+│   │   │   ├── container-management.ts
+│   │   │   ├── faceplate-data.ts
+│   │   │   ├── helpers.ts
+│   │   │   ├── indirect-field-notifier.ts
+│   │   │   ├── logger.ts
+│   │   │   └── primitive-registry.ts
+│   │   ├── FaceplateBuilderApp.vue
+│   │   ├── constants.ts
+│   │   ├── index.ts
+│   │   └── types.ts
+│   ├── schema-editor
+│   │   ├── components
+│   │   │   ├── SchemaFieldEditor.vue
+│   │   │   ├── SchemaTreeNodeItem.vue
+│   │   │   └── SchemaTreeView.vue
+│   │   ├── SchemaEditorApp.vue
+│   │   ├── index.ts
+│   │   └── types.ts
+│   └── terminal
+│       ├── components
+│       │   └── EntityIdChip.vue
+│       ├── TerminalApp.vue
+│       └── index.ts
 ├── assets
 │   ├── interactive.css
 │   ├── logout-icon.ts
 │   └── main.css
 ├── components
 │   ├── common
+│   │   ├── LoadingIndicator.vue
 │   │   └── QeiLogo.vue
 │   ├── icons
 │   │   └── qei-logo.png
 │   ├── menu
 │   │   └── ContextMenuComponent.vue
 │   ├── taskbar
+│   │   ├── tray
+│   │   │   ├── ClockDisplay.vue
+│   │   │   ├── NetworkStatus.vue
+│   │   │   ├── SystemTray.vue
+│   │   │   └── VolumeControl.vue
 │   │   ├── StartMenuComponent.vue
 │   │   └── TaskbarComponent.vue
-│   ├── WebtopLogin.vue
 │   ├── window
 │   │   ├── BaseWindow.vue
 │   │   └── LogoutConfirmWindow.vue
-│   └── workspace
-│       └── WorkspaceComponent.vue
+│   ├── workspace
+│   │   └── WorkspaceComponent.vue
+│   └── WebtopLogin.vue
 ├── core
 │   ├── apps
 │   │   └── types.ts
 │   ├── data
-│   │   ├── protobufs_pb.d.ts
 │   │   └── types.ts
 │   ├── menu
 │   │   ├── types.ts
 │   │   └── utils.ts
 │   ├── security
+│   │   ├── auth-provider.ts
 │   │   ├── composables.ts
-│   │   ├── keycloak-config.ts
-│   │   ├── keycloak.ts
+│   │   ├── credentials-provider.ts
 │   │   └── types.ts
 │   ├── theme
-│   │   ├── ThemeProvider.vue
 │   │   ├── themes
 │   │   │   └── default.ts
+│   │   ├── ThemeProvider.vue
 │   │   └── types.ts
 │   ├── utils
+│   │   ├── drawing
+│   │   │   ├── canvas.ts
+│   │   │   ├── circle.ts
+│   │   │   ├── div.ts
+│   │   │   ├── drawable.ts
+│   │   │   ├── event.ts
+│   │   │   ├── handles.ts
+│   │   │   ├── image.ts
+│   │   │   ├── model.ts
+│   │   │   ├── polygon.ts
+│   │   │   ├── polyline.ts
+│   │   │   ├── registry.ts
+│   │   │   ├── selection-box.ts
+│   │   │   ├── shape.ts
+│   │   │   ├── text.ts
+│   │   │   ├── utils.ts
+│   │   │   └── xyz.ts
+│   │   ├── composables.ts
+│   │   ├── dragdrop.ts
 │   │   └── url.ts
 │   └── window
 │       ├── types.ts
