@@ -30,14 +30,18 @@ export function useHistoryManager() {
         ...node,
         position: { ...node.position },
         size: { ...node.size },
-        props: { ...node.props },
+        props: structuredClone(node.props),
         parentId: node.parentId || null,
         children: node.children ? [...node.children] : undefined,
         zIndex: node.zIndex,
+        eventHandlers: node.eventHandlers ? structuredClone(node.eventHandlers) : undefined,
       })),
-      bindings: bindings.map((binding) => ({ ...binding })),
+      bindings: bindings.map((binding) => ({
+        ...binding,
+        dependencies: binding.dependencies ? [...binding.dependencies] : undefined,
+      })),
       viewport: { ...viewport },
-      metadata: { ...metadata },
+      metadata: structuredClone(metadata),
     };
   }
 
@@ -52,18 +56,22 @@ export function useHistoryManager() {
       ...node,
       position: { ...node.position },
       size: { ...node.size },
-      props: { ...node.props },
+      props: structuredClone(node.props),
       parentId: node.parentId || null,
       children: node.children ? [...node.children] : undefined,
       zIndex: node.zIndex,
+      eventHandlers: node.eventHandlers ? structuredClone(node.eventHandlers) : undefined,
     })));
-    bindings.splice(0, bindings.length, ...state.bindings.map((binding) => ({ ...binding })));
+    bindings.splice(0, bindings.length, ...state.bindings.map((binding) => ({
+      ...binding,
+      dependencies: binding.dependencies ? [...binding.dependencies] : undefined,
+    })));
     viewport.x = state.viewport.x;
     viewport.y = state.viewport.y;
-    // Clear all existing properties first
+    
+    // Clear and deep clone metadata
     Object.keys(metadata).forEach(key => delete metadata[key]);
-    // Then assign the historical state
-    Object.assign(metadata, state.metadata);
+    Object.assign(metadata, structuredClone(state.metadata));
   }
 
   function undo(nodes: CanvasNode[], bindings: Binding[], viewport: Vector2, metadata: Record<string, unknown>) {
