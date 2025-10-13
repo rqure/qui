@@ -1259,8 +1259,6 @@ async function handleSelectorNew(faceplateId: EntityId) {
   }
 }
 
-// Custom components have been removed from this implementation
-
 function handleBeforeUnload(event: BeforeUnloadEvent) {
   if (dirty.value) {
     const message = 'You have unsaved changes. Are you sure you want to leave?';
