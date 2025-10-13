@@ -9,6 +9,7 @@ import type { BindingMode } from '@/apps/faceplate-builder/types';
 import { IndirectFieldNotifier } from '@/apps/faceplate-builder/utils/indirect-field-notifier';
 import { logger } from '@/apps/faceplate-builder/utils/logger';
 import { BindingEvaluationStrategyFactory, type BindingEvaluationContext, type ScriptHelpers, type ScriptExecutionContext } from '@/apps/faceplate-builder/utils/binding-evaluation-strategies';
+import { UnifiedBindingEvaluationService, type BindingMeta, type BindingTarget, type UnifiedBindingContext } from '@/apps/faceplate-builder/utils/unified-binding-evaluation';
 
 interface RenderSlot {
   id: EntityId;
@@ -90,6 +91,23 @@ const indirectNotifiers = new Map<string, IndirectFieldNotifier>();
 const scriptCache = new Map<string, (context: ScriptExecutionContext, helpers: ScriptHelpers) => Promise<unknown>>();
 const scriptState = new Map<string, Record<string, unknown>>();
 const scriptModuleExports = new Map<string, Record<string, unknown>>();
+
+// Create unified binding evaluation service
+const bindingEvaluationService = computed(() => {
+  const context: UnifiedBindingContext = {
+    entityId: props.entityId ?? null,
+    faceplateId: faceplate.value?.id ?? null,
+    dataStore,
+    service,
+    expressionValueMap,
+    scriptHelpers: getScriptHelpers(),
+    scriptModuleExports,
+    scriptState,
+    scriptCache,
+    scriptRuntimeErrors: scriptRuntimeErrors.value,
+  };
+  return new UnifiedBindingEvaluationService(context);
+});
 
 const allBindings = computed(() => {
   if (!faceplate.value) return [] as FaceplateBindingDefinition[];
@@ -450,83 +468,7 @@ async function evaluateBindingExpression(
   meta: { expression: string; mode: BindingMode; dependencies: string[] },
   evaluationStack: Set<string> = new Set(),
 ): Promise<unknown> {
-  // If this expression is already being evaluated, wait for that evaluation to complete
-  if (ongoingEvaluations.has(expressionKey)) {
-    if (import.meta.env.DEV) {
-      logger.debug(`Reusing ongoing evaluation for: ${expressionKey}`);
-    }
-    return ongoingEvaluations.get(expressionKey)!;
-  }
-
-  // Check for circular dependency within this specific call chain
-  if (evaluationStack.has(expressionKey)) {
-    const callChain = Array.from(evaluationStack).join(' → ');
-    logger.error(`Circular dependency detected: ${callChain} → ${expressionKey}`);
-    scriptRuntimeErrors.value.push({
-      context: `Binding evaluation`,
-      error: `Circular dependency: ${callChain} → ${expressionKey}`,
-      timestamp: Date.now(),
-    });
-    expressionValueMap[expressionKey] = null;
-    return null;
-  }
-
-  // Check evaluation depth for this call chain
-  if (evaluationStack.size >= MAX_EVALUATION_DEPTH) {
-    logger.error(`Max evaluation depth exceeded (${MAX_EVALUATION_DEPTH}) for: ${expressionKey}`);
-    scriptRuntimeErrors.value.push({
-      context: `Binding evaluation`,
-      error: `Max evaluation depth exceeded: ${expressionKey}`,
-      timestamp: Date.now(),
-    });
-    expressionValueMap[expressionKey] = null;
-    return null;
-  }
-
-  // Create a new stack for this evaluation path
-  const newStack = new Set(evaluationStack);
-  newStack.add(expressionKey);
-
-  // Create and cache the evaluation promise
-  const evaluationPromise = (async () => {
-    try {
-      const strategy = BindingEvaluationStrategyFactory.getStrategy(meta.mode);
-      const context: BindingEvaluationContext = {
-        entityId: props.entityId ?? null,
-        faceplateId: faceplate.value?.id ?? null,
-        dataStore,
-        service,
-        expressionValueMap,
-        scriptHelpers: getScriptHelpers(),
-        scriptModuleExports,
-        scriptState,
-        scriptCache,
-        scriptRuntimeErrors: scriptRuntimeErrors.value,
-      };
-
-      const value = await strategy.evaluate(meta.expression, context);
-      expressionValueMap[expressionKey] = value;
-      return value;
-    } catch (error) {
-      // Catch any unexpected errors during evaluation
-      logger.error(`Unexpected error evaluating expression ${expressionKey}:`, error);
-      scriptRuntimeErrors.value.push({
-        context: `Binding evaluation`,
-        error: `Error in ${expressionKey}: ${error instanceof Error ? error.message : String(error)}`,
-        timestamp: Date.now(),
-      });
-      expressionValueMap[expressionKey] = null;
-      return null;
-    } finally {
-      // Remove from ongoing evaluations once complete
-      ongoingEvaluations.delete(expressionKey);
-    }
-  })();
-
-  // Cache the promise so parallel evaluations can reuse it
-  ongoingEvaluations.set(expressionKey, evaluationPromise);
-
-  return evaluationPromise;
+  return bindingEvaluationService.value.evaluateExpression(expressionKey, meta, evaluationStack);
 }
 
 // Check if expression contains computed operators
@@ -591,6 +533,11 @@ function getScriptHelpers(): ScriptHelpers {
 }
 
 function buildBindingMaps() {
+  clearBindingMaps();
+  processBindingExpressions();
+}
+
+function clearBindingMaps() {
   expressionTargets.clear();
   expressionMeta.clear();
   dependencyIndex.clear();
@@ -601,7 +548,9 @@ function buildBindingMaps() {
   Object.keys(componentLastUpdated).forEach((key) => delete componentLastUpdated[key]);
   scriptState.clear();
   ongoingEvaluations.clear();
+}
 
+function processBindingExpressions() {
   for (const binding of allBindings.value) {
     const componentName = binding.component || '';
     const property = binding.property || '';
@@ -613,45 +562,60 @@ function buildBindingMaps() {
     const expressionKey = makeExpressionKey(normalizedExpression, mode);
     const dependencies = collectBindingDependencies(binding, mode, normalizedExpression);
 
-    if (!expressionMeta.has(expressionKey)) {
-      expressionMeta.set(expressionKey, {
-        expression: normalizedExpression,
-        mode,
-        dependencies: [...dependencies],
-        description: binding.description,
-      });
-    } else {
-      const existing = expressionMeta.get(expressionKey)!;
-      const merged = new Set([...existing.dependencies, ...dependencies]);
-      existing.dependencies = Array.from(merged);
-    }
+    updateExpressionMeta(expressionKey, {
+      expression: normalizedExpression,
+      mode,
+      dependencies: [...dependencies],
+      description: binding.description,
+    });
 
-    if (!expressionTargets.has(expressionKey)) {
-      expressionTargets.set(expressionKey, []);
-    }
-
-    expressionTargets.get(expressionKey)!.push({
+    addExpressionTarget(expressionKey, {
       component: componentName,
       property,
       transform: binding.transform ?? null,
     });
 
-    const bindingSlotKey = `${componentName}:${property}`;
-    if (!bindingValueMap[bindingSlotKey]) {
-      bindingValueMap[bindingSlotKey] = null;
-    }
+    initializeBindingValueMap(componentName, property);
 
-    if (!componentLastUpdated[componentName]) {
-      componentLastUpdated[componentName] = {};
-    }
-
-    dependencies.forEach((dependency) => {
-      if (!dependencyIndex.has(dependency)) {
-        dependencyIndex.set(dependency, new Set());
-      }
-      dependencyIndex.get(dependency)!.add(expressionKey);
-    });
+    registerDependencies(dependencies, expressionKey);
   }
+}
+
+function updateExpressionMeta(expressionKey: string, meta: BindingMeta) {
+  if (!expressionMeta.has(expressionKey)) {
+    expressionMeta.set(expressionKey, meta);
+  } else {
+    const existing = expressionMeta.get(expressionKey)!;
+    const merged = new Set([...existing.dependencies, ...meta.dependencies]);
+    existing.dependencies = Array.from(merged);
+  }
+}
+
+function addExpressionTarget(expressionKey: string, target: BindingTarget) {
+  if (!expressionTargets.has(expressionKey)) {
+    expressionTargets.set(expressionKey, []);
+  }
+  expressionTargets.get(expressionKey)!.push(target);
+}
+
+function initializeBindingValueMap(componentName: string, property: string) {
+  const bindingSlotKey = `${componentName}:${property}`;
+  if (!bindingValueMap[bindingSlotKey]) {
+    bindingValueMap[bindingSlotKey] = null;
+  }
+
+  if (!componentLastUpdated[componentName]) {
+    componentLastUpdated[componentName] = {};
+  }
+}
+
+function registerDependencies(dependencies: string[], expressionKey: string) {
+  dependencies.forEach((dependency) => {
+    if (!dependencyIndex.has(dependency)) {
+      dependencyIndex.set(dependency, new Set());
+    }
+    dependencyIndex.get(dependency)!.add(expressionKey);
+  });
 }
 
 async function evaluateAllBindings() {

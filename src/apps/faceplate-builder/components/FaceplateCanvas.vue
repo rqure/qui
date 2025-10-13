@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import PrimitiveRenderer from './PrimitiveRenderer.vue';
+import ComponentNode from './ComponentNode.vue';
 import { useComponentNode } from '../composables/useComponentNode';
 
 export interface CanvasComponent {
@@ -19,6 +20,7 @@ export interface CanvasComponent {
   parentId?: string | number | null;
   children?: CanvasComponent[];
   eventHandlers?: any[]; // Event handlers for this component
+  locked?: boolean; // Whether component is locked (prevents editing/moving)
 }
 
 interface Props {
@@ -227,147 +229,6 @@ function handleCanvasPointerDown(event: PointerEvent) {
 defineExpose({
   canvasRef,
 });
-
-// Recursive component definition for rendering nested components
-const ComponentNode = {
-  name: 'ComponentNode',
-  components: {
-    PrimitiveRenderer,
-  },
-  props: {
-    component: Object as () => CanvasComponent,
-    editMode: Boolean,
-    isSelected: Boolean,
-    isMultiSelected: Boolean,
-    parentVisible: { type: Boolean, default: true },
-    parentOpacity: { type: Number, default: 1 },
-    isInsideContainer: { type: Boolean, default: false },
-    dropTargetContainerId: { type: [String, Number], default: null },
-  },
-  emits: ['component-click', 'component-drag-start', 'component-contextmenu', 'event-triggered'],
-  setup(props: any, { emit }: any) {
-    const {
-      isContainerType,
-      isDropTarget,
-      isVisible,
-      effectiveOpacity,
-      componentStyle,
-    } = useComponentNode({
-      component: props.component,
-      editMode: props.editMode,
-      parentVisible: props.parentVisible,
-      parentOpacity: props.parentOpacity,
-      isInsideContainer: props.isInsideContainer,
-      dropTargetContainerId: props.dropTargetContainerId,
-    });
-
-    const layoutChildren = computed(() => {
-      // When rendering in runtime (not edit mode), just return children as-is
-      // Flexbox will handle the layout based on container config
-      if (!isContainerType.value || !props.component.children?.length) {
-        return props.component.children || [];
-      }
-
-      // In edit mode, we still calculate positions for absolute positioning
-      // In runtime/view mode, we just return the children and let flexbox position them
-      if (!props.editMode) {
-        return props.component.children;
-      }
-
-      return calculateChildLayout(props.component, props.component.children);
-    });
-
-    const handlePointerDown = (event: PointerEvent) => {
-      if (!props.editMode) return;
-      const isMultiSelect = event.shiftKey || event.ctrlKey || event.metaKey;
-      emit('component-click', { id: props.component.id, event, isMultiSelect });
-      emit('component-drag-start', { id: props.component.id, event });
-    };
-
-    const handleContextMenu = (event: MouseEvent) => {
-      if (!props.editMode) return;
-      event.preventDefault();
-      event.stopPropagation();
-      emit('component-contextmenu', { id: props.component.id, event });
-    };
-
-    return {
-      isContainerType,
-      isDropTarget,
-      isVisible,
-      effectiveOpacity,
-      layoutChildren,
-      componentStyle,
-      handlePointerDown,
-      handleContextMenu,
-    };
-  },
-  template: `
-    <div
-      v-show="isVisible"
-      class="faceplate-canvas__component"
-      :class="{
-        'faceplate-canvas__component--selected': isSelected && editMode,
-        'faceplate-canvas__component--multi-selected': isMultiSelected && editMode,
-        'faceplate-canvas__component--interactive': editMode,
-        'faceplate-canvas__component--container': isContainerType,
-        'faceplate-canvas__component--inside-container': isInsideContainer,
-        'faceplate-canvas__component--drop-target': isDropTarget,
-        'faceplate-canvas__component--locked': component.locked && editMode,
-      }"
-      :style="componentStyle"
-      :data-component-id="component.id"
-      @pointerdown="handlePointerDown"
-      @contextmenu="handleContextMenu"
-      @click.stop
-    >
-      <!-- Drop zone overlay for containers -->
-      <div
-        v-if="isDropTarget && editMode"
-        class="faceplate-canvas__drop-zone-overlay"
-      >
-        <div class="faceplate-canvas__drop-zone-content">
-          <div class="faceplate-canvas__drop-zone-icon">📦</div>
-          <div class="faceplate-canvas__drop-zone-text">Drop here to add to container</div>
-        </div>
-      </div>
-      
-      <PrimitiveRenderer
-        class="faceplate-canvas__component-content"
-        :type="component.type"
-        :config="component.config"
-        :bindings="component.bindings"
-        :edit-mode="editMode"
-        :event-handlers="component.eventHandlers"
-        @event-triggered="$emit('event-triggered', $event)"
-      >
-        <!-- Render children inside container -->
-        <template v-if="isContainerType && layoutChildren.length">
-          <ComponentNode
-            v-for="child in layoutChildren"
-            :key="child.id"
-            :component="child"
-            :edit-mode="editMode"
-            :is-selected="false"
-            :is-multi-selected="false"
-            :parent-visible="isVisible"
-            :parent-opacity="effectiveOpacity"
-            :is-inside-container="true"
-            :drop-target-container-id="dropTargetContainerId"
-            @component-click="$emit('component-click', $event)"
-            @component-drag-start="$emit('component-drag-start', $event)"
-            @component-contextmenu="$emit('component-contextmenu', $event)"
-            @event-triggered="$emit('event-triggered', $event)"
-          />
-        </template>
-      </PrimitiveRenderer>
-      <!-- Lock indicator -->
-      <div v-if="component.locked && editMode" class="faceplate-canvas__lock-indicator">
-        🔒
-      </div>
-    </div>
-  `,
-};
 </script>
 
 <template>
