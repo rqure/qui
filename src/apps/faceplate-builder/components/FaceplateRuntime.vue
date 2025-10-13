@@ -187,14 +187,14 @@ const canvasComponents = computed<CanvasComponent[]>(() => {
   
   const components = renderedSlots.value.map(slot => {
     // Find parent ID from layout data
-    const layoutItem = layout.find(item => item.component === String(slot.id));
+    const layoutItem = layout.find(item => item.component === slot.name);
     const parentId = layoutItem?.parentId || null;
     
     // Find event handlers for this component (using component name, not ID)
     const handlers = eventHandlersFromConfig.filter((h: any) => String(h.componentId) === slot.name);
     
     // Add automatic event handlers for twoWay bindings
-    const componentBindings = allBindings.value.filter((b: any) => String(b.componentId) === String(slot.id));
+    const componentBindings = allBindings.value.filter((b: any) => b.component === slot.name);
     const twoWayBindings = componentBindings.filter((b: any) => b.mode === 'twoWay');
     
     // For each twoWay binding, create an automatic write handler

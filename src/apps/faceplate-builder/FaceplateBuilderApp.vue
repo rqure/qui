@@ -1259,8 +1259,6 @@ async function handleSelectorNew(faceplateId: EntityId) {
   }
 }
 
-// Custom components have been removed from this implementation
-
 function handleBeforeUnload(event: BeforeUnloadEvent) {
   if (dirty.value) {
     const message = 'You have unsaved changes. Are you sure you want to leave?';
@@ -1270,21 +1268,11 @@ function handleBeforeUnload(event: BeforeUnloadEvent) {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   window.addEventListener('keydown', handleKeyDown);
   window.addEventListener('beforeunload', handleBeforeUnload);
-});
 
-onBeforeUnmount(() => {
-  window.removeEventListener('keydown', handleKeyDown);
-  window.removeEventListener('beforeunload', handleBeforeUnload);
-  if (autoSaveTimer.value !== null) {
-    window.clearTimeout(autoSaveTimer.value);
-  }
-});
-
-// Initialize with an empty baseline state.
-onMounted(async () => {
+  // Initialize with an empty baseline state.
   if (!history.stack.length) {
     pushHistory(nodes.value, bindings.value, viewportSize.value, faceplateMetadata.value);
     markSaved();
@@ -1297,6 +1285,14 @@ onMounted(async () => {
     } catch (error) {
       logger.error('Failed to load faceplate on mount:', error);
     }
+  }
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleKeyDown);
+  window.removeEventListener('beforeunload', handleBeforeUnload);
+  if (autoSaveTimer.value !== null) {
+    window.clearTimeout(autoSaveTimer.value);
   }
 });
 </script>
