@@ -194,7 +194,7 @@ const canvasComponents = computed<CanvasComponent[]>(() => {
     const handlers = eventHandlersFromConfig.filter((h: any) => String(h.componentId) === slot.name);
     
     // Add automatic event handlers for twoWay bindings
-    const componentBindings = allBindings.value.filter((b: any) => String(b.componentId) === String(slot.id));
+    const componentBindings = allBindings.value.filter((b: any) => b.component === slot.name);
     const twoWayBindings = componentBindings.filter((b: any) => b.mode === 'twoWay');
     
     // For each twoWay binding, create an automatic write handler
