@@ -462,8 +462,8 @@ function handlePointerMove(event: PointerEvent) {
     const deltaX = (event.clientX - pointerStart.x) / zoom.value;
     const deltaY = (event.clientY - pointerStart.y) / zoom.value;
     
-    let newPos = { ...originalPosition };
-    let newSize = { ...originalSize };
+    const newPos = { ...originalPosition };
+    const newSize = { ...originalSize };
     
     // Calculate new size and position based on handle
     if (handle.includes('w')) {
