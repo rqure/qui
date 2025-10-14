@@ -6,6 +6,7 @@ import { useDataStore } from '@/stores/data';
 import { useEntityDrag } from '@/core/utils/composables';
 import { useWindowStore } from '@/stores/windows';
 import faceplateBuilderApp from '@/apps/faceplate-builder';
+import schematicBuilderApp from '@/apps/schematic-builder';
 import FaceplateViewerWindow from '@/apps/faceplate-builder/components/FaceplateViewerWindow.vue';
 import type { MenuItem } from '@/core/menu/types';
 
@@ -16,9 +17,15 @@ interface EntityItem {
   type: string;
   children: EntityId[];
   faceplates: EntityFaceplateRef[];
+  schematics: EntitySchematicRef[];
 }
 
 interface EntityFaceplateRef {
+  id: EntityId;
+  name: string;
+}
+
+interface EntitySchematicRef {
   id: EntityId;
   name: string;
 }
@@ -80,6 +87,32 @@ async function getFaceplateReferences(entityId: EntityId, faceplatesFieldType: F
   return [];
 }
 
+async function getSchematicReferences(entityId: EntityId, schematicsFieldType: FieldType, nameFieldType: FieldType): Promise<EntitySchematicRef[]> {
+  try {
+    const [schematicsValue] = await dataStore.read(entityId, [schematicsFieldType]);
+    if (schematicsValue && ValueHelpers.isEntityList(schematicsValue)) {
+      const refs = await Promise.all(schematicsValue.EntityList.map(async (schematicId) => {
+        if (!faceplateNameCache.has(schematicId)) {
+          const [nameValue] = await dataStore.read(schematicId, [nameFieldType]);
+          let schematicName = `Schematic ${schematicId}`;
+          if (nameValue && ValueHelpers.isString(nameValue)) {
+            schematicName = nameValue.String || schematicName;
+          }
+          faceplateNameCache.set(schematicId, schematicName);
+        }
+        return {
+          id: schematicId,
+          name: faceplateNameCache.get(schematicId) || `Schematic ${schematicId}`,
+        } as EntitySchematicRef;
+      }));
+      return refs;
+    }
+  } catch (error) {
+    console.warn(`Failed to load schematics for entity ${entityId}`, error);
+  }
+  return [];
+}
+
 // Inline create entity state
 const isCreating = ref(false);
 const createEntityName = ref('');
@@ -93,21 +126,24 @@ const showDeleteDialog = ref(false);
 const entityToDelete = ref<EntityItem | null>(null);
 const deletingEntity = ref(false);
 
-// Setup context menu - updated to include faceplate actions
+// Setup context menu - updated to include faceplate and schematic actions
 async function handleContextMenu(event: MouseEvent, entity: EntityItem) {
   event.preventDefault();
   event.stopPropagation();
 
   try {
-    // Ensure faceplate references are up to date before building menu
+    // Ensure faceplate and schematic references are up to date before building menu
     const nameFieldType = await getFieldTypeId('Name');
     const faceplatesFieldType = await getFieldTypeId('Faceplates');
+    const schematicsFieldType = await getFieldTypeId('Schematics');
     entity.faceplates = await getFaceplateReferences(entity.id, faceplatesFieldType, nameFieldType);
+    entity.schematics = await getSchematicReferences(entity.id, schematicsFieldType, nameFieldType);
   } catch (error) {
-    console.warn('Failed to refresh faceplate references for context menu', error);
+    console.warn('Failed to refresh references for context menu', error);
   }
 
   const faceplateRefs = entity.faceplates || [];
+  const schematicRefs = entity.schematics || [];
 
   const faceplateItems: MenuItem[] = faceplateRefs.map((faceplate) => ({
     id: `faceplate-open-${faceplate.id}`,
@@ -125,6 +161,25 @@ async function handleContextMenu(event: MouseEvent, entity: EntityItem) {
       id: `builder-edit-${faceplate.id}`,
       label: `Edit ${faceplate.name}`,
       action: () => openFaceplateBuilder(entity, faceplate.id)
+    }))
+  ];
+
+  const schematicItems: MenuItem[] = schematicRefs.map((schematic) => ({
+    id: `schematic-open-${schematic.id}`,
+    label: schematic.name,
+    action: () => openSchematicWindow(entity, schematic)
+  }));
+
+  const schematicBuilderChildren: MenuItem[] = [
+    {
+      id: 'launch-schematic-builder',
+      label: 'Launch Builder…',
+      action: () => openSchematicBuilder(entity)
+    },
+    ...schematicRefs.map((schematic) => ({
+      id: `schematic-builder-edit-${schematic.id}`,
+      label: `Edit ${schematic.name}`,
+      action: () => openSchematicBuilder(entity, schematic.id)
     }))
   ];
 
@@ -160,6 +215,27 @@ async function handleContextMenu(event: MouseEvent, entity: EntityItem) {
     id: 'faceplate-builder-group',
     label: 'Faceplate Builder',
     children: builderChildren
+  });
+
+  if (schematicItems.length) {
+    items.push({ id: 'schematic-separator', label: '', separator: true });
+    items.push({
+      id: 'open-schematic-group',
+      label: 'Open Schematic',
+      children: schematicItems
+    });
+  } else {
+    items.push({
+      id: 'open-schematic-disabled',
+      label: 'Open Schematic',
+      disabled: true
+    });
+  }
+
+  items.push({
+    id: 'schematic-builder-group',
+    label: 'Schematic Builder',
+    children: schematicBuilderChildren
   });
   
   // Emit the context menu event to parent components
@@ -249,6 +325,49 @@ async function openFaceplateBuilder(entity: EntityItem, faceplateId?: EntityId) 
   });
 }
 
+async function openSchematicWindow(entity: EntityItem, schematic: EntitySchematicRef) {
+  // TODO: Implement SchematicViewerWindow similar to FaceplateViewerWindow
+  console.log('Opening schematic viewer (not yet implemented):', schematic);
+}
+
+async function openSchematicBuilder(entity: EntityItem, schematicId?: EntityId) {
+  const defaultSize = schematicBuilderApp.manifest.defaultWindowSize || { width: 1320, height: 820 };
+  let width = defaultSize.width;
+  let height = defaultSize.height;
+  
+  // If opening an existing schematic, try to load its dimensions
+  if (schematicId) {
+    try {
+      const configFieldType = await dataStore.getFieldType('Configuration');
+      const [configValue] = await dataStore.read(schematicId, [configFieldType]);
+      
+      if (configValue && typeof configValue === 'object' && 'String' in configValue) {
+        const config = JSON.parse(configValue.String);
+        if (config.metadata?.viewport) {
+          width = config.metadata.viewport.width || width;
+          height = config.metadata.viewport.height || height;
+          // Add some padding for window chrome and toolbars
+          height += 120;
+        }
+      }
+    } catch (err) {
+      console.warn('Could not load schematic dimensions for builder, using defaults', err);
+    }
+  }
+  
+  windowStore.createWindow({
+    title: 'Schematic Builder',
+    component: schematicBuilderApp.component.default,
+    icon: schematicBuilderApp.manifest.icon,
+    width,
+    height,
+    props: {
+      entityId: entity.id,
+      schematicId: schematicId ?? null
+    }
+  });
+}
+
 // Group entities by their type
 const groupedEntities = computed(() => {
   const filtered = searchQuery.value 
@@ -329,7 +448,8 @@ async function loadEntities() {
           name: rootName,
           type: "Root",
           children: childrenList,
-          faceplates: await getFaceplateReferences(rootId, FaceplatesFieldType, NameFieldType)
+          faceplates: await getFaceplateReferences(rootId, FaceplatesFieldType, NameFieldType),
+          schematics: []
         });
       }
       loading.value = false;
@@ -371,7 +491,8 @@ async function loadEntities() {
           name: name,
           type: entityType,
           children: childrenList,
-          faceplates: await getFaceplateReferences(childId, FaceplatesFieldType, NameFieldType)
+          faceplates: await getFaceplateReferences(childId, FaceplatesFieldType, NameFieldType),
+          schematics: []
         });
       } catch (err) {
         // Only log detailed errors in development

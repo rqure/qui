@@ -8,6 +8,7 @@ import { CredentialsAuthProvider } from '@/core/security/credentials-provider'
 import databaseBrowserApp from '@/apps/database-browser';
 import schemaEditorApp from '@/apps/schema-editor';
 import faceplateBuilderApp from '@/apps/faceplate-builder';
+import schematicBuilderApp from '@/apps/schematic-builder';
 import terminalApp from '@/apps/terminal';
 
 // Define auth method type
@@ -159,6 +160,7 @@ export const useAuthStore = defineStore('auth', {
       appStore.registerApp(databaseBrowserApp);
       appStore.registerApp(schemaEditorApp);
   appStore.registerApp(faceplateBuilderApp);
+      appStore.registerApp(schematicBuilderApp);
       appStore.registerApp(terminalApp);
       console.log('Apps registered successfully after login');
     },
