@@ -5,8 +5,6 @@ import { extractEntityType, ValueHelpers } from '@/core/data/types';
 import { useDataStore } from '@/stores/data';
 import { useEntityDrag } from '@/core/utils/composables';
 import { useWindowStore } from '@/stores/windows';
-import faceplateBuilderApp from '@/apps/faceplate-builder';
-import FaceplateViewerWindow from '@/apps/faceplate-builder/components/FaceplateViewerWindow.vue';
 import type { MenuItem } from '@/core/menu/types';
 
 // Define EntityItem interface
@@ -115,19 +113,6 @@ async function handleContextMenu(event: MouseEvent, entity: EntityItem) {
     action: () => openFaceplateWindow(entity, faceplate)
   }));
 
-  const builderChildren: MenuItem[] = [
-    {
-      id: 'launch-faceplate-builder',
-      label: 'Launch Builder…',
-      action: () => openFaceplateBuilder(entity)
-    },
-    ...faceplateRefs.map((faceplate) => ({
-      id: `builder-edit-${faceplate.id}`,
-      label: `Edit ${faceplate.name}`,
-      action: () => openFaceplateBuilder(entity, faceplate.id)
-    }))
-  ];
-
   const items: MenuItem[] = [
     {
       id: 'open-in-window',
@@ -155,12 +140,6 @@ async function handleContextMenu(event: MouseEvent, entity: EntityItem) {
       disabled: true
     });
   }
-
-  items.push({
-    id: 'faceplate-builder-group',
-    label: 'Faceplate Builder',
-    children: builderChildren
-  });
   
   // Emit the context menu event to parent components
   emit('context-menu', {
@@ -197,56 +176,6 @@ async function openFaceplateWindow(entity: EntityItem, faceplate: EntityFaceplat
   } catch (err) {
     console.warn('Could not load faceplate dimensions, using defaults', err);
   }
-  
-  windowStore.createWindow({
-    title: `${faceplate.name} · ${entity.name}`,
-    component: markRaw(FaceplateViewerWindow),
-    icon: faceplateBuilderApp.manifest.icon,
-    width,
-    height,
-    props: {
-      faceplateId: faceplate.id,
-      entityId: entity.id
-    }
-  });
-}
-
-async function openFaceplateBuilder(entity: EntityItem, faceplateId?: EntityId) {
-  const defaultSize = faceplateBuilderApp.manifest.defaultWindowSize || { width: 1200, height: 800 };
-  let width = defaultSize.width;
-  let height = defaultSize.height;
-  
-  // If opening an existing faceplate, try to load its dimensions
-  if (faceplateId) {
-    try {
-      const configFieldType = await dataStore.getFieldType('Configuration');
-      const [configValue] = await dataStore.read(faceplateId, [configFieldType]);
-      
-      if (configValue && typeof configValue === 'object' && 'String' in configValue) {
-        const config = JSON.parse(configValue.String);
-        if (config.metadata?.viewport) {
-          width = config.metadata.viewport.width || width;
-          height = config.metadata.viewport.height || height;
-          // Add some padding for window chrome and toolbars
-          height += 120;
-        }
-      }
-    } catch (err) {
-      console.warn('Could not load faceplate dimensions for builder, using defaults', err);
-    }
-  }
-  
-  windowStore.createWindow({
-    title: 'Faceplate Builder',
-    component: faceplateBuilderApp.component.default,
-    icon: faceplateBuilderApp.manifest.icon,
-    width,
-    height,
-    props: {
-      entityId: entity.id,
-      faceplateId: faceplateId ?? null
-    }
-  });
 }
 
 // Group entities by their type
