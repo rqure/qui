@@ -27,18 +27,21 @@
     <div v-if="selectedShapeIndex !== null && selectionBounds" class="selection-overlay">
       <div 
         class="selection-box"
+        :class="{ 'is-dragging': isDragging, 'is-resizing': isResizing }"
         :style="{
           left: selectionBounds.x + 'px',
           top: selectionBounds.y + 'px',
           width: selectionBounds.width + 'px',
           height: selectionBounds.height + 'px'
         }"
+        @mousedown="onSelectionBoxMouseDown"
       >
         <!-- Resize handles -->
-        <div class="resize-handle handle-nw" @mousedown.stop="startResize($event, 'nw')"></div>
-        <div class="resize-handle handle-ne" @mousedown.stop="startResize($event, 'ne')"></div>
-        <div class="resize-handle handle-sw" @mousedown.stop="startResize($event, 'sw')"></div>
-        <div class="resize-handle handle-se" @mousedown.stop="startResize($event, 'se')"></div>
+        <div class="resize-handle handle-nw" @mousedown.stop="startResize($event, 'nw')" title="Resize"></div>
+        <div class="resize-handle handle-ne" @mousedown.stop="startResize($event, 'ne')" title="Resize"></div>
+        <div class="resize-handle handle-sw" @mousedown.stop="startResize($event, 'sw')" title="Resize"></div>
+        <div class="resize-handle handle-se" @mousedown.stop="startResize($event, 'se')" title="Resize"></div>
+        <div class="rotate-handle" @mousedown.stop="startRotate($event)" title="Rotate">↻</div>
       </div>
     </div>
   </div>
@@ -51,12 +54,19 @@ import { Model } from '@/core/canvas/model';
 import type { Drawable } from '@/core/canvas/shapes/base';
 import L from 'leaflet';
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   model: any; // Model instance with methods
   selectedShapeIndex: number | null;
   showGrid: boolean;
   snapToGrid: boolean;
-}>();
+  canvasWidth?: number;
+  canvasHeight?: number;
+  canvasBackground?: string;
+}>(), {
+  canvasWidth: 1000,
+  canvasHeight: 600,
+  canvasBackground: '#1a1a1a'
+});
 
 const emit = defineEmits<{
   (e: 'shape-select', index: number): void;
@@ -79,9 +89,12 @@ const gridSize = 20;
 const selectionBounds = ref<{ x: number; y: number; width: number; height: number } | null>(null);
 const isDragging = ref(false);
 const isResizing = ref(false);
+const isRotating = ref(false);
 const resizeHandle = ref<string | null>(null);
 const dragStart = ref<{ x: number; y: number } | null>(null);
 const shapeStartLocation = ref<{ x: number; y: number } | null>(null);
+const shapeStartRotation = ref<number>(0);
+const shapeStartSize = ref<{ width: number; height: number; radius: number } | null>(null);
 
 // Computed
 const selectedShape = computed((): Drawable | null => {
@@ -118,6 +131,20 @@ watch(() => props.model.getShapes().length, () => {
 
 watch(() => props.selectedShapeIndex, () => {
   updateSelectionBounds();
+  
+  // Toggle Leaflet map dragging based on selection
+  if (canvas.value) {
+    const leafletMap = (canvas.value as any).map;
+    if (leafletMap) {
+      if (props.selectedShapeIndex === null) {
+        // No shape selected - enable map panning
+        leafletMap.dragging.enable();
+      } else {
+        // Shape selected - disable map panning to allow shape dragging
+        leafletMap.dragging.disable();
+      }
+    }
+  }
 });
 
 // Initialize canvas
@@ -127,18 +154,21 @@ function initCanvas() {
   // Add canvas ID to the element
   canvasRef.value.id = canvasId;
   
-  canvas.value = new Canvas(canvasId, { canvasBackground: '#1a1a1a' });
+  canvas.value = new Canvas(canvasId, { canvasBackground: props.canvasBackground });
   
   // Set up canvas
-  canvas.value.setBoundary({ x: 0, y: 0 }, { x: 1000, y: 600 });
-  canvas.value.setBackgroundColor('#1a1a1a');
+  canvas.value.setBoundary({ x: 0, y: 0 }, { x: props.canvasWidth, y: props.canvasHeight });
+  canvas.value.setBackgroundColor(props.canvasBackground);
   
-  // Add click handler
+  // Add click handler and disable drag when shape selected
   const leafletMap = (canvas.value as any).map;
   if (leafletMap) {
     leafletMap.on('click', (e: L.LeafletMouseEvent) => {
       handleCanvasClick(e);
     });
+    
+    // Disable map dragging initially
+    leafletMap.dragging.disable();
   }
   
   renderModel();
@@ -245,20 +275,21 @@ function onDrop(event: DragEvent) {
   emit('shape-drop', shapeType, snappedLocation);
 }
 
-// Shape dragging
-function onContainerClick(event: MouseEvent) {
-  if (selectedShape.value && selectionBounds.value) {
-    const bounds = selectionBounds.value;
-    const x = event.offsetX;
-    const y = event.offsetY;
-    
-    // Check if click is inside selection box
-    if (x >= bounds.x && x <= bounds.x + bounds.width &&
-        y >= bounds.y && y <= bounds.y + bounds.height) {
-      startDrag(event);
-      return;
-    }
+// Shape dragging - mousedown for proper drag behavior
+function onSelectionBoxMouseDown(event: MouseEvent) {
+  // Don't start drag if clicking on resize handles
+  if ((event.target as HTMLElement).classList.contains('resize-handle')) {
+    return;
   }
+  
+  startDrag(event);
+  event.stopPropagation();
+  event.preventDefault();
+}
+
+function onContainerClick(event: MouseEvent) {
+  // Just for deselection when clicking outside
+  if (!selectedShape.value) return;
 }
 
 function startDrag(event: MouseEvent) {
@@ -277,28 +308,52 @@ function startResize(event: MouseEvent, handle: string) {
   resizeHandle.value = handle;
   dragStart.value = { x: event.clientX, y: event.clientY };
   shapeStartLocation.value = selectedShape.value.getLocation();
+  
+  const shapeAny = selectedShape.value as any;
+  shapeStartSize.value = {
+    width: shapeAny.getWidth?.() || 100,
+    height: shapeAny.getHeight?.() || 100,
+    radius: shapeAny.getRadius?.() || 50
+  };
+  
+  document.body.style.cursor = `${handle}-resize`;
+  event.preventDefault();
+}
+
+function startRotate(event: MouseEvent) {
+  if (!selectedShape.value) return;
+  
+  isRotating.value = true;
+  dragStart.value = { x: event.clientX, y: event.clientY };
+  shapeStartLocation.value = selectedShape.value.getLocation();
+  shapeStartRotation.value = selectedShape.value.getRotation();
+  
+  document.body.style.cursor = 'grab';
   event.preventDefault();
 }
 
 function handleMouseMove(event: MouseEvent) {
-  if (isDragging.value && dragStart.value && shapeStartLocation.value && selectedShape.value && canvas.value) {
-    const leafletMap = (canvas.value as any).map;
-    if (!leafletMap) return;
-    
+  if (!canvas.value || !selectedShape.value) return;
+  
+  const leafletMap = (canvas.value as any).map;
+  if (!leafletMap) return;
+  
+  // Dragging shape
+  if (isDragging.value && dragStart.value && shapeStartLocation.value) {
     // Calculate delta in screen space
     const dx = event.clientX - dragStart.value.x;
     const dy = event.clientY - dragStart.value.y;
     
-    // Convert to canvas space (approximately)
+    // Convert screen delta to canvas coordinates
     const zoom = leafletMap.getZoom();
     const scale = Math.pow(2, zoom);
     const canvasDx = dx / scale;
     const canvasDy = dy / scale;
     
-    // Update shape location
+    // Update shape location (Leaflet uses [lat, lng] which maps to [y, x])
     const newLocation = {
       x: shapeStartLocation.value.x + canvasDx,
-      y: shapeStartLocation.value.y + canvasDy
+      y: shapeStartLocation.value.y - canvasDy // Invert Y because screen Y increases down but canvas Y increases up
     };
     
     const snappedLocation = props.snapToGrid ? snapToGridCoords(newLocation) : newLocation;
@@ -308,9 +363,76 @@ function handleMouseMove(event: MouseEvent) {
     emit('shape-update');
   }
   
-  if (isResizing.value && resizeHandle.value && dragStart.value && selectedShape.value) {
-    // TODO: Implement resize logic
-    // For now, just emit update
+  // Resizing shape
+  else if (isResizing.value && resizeHandle.value && dragStart.value && shapeStartSize.value) {
+    const dx = event.clientX - dragStart.value.x;
+    const dy = event.clientY - dragStart.value.y;
+    
+    const zoom = leafletMap.getZoom();
+    const scale = Math.pow(2, zoom);
+    const canvasDx = dx / scale;
+    const canvasDy = dy / scale;
+    
+    const shapeAny = selectedShape.value as any;
+    
+    // Handle Circle radius
+    if (shapeAny.setRadius && typeof shapeAny.getRadius === 'function') {
+      const radiusChange = Math.sqrt(canvasDx * canvasDx + canvasDy * canvasDy) * 
+                          ((canvasDx + canvasDy) > 0 ? 1 : -1);
+      const newRadius = Math.max(10, shapeStartSize.value.radius + radiusChange);
+      shapeAny.setRadius(newRadius);
+    }
+    
+    // Handle shapes with width/height
+    else if (shapeAny.setWidth && shapeAny.setHeight) {
+      let newWidth = shapeStartSize.value.width;
+      let newHeight = shapeStartSize.value.height;
+      
+      // Apply resize based on handle direction
+      switch (resizeHandle.value) {
+        case 'se':
+          newWidth += canvasDx;
+          newHeight -= canvasDy;
+          break;
+        case 'sw':
+          newWidth -= canvasDx;
+          newHeight -= canvasDy;
+          break;
+        case 'ne':
+          newWidth += canvasDx;
+          newHeight += canvasDy;
+          break;
+        case 'nw':
+          newWidth -= canvasDx;
+          newHeight += canvasDy;
+          break;
+      }
+      
+      newWidth = Math.max(20, newWidth);
+      newHeight = Math.max(20, newHeight);
+      
+      shapeAny.setWidth(newWidth);
+      shapeAny.setHeight(newHeight);
+    }
+    
+    renderModel();
+    emit('shape-update');
+  }
+  
+  // Rotating shape
+  else if (isRotating.value && dragStart.value && shapeStartLocation.value && selectionBounds.value) {
+    // Calculate angle from center of selection box to current mouse position
+    const centerX = selectionBounds.value.x + selectionBounds.value.width / 2;
+    const centerY = selectionBounds.value.y + selectionBounds.value.height / 2;
+    
+    const startAngle = Math.atan2(dragStart.value.y - centerY, dragStart.value.x - centerX);
+    const currentAngle = Math.atan2(event.clientY - centerY, event.clientX - centerX);
+    
+    const deltaAngle = currentAngle - startAngle;
+    const newRotation = shapeStartRotation.value + deltaAngle;
+    
+    selectedShape.value.setRotation(newRotation);
+    renderModel();
     emit('shape-update');
   }
 }
@@ -318,9 +440,13 @@ function handleMouseMove(event: MouseEvent) {
 function handleMouseUp() {
   isDragging.value = false;
   isResizing.value = false;
+  isRotating.value = false;
   resizeHandle.value = null;
   dragStart.value = null;
   shapeStartLocation.value = null;
+  shapeStartRotation.value = 0;
+  shapeStartSize.value = null;
+  document.body.style.cursor = '';
 }
 
 // Grid snapping
@@ -380,11 +506,28 @@ function updateContainerSize() {
   }
 }
 
+// Canvas config update methods
+function updateBoundary(from: { x: number; y: number }, to: { x: number; y: number }) {
+  if (canvas.value) {
+    canvas.value.setBoundary(from, to);
+    renderModel();
+  }
+}
+
+function updateBackground(color: string) {
+  if (canvas.value) {
+    canvas.value.setBackgroundColor(color);
+    renderModel();
+  }
+}
+
 // Expose methods
 defineExpose({
   zoomIn,
   zoomOut,
-  resetZoom
+  resetZoom,
+  updateBoundary,
+  updateBackground
 });
 </script>
 
@@ -426,43 +569,113 @@ defineExpose({
 
 .selection-box {
   position: absolute;
-  border: 2px solid var(--qui-color-primary);
-  background: rgba(0, 136, 255, 0.05);
+  border: 2px solid var(--qui-accent-color, #00ff88);
+  background: color-mix(in srgb, var(--qui-accent-color, #00ff88) 8%, transparent);
   pointer-events: all;
   cursor: move;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2),
+              0 2px 8px rgba(0, 0, 0, 0.15),
+              inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+  transition: all 0.15s ease;
+  border-radius: 2px;
+}
+
+.selection-box:hover {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.3),
+              0 4px 12px rgba(0, 0, 0, 0.25),
+              inset 0 0 0 1px rgba(255, 255, 255, 0.15);
+  border-color: color-mix(in srgb, var(--qui-accent-color, #00ff88) 120%, white);
+}
+
+.selection-box.is-dragging {
+  cursor: grabbing;
+  box-shadow: 0 0 0 2px var(--qui-accent-color, #00ff88),
+              0 6px 20px rgba(0, 0, 0, 0.4),
+              inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+  opacity: 0.9;
+}
+
+.selection-box.is-resizing {
+  box-shadow: 0 0 0 2px var(--qui-accent-color, #00ff88),
+              0 6px 20px rgba(0, 0, 0, 0.4),
+              inset 0 0 0 1px rgba(255, 255, 255, 0.2);
 }
 
 .resize-handle {
   position: absolute;
-  width: 10px;
-  height: 10px;
-  background: var(--qui-color-primary);
-  border: 1px solid white;
+  width: 12px;
+  height: 12px;
+  background: var(--qui-accent-color, #00ff88);
+  border: 2px solid rgba(255, 255, 255, 0.9);
   border-radius: 50%;
   pointer-events: all;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3), 
+              inset 0 1px 2px rgba(255, 255, 255, 0.3);
+  transition: all 0.15s ease;
+}
+
+.resize-handle:hover {
+  transform: scale(1.3);
+  background: color-mix(in srgb, var(--qui-accent-color, #00ff88) 120%, white);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.4), 
+              inset 0 1px 2px rgba(255, 255, 255, 0.4);
 }
 
 .handle-nw {
-  top: -5px;
-  left: -5px;
+  top: -6px;
+  left: -6px;
   cursor: nw-resize;
 }
 
 .handle-ne {
-  top: -5px;
-  right: -5px;
+  top: -6px;
+  right: -6px;
   cursor: ne-resize;
 }
 
 .handle-sw {
-  bottom: -5px;
-  left: -5px;
+  bottom: -6px;
+  left: -6px;
   cursor: sw-resize;
 }
 
 .handle-se {
-  bottom: -5px;
-  right: -5px;
+  bottom: -6px;
+  right: -6px;
   cursor: se-resize;
+}
+
+.rotate-handle {
+  position: absolute;
+  top: -36px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 24px;
+  height: 24px;
+  background: var(--qui-accent-secondary, #0088ff);
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  border-radius: 50%;
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: white;
+  pointer-events: all;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3), 
+              inset 0 1px 2px rgba(255, 255, 255, 0.3);
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.rotate-handle:hover {
+  transform: translateX(-50%) scale(1.2);
+  background: color-mix(in srgb, var(--qui-accent-secondary, #0088ff) 120%, white);
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.4), 
+              inset 0 1px 2px rgba(255, 255, 255, 0.4);
+}
+
+.rotate-handle:active {
+  cursor: grabbing;
 }
 </style>

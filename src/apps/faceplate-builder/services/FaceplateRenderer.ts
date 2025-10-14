@@ -83,11 +83,7 @@ export class FaceplateRenderer {
       this.applyCallbacksToModel(this.model, config);
       console.log('Callbacks applied to shapes');
       
-      // Step 7: Draw model to canvas first (shapes need to be rendered before updates)
-      this.model.draw(this.canvas);
-      console.log('Model drawn to canvas');
-      
-      // Step 8: Set up notification channels
+      // Step 7: Set up notification channels
       if (config.notificationChannels) {
         for (const channel of config.notificationChannels) {
           // Replace TARGET_ENTITY placeholder and resolve field type names to IDs
@@ -97,11 +93,15 @@ export class FaceplateRenderer {
         console.log('Notification channels registered:', config.notificationChannels.length);
       }
       
-      // Step 9: Load initial values (after shapes are drawn)
+      // Step 8: Load initial values
       await this.loadInitialValues(config, targetEntityId);
       console.log('Initial values loaded');
       
-      // Step 10: Execute initialization script
+      // Step 9: Draw model to canvas
+      this.model.draw(this.canvas);
+      console.log('Model drawn to canvas');
+      
+      // Step 9: Execute initialization script
       if (config.initScript) {
         await this.callbackManager.executeInitScript(config.initScript);
         console.log('Initialization script executed');

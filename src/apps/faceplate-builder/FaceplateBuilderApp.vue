@@ -42,6 +42,29 @@
           <input type="checkbox" v-model="snapToGrid" :disabled="!showGrid" />
           Snap
         </label>
+        
+        <div class="separator"></div>
+        
+        <!-- Canvas config -->
+        <button @click="showCanvasConfig = !showCanvasConfig" class="btn btn-secondary" title="Canvas Settings">
+          <span class="icon">⚙️</span> Canvas
+        </button>
+      </div>
+    </div>
+    
+    <!-- Canvas Configuration Panel -->
+    <div v-if="showCanvasConfig" class="canvas-config-panel">
+      <div class="config-group">
+        <label>Width:</label>
+        <input type="number" v-model.number="canvasWidth" @change="updateCanvasSize" min="100" max="4000" step="50" />
+      </div>
+      <div class="config-group">
+        <label>Height:</label>
+        <input type="number" v-model.number="canvasHeight" @change="updateCanvasSize" min="100" max="4000" step="50" />
+      </div>
+      <div class="config-group">
+        <label>Background:</label>
+        <input type="color" v-model="canvasBackground" @change="updateCanvasBackground" />
       </div>
     </div>
     
@@ -60,6 +83,9 @@
           :selected-shape-index="selectedShapeIndex"
           :show-grid="showGrid"
           :snap-to-grid="snapToGrid"
+          :canvas-width="canvasWidth"
+          :canvas-height="canvasHeight"
+          :canvas-background="canvasBackground"
           @shape-select="onShapeSelect"
           @shape-update="onShapeUpdate"
           @shape-drop="onShapeDrop"
@@ -116,6 +142,12 @@ const showSaveModal = ref(false);
 // View controls
 const showGrid = ref(true);
 const snapToGrid = ref(true);
+
+// Canvas configuration
+const showCanvasConfig = ref(false);
+const canvasWidth = ref(1000);
+const canvasHeight = ref(600);
+const canvasBackground = ref('#1a1a1a');
 
 // Canvas ref
 const canvasEditor = ref<InstanceType<typeof CanvasEditor> | null>(null);
@@ -237,6 +269,27 @@ function onDeleteShape() {
     selectedShapeIndex.value = null;
     hasChanges.value = true;
   }
+}
+
+// Canvas configuration methods
+function updateCanvasSize() {
+  if (canvasEditor.value) {
+    const editor = canvasEditor.value as any;
+    if (editor.updateBoundary) {
+      editor.updateBoundary({ x: 0, y: 0 }, { x: canvasWidth.value, y: canvasHeight.value });
+    }
+  }
+  hasChanges.value = true;
+}
+
+function updateCanvasBackground() {
+  if (canvasEditor.value) {
+    const editor = canvasEditor.value as any;
+    if (editor.updateBackground) {
+      editor.updateBackground(canvasBackground.value);
+    }
+  }
+  hasChanges.value = true;
 }
 
 // Helper functions
@@ -401,12 +454,14 @@ watch(() => currentModel.value.getShapes().length, () => {
 
 .top-toolbar {
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
-  background: var(--qui-color-background-secondary);
-  border-bottom: 1px solid var(--qui-color-border);
+  align-items: center;
+  padding: 12px 20px;
+  background: var(--qui-titlebar-bg, #1e1e1e);
+  border-bottom: 1px solid var(--qui-titlebar-border, rgba(255, 255, 255, 0.1));
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
   gap: 16px;
+  min-height: 60px;
   flex-shrink: 0;
 }
 
@@ -423,76 +478,191 @@ watch(() => currentModel.value.getShapes().length, () => {
 
 .app-title {
   margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--qui-color-text);
+  font-size: var(--qui-font-size-large, 16px);
+  font-weight: var(--qui-font-weight-bold, 600);
+  color: var(--qui-text-primary, #fff);
+  letter-spacing: -0.02em;
 }
 
 .btn {
-  padding: 6px 12px;
+  padding: 8px 16px;
   border: none;
-  border-radius: 4px;
-  font-size: 14px;
+  border-radius: 6px;
+  font-size: var(--qui-font-size-base, 14px);
+  font-weight: var(--qui-font-weight-medium, 500);
   cursor: pointer;
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 4px;
-  transition: background 0.2s;
+  gap: 6px;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
   white-space: nowrap;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  transform: translate(-50%, -50%);
+  transition: width 0.4s, height 0.4s;
+}
+
+.btn:active::before {
+  width: 200px;
+  height: 200px;
 }
 
 .btn:disabled {
-  opacity: 0.5;
+  opacity: 0.35;
   cursor: not-allowed;
+  filter: grayscale(0.5);
 }
 
 .btn-primary {
-  background: var(--qui-color-primary);
-  color: var(--qui-color-text-on-primary);
+  background: var(--qui-accent-color, #00ff88);
+  color: var(--qui-bg-primary, #000);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2), 
+              inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  font-weight: var(--qui-font-weight-bold, 600);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--qui-color-primary-hover);
+  background: color-mix(in srgb, var(--qui-accent-color, #00ff88) 110%, white);
+  box-shadow: 0 4px 12px rgba(0, 255, 136, 0.3), 
+              inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 
+              inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
 .btn-secondary {
-  background: var(--qui-color-background);
-  color: var(--qui-color-text);
-  border: 1px solid var(--qui-color-border);
+  background: var(--qui-bg-secondary, #2a2a2a);
+  color: var(--qui-text-primary, #fff);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 
+              inset 0 0 0 1px rgba(255, 255, 255, 0.1);
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background: var(--qui-color-background-hover);
+  background: color-mix(in srgb, var(--qui-bg-secondary, #2a2a2a) 90%, white);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4), 
+              inset 0 0 0 1px rgba(255, 255, 255, 0.15);
+  transform: translateY(-1px);
+}
+
+.btn-secondary:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 
+              inset 0 0 0 1px rgba(255, 255, 255, 0.05);
 }
 
 .icon {
-  font-size: 14px;
+  font-size: 15px;
+  line-height: 1;
+  opacity: 0.9;
 }
 
 .separator {
   width: 1px;
-  height: 24px;
-  background: var(--qui-color-border);
-  margin: 0 4px;
+  height: 28px;
+  background: rgba(255, 255, 255, 0.15);
+  margin: 0 8px;
+  flex-shrink: 0;
 }
 
 .checkbox-label {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 4px;
-  font-size: 14px;
-  color: var(--qui-color-text);
+  gap: 6px;
+  font-size: var(--qui-font-size-small, 13px);
+  color: var(--qui-text-primary, #fff);
   cursor: pointer;
   user-select: none;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background 0.15s ease;
+}
+
+.checkbox-label:hover {
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .checkbox-label input[type="checkbox"] {
   cursor: pointer;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--qui-accent-color, #00ff88);
 }
 
 .checkbox-label input[type="checkbox"]:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
+}
+
+.canvas-config-panel {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 12px 20px;
+  background: var(--qui-bg-secondary, #2a2a2a);
+  border-bottom: 1px solid var(--qui-titlebar-border, rgba(255, 255, 255, 0.1));
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2);
+  flex-shrink: 0;
+}
+
+.config-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--qui-font-size-small, 13px);
+  color: var(--qui-text-primary, #fff);
+}
+
+.config-group label {
+  font-weight: var(--qui-font-weight-medium, 500);
+  min-width: 70px;
+  color: var(--qui-text-secondary, #aaa);
+}
+
+.config-group input[type="number"] {
+  width: 100px;
+  padding: 7px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  background: var(--qui-bg-primary, #1a1a1a);
+  color: var(--qui-text-primary, #fff);
+  font-size: var(--qui-font-size-small, 13px);
+  transition: all 0.15s ease;
+}
+
+.config-group input[type="number"]:focus {
+  outline: none;
+  border-color: var(--qui-accent-color, #00ff88);
+  box-shadow: 0 0 0 2px rgba(0, 255, 136, 0.2);
+}
+
+.config-group input[type="color"] {
+  width: 60px;
+  height: 32px;
+  padding: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  background: var(--qui-bg-primary, #1a1a1a);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.config-group input[type="color"]:hover {
+  border-color: var(--qui-accent-color, #00ff88);
 }
 
 .main-content {
@@ -502,16 +672,36 @@ watch(() => currentModel.value.getShapes().length, () => {
 }
 
 .sidebar {
-  width: 280px;
-  background: var(--qui-color-background-secondary);
-  border-right: 1px solid var(--qui-color-border);
+  width: 300px;
+  background: var(--qui-bg-secondary, #2a2a2a);
+  border-right: 1px solid var(--qui-window-border, rgba(255, 255, 255, 0.1));
   overflow-y: auto;
+  overflow-x: hidden;
   flex-shrink: 0;
+  box-shadow: inset -1px 0 3px rgba(0, 0, 0, 0.1);
+}
+
+.sidebar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.sidebar::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.sidebar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+
+.sidebar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
 }
 
 .sidebar-right {
   border-right: none;
-  border-left: 1px solid var(--qui-color-border);
+  border-left: 1px solid var(--qui-window-border, rgba(255, 255, 255, 0.1));
+  box-shadow: inset 1px 0 3px rgba(0, 0, 0, 0.1);
 }
 
 .canvas-area {

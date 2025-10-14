@@ -96,63 +96,105 @@ function onDragEnd() {
 
 <style scoped>
 .shape-palette {
-  padding: 16px;
+  padding: 20px;
 }
 
 .palette-header {
-  margin-bottom: 16px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid var(--qui-accent-color, #00ff88);
 }
 
 .palette-header h3 {
-  margin: 0 0 4px 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--qui-color-text);
+  margin: 0 0 6px 0;
+  font-size: var(--qui-font-size-large, 16px);
+  font-weight: var(--qui-font-weight-bold, 600);
+  color: var(--qui-text-primary, #fff);
+  letter-spacing: -0.01em;
 }
 
 .palette-subtitle {
   margin: 0;
-  font-size: 12px;
-  color: var(--qui-color-text-secondary);
+  font-size: var(--qui-font-size-small, 12px);
+  color: var(--qui-text-secondary, #aaa);
+  opacity: 0.8;
 }
 
 .shapes-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .shape-item {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px;
-  background: var(--qui-color-background);
-  border: 1px solid var(--qui-color-border);
-  border-radius: 6px;
+  gap: 14px;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, 
+    rgba(255, 255, 255, 0.03) 0%, 
+    rgba(255, 255, 255, 0.01) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
   cursor: grab;
-  transition: all 0.2s;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   user-select: none;
+  position: relative;
+  overflow: hidden;
+}
+
+.shape-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--qui-accent-color, #00ff88);
+  transform: scaleY(0);
+  transition: transform 0.2s ease;
 }
 
 .shape-item:hover {
-  background: var(--qui-color-background-hover);
-  border-color: var(--qui-color-primary);
-  transform: translateX(2px);
+  background: linear-gradient(135deg, 
+    rgba(0, 255, 136, 0.08) 0%, 
+    rgba(0, 255, 136, 0.03) 100%);
+  border-color: var(--qui-accent-color, #00ff88);
+  transform: translateX(4px);
+  box-shadow: 0 4px 12px rgba(0, 255, 136, 0.15), 
+              inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.shape-item:hover::before {
+  transform: scaleY(1);
 }
 
 .shape-item:active {
   cursor: grabbing;
+  transform: translateX(2px) scale(0.98);
+  box-shadow: 0 2px 6px rgba(0, 255, 136, 0.2), 
+              inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .shape-icon {
-  width: 40px;
-  height: 40px;
+  width: 48px;
+  height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--qui-color-primary);
+  color: var(--qui-accent-color, #00ff88);
   flex-shrink: 0;
+  background: rgba(0, 255, 136, 0.1);
+  border-radius: 8px;
+  border: 1px solid rgba(0, 255, 136, 0.2);
+  transition: all 0.2s ease;
+}
+
+.shape-item:hover .shape-icon {
+  background: rgba(0, 255, 136, 0.15);
+  border-color: rgba(0, 255, 136, 0.4);
+  transform: scale(1.05);
+  box-shadow: 0 0 12px rgba(0, 255, 136, 0.3);
 }
 
 .shape-info {
@@ -161,17 +203,20 @@ function onDragEnd() {
 }
 
 .shape-name {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--qui-color-text);
-  margin-bottom: 2px;
+  font-size: var(--qui-font-size-base, 14px);
+  font-weight: var(--qui-font-weight-medium, 500);
+  color: var(--qui-text-primary, #fff);
+  margin-bottom: 4px;
+  letter-spacing: -0.01em;
 }
 
 .shape-description {
-  font-size: 12px;
-  color: var(--qui-color-text-secondary);
+  font-size: var(--qui-font-size-small, 12px);
+  color: var(--qui-text-secondary, #aaa);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  opacity: 0.85;
+  line-height: 1.4;
 }
 </style>
