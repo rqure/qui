@@ -196,6 +196,7 @@ import type { Drawable } from '@/core/canvas/shapes/base';
 const props = defineProps<{
   selectedShape: Drawable | null;
   selectedIndex: number | null;
+  updateTrigger: number;
 }>();
 
 const emit = defineEmits<{
@@ -210,16 +211,19 @@ const shapeTypeName = computed(() => {
 });
 
 const location = computed(() => {
+  props.updateTrigger; // dependency
   if (!props.selectedShape) return { x: 0, y: 0 };
-  return props.selectedShape.getLocation();
+  return props.selectedShape.getOffset();
 });
 
 const rotation = computed(() => {
+  props.updateTrigger; // dependency
   if (!props.selectedShape) return 0;
   return props.selectedShape.getRotation();
 });
 
 const circleProps = computed(() => {
+  props.updateTrigger; // dependency
   if (!props.selectedShape) return { radius: 50, fillColor: '#00ff88', fillOpacity: 0.5 };
   const shape = props.selectedShape as any;
   return {
@@ -230,6 +234,7 @@ const circleProps = computed(() => {
 });
 
 const polygonProps = computed(() => {
+  props.updateTrigger; // dependency
   if (!props.selectedShape) return { fillColor: '#0088ff', fillOpacity: 0.5 };
   const shape = props.selectedShape as any;
   return {
@@ -239,6 +244,7 @@ const polygonProps = computed(() => {
 });
 
 const polylineProps = computed(() => {
+  props.updateTrigger; // dependency
   if (!props.selectedShape) return { color: '#ff0088', weight: 3 };
   const shape = props.selectedShape as any;
   return {
@@ -248,6 +254,7 @@ const polylineProps = computed(() => {
 });
 
 const textProps = computed(() => {
+  props.updateTrigger; // dependency
   if (!props.selectedShape) return { text: 'Text', fontSize: 16, color: '#ffffff' };
   const shape = props.selectedShape as any;
   return {

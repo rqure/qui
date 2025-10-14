@@ -14,6 +14,33 @@ export class Polygon extends Drawable {
   private _fillColor: string = '#f03';
   private _fillOpacity: number = 0.5;
   private _weight: number = 1;
+  
+  /**
+   * Get transformed edges (with scale, rotation, and offset applied)
+   * Based on qschematic's approach
+   */
+  protected getTransformedEdges(): Point[] {
+    const scale = this.getAbsoluteScale();
+    const rotation = this.getAbsoluteRotation();
+    const offset = this.getAbsoluteOffset();
+    
+    return this._edges.map(point => {
+      // Step 1: Apply scaling relative to the origin
+      const scaledX = point.x * scale.x;
+      const scaledY = point.y * scale.y;
+      
+      // Step 2: Apply rotation around the origin
+      const rotatedX = Math.cos(rotation) * scaledX - Math.sin(rotation) * scaledY;
+      const rotatedY = Math.sin(rotation) * scaledX + Math.cos(rotation) * scaledY;
+      
+      // Step 3: Apply translation (offset)
+      const finalX = rotatedX + offset.x;
+      const finalY = rotatedY + offset.y;
+      const finalZ = (point.z || 0) + (offset.z || 0);
+      
+      return { x: finalX, y: finalY, z: finalZ };
+    });
+  }
 
   /**
    * Add an edge (vertex)
@@ -136,13 +163,13 @@ export class Polygon extends Drawable {
       return;
     }
 
-    // Get effective position (offset applied to all edges)
-    const offset = this.getEffectivePosition();
+    // Get transformed edges with rotation and scale applied
+    const transformedEdges = this.getTransformedEdges();
 
     // Convert edges to Leaflet LatLng format
-    const latlngs: L.LatLngExpression[] = this._edges.map(edge => [
-      edge.y + offset.y,
-      edge.x + offset.x
+    const latlngs: L.LatLngExpression[] = transformedEdges.map(edge => [
+      edge.y,
+      edge.x
     ] as L.LatLngExpression);
 
     // Create polygon options

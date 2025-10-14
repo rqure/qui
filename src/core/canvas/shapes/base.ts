@@ -187,14 +187,72 @@ export abstract class Drawable {
   }
 
   /**
-   * Calculate effective position (location + offset)
+   * Calculate effective position (location + offset + rotation)
+   * Based on qschematic's approach
    */
   protected getEffectivePosition(): Point {
+    const pivot = this._location;
+    
+    // Apply scaling to the pivot
+    const scale = this.getAbsoluteScale();
+    const scaledX = pivot.x * scale.x;
+    const scaledY = pivot.y * scale.y;
+    
+    // Apply rotation to the scaled point
+    const radians = this.getAbsoluteRotation();
+    const rotatedX = Math.cos(radians) * scaledX - Math.sin(radians) * scaledY;
+    const rotatedY = Math.sin(radians) * scaledX + Math.cos(radians) * scaledY;
+    
+    // Apply translation (offset)
+    const offset = this.getAbsoluteOffset();
+    const finalX = rotatedX + offset.x;
+    const finalY = rotatedY + offset.y;
+    
     return {
-      x: this._location.x + this._offset.x,
-      y: this._location.y + this._offset.y,
-      z: this._location.z
+      x: finalX,
+      y: finalY,
+      z: (pivot.z || 0) + (offset.z || 0)
     };
+  }
+  
+  /**
+   * Get absolute rotation (including parent)
+   */
+  protected getAbsoluteRotation(): number {
+    if (this.parent) {
+      return (this.parent as any).getAbsoluteRotation() + this._rotation;
+    }
+    return this._rotation;
+  }
+  
+  /**
+   * Get absolute scale (including parent)
+   */
+  protected getAbsoluteScale(): Point {
+    if (this.parent) {
+      const parentScale = (this.parent as any).getAbsoluteScale();
+      return {
+        x: parentScale.x * this._scale.x,
+        y: parentScale.y * this._scale.y,
+        z: (parentScale.z || 1) * (this._scale.z || 1)
+      };
+    }
+    return this._scale;
+  }
+  
+  /**
+   * Get absolute offset (including parent)
+   */
+  protected getAbsoluteOffset(): Point {
+    if (this.parent) {
+      const parentOffset = (this.parent as any).getAbsoluteOffset();
+      return {
+        x: parentOffset.x + this._offset.x,
+        y: parentOffset.y + this._offset.y,
+        z: (parentOffset.z || 0) + (this._offset.z || 0)
+      };
+    }
+    return this._offset;
   }
 
   /**

@@ -86,6 +86,7 @@
           :canvas-width="canvasWidth"
           :canvas-height="canvasHeight"
           :canvas-background="canvasBackground"
+          :update-trigger="shapeUpdateTrigger"
           @shape-select="onShapeSelect"
           @shape-update="onShapeUpdate"
           @shape-drop="onShapeDrop"
@@ -98,6 +99,7 @@
         <PropertiesPanel
           :selected-shape="selectedShape"
           :selected-index="selectedShapeIndex"
+          :update-trigger="shapeUpdateTrigger"
           @update-property="onPropertyUpdate"
           @delete-shape="onDeleteShape"
         />
@@ -138,6 +140,7 @@ const selectedShapeIndex = ref<number | null>(null);
 const hasChanges = ref(false);
 const showLoadModal = ref(false);
 const showSaveModal = ref(false);
+const shapeUpdateTrigger = ref(0);
 
 // View controls
 const showGrid = ref(true);
@@ -237,6 +240,7 @@ function onShapeSelect(index: number) {
 
 function onShapeUpdate() {
   hasChanges.value = true;
+  shapeUpdateTrigger.value++;
 }
 
 function onShapeDrop(shapeType: string, location: { x: number; y: number }) {
@@ -246,6 +250,7 @@ function onShapeDrop(shapeType: string, location: { x: number; y: number }) {
     currentModel.value.addShape(shape);
     selectedShapeIndex.value = currentModel.value.getShapes().length - 1;
     hasChanges.value = true;
+    shapeUpdateTrigger.value++;
   }
 }
 
@@ -259,6 +264,12 @@ function onPropertyUpdate(property: string, value: any) {
     // Apply property update to shape
     applyPropertyToShape(selectedShape.value, property, value);
     hasChanges.value = true;
+    
+    // Force canvas re-render
+    canvasEditor.value?.renderModel();
+    
+    // Trigger UI updates
+    shapeUpdateTrigger.value++;
   }
 }
 
@@ -298,7 +309,8 @@ function createDefaultShape(shapeType: string, location: { x: number; y: number 
   
   if (!shape) return null;
   
-  shape.setLocation(location);
+  shape.setOffset(location);
+  shape.setPivot({ x: 0, y: 0 });
   
   // Set default properties based on type
   if (shapeType === 'Circle') {
@@ -334,11 +346,11 @@ function applyPropertyToShape(shape: Drawable, property: string, value: any) {
   const shapeAny = shape as any;
   
   if (property === 'x' || property === 'y') {
-    const loc = shape.getLocation();
+    const offset = shape.getOffset();
     if (property === 'x') {
-      shape.setLocation({ ...loc, x: value });
+      shape.setOffset({ ...offset, x: value });
     } else {
-      shape.setLocation({ ...loc, y: value });
+      shape.setOffset({ ...offset, y: value });
     }
   } else if (property === 'rotation') {
     shape.setRotation(value);
@@ -374,7 +386,7 @@ function modelToConfig(model: Model): FaceplateModelConfig {
 function shapeToConfig(shape: Drawable): FaceplateShapeConfig {
   const config: FaceplateShapeConfig = {
     type: shape.constructor.name,
-    location: shape.getLocation(),
+    location: shape.getOffset(),
     rotation: shape.getRotation()
   };
   
@@ -401,7 +413,8 @@ function configToModel(config: any): Model {
       const shape = createShape(shapeConfig.type);
       if (shape) {
         // Apply config properties
-        if (shapeConfig.location) shape.setLocation(shapeConfig.location);
+        if (shapeConfig.location) shape.setOffset(shapeConfig.location);
+        shape.setPivot({ x: 0, y: 0 });
         if (shapeConfig.rotation !== undefined) shape.setRotation(shapeConfig.rotation);
         
         const shapeAny = shape as any;

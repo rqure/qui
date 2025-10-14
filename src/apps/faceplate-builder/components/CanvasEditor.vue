@@ -4,7 +4,6 @@
     ref="containerRef"
     @drop="onDrop"
     @dragover="onDragOver"
-    @click="onContainerClick"
   >
     <div class="canvas-wrapper" ref="canvasRef"></div>
     
@@ -22,28 +21,6 @@
       </defs>
       <rect width="100%" height="100%" fill="url(#grid)" />
     </svg>
-    
-    <!-- Selection overlay -->
-    <div v-if="selectedShapeIndex !== null && selectionBounds" class="selection-overlay">
-      <div 
-        class="selection-box"
-        :class="{ 'is-dragging': isDragging, 'is-resizing': isResizing }"
-        :style="{
-          left: selectionBounds.x + 'px',
-          top: selectionBounds.y + 'px',
-          width: selectionBounds.width + 'px',
-          height: selectionBounds.height + 'px'
-        }"
-        @mousedown="onSelectionBoxMouseDown"
-      >
-        <!-- Resize handles -->
-        <div class="resize-handle handle-nw" @mousedown.stop="startResize($event, 'nw')" title="Resize"></div>
-        <div class="resize-handle handle-ne" @mousedown.stop="startResize($event, 'ne')" title="Resize"></div>
-        <div class="resize-handle handle-sw" @mousedown.stop="startResize($event, 'sw')" title="Resize"></div>
-        <div class="resize-handle handle-se" @mousedown.stop="startResize($event, 'se')" title="Resize"></div>
-        <div class="rotate-handle" @mousedown.stop="startRotate($event)" title="Rotate">↻</div>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -52,6 +29,7 @@ import { ref, onMounted, onBeforeUnmount, watch, computed, nextTick } from 'vue'
 import { Canvas } from '@/core/canvas/canvas';
 import { Model } from '@/core/canvas/model';
 import type { Drawable } from '@/core/canvas/shapes/base';
+import { Polygon, Circle } from '@/core/canvas/shapes';
 import L from 'leaflet';
 
 const props = withDefaults(defineProps<{
@@ -62,10 +40,12 @@ const props = withDefaults(defineProps<{
   canvasWidth?: number;
   canvasHeight?: number;
   canvasBackground?: string;
+  updateTrigger?: number;
 }>(), {
   canvasWidth: 1000,
   canvasHeight: 600,
-  canvasBackground: '#1a1a1a'
+  canvasBackground: '#1a1a1a',
+  updateTrigger: 0
 });
 
 const emit = defineEmits<{
@@ -81,17 +61,19 @@ const canvasRef = ref<HTMLElement | null>(null);
 const canvas = ref<Canvas | null>(null);
 const containerSize = ref({ width: 1000, height: 600 });
 const canvasId = `canvas-editor-${Math.random().toString(36).substr(2, 9)}`;
+const selectionModel = ref<Model | null>(null);
 
 // Grid
 const gridSize = 20;
 
 // Selection
-const selectionBounds = ref<{ x: number; y: number; width: number; height: number } | null>(null);
 const isDragging = ref(false);
 const isResizing = ref(false);
 const isRotating = ref(false);
 const resizeHandle = ref<string | null>(null);
+const activeHandle = ref<Drawable | null>(null);
 const dragStart = ref<{ x: number; y: number } | null>(null);
+const dragStartLatLng = ref<L.LatLng | null>(null);
 const shapeStartLocation = ref<{ x: number; y: number } | null>(null);
 const shapeStartRotation = ref<number>(0);
 const shapeStartSize = ref<{ width: number; height: number; radius: number } | null>(null);
@@ -130,7 +112,7 @@ watch(() => props.model.getShapes().length, () => {
 });
 
 watch(() => props.selectedShapeIndex, () => {
-  updateSelectionBounds();
+  updateSelectionShapes();
   
   // Toggle Leaflet map dragging based on selection
   if (canvas.value) {
@@ -147,6 +129,43 @@ watch(() => props.selectedShapeIndex, () => {
   }
 });
 
+// Watch for selected shape property changes
+watch(
+  () => {
+    props.updateTrigger; // dependency
+    if (selectedShape.value) {
+      const shape = selectedShape.value;
+      const shapeAny = shape as any;
+      // Create a reactive snapshot of relevant properties
+      return {
+        location: shape.getLocation(),
+        rotation: shape.getRotation(),
+        offset: shape.getOffset(),
+        scale: shape.getScale(),
+        color: shapeAny.getColor?.(),
+        fillColor: shapeAny.getFillColor?.(),
+        fillOpacity: shapeAny.getFillOpacity?.(),
+        weight: shapeAny.getWeight?.(),
+        radius: shapeAny.getRadius?.(),
+        width: shapeAny.getWidth?.(),
+        height: shapeAny.getHeight?.(),
+        edges: JSON.stringify(shapeAny.getEdges?.()),
+        text: shapeAny.getText?.(),
+      };
+    }
+    return null;
+  },
+  () => {
+    if (selectedShape.value) {
+      renderModelOnly();
+      nextTick(() => {
+        updateSelectionShapes();
+      });
+    }
+  },
+  { deep: true }
+);
+
 // Initialize canvas
 function initCanvas() {
   if (!canvasRef.value) return;
@@ -160,11 +179,17 @@ function initCanvas() {
   canvas.value.setBoundary({ x: 0, y: 0 }, { x: props.canvasWidth, y: props.canvasHeight });
   canvas.value.setBackgroundColor(props.canvasBackground);
   
+  // Create selection model
+  selectionModel.value = new Model();
+  
   // Add click handler and disable drag when shape selected
   const leafletMap = (canvas.value as any).map;
   if (leafletMap) {
     leafletMap.on('click', (e: L.LeafletMouseEvent) => {
       handleCanvasClick(e);
+    });
+    leafletMap.on('mousedown', (e: L.LeafletMouseEvent) => {
+      handleCanvasMouseDown(e);
     });
     
     // Disable map dragging initially
@@ -174,8 +199,8 @@ function initCanvas() {
   renderModel();
 }
 
-// Render model
-function renderModel() {
+// Render model without updating selection (for property changes)
+function renderModelOnly() {
   if (!canvas.value) return;
   
   // First erase the model if it was already drawn
@@ -183,8 +208,70 @@ function renderModel() {
   
   // Draw the model (it will automatically draw all shapes)
   props.model.draw(canvas.value);
+}
+
+// Render model
+function renderModel() {
+  renderModelOnly();
   
-  updateSelectionBounds();
+  // Update selection shapes after render to reflect any changes
+  nextTick(() => {
+    updateSelectionShapes();
+  });
+}
+
+// Canvas mouse down handler to detect handle clicks
+function handleCanvasMouseDown(e: L.LeafletMouseEvent) {
+  if (!selectionModel.value || !canvas.value) return;
+  
+  const clickPoint = e.latlng;
+  const selectionShapes = (selectionModel.value as any)._shapes || [];
+  
+  // Check if clicking on a selection handle
+  for (const shape of selectionShapes) {
+    if ((shape as any)._handleType && isPointInShape(shape, clickPoint)) {
+      const handleType = (shape as any)._handleType;
+      
+      if (handleType === 'rotate') {
+        startRotate(e.originalEvent as MouseEvent);
+      } else {
+        startResize(e.originalEvent as MouseEvent, handleType);
+      }
+      
+      L.DomEvent.stopPropagation(e);
+      if (e.originalEvent) {
+        e.originalEvent.preventDefault();
+        e.originalEvent.stopPropagation();
+      }
+      return;
+    }
+  }
+  
+  // Check if clicking on selection box itself (for dragging)
+  if (selectedShape.value) {
+    for (const shape of selectionShapes) {
+      if (!(shape as any)._handleType && isPointInShape(shape, clickPoint)) {
+        startDrag(e.originalEvent as MouseEvent);
+        L.DomEvent.stopPropagation(e);
+        if (e.originalEvent) {
+          e.originalEvent.preventDefault();
+          e.originalEvent.stopPropagation();
+        }
+        return;
+      }
+    }
+    
+    // Check if clicking on the selected shape itself (for dragging)
+    if (isPointInShape(selectedShape.value, clickPoint)) {
+      startDrag(e.originalEvent as MouseEvent);
+      L.DomEvent.stopPropagation(e);
+      if (e.originalEvent) {
+        e.originalEvent.preventDefault();
+        e.originalEvent.stopPropagation();
+      }
+      return;
+    }
+  }
 }
 
 // Canvas click handler
@@ -205,40 +292,157 @@ function handleCanvasClick(e: L.LeafletMouseEvent) {
   emit('canvas-click');
 }
 
-// Check if point is in shape (simplified)
+// Check if point is in shape
 function isPointInShape(shape: Drawable, point: L.LatLng): boolean {
-  const loc = shape.getLocation();
+  const loc = shape.getOffset();
+  const shapeAny = shape as any;
+  
+  // Check for Circle
+  if (shapeAny.getRadius && typeof shapeAny.getRadius === 'function') {
+    const radius = shapeAny.getRadius();
+    const distance = Math.sqrt(
+      Math.pow(point.lat - loc.y, 2) + Math.pow(point.lng - loc.x, 2)
+    );
+    return distance <= radius;
+  }
+  
+  // Check for shapes with explicit dimensions
+  if (shapeAny.getWidth && shapeAny.getHeight) {
+    const halfWidth = shapeAny.getWidth() / 2;
+    const halfHeight = shapeAny.getHeight() / 2;
+    return Math.abs(point.lng - loc.x) <= halfWidth && 
+           Math.abs(point.lat - loc.y) <= halfHeight;
+  }
+  
+  // Check for polygons/polylines
+  if (shapeAny.getEdges && typeof shapeAny.getEdges === 'function') {
+    const edges = shapeAny.getEdges();
+    if (edges && edges.length > 0) {
+      // Calculate bounds (edges are relative to shape position)
+      const xs = edges.map((e: any) => e.x);
+      const ys = edges.map((e: any) => e.y);
+      const minX = Math.min(...xs);
+      const maxX = Math.max(...xs);
+      const minY = Math.min(...ys);
+      const maxY = Math.max(...ys);
+      // Check if point is within bounds (with some padding)
+      const padding = 20;
+      return point.lng >= loc.x + minX - padding && point.lng <= loc.x + maxX + padding &&
+             point.lat >= loc.y + minY - padding && point.lat <= loc.y + maxY + padding;
+    }
+  }
+  
+  // For other shapes, use a simple distance threshold
   const distance = Math.sqrt(
     Math.pow(point.lat - loc.y, 2) + Math.pow(point.lng - loc.x, 2)
   );
-  
-  // Use 50px threshold for now (should be more sophisticated)
   return distance < 50;
 }
 
-// Update selection bounds
-function updateSelectionBounds() {
-  if (!selectedShape.value || !canvas.value) {
-    selectionBounds.value = null;
-    return;
+// Update selection shapes
+function updateSelectionShapes() {
+  if (!canvas.value) return;
+  
+  // Destroy existing selection model
+  if (selectionModel.value) {
+    selectionModel.value.erase();
+    selectionModel.value.destroy();
   }
   
+  // Create new selection model
+  selectionModel.value = new Model();
+  
+  if (!selectedShape.value) return;
+  
   const shape = selectedShape.value;
-  const loc = shape.getLocation();
+  const loc = shape.getOffset();
+  const shapeAny = shape as any;
   
-  // Convert canvas coords to screen coords
-  const leafletMap = (canvas.value as any).map;
-  if (!leafletMap) return;
+  // Calculate bounds based on shape type in Leaflet units
+  let canvasWidth = 80;
+  let canvasHeight = 80;
   
-  const point = leafletMap.latLngToContainerPoint([loc.y, loc.x]);
+  if (shapeAny.getRadius && typeof shapeAny.getRadius === 'function') {
+    const radius = shapeAny.getRadius();
+    canvasWidth = radius * 2.2; // Add 10% padding
+    canvasHeight = radius * 2.2;
+  } else if (shapeAny.getWidth && shapeAny.getHeight) {
+    canvasWidth = shapeAny.getWidth() * 1.1;
+    canvasHeight = shapeAny.getHeight() * 1.1;
+  } else if (shapeAny.getEdges && typeof shapeAny.getEdges === 'function') {
+    const edges = shapeAny.getEdges();
+    if (edges && edges.length > 0) {
+      const xs = edges.map((e: any) => e.x);
+      const ys = edges.map((e: any) => e.y);
+      const minX = Math.min(...xs);
+      const maxX = Math.max(...xs);
+      const minY = Math.min(...ys);
+      const maxY = Math.max(...ys);
+      canvasWidth = (Math.abs(maxX - minX) || 60) * 1.2;
+      canvasHeight = (Math.abs(maxY - minY) || 60) * 1.2;
+    }
+  }
   
-  // Use approximate bounds (should be more sophisticated)
-  selectionBounds.value = {
-    x: point.x - 60,
-    y: point.y - 60,
-    width: 120,
-    height: 120
-  };
+  const halfWidth = canvasWidth / 2;
+  const halfHeight = canvasHeight / 2;
+  
+  // Create selection pane for high z-index
+  const selectionPane = { name: 'selection', level: 1000 };
+  canvas.value.getOrCreatePane(selectionPane.name, selectionPane.level);
+  
+  // Create selection box (polygon)
+  const selectionBox = new Polygon();
+  selectionBox.setFillColor('rgba(0, 255, 136, 0.05)');
+  selectionBox.setColor('#00ff88');
+  selectionBox.setFillOpacity(0.08);
+  selectionBox.setWeight(2);
+  selectionBox.setOffset({ x: loc.x, y: loc.y });
+  selectionBox.setPane(selectionPane);
+  selectionBox.addEdge({ x: -halfWidth, y: -halfHeight });
+  selectionBox.addEdge({ x: halfWidth, y: -halfHeight });
+  selectionBox.addEdge({ x: halfWidth, y: halfHeight });
+  selectionBox.addEdge({ x: -halfWidth, y: halfHeight });
+  (selectionBox as any)._isSelectionShape = true;
+  selectionModel.value.addShape(selectionBox);
+  
+  // Create resize handles (circles at corners)
+  const handleSize = 6;
+  const handles = [
+    { x: -halfWidth, y: -halfHeight, type: 'nw' },
+    { x: halfWidth, y: -halfHeight, type: 'ne' },
+    { x: halfWidth, y: halfHeight, type: 'se' },
+    { x: -halfWidth, y: halfHeight, type: 'sw' },
+  ];
+  
+  handles.forEach(h => {
+    const handle = new Circle();
+    handle.setRadius(handleSize);
+    handle.setFillColor('#00ff88');
+    handle.setColor('#ffffff');
+    handle.setFillOpacity(1);
+    handle.setWeight(2);
+    handle.setLocation({ x: loc.x + h.x, y: loc.y + h.y });
+    handle.setPane(selectionPane);
+    (handle as any)._isSelectionShape = true;
+    (handle as any)._handleType = h.type;
+    selectionModel.value!.addShape(handle);
+  });
+  
+  // Create rotate handle (circle above)
+  const rotateHandle = new Circle();
+  rotateHandle.setRadius(8);
+  rotateHandle.setFillColor('#0088ff');
+  rotateHandle.setColor('#ffffff');
+  rotateHandle.setFillOpacity(1);
+  rotateHandle.setWeight(2);
+  rotateHandle.setLocation({ x: loc.x, y: loc.y - halfHeight - 20 });
+  rotateHandle.setPane(selectionPane);
+  (rotateHandle as any)._isSelectionShape = true;
+  (rotateHandle as any)._handleType = 'rotate';
+  selectionModel.value.addShape(rotateHandle);
+  
+  // Draw selection shapes
+  selectionModel.value.draw(canvas.value);
 }
 
 // Drag and drop
@@ -275,29 +479,15 @@ function onDrop(event: DragEvent) {
   emit('shape-drop', shapeType, snappedLocation);
 }
 
-// Shape dragging - mousedown for proper drag behavior
-function onSelectionBoxMouseDown(event: MouseEvent) {
-  // Don't start drag if clicking on resize handles
-  if ((event.target as HTMLElement).classList.contains('resize-handle')) {
-    return;
-  }
-  
-  startDrag(event);
-  event.stopPropagation();
-  event.preventDefault();
-}
 
-function onContainerClick(event: MouseEvent) {
-  // Just for deselection when clicking outside
-  if (!selectedShape.value) return;
-}
 
 function startDrag(event: MouseEvent) {
   if (!selectedShape.value) return;
   
   isDragging.value = true;
   dragStart.value = { x: event.clientX, y: event.clientY };
-  shapeStartLocation.value = selectedShape.value.getLocation();
+  shapeStartLocation.value = selectedShape.value.getOffset();
+  document.body.style.cursor = 'grabbing';
   event.preventDefault();
 }
 
@@ -307,7 +497,7 @@ function startResize(event: MouseEvent, handle: string) {
   isResizing.value = true;
   resizeHandle.value = handle;
   dragStart.value = { x: event.clientX, y: event.clientY };
-  shapeStartLocation.value = selectedShape.value.getLocation();
+  shapeStartLocation.value = selectedShape.value.getOffset();
   
   const shapeAny = selectedShape.value as any;
   shapeStartSize.value = {
@@ -321,11 +511,15 @@ function startResize(event: MouseEvent, handle: string) {
 }
 
 function startRotate(event: MouseEvent) {
-  if (!selectedShape.value) return;
+  if (!selectedShape.value || !canvas.value) return;
+  
+  const leafletMap = (canvas.value as any).map;
+  if (!leafletMap) return;
   
   isRotating.value = true;
   dragStart.value = { x: event.clientX, y: event.clientY };
-  shapeStartLocation.value = selectedShape.value.getLocation();
+  dragStartLatLng.value = leafletMap.containerPointToLatLng([event.clientX, event.clientY]);
+  shapeStartLocation.value = selectedShape.value.getOffset();
   shapeStartRotation.value = selectedShape.value.getRotation();
   
   document.body.style.cursor = 'grab';
@@ -338,48 +532,61 @@ function handleMouseMove(event: MouseEvent) {
   const leafletMap = (canvas.value as any).map;
   if (!leafletMap) return;
   
+  // Get container coordinates
+  const container = leafletMap.getContainer();
+  const containerRect = container.getBoundingClientRect();
+  const currentContainerX = event.clientX - containerRect.left;
+  const currentContainerY = event.clientY - containerRect.top;
+  
   // Dragging shape
   if (isDragging.value && dragStart.value && shapeStartLocation.value) {
-    // Calculate delta in screen space
-    const dx = event.clientX - dragStart.value.x;
-    const dy = event.clientY - dragStart.value.y;
+    // Get container coordinates for start position
+    const startContainerX = dragStart.value.x - containerRect.left;
+    const startContainerY = dragStart.value.y - containerRect.top;
     
-    // Convert screen delta to canvas coordinates
-    const zoom = leafletMap.getZoom();
-    const scale = Math.pow(2, zoom);
-    const canvasDx = dx / scale;
-    const canvasDy = dy / scale;
+    // Convert to Leaflet coordinates
+    const startLatLng = leafletMap.containerPointToLatLng([startContainerX, startContainerY]);
+    const currentLatLng = leafletMap.containerPointToLatLng([currentContainerX, currentContainerY]);
+    
+    // Calculate delta in Leaflet coordinate space
+    const canvasDx = currentLatLng.lng - startLatLng.lng;
+    const canvasDy = currentLatLng.lat - startLatLng.lat;
     
     // Update shape location (Leaflet uses [lat, lng] which maps to [y, x])
     const newLocation = {
       x: shapeStartLocation.value.x + canvasDx,
-      y: shapeStartLocation.value.y - canvasDy // Invert Y because screen Y increases down but canvas Y increases up
+      y: shapeStartLocation.value.y + canvasDy
     };
     
     const snappedLocation = props.snapToGrid ? snapToGridCoords(newLocation) : newLocation;
-    selectedShape.value.setLocation(snappedLocation);
+    selectedShape.value.setOffset(snappedLocation);
     
-    renderModel();
+    renderModelOnly();
+    updateSelectionShapes();
     emit('shape-update');
   }
   
   // Resizing shape
   else if (isResizing.value && resizeHandle.value && dragStart.value && shapeStartSize.value) {
-    const dx = event.clientX - dragStart.value.x;
-    const dy = event.clientY - dragStart.value.y;
+    // Get container coordinates for start position
+    const startContainerX = dragStart.value.x - containerRect.left;
+    const startContainerY = dragStart.value.y - containerRect.top;
     
-    const zoom = leafletMap.getZoom();
-    const scale = Math.pow(2, zoom);
-    const canvasDx = dx / scale;
-    const canvasDy = dy / scale;
+    // Convert to Leaflet coordinates
+    const startLatLng = leafletMap.containerPointToLatLng([startContainerX, startContainerY]);
+    const currentLatLng = leafletMap.containerPointToLatLng([currentContainerX, currentContainerY]);
+    
+    // Calculate delta in Leaflet coordinate space
+    const canvasDx = currentLatLng.lng - startLatLng.lng;
+    const canvasDy = currentLatLng.lat - startLatLng.lat;
     
     const shapeAny = selectedShape.value as any;
     
     // Handle Circle radius
     if (shapeAny.setRadius && typeof shapeAny.getRadius === 'function') {
       const radiusChange = Math.sqrt(canvasDx * canvasDx + canvasDy * canvasDy) * 
-                          ((canvasDx + canvasDy) > 0 ? 1 : -1);
-      const newRadius = Math.max(10, shapeStartSize.value.radius + radiusChange);
+                          ((canvasDx - canvasDy) > 0 ? 1 : -1);
+      const newRadius = Math.max(5, shapeStartSize.value.radius + radiusChange);
       shapeAny.setRadius(newRadius);
     }
     
@@ -389,50 +596,56 @@ function handleMouseMove(event: MouseEvent) {
       let newHeight = shapeStartSize.value.height;
       
       // Apply resize based on handle direction
+      // Note: In Leaflet, lat increases upward (Y), lng increases rightward (X)
       switch (resizeHandle.value) {
-        case 'se':
+        case 'se': // bottom-right
           newWidth += canvasDx;
-          newHeight -= canvasDy;
+          newHeight -= canvasDy; // subtract because lat increases upward
           break;
-        case 'sw':
+        case 'sw': // bottom-left
           newWidth -= canvasDx;
           newHeight -= canvasDy;
           break;
-        case 'ne':
+        case 'ne': // top-right
           newWidth += canvasDx;
           newHeight += canvasDy;
           break;
-        case 'nw':
+        case 'nw': // top-left
           newWidth -= canvasDx;
           newHeight += canvasDy;
           break;
       }
       
-      newWidth = Math.max(20, newWidth);
-      newHeight = Math.max(20, newHeight);
+      newWidth = Math.max(10, newWidth);
+      newHeight = Math.max(10, newHeight);
       
       shapeAny.setWidth(newWidth);
       shapeAny.setHeight(newHeight);
     }
     
-    renderModel();
+    renderModelOnly();
+    updateSelectionShapes();
     emit('shape-update');
   }
   
   // Rotating shape
-  else if (isRotating.value && dragStart.value && shapeStartLocation.value && selectionBounds.value) {
-    // Calculate angle from center of selection box to current mouse position
-    const centerX = selectionBounds.value.x + selectionBounds.value.width / 2;
-    const centerY = selectionBounds.value.y + selectionBounds.value.height / 2;
+  else if (isRotating.value && dragStart.value && shapeStartLocation.value) {
+    // Get shape center in container coordinates
+    const shapeCenterLatLng = L.latLng(shapeStartLocation.value.y, shapeStartLocation.value.x);
+    const shapeCenterPoint = leafletMap.latLngToContainerPoint(shapeCenterLatLng);
     
-    const startAngle = Math.atan2(dragStart.value.y - centerY, dragStart.value.x - centerX);
-    const currentAngle = Math.atan2(event.clientY - centerY, event.clientX - centerX);
+    // Calculate angles from shape center
+    const startAngle = Math.atan2(dragStart.value.y - containerRect.top - shapeCenterPoint.y, 
+                                  dragStart.value.x - containerRect.left - shapeCenterPoint.x);
+    const currentAngle = Math.atan2(event.clientY - containerRect.top - shapeCenterPoint.y, 
+                                     event.clientX - containerRect.left - shapeCenterPoint.x);
     
     const deltaAngle = currentAngle - startAngle;
     const newRotation = shapeStartRotation.value + deltaAngle;
     
     selectedShape.value.setRotation(newRotation);
-    renderModel();
+    renderModelOnly();
+    updateSelectionShapes();
     emit('shape-update');
   }
 }
@@ -527,7 +740,8 @@ defineExpose({
   zoomOut,
   resetZoom,
   updateBoundary,
-  updateBackground
+  updateBackground,
+  renderModel
 });
 </script>
 
@@ -555,127 +769,5 @@ defineExpose({
   height: 100%;
   pointer-events: none;
   z-index: 1;
-}
-
-.selection-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  z-index: 2;
-}
-
-.selection-box {
-  position: absolute;
-  border: 2px solid var(--qui-accent-color, #00ff88);
-  background: color-mix(in srgb, var(--qui-accent-color, #00ff88) 8%, transparent);
-  pointer-events: all;
-  cursor: move;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2),
-              0 2px 8px rgba(0, 0, 0, 0.15),
-              inset 0 0 0 1px rgba(255, 255, 255, 0.1);
-  transition: all 0.15s ease;
-  border-radius: 2px;
-}
-
-.selection-box:hover {
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.3),
-              0 4px 12px rgba(0, 0, 0, 0.25),
-              inset 0 0 0 1px rgba(255, 255, 255, 0.15);
-  border-color: color-mix(in srgb, var(--qui-accent-color, #00ff88) 120%, white);
-}
-
-.selection-box.is-dragging {
-  cursor: grabbing;
-  box-shadow: 0 0 0 2px var(--qui-accent-color, #00ff88),
-              0 6px 20px rgba(0, 0, 0, 0.4),
-              inset 0 0 0 1px rgba(255, 255, 255, 0.2);
-  opacity: 0.9;
-}
-
-.selection-box.is-resizing {
-  box-shadow: 0 0 0 2px var(--qui-accent-color, #00ff88),
-              0 6px 20px rgba(0, 0, 0, 0.4),
-              inset 0 0 0 1px rgba(255, 255, 255, 0.2);
-}
-
-.resize-handle {
-  position: absolute;
-  width: 12px;
-  height: 12px;
-  background: var(--qui-accent-color, #00ff88);
-  border: 2px solid rgba(255, 255, 255, 0.9);
-  border-radius: 50%;
-  pointer-events: all;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3), 
-              inset 0 1px 2px rgba(255, 255, 255, 0.3);
-  transition: all 0.15s ease;
-}
-
-.resize-handle:hover {
-  transform: scale(1.3);
-  background: color-mix(in srgb, var(--qui-accent-color, #00ff88) 120%, white);
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.4), 
-              inset 0 1px 2px rgba(255, 255, 255, 0.4);
-}
-
-.handle-nw {
-  top: -6px;
-  left: -6px;
-  cursor: nw-resize;
-}
-
-.handle-ne {
-  top: -6px;
-  right: -6px;
-  cursor: ne-resize;
-}
-
-.handle-sw {
-  bottom: -6px;
-  left: -6px;
-  cursor: sw-resize;
-}
-
-.handle-se {
-  bottom: -6px;
-  right: -6px;
-  cursor: se-resize;
-}
-
-.rotate-handle {
-  position: absolute;
-  top: -36px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 24px;
-  height: 24px;
-  background: var(--qui-accent-secondary, #0088ff);
-  border: 2px solid rgba(255, 255, 255, 0.9);
-  border-radius: 50%;
-  cursor: grab;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-  color: white;
-  pointer-events: all;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3), 
-              inset 0 1px 2px rgba(255, 255, 255, 0.3);
-  transition: all 0.15s ease;
-  user-select: none;
-}
-
-.rotate-handle:hover {
-  transform: translateX(-50%) scale(1.2);
-  background: color-mix(in srgb, var(--qui-accent-secondary, #0088ff) 120%, white);
-  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.4), 
-              inset 0 1px 2px rgba(255, 255, 255, 0.4);
-}
-
-.rotate-handle:active {
-  cursor: grabbing;
 }
 </style>
