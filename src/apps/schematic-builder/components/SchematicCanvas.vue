@@ -3,7 +3,6 @@ import { ref, onMounted, onBeforeUnmount, watch, computed, nextTick } from 'vue'
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { Vector2, CanvasNode, PaletteTemplate } from '../types';
-import PrimitiveRenderer from '@/apps/faceplate-builder/components/PrimitiveRenderer.vue';
 
 const props = defineProps<{
   nodes: CanvasNode[];
@@ -27,10 +26,13 @@ const emit = defineEmits<{
 
 const mapContainer = ref<HTMLDivElement | null>(null);
 let map: L.Map | null = null;
-const nodesLayer = ref<HTMLDivElement | null>(null);
+let svgLayer: L.SVGOverlay | null = null;
+let svgElement: SVGSVGElement | null = null;
+const nodeShapes = ref<Map<string, SVGElement>>(new Map());
 
 const isDragging = ref(false);
-const dragStartPos = ref<Vector2>({ x: 0, y: 0 });
+const dragStartNode = ref<string | null>(null);
+const dragStartPos = ref<L.LatLng | null>(null);
 const selectedNodes = ref<Set<string>>(new Set());
 
 onMounted(() => {
@@ -39,7 +41,7 @@ onMounted(() => {
   // Initialize Leaflet map with CRS.Simple (for flat 2D coordinate system)
   map = L.map(mapContainer.value, {
     crs: L.CRS.Simple,
-    center: [0, 0],
+    center: [props.viewportSize.y / 2, props.viewportSize.x / 2],
     zoom: 0,
     minZoom: -2,
     maxZoom: 2,
@@ -52,6 +54,7 @@ onMounted(() => {
     L.latLng(0, 0),
     L.latLng(props.viewportSize.y, props.viewportSize.x)
   );
+  map.setMaxBounds(bounds);
   map.fitBounds(bounds);
 
   // Add a simple grid/background
@@ -62,10 +65,22 @@ onMounted(() => {
     noWrap: true,
   }).addTo(map);
 
+  // Create SVG overlay for rendering shapes
+  svgElement = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svgElement.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  svgElement.style.position = 'absolute';
+  svgElement.style.top = '0';
+  svgElement.style.left = '0';
+  
+  svgLayer = L.svgOverlay(svgElement, bounds, {
+    interactive: true,
+  }).addTo(map);
+
   // Handle map events
   map.on('zoomend', () => {
     if (map) {
       emit('zoom-change', map.getZoom());
+      updateAllNodes();
     }
   });
 
@@ -73,18 +88,160 @@ onMounted(() => {
     if (map) {
       const center = map.getCenter();
       emit('pan-change', { x: center.lng, y: center.lat });
+      updateAllNodes();
     }
+  });
+
+  // Handle clicks on the map
+  map.on('click', (e: L.LeafletMouseEvent) => {
+    // Check if click was on a node
+    const clickedNode = findNodeAtPoint(e.latlng);
+    if (!clickedNode) {
+      selectedNodes.value = new Set();
+      emit('selection-change', { selectedIds: [] });
+    }
+  });
+
+  // Initial render of nodes
+  nextTick(() => {
+    updateAllNodes();
   });
 });
 
 onBeforeUnmount(() => {
+  nodeShapes.value.clear();
   if (map) {
     map.remove();
     map = null;
   }
+  svgLayer = null;
+  svgElement = null;
 });
 
-function handleNodeClick(nodeId: string, event: MouseEvent) {
+function findNodeAtPoint(latlng: L.LatLng): string | null {
+  for (const node of props.nodes) {
+    const nodePos = node.position;
+    const nodeSize = node.size;
+    
+    // Check if point is within node bounds
+    if (latlng.lng >= nodePos.x && latlng.lng <= nodePos.x + nodeSize.x &&
+        latlng.lat >= nodePos.y && latlng.lat <= nodePos.y + nodeSize.y) {
+      return node.id;
+    }
+  }
+  return null;
+}
+
+function createPrimitiveShape(node: CanvasNode, template: PaletteTemplate | undefined): SVGElement {
+  const primitiveId = template?.primitiveId ?? 'Rectangle';
+  const config = node.props;
+  
+  let shape: SVGElement;
+  
+  // Create SVG elements based on primitive type
+  switch (primitiveId) {
+    case 'Rectangle':
+      shape = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      shape.setAttribute('x', String(node.position.x));
+      shape.setAttribute('y', String(node.position.y));
+      shape.setAttribute('width', String(node.size.x));
+      shape.setAttribute('height', String(node.size.y));
+      shape.setAttribute('fill', String(config.fill ?? '#3b82f6'));
+      shape.setAttribute('stroke', String(config.stroke ?? '#1e40af'));
+      shape.setAttribute('stroke-width', String(config.strokeWidth ?? 2));
+      shape.setAttribute('rx', String(config.cornerRadius ?? 0));
+      break;
+      
+    case 'Ellipse':
+      shape = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
+      shape.setAttribute('cx', String(node.position.x + node.size.x / 2));
+      shape.setAttribute('cy', String(node.position.y + node.size.y / 2));
+      shape.setAttribute('rx', String(node.size.x / 2));
+      shape.setAttribute('ry', String(node.size.y / 2));
+      shape.setAttribute('fill', String(config.fill ?? '#3b82f6'));
+      shape.setAttribute('stroke', String(config.stroke ?? '#1e40af'));
+      shape.setAttribute('stroke-width', String(config.strokeWidth ?? 2));
+      break;
+      
+    case 'Line':
+      shape = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      shape.setAttribute('x1', String(node.position.x));
+      shape.setAttribute('y1', String(node.position.y));
+      shape.setAttribute('x2', String(node.position.x + node.size.x));
+      shape.setAttribute('y2', String(node.position.y + node.size.y));
+      shape.setAttribute('stroke', String(config.stroke ?? '#1e40af'));
+      shape.setAttribute('stroke-width', String(config.strokeWidth ?? 2));
+      break;
+      
+    case 'Text':
+      shape = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      shape.setAttribute('x', String(node.position.x));
+      shape.setAttribute('y', String(node.position.y + node.size.y / 2));
+      shape.setAttribute('fill', String(config.color ?? '#ffffff'));
+      shape.setAttribute('font-size', String(config.fontSize ?? 14));
+      shape.setAttribute('font-family', String(config.fontFamily ?? 'sans-serif'));
+      shape.textContent = String(config.text ?? 'Text');
+      break;
+      
+    default:
+      // Default to rectangle for unknown types
+      shape = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      shape.setAttribute('x', String(node.position.x));
+      shape.setAttribute('y', String(node.position.y));
+      shape.setAttribute('width', String(node.size.x));
+      shape.setAttribute('height', String(node.size.y));
+      shape.setAttribute('fill', String(config.fill ?? '#3b82f6'));
+      shape.setAttribute('stroke', String(config.stroke ?? '#1e40af'));
+      shape.setAttribute('stroke-width', String(config.strokeWidth ?? 2));
+  }
+  
+  // Add common attributes
+  shape.setAttribute('data-node-id', node.id);
+  shape.style.cursor = node.locked ? 'not-allowed' : 'move';
+  shape.style.opacity = node.hidden ? '0.3' : '1';
+  
+  // Add event listeners
+  shape.addEventListener('click', (e) => {
+    e.stopPropagation();
+    handleNodeClick(node.id, e as any);
+  });
+  
+  shape.addEventListener('mousedown', (e) => {
+    e.stopPropagation();
+    if (!node.locked) {
+      handleNodeDragStart(node.id, e);
+    }
+  });
+  
+  return shape;
+}
+
+function updateAllNodes() {
+  if (!svgElement || !map) return;
+  
+  // Clear existing shapes
+  while (svgElement.firstChild) {
+    svgElement.removeChild(svgElement.firstChild);
+  }
+  nodeShapes.value.clear();
+  
+  // Add all nodes as SVG elements
+  for (const node of props.nodes) {
+    const template = props.templates[node.componentId];
+    const shape = createPrimitiveShape(node, template);
+    
+    // Apply selection styling
+    if (selectedNodes.value.has(node.id)) {
+      shape.setAttribute('stroke', '#10b981');
+      shape.setAttribute('stroke-width', '3');
+    }
+    
+    svgElement.appendChild(shape);
+    nodeShapes.value.set(node.id, shape);
+  }
+}
+
+function handleNodeClick(nodeId: string, event: MouseEvent | PointerEvent) {
   if (event.ctrlKey || event.metaKey) {
     // Multi-select
     const newSelection = new Set(selectedNodes.value);
@@ -100,23 +257,37 @@ function handleNodeClick(nodeId: string, event: MouseEvent) {
     selectedNodes.value = new Set([nodeId]);
     emit('selection-change', { selectedIds: [nodeId] });
   }
+  updateAllNodes();
 }
 
 function handleNodeDragStart(nodeId: string, event: MouseEvent) {
+  if (!map) return;
+  
   isDragging.value = true;
-  dragStartPos.value = { x: event.clientX, y: event.clientY };
+  dragStartNode.value = nodeId;
+  
+  const containerPoint = map.mouseEventToContainerPoint(event);
+  dragStartPos.value = map.containerPointToLatLng(containerPoint);
   
   if (!selectedNodes.value.has(nodeId)) {
     selectedNodes.value = new Set([nodeId]);
     emit('selection-change', { selectedIds: [nodeId] });
+    updateAllNodes();
   }
+  
+  // Add mousemove and mouseup to document for better drag handling
+  document.addEventListener('mousemove', handleNodeDrag);
+  document.addEventListener('mouseup', handleNodeDragEnd);
 }
 
-function handleNodeDrag(nodeId: string, event: MouseEvent) {
-  if (!isDragging.value) return;
+function handleNodeDrag(event: MouseEvent) {
+  if (!isDragging.value || !map || !dragStartPos.value) return;
   
-  const dx = event.clientX - dragStartPos.value.x;
-  const dy = event.clientY - dragStartPos.value.y;
+  const containerPoint = map.mouseEventToContainerPoint(event);
+  const currentPos = map.containerPointToLatLng(containerPoint);
+  
+  const dx = currentPos.lng - dragStartPos.value.lng;
+  const dy = currentPos.lat - dragStartPos.value.lat;
   
   // Update positions for all selected nodes
   const updates = Array.from(selectedNodes.value).map(id => {
@@ -136,68 +307,33 @@ function handleNodeDrag(nodeId: string, event: MouseEvent) {
     emit('nodes-update', { updates });
   }
   
-  dragStartPos.value = { x: event.clientX, y: event.clientY };
+  dragStartPos.value = currentPos;
 }
 
 function handleNodeDragEnd() {
   isDragging.value = false;
-}
-
-function handleCanvasClick(event: MouseEvent) {
-  if (event.target === mapContainer.value) {
-    selectedNodes.value = new Set();
-    emit('selection-change', { selectedIds: [] });
-  }
-}
-
-function handleDelete() {
-  if (selectedNodes.value.size > 0) {
-    emit('delete-nodes', { nodeIds: Array.from(selectedNodes.value) });
-    selectedNodes.value = new Set();
-  }
+  dragStartNode.value = null;
+  dragStartPos.value = null;
+  
+  document.removeEventListener('mousemove', handleNodeDrag);
+  document.removeEventListener('mouseup', handleNodeDragEnd);
 }
 
 // Watch for prop changes to update internal state
 watch(() => props.selectedNodeIds, (newIds) => {
   selectedNodes.value = new Set(newIds);
+  updateAllNodes();
 }, { immediate: true });
 
-// Compute node styles for positioning
-function getNodeStyle(node: CanvasNode) {
-  return {
-    position: 'absolute' as const,
-    left: `${node.position.x}px`,
-    top: `${node.position.y}px`,
-    width: `${node.size.x}px`,
-    height: `${node.size.y}px`,
-    zIndex: node.zIndex ?? 1,
-    opacity: node.hidden ? 0.3 : 1,
-    pointerEvents: (node.locked ? 'none' : 'auto') as 'none' | 'auto',
-  };
-}
+// Watch for node changes
+watch(() => props.nodes, () => {
+  updateAllNodes();
+}, { deep: true });
 </script>
 
 <template>
-  <div class="schematic-canvas" @click="handleCanvasClick">
+  <div class="schematic-canvas">
     <div ref="mapContainer" class="leaflet-container"></div>
-    <div ref="nodesLayer" class="nodes-layer">
-      <div
-        v-for="node in nodes"
-        :key="node.id"
-        :style="getNodeStyle(node)"
-        class="canvas-node-wrapper"
-        :class="{ selected: selectedNodes.has(node.id), locked: node.locked }"
-        @click.stop="handleNodeClick(node.id, $event)"
-        @mousedown="handleNodeDragStart(node.id, $event)"
-        @mousemove="handleNodeDrag(node.id, $event)"
-        @mouseup="handleNodeDragEnd"
-      >
-        <PrimitiveRenderer
-          :type="templates[node.componentId]?.primitiveId ?? 'Rectangle'"
-          :config="node.props"
-        />
-      </div>
-    </div>
   </div>
 </template>
 
@@ -214,31 +350,5 @@ function getNodeStyle(node: CanvasNode) {
   width: 100%;
   height: 100%;
   background: #1a1a1a;
-}
-
-.nodes-layer {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  z-index: 1000;
-}
-
-.canvas-node-wrapper {
-  pointer-events: auto;
-  cursor: move;
-  transition: opacity 0.2s;
-}
-
-.canvas-node-wrapper.selected {
-  outline: 2px solid var(--qui-accent-primary);
-  outline-offset: 2px;
-}
-
-.canvas-node-wrapper.locked {
-  cursor: not-allowed;
-  opacity: 0.6;
 }
 </style>
