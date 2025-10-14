@@ -83,19 +83,25 @@ export class FaceplateRenderer {
       this.applyCallbacksToModel(this.model, config);
       console.log('Callbacks applied to shapes');
       
-      // Step 7: Set up notification channels
+      // Step 7: Draw model to canvas first (shapes need to be rendered before updates)
+      this.model.draw(this.canvas);
+      console.log('Model drawn to canvas');
+      
+      // Step 8: Set up notification channels
       if (config.notificationChannels) {
         for (const channel of config.notificationChannels) {
-          await this.callbackManager.setupNotificationChannel(channel);
+          // Replace TARGET_ENTITY placeholder and resolve field type names to IDs
+          const processedChannel = await this.replaceTargetEntityPlaceholder(channel, targetEntityId);
+          await this.callbackManager.setupNotificationChannel(processedChannel);
         }
         console.log('Notification channels registered:', config.notificationChannels.length);
       }
       
-      // Step 8: Draw model to canvas
-      this.model.draw(this.canvas);
-      console.log('Model drawn to canvas');
+      // Step 9: Load initial values (after shapes are drawn)
+      await this.loadInitialValues(config, targetEntityId);
+      console.log('Initial values loaded');
       
-      // Step 9: Execute initialization script
+      // Step 10: Execute initialization script
       if (config.initScript) {
         await this.callbackManager.executeInitScript(config.initScript);
         console.log('Initialization script executed');
@@ -321,6 +327,105 @@ export class FaceplateRenderer {
         }
       }
     }
+  }
+  
+  // ============================================================
+  // Helper Methods
+  // ============================================================
+  
+  /**
+   * Load initial values from Store and trigger notification callbacks
+   * to populate shapes with current data
+   */
+  private async loadInitialValues(config: any, targetEntityId: number): Promise<void> {
+    if (!config.notificationChannels || !this.callbackManager) return;
+    
+    for (const channel of config.notificationChannels) {
+      try {
+        // Get the field type from the channel config
+        const fieldTypeName = channel.config?.EntityId?.field_type;
+        if (!fieldTypeName) continue;
+        
+        // Resolve field type name to ID
+        const fieldTypeId = await this.dataStore.getFieldType(fieldTypeName);
+        if (!fieldTypeId) {
+          console.warn(`Field type '${fieldTypeName}' not found for initial value load`);
+          continue;
+        }
+        
+        // Read the current value from Store
+        const [value, timestamp, writerId] = await this.dataStore.read(targetEntityId, [fieldTypeId]);
+        
+        // Skip if no value
+        if (!value || timestamp === null) {
+          console.warn(`No initial value for field '${fieldTypeName}'`);
+          continue;
+        }
+        
+        // Create a synthetic notification with current value only
+        const notification = {
+          current: {
+            value: value,
+            timestamp: timestamp,
+            writerId: writerId || null
+          },
+          context: {}
+        };
+        
+        // Trigger the callback with the initial value
+        await this.callbackManager.triggerNotificationCallback(channel.callback, notification);
+        
+      } catch (error) {
+        console.error(`Error loading initial value for channel '${channel.name}':`, error);
+      }
+    }
+  }
+  
+  /**
+   * Replace TARGET_ENTITY placeholder and field type names in notification channel config
+   * with the actual target entity ID and field type IDs
+   */
+  private async replaceTargetEntityPlaceholder(channel: any, targetEntityId: number): Promise<any> {
+    // Deep clone the channel to avoid mutating the original config
+    const processedChannel = JSON.parse(JSON.stringify(channel));
+    
+    // Replace TARGET_ENTITY in the config
+    if (processedChannel.config && processedChannel.config.EntityId) {
+      if (processedChannel.config.EntityId.entity_id === 'TARGET_ENTITY') {
+        processedChannel.config.EntityId.entity_id = targetEntityId;
+      }
+      
+      // Resolve field_type name to ID if it's a string
+      if (typeof processedChannel.config.EntityId.field_type === 'string') {
+        const fieldTypeName = processedChannel.config.EntityId.field_type;
+        const fieldTypeId = await this.context!.getDataStore().getFieldType(fieldTypeName);
+        if (!fieldTypeId) {
+          throw new Error(`Field type '${fieldTypeName}' not found`);
+        }
+        processedChannel.config.EntityId.field_type = fieldTypeId;
+      }
+      
+      // Resolve field type names in context paths
+      if (processedChannel.config.EntityId.context && Array.isArray(processedChannel.config.EntityId.context)) {
+        for (let i = 0; i < processedChannel.config.EntityId.context.length; i++) {
+          const path = processedChannel.config.EntityId.context[i];
+          if (Array.isArray(path)) {
+            for (let j = 0; j < path.length; j++) {
+              if (typeof path[j] === 'string') {
+                const fieldTypeName = path[j];
+                const fieldTypeId = await this.context!.getDataStore().getFieldType(fieldTypeName);
+                if (!fieldTypeId) {
+                  throw new Error(`Context field type '${fieldTypeName}' not found`);
+                }
+                path[j] = fieldTypeId;
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    return processedChannel;
   }
   
   // ============================================================

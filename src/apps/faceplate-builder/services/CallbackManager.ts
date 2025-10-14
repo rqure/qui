@@ -215,6 +215,21 @@ export class CallbackManager {
   // ============================================================
   
   /**
+   * Manually trigger a notification callback with a notification object
+   * Used for loading initial values
+   */
+  async triggerNotificationCallback(callbackCode: string, notification: any): Promise<void> {
+    try {
+      const callback = this.compileFunction(callbackCode, 'notification');
+      const boundCallback = callback.bind(this.context);
+      await boundCallback(notification);
+    } catch (error) {
+      console.error('Error triggering notification callback:', error);
+      throw error;
+    }
+  }
+  
+  /**
    * Compile a JavaScript function from code string
    * 
    * @param code - JavaScript code string
