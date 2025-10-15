@@ -95,36 +95,6 @@
             min="0.1"
           />
         </div>
-        
-        <div class="property-row">
-          <label>Pivot X:</label>
-          <input 
-            type="number" 
-            :value="pivot.x" 
-            @input="updateProperty('pivotX', parseFloat(($event.target as HTMLInputElement).value))"
-            step="1"
-          />
-        </div>
-        
-        <div class="property-row">
-          <label>Pivot Y:</label>
-          <input 
-            type="number" 
-            :value="pivot.y" 
-            @input="updateProperty('pivotY', parseFloat(($event.target as HTMLInputElement).value))"
-            step="1"
-          />
-        </div>
-        
-        <div class="property-row">
-          <label>Pivot Z:</label>
-          <input 
-            type="number" 
-            :value="pivot.z || 0" 
-            @input="updateProperty('pivotZ', parseFloat(($event.target as HTMLInputElement).value))"
-            step="1"
-          />
-        </div>
       </div>
       
       <!-- Rendering properties -->
@@ -604,12 +574,6 @@ const scale = computed(() => {
   props.updateTrigger; // dependency
   if (!props.selectedShape) return { x: 1, y: 1 };
   return props.selectedShape.getScale();
-});
-
-const pivot = computed(() => {
-  props.updateTrigger; // dependency
-  if (!props.selectedShape) return { x: 0, y: 0 };
-  return props.selectedShape.getPivot();
 });
 
 const minZoom = computed(() => {
