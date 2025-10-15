@@ -144,7 +144,7 @@ export class Text extends Drawable {
     this.layer.addTo(canvas.getMap());
 
     // Apply rotation immediately
-    const rotation = this.getAbsoluteRotation() * (180 / Math.PI); // Convert to degrees
+    const rotation = -this.getAbsoluteRotation() * (180 / Math.PI); // Convert to degrees and negate for CSS clockwise rotation
     const tooltipEl = marker.getTooltip()?.getElement();
     if (tooltipEl) {
       tooltipEl.style.transform = `rotate(${rotation}deg)`;
@@ -157,6 +157,7 @@ export class Text extends Drawable {
       if (tooltipEl) {
         tooltipEl.style.color = this._color;
         tooltipEl.style.fontSize = `${this._fontSize * this.getAbsoluteScale().x}px`;
+        const rotation = -this.getAbsoluteRotation() * (180 / Math.PI); // Convert to degrees and negate for CSS clockwise rotation
         tooltipEl.style.transform = `rotate(${rotation}deg)`;
         tooltipEl.style.transformOrigin = 'center center';
       }

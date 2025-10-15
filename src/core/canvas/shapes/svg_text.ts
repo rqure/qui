@@ -144,7 +144,7 @@ export class SvgText extends Drawable {
     // Apply rotation immediately
     const container = this.layer?.getContainer?.();
     if (container) {
-      const rotation = this.getAbsoluteRotation() * (180 / Math.PI); // Convert to degrees
+      const rotation = -this.getAbsoluteRotation() * (180 / Math.PI); // Convert to degrees and negate for CSS clockwise rotation
       container.style.transform = `rotate(${rotation}deg)`;
       container.style.transformOrigin = 'center center';
     }

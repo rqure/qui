@@ -141,7 +141,7 @@ export class Circle extends Drawable {
     // Apply rotation immediately
     const element = this.layer?.getElement();
     if (element && element.tagName === 'path') {
-      const rotation = this.getAbsoluteRotation() * (180 / Math.PI); // Convert to degrees
+      const rotation = -this.getAbsoluteRotation() * (180 / Math.PI); // Convert to degrees and negate for CSS clockwise rotation
       element.style.transform = `rotate(${rotation}deg)`;
       element.style.transformOrigin = 'center center';
     }

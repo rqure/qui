@@ -128,7 +128,7 @@ export class Div extends Drawable {
         if (!element) return;
 
         const scale = this.getZoomScaleFactor();
-        const rotation = this.getAbsoluteRotation() * (180 / Math.PI); // Convert to degrees
+        const rotation = -this.getAbsoluteRotation() * (180 / Math.PI); // Convert to degrees and negate for CSS clockwise rotation
 
         // Find the leaflet-div-icon container
         const container = element.firstElementChild as HTMLElement;

@@ -101,7 +101,7 @@ export class ImageOverlay extends Drawable {
     if (container) {
       const img = container.querySelector('img');
       if (img) {
-        const rotation = this.getAbsoluteRotation() * (180 / Math.PI); // Convert to degrees
+        const rotation = -this.getAbsoluteRotation() * (180 / Math.PI); // Convert to degrees and negate for CSS clockwise rotation
         img.style.transform = `rotate(${rotation}deg)`;
         img.style.transformOrigin = 'center center';
       }
