@@ -597,7 +597,7 @@ const location = computed(() => {
 const rotation = computed(() => {
   props.updateTrigger; // dependency
   if (!props.selectedShape) return 0;
-  return props.selectedShape.getRotation();
+  return props.selectedShape.getRotation() * (180 / Math.PI); // Convert radians to degrees
 });
 
 const scale = computed(() => {
@@ -721,6 +721,10 @@ const imageProps = computed(() => {
 
 // Methods
 function updateProperty(property: string, value: any) {
+  // Convert degrees to radians for rotation
+  if (property === 'rotation') {
+    value = value * (Math.PI / 180);
+  }
   emit('update-property', property, value);
 }
 

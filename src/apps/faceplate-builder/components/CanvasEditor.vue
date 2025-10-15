@@ -414,6 +414,7 @@ function createCircleSelection(shape: Drawable, loc: Point, selectionPane: any) 
   selectionCircle.setWeight(2);
   selectionCircle.setRadius(radius);
   selectionCircle.setOffset(loc);
+  selectionCircle.setRotation(shape.getRotation()); // Apply shape rotation
   selectionCircle.setPane(selectionPane);
   (selectionCircle as any)._isSelectionShape = true;
   selectionModel.value!.addShape(selectionCircle);
@@ -459,7 +460,8 @@ function createRectangleSelection(shape: Drawable, loc: Point, selectionPane: an
   selectionBox.setColor('#00ff88');
   selectionBox.setFillOpacity(0.08);
   selectionBox.setWeight(2);
-  selectionBox.setOffset({ x: loc.x, y: loc.y });
+  selectionBox.setOffset(loc);
+  selectionBox.setRotation(shape.getRotation()); // Apply shape rotation
   selectionBox.setPane(selectionPane);
   selectionBox.addEdge({ x: -halfWidth, y: -halfHeight });
   selectionBox.addEdge({ x: halfWidth, y: -halfHeight });
@@ -518,6 +520,7 @@ function createPolygonSelection(shape: Drawable, loc: Point, selectionPane: any)
   selectionPoly.setFillOpacity(0.08);
   selectionPoly.setWeight(2);
   selectionPoly.setOffset(loc);
+  selectionPoly.setRotation(shape.getRotation()); // Apply shape rotation
   selectionPoly.setPane(selectionPane);
   
   edges.forEach((edge: any) => {
@@ -579,7 +582,8 @@ function createTextSelection(shape: Drawable, loc: Point, selectionPane: any) {
   selectionBox.setColor('#00ff88');
   selectionBox.setFillOpacity(0.08);
   selectionBox.setWeight(2);
-  selectionBox.setOffset({ x: loc.x, y: loc.y });
+  selectionBox.setOffset(loc);
+  selectionBox.setRotation(shape.getRotation()); // Apply shape rotation
   selectionBox.setPane(selectionPane);
   selectionBox.addEdge({ x: -halfWidth, y: -halfHeight });
   selectionBox.addEdge({ x: halfWidth, y: -halfHeight });
