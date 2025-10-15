@@ -5,122 +5,72 @@
  */
 
 import L from 'leaflet';
-import { Drawable, type ICanvas } from './base';
+import { Div } from './div';
+import type { ICanvas } from './base';
 
-export class ImageOverlay extends Drawable {
-  private _url: string = '';
-  private _width: number = 100;
-  private _height: number = 100;
+export class ImageOverlay extends Div {
+    private _url: string = '';
 
-  /**
-   * Set image URL
-   */
-  setUrl(url: string): this {
-    this._url = url;
-    return this;
-  }
-
-  /**
-   * Get image URL
-   */
-  getUrl(): string {
-    return this._url;
-  }
-
-  /**
-   * Set width
-   */
-  setWidth(width: number): this {
-    this._width = width;
-    return this;
-  }
-
-  /**
-   * Get width
-   */
-  getWidth(): number {
-    return this._width;
-  }
-
-  /**
-   * Set height
-   */
-  setHeight(height: number): this {
-    this._height = height;
-    return this;
-  }
-
-  /**
-   * Get height
-   */
-  getHeight(): number {
-    return this._height;
-  }
-
-  /**
-   * Draw the image overlay
-   */
-  draw(canvas: ICanvas): void {
-    this.canvas = canvas;
-
-    // Check zoom visibility
-    if (!this.isVisibleAtZoom(canvas.getZoom())) {
-      return;
+    /**
+     * Set image URL
+     */
+    setUrl(url: string): this {
+        this._url = url;
+        this.updateHtml();
+        return this;
     }
 
-    // Get effective position
-    const pos = this.getEffectivePosition();
-    
-    // Get scale
-    const scale = this.getScale();
-
-    // Create bounds for the overlay with scaling, centered on position
-    const scaledWidth = this._width * scale.x;
-    const scaledHeight = this._height * scale.y;
-    const bounds: L.LatLngBoundsExpression = [
-      [pos.y - scaledHeight / 2, pos.x - scaledWidth / 2],
-      [pos.y + scaledHeight / 2, pos.x + scaledWidth / 2]
-    ];
-
-    // Create the Leaflet image overlay
-    this.layer = L.imageOverlay(this._url, bounds, {
-      interactive: true
-    });
-
-    // Set pane if specified
-    if (this._pane) {
-      canvas.getOrCreatePane(this._pane.name, this._pane.level);
-      (this.layer as any).options.pane = this._pane.name;
+    /**
+     * Get image URL
+     */
+    getUrl(): string {
+        return this._url;
     }
 
-    // Add to map
-    this.layer.addTo(canvas.getMap());
-
-    // Apply rotation immediately
-    const container = this.layer?.getContainer?.();
-    if (container) {
-      const img = container.querySelector('img');
-      if (img) {
-        const rotation = -this.getAbsoluteRotation() * (180 / Math.PI); // Convert to degrees and negate for CSS clockwise rotation
-        img.style.transform = `rotate(${rotation}deg)`;
-        img.style.transformOrigin = 'center center';
-      }
+    /**
+     * Set width
+     */
+    setWidth(width: number): this {
+        super.setWidth(width);
+        this.updateHtml();
+        return this;
     }
 
-    // Emit draw event
-    this.emit('draw');
-  }
-
-  /**
-   * Erase the image overlay
-   */
-  erase(): void {
-    if (this.layer && this.canvas) {
-      this.canvas.getMap().removeLayer(this.layer);
-      this.layer = null;
+    /**
+     * Set height
+     */
+    setHeight(height: number): this {
+        super.setHeight(height);
+        this.updateHtml();
+        return this;
     }
 
-    // Emit erase event
-    this.emit('erase');
-  }
+    /**
+     * Update the HTML content with the current image
+     */
+    private updateHtml(): void {
+        const html = `<img src="${this._url}" style="width: 100%; height: 100%; object-fit: contain;" />`;
+        this.setHtml(html);
+    }
+
+    /**
+     * Draw the image overlay
+     */
+    draw(canvas: ICanvas): void {
+        // Initialize HTML if not set
+        if (!this.getHtml()) {
+            this.updateHtml();
+        }
+
+        // Use parent Div draw method
+        super.draw(canvas);
+    }
+
+    /**
+     * Erase the image overlay
+     */
+    erase(): void {
+        // Use parent Div erase method
+        super.erase();
+    }
 }
