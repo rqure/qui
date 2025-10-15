@@ -702,25 +702,7 @@ function deleteShape() {
 <style scoped>
 .properties-panel {
   padding: 20px;
-  overflow-y: auto;
   height: 100%;
-}
-
-.properties-panel::-webkit-scrollbar {
-  width: 8px;
-}
-
-.properties-panel::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.2);
-}
-
-.properties-panel::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 4px;
-}
-
-.properties-panel::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.3);
 }
 
 .panel-header {
