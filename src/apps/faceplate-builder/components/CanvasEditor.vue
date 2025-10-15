@@ -192,6 +192,9 @@ function initCanvas() {
     leafletMap.on('mousedown', (e: L.LeafletMouseEvent) => {
       handleCanvasMouseDown(e);
     });
+    leafletMap.on('zoomend', () => {
+      handleZoomChange();
+    });
     
     // Disable map dragging initially
     leafletMap.dragging.disable();
@@ -739,6 +742,22 @@ function handleResize() {
       leafletMap.invalidateSize();
     }
   }
+}
+
+function handleZoomChange() {
+  if (!canvas.value) return;
+  
+  const zoom = canvas.value.getZoom();
+  
+  // Update zoom level for all shapes
+  const shapes = props.model.getShapes();
+  shapes.forEach((shape: Drawable) => {
+    shape.setZoom(zoom);
+  });
+  
+  // Re-render shapes that depend on zoom
+  renderModelOnly();
+  updateSelectionShapes();
 }
 
 function updateContainerSize() {
