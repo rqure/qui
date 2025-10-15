@@ -70,11 +70,16 @@ export class ImageOverlay extends Drawable {
 
     // Get effective position
     const pos = this.getEffectivePosition();
+    
+    // Get scale
+    const scale = this.getScale();
 
-    // Create bounds for the overlay
+    // Create bounds for the overlay with scaling
+    const scaledWidth = this._width * scale.x;
+    const scaledHeight = this._height * scale.y;
     const bounds: L.LatLngBoundsExpression = [
       [pos.y, pos.x],
-      [pos.y + this._height, pos.x + this._width]
+      [pos.y + scaledHeight, pos.x + scaledWidth]
     ];
 
     // Create the Leaflet image overlay

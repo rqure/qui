@@ -197,13 +197,18 @@ export class Div extends Drawable {
 
     // Get effective position
     const pos = this.getEffectivePosition();
+    
+    // Get scale
+    const scale = this.getScale();
 
-    // Create div icon
+    // Create div icon with scaled dimensions
+    const scaledWidth = this._width * scale.x;
+    const scaledHeight = this._height * scale.y;
     const icon = L.divIcon({
       className: this._className,
       html: this._html,
-      iconSize: [this._width, this._height],
-      iconAnchor: [this._width / 2, this._height / 2]
+      iconSize: [scaledWidth, scaledHeight],
+      iconAnchor: [scaledWidth / 2, scaledHeight / 2]
     });
 
     // Create marker

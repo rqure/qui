@@ -115,6 +115,9 @@ export class SvgText extends Drawable {
 
     // Get effective position
     const pos = this.getEffectivePosition();
+    
+    // Get scale
+    const scale = this.getScale();
 
     // Create SVG element
     const svgElement = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -124,10 +127,12 @@ export class SvgText extends Drawable {
       <text x="0%" y="95%" style="font-size:${this._fontSize};" fill="${this._fillColor}">${this._text}</text>
     `;
 
-    // Create bounds for the overlay
+    // Create bounds for the overlay with scaling
+    const scaledWidth = this._width * scale.x;
+    const scaledHeight = this._height * scale.y;
     const bounds: L.LatLngBoundsExpression = [
       [pos.y, pos.x],
-      [pos.y + this._height, pos.x + this._width]
+      [pos.y + scaledHeight, pos.x + scaledWidth]
     ];
 
     // Create the Leaflet SVG overlay
