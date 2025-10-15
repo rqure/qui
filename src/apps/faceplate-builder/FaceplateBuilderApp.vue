@@ -70,9 +70,40 @@
     
     <!-- Main content area -->
     <div class="main-content">
-      <!-- Left sidebar - Shape palette -->
+      <!-- Left sidebar - Tabs for Shapes and Layers -->
       <div class="sidebar sidebar-left">
-        <ShapePalette @shape-drag-start="onShapeDragStart" />
+        <div class="sidebar-tabs">
+          <button 
+            class="tab-button" 
+            :class="{ active: activeTab === 'shapes' }"
+            @click="activeTab = 'shapes'"
+          >
+            <span class="tab-icon">📐</span>
+            Shapes
+          </button>
+          <button 
+            class="tab-button" 
+            :class="{ active: activeTab === 'layers' }"
+            @click="activeTab = 'layers'"
+          >
+            <span class="tab-icon">📋</span>
+            Layers
+          </button>
+        </div>
+        
+        <div class="tab-content">
+          <ShapePalette 
+            v-if="activeTab === 'shapes'"
+            @shape-drag-start="onShapeDragStart" 
+          />
+          <LayerPanel 
+            v-if="activeTab === 'layers'"
+            :model="currentModel"
+            :selected-index="selectedShapeIndex"
+            @shape-select="onShapeSelect"
+            @shape-update="onShapeUpdate"
+          />
+        </div>
       </div>
       
       <!-- Center - Canvas -->
@@ -131,6 +162,7 @@ import { createShape } from '@/core/canvas/shapes';
 import ShapePalette from './components/ShapePalette.vue';
 import CanvasEditor from './components/CanvasEditor.vue';
 import PropertiesPanel from './components/PropertiesPanel.vue';
+import LayerPanel from './components/LayerPanel.vue';
 import LoadFaceplateModal from './components/LoadFaceplateModal.vue';
 import SaveFaceplateModal from './components/SaveFaceplateModal.vue';
 
@@ -141,6 +173,7 @@ const hasChanges = ref(false);
 const showLoadModal = ref(false);
 const showSaveModal = ref(false);
 const shapeUpdateTrigger = ref(0);
+const activeTab = ref<'shapes' | 'layers'>('shapes');
 
 // View controls
 const showGrid = ref(true);
@@ -811,6 +844,86 @@ watch(() => currentModel.value.getShapes().length, () => {
   overflow-x: hidden;
   flex-shrink: 0;
   box-shadow: inset -1px 0 3px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--qui-window-border, rgba(255, 255, 255, 0.1));
+  background: var(--qui-bg-primary, #1a1a1a);
+  flex-shrink: 0;
+}
+
+.tab-button {
+  flex: 1;
+  padding: 12px 16px;
+  border: none;
+  background: transparent;
+  color: var(--qui-text-secondary, #aaa);
+  font-size: var(--qui-font-size-small, 13px);
+  font-weight: var(--qui-font-weight-medium, 500);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+  position: relative;
+}
+
+.tab-button::before {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--qui-accent-color, #00ff88);
+  transform: scaleX(0);
+  transition: transform 0.2s ease;
+}
+
+.tab-button:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--qui-text-primary, #fff);
+}
+
+.tab-button.active {
+  color: var(--qui-accent-color, #00ff88);
+  background: rgba(0, 255, 136, 0.1);
+}
+
+.tab-button.active::before {
+  transform: scaleX(1);
+}
+
+.tab-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.tab-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.tab-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.tab-content::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.tab-content::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+
+.tab-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
 }
 
 .sidebar::-webkit-scrollbar {
