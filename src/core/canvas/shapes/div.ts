@@ -78,21 +78,6 @@ export class Div extends Drawable {
     }
 
     /**
-     * Set zoom level
-     */
-    setZoom(zoom: number): this {
-        this._currentZoom = zoom;
-        return this;
-    }
-
-    /**
-     * Get zoom level
-     */
-    getZoom(): number {
-        return this._currentZoom;
-    }
-
-    /**
      * Set CSS styles
      */
     setStyles(styles: Record<string, any>): this {
@@ -110,6 +95,20 @@ export class Div extends Drawable {
             this._animations = new Map(Object.entries(animations));
         }
         return this;
+    }
+
+    /**
+     * Get CSS styles
+     */
+    getStyles(): Record<string, any> {
+        return Object.fromEntries(this._styles);
+    }
+
+    /**
+     * Get CSS animations
+     */
+    getAnimations(): Record<string, any> {
+        return Object.fromEntries(this._animations);
     }
 
     /**

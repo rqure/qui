@@ -155,11 +155,25 @@ export abstract class Drawable {
   }
 
   /**
+   * Get minimum zoom level
+   */
+  getMinZoom(): number | null {
+    return this._minZoom;
+  }
+
+  /**
    * Set maximum zoom level
    */
   setMaxZoom(maxZoom: number): this {
     this._maxZoom = maxZoom;
     return this;
+  }
+
+  /**
+   * Get maximum zoom level
+   */
+  getMaxZoom(): number | null {
+    return this._maxZoom;
   }
 
   /**

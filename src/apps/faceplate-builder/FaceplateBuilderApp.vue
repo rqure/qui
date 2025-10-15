@@ -361,39 +361,80 @@ function createDefaultShape(shapeType: string, location: { x: number; y: number 
 function applyPropertyToShape(shape: Drawable, property: string, value: any) {
   const shapeAny = shape as any;
   
-  if (property === 'x' || property === 'y') {
+  if (property === 'x' || property === 'y' || property === 'z') {
     const offset = shape.getOffset();
     if (property === 'x') {
       shape.setOffset({ ...offset, x: value });
-    } else {
+    } else if (property === 'y') {
       shape.setOffset({ ...offset, y: value });
+    } else if (property === 'z') {
+      shape.setOffset({ ...offset, z: value });
     }
   } else if (property === 'rotation') {
     shape.setRotation(value);
+  } else if (property === 'scaleX' || property === 'scaleY' || property === 'scaleZ') {
+    const scale = shape.getScale();
+    if (property === 'scaleX') {
+      shape.setScale({ ...scale, x: value });
+    } else if (property === 'scaleY') {
+      shape.setScale({ ...scale, y: value });
+    } else if (property === 'scaleZ') {
+      shape.setScale({ ...scale, z: value });
+    }
+  } else if (property === 'pivotX' || property === 'pivotY' || property === 'pivotZ') {
+    const pivot = shape.getPivot();
+    if (property === 'pivotX') {
+      shape.setPivot({ ...pivot, x: value });
+    } else if (property === 'pivotY') {
+      shape.setPivot({ ...pivot, y: value });
+    } else if (property === 'pivotZ') {
+      shape.setPivot({ ...pivot, z: value });
+    }
+  } else if (property === 'minZoom') {
+    shape.setMinZoom(value);
+  } else if (property === 'maxZoom') {
+    shape.setMaxZoom(value);
+  } else if (property === 'paneName' || property === 'paneLevel') {
+    const pane = shape.getPane() || { name: '', level: 0 };
+    if (property === 'paneName') {
+      shape.setPane({ ...pane, name: value });
+    } else if (property === 'paneLevel') {
+      shape.setPane({ ...pane, level: value });
+    }
   } else if (property === 'radius' && shapeAny.setRadius) {
     shapeAny.setRadius(value);
-  } else if (property === 'fillColor' && shapeAny.setFillColor) {
-    shapeAny.setFillColor(value);
-  } else if (property === 'fillOpacity' && shapeAny.setFillOpacity) {
-    shapeAny.setFillOpacity(value);
   } else if (property === 'color' && shapeAny.setColor) {
     shapeAny.setColor(value);
   } else if (property === 'weight' && shapeAny.setWeight) {
     shapeAny.setWeight(value);
+  } else if (property === 'fillColor' && shapeAny.setFillColor) {
+    shapeAny.setFillColor(value);
+  } else if (property === 'fillOpacity' && shapeAny.setFillOpacity) {
+    shapeAny.setFillOpacity(value);
+  } else if (property === 'opacity' && shapeAny.setOpacity) {
+    shapeAny.setOpacity(value);
+  } else if (property === 'edges' && shapeAny.setEdges) {
+    shapeAny.setEdges(value);
   } else if (property === 'text' && shapeAny.setText) {
     shapeAny.setText(value);
   } else if (property === 'fontSize' && shapeAny.setFontSize) {
     shapeAny.setFontSize(value);
-  } else if (property === 'html' && shapeAny.setHtml) {
-    shapeAny.setHtml(value);
+  } else if (property === 'direction' && shapeAny.setDirection) {
+    shapeAny.setDirection(value);
   } else if (property === 'className' && shapeAny.setClassName) {
     shapeAny.setClassName(value);
+  } else if (property === 'html' && shapeAny.setHtml) {
+    shapeAny.setHtml(value);
   } else if (property === 'width' && shapeAny.setWidth) {
     shapeAny.setWidth(value);
   } else if (property === 'height' && shapeAny.setHeight) {
     shapeAny.setHeight(value);
   } else if (property === 'url' && shapeAny.setUrl) {
     shapeAny.setUrl(value);
+  } else if (property === 'styles' && shapeAny.setStyles) {
+    shapeAny.setStyles(value);
+  } else if (property === 'animations' && shapeAny.setAnimations) {
+    shapeAny.setAnimations(value);
   }
 }
 
@@ -413,8 +454,20 @@ function shapeToConfig(shape: Drawable): FaceplateShapeConfig {
   const config: FaceplateShapeConfig = {
     type: shape.constructor.name,
     location: shape.getOffset(),
-    rotation: shape.getRotation()
+    rotation: shape.getRotation(),
+    scale: shape.getScale(),
+    pivot: shape.getPivot()
   };
+  
+  // Add optional properties only if they have values
+  const minZoom = shape.getMinZoom();
+  if (minZoom !== null) config.minZoom = minZoom;
+  
+  const maxZoom = shape.getMaxZoom();
+  if (maxZoom !== null) config.maxZoom = maxZoom;
+  
+  const pane = shape.getPane();
+  if (pane) config.pane = pane;
   
   const shapeAny = shape as any;
   
@@ -424,14 +477,18 @@ function shapeToConfig(shape: Drawable): FaceplateShapeConfig {
   if (shapeAny.getFillColor) config.fillColor = shapeAny.getFillColor();
   if (shapeAny.getFillOpacity) config.fillOpacity = shapeAny.getFillOpacity();
   if (shapeAny.getWeight) config.weight = shapeAny.getWeight();
+  if (shapeAny.getOpacity) config.opacity = shapeAny.getOpacity();
   if (shapeAny.getText) config.text = shapeAny.getText();
   if (shapeAny.getFontSize) config.fontSize = shapeAny.getFontSize();
+  if (shapeAny.getDirection) config.direction = shapeAny.getDirection();
   if (shapeAny.getEdges) config.edges = shapeAny.getEdges();
   if (shapeAny.getHtml) config.html = shapeAny.getHtml();
   if (shapeAny.getClassName) config.className = shapeAny.getClassName();
   if (shapeAny.getWidth) config.width = shapeAny.getWidth();
   if (shapeAny.getHeight) config.height = shapeAny.getHeight();
   if (shapeAny.getUrl) config.url = shapeAny.getUrl();
+  if (shapeAny.getStyles) config.styles = shapeAny.getStyles();
+  if (shapeAny.getAnimations) config.animations = shapeAny.getAnimations();
   
   return config;
 }
@@ -445,9 +502,12 @@ function configToModel(config: any): Model {
       if (shape) {
         // Apply config properties
         if (shapeConfig.location) shape.setOffset(shapeConfig.location);
-        shape.setPivot({ x: 0, y: 0 });
-        shape.setScale({ x: 1, y: 1 }); // Ensure scale is 1 for direct property manipulation
+        shape.setPivot(shapeConfig.pivot || { x: 0, y: 0 });
+        shape.setScale(shapeConfig.scale || { x: 1, y: 1 });
         if (shapeConfig.rotation !== undefined) shape.setRotation(shapeConfig.rotation);
+        if (shapeConfig.minZoom !== undefined) shape.setMinZoom(shapeConfig.minZoom);
+        if (shapeConfig.maxZoom !== undefined) shape.setMaxZoom(shapeConfig.maxZoom);
+        if (shapeConfig.pane) shape.setPane(shapeConfig.pane);
         
         const shapeAny = shape as any;
         if (shapeConfig.radius !== undefined && shapeAny.setRadius) {
@@ -465,11 +525,17 @@ function configToModel(config: any): Model {
         if (shapeConfig.weight !== undefined && shapeAny.setWeight) {
           shapeAny.setWeight(shapeConfig.weight);
         }
+        if (shapeConfig.opacity !== undefined && shapeAny.setOpacity) {
+          shapeAny.setOpacity(shapeConfig.opacity);
+        }
         if (shapeConfig.text && shapeAny.setText) {
           shapeAny.setText(shapeConfig.text);
         }
         if (shapeConfig.fontSize !== undefined && shapeAny.setFontSize) {
           shapeAny.setFontSize(shapeConfig.fontSize);
+        }
+        if (shapeConfig.direction && shapeAny.setDirection) {
+          shapeAny.setDirection(shapeConfig.direction);
         }
         if (shapeConfig.edges && shapeAny.setEdges) {
           shapeAny.setEdges(shapeConfig.edges);
@@ -488,6 +554,12 @@ function configToModel(config: any): Model {
         }
         if (shapeConfig.url && shapeAny.setUrl) {
           shapeAny.setUrl(shapeConfig.url);
+        }
+        if (shapeConfig.styles && shapeAny.setStyles) {
+          shapeAny.setStyles(shapeConfig.styles);
+        }
+        if (shapeConfig.animations && shapeAny.setAnimations) {
+          shapeAny.setAnimations(shapeConfig.animations);
         }
         
         model.addShape(shape);

@@ -41,6 +41,16 @@
         </div>
         
         <div class="property-row">
+          <label>Z:</label>
+          <input 
+            type="number" 
+            :value="location.z || 0" 
+            @input="updateProperty('z', parseFloat(($event.target as HTMLInputElement).value))"
+            step="1"
+          />
+        </div>
+        
+        <div class="property-row">
           <label>Rotation:</label>
           <input 
             type="number" 
@@ -51,6 +61,119 @@
             max="360"
           />
           <span class="unit">°</span>
+        </div>
+        
+        <div class="property-row">
+          <label>Scale X:</label>
+          <input 
+            type="number" 
+            :value="scale.x" 
+            @input="updateProperty('scaleX', parseFloat(($event.target as HTMLInputElement).value))"
+            step="0.1"
+            min="0.1"
+          />
+        </div>
+        
+        <div class="property-row">
+          <label>Scale Y:</label>
+          <input 
+            type="number" 
+            :value="scale.y" 
+            @input="updateProperty('scaleY', parseFloat(($event.target as HTMLInputElement).value))"
+            step="0.1"
+            min="0.1"
+          />
+        </div>
+        
+        <div class="property-row">
+          <label>Scale Z:</label>
+          <input 
+            type="number" 
+            :value="scale.z || 1" 
+            @input="updateProperty('scaleZ', parseFloat(($event.target as HTMLInputElement).value))"
+            step="0.1"
+            min="0.1"
+          />
+        </div>
+        
+        <div class="property-row">
+          <label>Pivot X:</label>
+          <input 
+            type="number" 
+            :value="pivot.x" 
+            @input="updateProperty('pivotX', parseFloat(($event.target as HTMLInputElement).value))"
+            step="1"
+          />
+        </div>
+        
+        <div class="property-row">
+          <label>Pivot Y:</label>
+          <input 
+            type="number" 
+            :value="pivot.y" 
+            @input="updateProperty('pivotY', parseFloat(($event.target as HTMLInputElement).value))"
+            step="1"
+          />
+        </div>
+        
+        <div class="property-row">
+          <label>Pivot Z:</label>
+          <input 
+            type="number" 
+            :value="pivot.z || 0" 
+            @input="updateProperty('pivotZ', parseFloat(($event.target as HTMLInputElement).value))"
+            step="1"
+          />
+        </div>
+      </div>
+      
+      <!-- Rendering properties -->
+      <div class="property-section">
+        <div class="section-title">Rendering</div>
+        
+        <div class="property-row">
+          <label>Min Zoom:</label>
+          <input 
+            type="number" 
+            :value="minZoom" 
+            @input="updateProperty('minZoom', ($event.target as HTMLInputElement).value === '' ? null : parseFloat(($event.target as HTMLInputElement).value))"
+            step="0.1"
+            min="0"
+            placeholder="None"
+          />
+        </div>
+        
+        <div class="property-row">
+          <label>Max Zoom:</label>
+          <input 
+            type="number" 
+            :value="maxZoom" 
+            @input="updateProperty('maxZoom', ($event.target as HTMLInputElement).value === '' ? null : parseFloat(($event.target as HTMLInputElement).value))"
+            step="0.1"
+            min="0"
+            placeholder="None"
+          />
+        </div>
+        
+        <div class="property-row">
+          <label>Pane:</label>
+          <input 
+            type="text" 
+            :value="pane?.name || ''" 
+            @input="updateProperty('paneName', ($event.target as HTMLInputElement).value)"
+            placeholder="Default"
+          />
+        </div>
+        
+        <div class="property-row">
+          <label>Pane Level:</label>
+          <input 
+            type="number" 
+            :value="pane?.level || 0" 
+            @input="updateProperty('paneLevel', parseInt(($event.target as HTMLInputElement).value))"
+            step="1"
+            min="0"
+          />
         </div>
       </div>
       
@@ -66,6 +189,26 @@
             @input="updateProperty('radius', parseFloat(($event.target as HTMLInputElement).value))"
             step="1"
             min="1"
+          />
+        </div>
+        
+        <div class="property-row">
+          <label>Stroke Color:</label>
+          <input 
+            type="color" 
+            :value="circleProps.color" 
+            @input="updateProperty('color', ($event.target as HTMLInputElement).value)"
+          />
+        </div>
+        
+        <div class="property-row">
+          <label>Stroke Width:</label>
+          <input 
+            type="number" 
+            :value="circleProps.weight" 
+            @input="updateProperty('weight', parseFloat(($event.target as HTMLInputElement).value))"
+            step="1"
+            min="0"
           />
         </div>
         
@@ -97,6 +240,26 @@
         <div class="section-title">Polygon</div>
         
         <div class="property-row">
+          <label>Stroke Color:</label>
+          <input 
+            type="color" 
+            :value="polygonProps.color" 
+            @input="updateProperty('color', ($event.target as HTMLInputElement).value)"
+          />
+        </div>
+        
+        <div class="property-row">
+          <label>Stroke Width:</label>
+          <input 
+            type="number" 
+            :value="polygonProps.weight" 
+            @input="updateProperty('weight', parseFloat(($event.target as HTMLInputElement).value))"
+            step="1"
+            min="0"
+          />
+        </div>
+        
+        <div class="property-row">
           <label>Fill Color:</label>
           <input 
             type="color" 
@@ -116,6 +279,16 @@
             step="0.1"
           />
           <span class="value-display">{{ (polygonProps.fillOpacity * 100).toFixed(0) }}%</span>
+        </div>
+        
+        <div class="property-row">
+          <label>Vertices:</label>
+          <textarea 
+            :value="JSON.stringify(polygonProps.edges, null, 2)" 
+            @input="updateProperty('edges', JSON.parse(($event.target as HTMLTextAreaElement).value))"
+            rows="4"
+            placeholder="[{x: 0, y: 0}, {x: 100, y: 0}, {x: 50, y: 100}]"
+          ></textarea>
         </div>
       </div>
       
@@ -141,6 +314,29 @@
             step="1"
             min="1"
           />
+        </div>
+        
+        <div class="property-row">
+          <label>Opacity:</label>
+          <input 
+            type="range" 
+            :value="polylineProps.opacity" 
+            @input="updateProperty('opacity', parseFloat(($event.target as HTMLInputElement).value))"
+            min="0"
+            max="1"
+            step="0.1"
+          />
+          <span class="value-display">{{ (polylineProps.opacity * 100).toFixed(0) }}%</span>
+        </div>
+        
+        <div class="property-row">
+          <label>Vertices:</label>
+          <textarea 
+            :value="JSON.stringify(polylineProps.edges, null, 2)" 
+            @input="updateProperty('edges', JSON.parse(($event.target as HTMLTextAreaElement).value))"
+            rows="4"
+            placeholder="[{x: 0, y: 0}, {x: 100, y: 50}, {x: 200, y: 0}]"
+          ></textarea>
         </div>
       </div>
       
@@ -175,6 +371,30 @@
             type="color" 
             :value="textProps.color" 
             @input="updateProperty('color', ($event.target as HTMLInputElement).value)"
+          />
+        </div>
+        
+        <div class="property-row">
+          <label>Direction:</label>
+          <select 
+            :value="textProps.direction" 
+            @input="updateProperty('direction', ($event.target as HTMLSelectElement).value)"
+          >
+            <option value="center">Center</option>
+            <option value="top">Top</option>
+            <option value="bottom">Bottom</option>
+            <option value="left">Left</option>
+            <option value="right">Right</option>
+          </select>
+        </div>
+        
+        <div class="property-row">
+          <label>Class:</label>
+          <input 
+            type="text" 
+            :value="textProps.className" 
+            @input="updateProperty('className', ($event.target as HTMLInputElement).value)"
+            placeholder="custom-text-class"
           />
         </div>
       </div>
@@ -278,6 +498,26 @@
             min="1"
           />
         </div>
+        
+        <div class="property-row">
+          <label>Styles:</label>
+          <textarea 
+            :value="JSON.stringify(divProps.styles, null, 2)" 
+            @input="updateProperty('styles', JSON.parse(($event.target as HTMLTextAreaElement).value))"
+            rows="4"
+            placeholder='{"background": "red", "border": "1px solid black"}'
+          ></textarea>
+        </div>
+        
+        <div class="property-row">
+          <label>Animations:</label>
+          <textarea 
+            :value="JSON.stringify(divProps.animations, null, 2)" 
+            @input="updateProperty('animations', JSON.parse(($event.target as HTMLTextAreaElement).value))"
+            rows="4"
+            placeholder='{"pulse": "@keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }"}'
+          ></textarea>
+        </div>
       </div>
       
       <!-- Image Overlay properties -->
@@ -360,12 +600,44 @@ const rotation = computed(() => {
   return props.selectedShape.getRotation();
 });
 
+const scale = computed(() => {
+  props.updateTrigger; // dependency
+  if (!props.selectedShape) return { x: 1, y: 1 };
+  return props.selectedShape.getScale();
+});
+
+const pivot = computed(() => {
+  props.updateTrigger; // dependency
+  if (!props.selectedShape) return { x: 0, y: 0 };
+  return props.selectedShape.getPivot();
+});
+
+const minZoom = computed(() => {
+  props.updateTrigger; // dependency
+  if (!props.selectedShape) return null;
+  return props.selectedShape.getMinZoom();
+});
+
+const maxZoom = computed(() => {
+  props.updateTrigger; // dependency
+  if (!props.selectedShape) return null;
+  return props.selectedShape.getMaxZoom();
+});
+
+const pane = computed(() => {
+  props.updateTrigger; // dependency
+  if (!props.selectedShape) return null;
+  return props.selectedShape.getPane();
+});
+
 const circleProps = computed(() => {
   props.updateTrigger; // dependency
-  if (!props.selectedShape) return { radius: 50, fillColor: '#00ff88', fillOpacity: 0.5 };
+  if (!props.selectedShape) return { radius: 50, color: '#ff0000', weight: 1, fillColor: '#00ff88', fillOpacity: 0.5 };
   const shape = props.selectedShape as any;
   return {
     radius: shape.getRadius?.() ?? 50,
+    color: shape.getColor?.() ?? '#ff0000',
+    weight: shape.getWeight?.() ?? 1,
     fillColor: shape.getFillColor?.() ?? '#00ff88',
     fillOpacity: shape.getFillOpacity?.() ?? 0.5
   };
@@ -373,32 +645,39 @@ const circleProps = computed(() => {
 
 const polygonProps = computed(() => {
   props.updateTrigger; // dependency
-  if (!props.selectedShape) return { fillColor: '#0088ff', fillOpacity: 0.5 };
+  if (!props.selectedShape) return { color: '#ff0000', weight: 1, fillColor: '#0088ff', fillOpacity: 0.5, edges: [] };
   const shape = props.selectedShape as any;
   return {
+    color: shape.getColor?.() ?? '#ff0000',
+    weight: shape.getWeight?.() ?? 1,
     fillColor: shape.getFillColor?.() ?? '#0088ff',
-    fillOpacity: shape.getFillOpacity?.() ?? 0.5
+    fillOpacity: shape.getFillOpacity?.() ?? 0.5,
+    edges: shape.getEdges?.() ?? []
   };
 });
 
 const polylineProps = computed(() => {
   props.updateTrigger; // dependency
-  if (!props.selectedShape) return { color: '#ff0088', weight: 3 };
+  if (!props.selectedShape) return { color: '#ff0088', weight: 3, opacity: 1.0, edges: [] };
   const shape = props.selectedShape as any;
   return {
     color: shape.getColor?.() ?? '#ff0088',
-    weight: shape.getWeight?.() ?? 3
+    weight: shape.getWeight?.() ?? 3,
+    opacity: shape.getOpacity?.() ?? 1.0,
+    edges: shape.getEdges?.() ?? []
   };
 });
 
 const textProps = computed(() => {
   props.updateTrigger; // dependency
-  if (!props.selectedShape) return { text: 'Text', fontSize: 16, color: '#ffffff' };
+  if (!props.selectedShape) return { text: 'Text', fontSize: 16, color: '#ffffff', direction: 'center', className: '' };
   const shape = props.selectedShape as any;
   return {
     text: shape.getText?.() ?? 'Text',
     fontSize: shape.getFontSize?.() ?? 16,
-    color: shape.getColor?.() ?? '#ffffff'
+    color: shape.getColor?.() ?? '#ffffff',
+    direction: shape.getDirection?.() ?? 'center',
+    className: shape.getClassName?.() ?? ''
   };
 });
 
@@ -417,13 +696,15 @@ const svgTextProps = computed(() => {
 
 const divProps = computed(() => {
   props.updateTrigger; // dependency
-  if (!props.selectedShape) return { html: '<div>Hello</div>', className: '', width: 100, height: 100 };
+  if (!props.selectedShape) return { html: '<div>Hello</div>', className: '', width: 100, height: 100, styles: {}, animations: {} };
   const shape = props.selectedShape as any;
   return {
     html: shape.getHtml?.() ?? '<div>Hello</div>',
     className: shape.getClassName?.() ?? '',
     width: shape.getWidth?.() ?? 100,
-    height: shape.getHeight?.() ?? 100
+    height: shape.getHeight?.() ?? 100,
+    styles: shape.getStyles?.() ?? {},
+    animations: shape.getAnimations?.() ?? {}
   };
 });
 
