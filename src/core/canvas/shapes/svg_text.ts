@@ -140,32 +140,20 @@ export class SvgText extends Drawable {
 
     // Apply rotation to the SVG element
     this.layer.on('add', () => {
-      const container = this.layer?.getContainer?.();
+      const container = this.layer?.getElement?.();
       if (container) {
-        const svg = container.querySelector('svg');
-        if (svg) {
           const rotation = -this.getAbsoluteRotation() * (180 / Math.PI); // Convert to degrees and negate for CSS clockwise rotation
-          svg.style.transform = `rotate(${rotation}deg)`;
-          svg.style.transformOrigin = 'center center';
-        }
+          container.style.transform = container.style.transform.replace(/ scale\(.+\)/, "");
+          container.style.transform = container.style.transform.replace(/ rotate\(.+\)/, "");
+          container.style.transformOrigin = "center center";
+
+          container.style.transform += " rotate(" + rotation + "deg)";
+          container.style.transform += " scale(" + scale + ")";
       }
     });
 
     // Add to map
     this.layer.addTo(canvas.getMap());
-
-    // Apply rotation immediately
-    setTimeout(() => {
-      const container = this.layer?.getContainer?.();
-      if (container) {
-        const svg = container.querySelector('svg');
-        if (svg) {
-          const rotation = -this.getAbsoluteRotation() * (180 / Math.PI); // Convert to degrees and negate for CSS clockwise rotation
-          svg.style.transform = `rotate(${rotation}deg)`;
-          svg.style.transformOrigin = 'center center';
-        }
-      }
-    }, 0);
 
     // Emit draw event
     this.emit('draw');
