@@ -311,6 +311,7 @@ function createDefaultShape(shapeType: string, location: { x: number; y: number 
   
   shape.setOffset(location);
   shape.setPivot({ x: 0, y: 0 });
+  shape.setScale({ x: 1, y: 1 }); // Ensure scale is 1 for direct property manipulation
   
   // Set default properties based on type
   if (shapeType === 'Circle') {
@@ -449,6 +450,7 @@ function configToModel(config: any): Model {
         // Apply config properties
         if (shapeConfig.location) shape.setOffset(shapeConfig.location);
         shape.setPivot({ x: 0, y: 0 });
+        shape.setScale({ x: 1, y: 1 }); // Ensure scale is 1 for direct property manipulation
         if (shapeConfig.rotation !== undefined) shape.setRotation(shapeConfig.rotation);
         
         const shapeAny = shape as any;

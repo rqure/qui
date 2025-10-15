@@ -29,6 +29,7 @@ import { ref, onMounted, onBeforeUnmount, watch, computed, nextTick } from 'vue'
 import { Canvas } from '@/core/canvas/canvas';
 import { Model } from '@/core/canvas/model';
 import type { Drawable } from '@/core/canvas/shapes/base';
+import type { Point } from '@/core/canvas/types';
 import { Polygon, Circle } from '@/core/canvas/shapes';
 import L from 'leaflet';
 
@@ -76,7 +77,7 @@ const dragStart = ref<{ x: number; y: number } | null>(null);
 const dragStartLatLng = ref<L.LatLng | null>(null);
 const shapeStartLocation = ref<{ x: number; y: number } | null>(null);
 const shapeStartRotation = ref<number>(0);
-const shapeStartSize = ref<{ scale: any; edges: any[] | null } | null>(null);
+const shapeStartSize = ref<{ radius?: number; width?: number; height?: number; fontSize?: number; edges?: any[] | null } | null>(null);
 const lastResizeUpdate = ref<{ x: number; y: number } | null>(null);
 
 // Computed
@@ -375,57 +376,82 @@ function updateSelectionShapes() {
   const loc = shape.getOffset();
   const shapeAny = shape as any;
   
-  // Calculate bounds based on shape type in Leaflet units
-  let canvasWidth = 80;
-  let canvasHeight = 80;
-  
-  const shapeScale = shape.getScale();
-  
-  if (shapeAny.getRadius && typeof shapeAny.getRadius === 'function') {
-    const radius = shapeAny.getRadius() * shapeScale.x;
-    canvasWidth = radius * 2.2; // Add 10% padding
-    canvasHeight = radius * 2.2;
-  } else if (shapeAny.getWidth && shapeAny.getHeight) {
-    canvasWidth = shapeAny.getWidth() * shapeScale.x * 1.1;
-    canvasHeight = shapeAny.getHeight() * shapeScale.y * 1.1;
-  } else if (shapeAny.getText && shapeAny.getFontSize) {
-    // For text shapes, estimate bounds based on text length and font size
-    const text = shapeAny.getText() || '';
-    const fontSize = shapeAny.getFontSize() * shapeScale.x;
-    canvasWidth = Math.max(text.length * fontSize * 0.6, 40) * 1.2;
-    canvasHeight = fontSize * 1.5 * 1.2;
-  } else if (shapeAny.getHtml) {
-    // For div shapes, use specified width/height
-    canvasWidth = (shapeAny.getWidth?.() || 100) * shapeScale.x * 1.1;
-    canvasHeight = (shapeAny.getHeight?.() || 100) * shapeScale.y * 1.1;
-  } else if (shapeAny.getUrl) {
-    // For image overlay shapes, use specified width/height
-    canvasWidth = (shapeAny.getWidth?.() || 100) * shapeScale.x * 1.1;
-    canvasHeight = (shapeAny.getHeight?.() || 100) * shapeScale.y * 1.1;
-    const edges = shapeAny.getEdges();
-    if (edges && edges.length > 0) {
-      // Use transformed edges to account for scaling
-      const transformedEdges = edges.map((edge: any) => ({
-        x: edge.x * shapeScale.x,
-        y: edge.y * shapeScale.y
-      }));
-      const xs = transformedEdges.map((e: any) => e.x);
-      const ys = transformedEdges.map((e: any) => e.y);
-      const minX = Math.min(...xs);
-      const maxX = Math.max(...xs);
-      const minY = Math.min(...ys);
-      const maxY = Math.max(...ys);
-      canvasWidth = (Math.abs(maxX - minX) || 60) * 1.2;
-      canvasHeight = (Math.abs(maxY - minY) || 60) * 1.2;
-    }
-  }
-  
-  const halfWidth = canvasWidth / 2;
-  const halfHeight = canvasHeight / 2;
-  
   // Create selection pane for high z-index
   const selectionPane = { name: 'selection', level: 1000 };
   canvas.value.getOrCreatePane(selectionPane.name, selectionPane.level);
+  
+  // Create selection box and handles based on shape type
+  if (shapeAny.getRadius && typeof shapeAny.getRadius === 'function') {
+    // Circle - show radius handle
+    createCircleSelection(shape, loc, selectionPane);
+  } else if (shapeAny.getWidth && shapeAny.getHeight) {
+    // Div, SVGText, ImageOverlay - show corner resize handles
+    createRectangleSelection(shape, loc, selectionPane);
+  } else if (shapeAny.getEdges && typeof shapeAny.getEdges === 'function') {
+    // Polygon, Polyline - show edge point handles
+    createPolygonSelection(shape, loc, selectionPane);
+  } else if (shapeAny.getText && shapeAny.getFontSize) {
+    // Text - show font size handle
+    createTextSelection(shape, loc, selectionPane);
+  } else {
+    // Default rectangular selection for unknown shapes
+    createRectangleSelection(shape, loc, selectionPane);
+  }
+  
+  // Draw selection shapes
+  selectionModel.value.draw(canvas.value);
+}
+
+function createCircleSelection(shape: Drawable, loc: Point, selectionPane: any) {
+  const shapeAny = shape as any;
+  const radius = shapeAny.getRadius();
+  
+  // Create selection circle outline
+  const selectionCircle = new Circle();
+  selectionCircle.setFillColor('rgba(0, 255, 136, 0.05)');
+  selectionCircle.setColor('#00ff88');
+  selectionCircle.setFillOpacity(0.08);
+  selectionCircle.setWeight(2);
+  selectionCircle.setRadius(radius);
+  selectionCircle.setOffset(loc);
+  selectionCircle.setPane(selectionPane);
+  (selectionCircle as any)._isSelectionShape = true;
+  selectionModel.value!.addShape(selectionCircle);
+  
+  // Create radius handle (at the right edge)
+  const radiusHandle = new Circle();
+  radiusHandle.setRadius(6);
+  radiusHandle.setFillColor('#00ff88');
+  radiusHandle.setColor('#ffffff');
+  radiusHandle.setFillOpacity(1);
+  radiusHandle.setWeight(2);
+  radiusHandle.setOffset({ x: loc.x + radius, y: loc.y });
+  radiusHandle.setPane(selectionPane);
+  (radiusHandle as any)._isSelectionShape = true;
+  (radiusHandle as any)._handleType = 'radius';
+  selectionModel.value!.addShape(radiusHandle);
+  
+  // Create rotate handle (circle above)
+  const rotateHandle = new Circle();
+  rotateHandle.setRadius(8);
+  rotateHandle.setFillColor('#0088ff');
+  rotateHandle.setColor('#ffffff');
+  rotateHandle.setFillOpacity(1);
+  rotateHandle.setWeight(2);
+  rotateHandle.setOffset({ x: loc.x, y: loc.y - radius - 20 });
+  rotateHandle.setPane(selectionPane);
+  (rotateHandle as any)._isSelectionShape = true;
+  (rotateHandle as any)._handleType = 'rotate';
+  selectionModel.value!.addShape(rotateHandle);
+}
+
+function createRectangleSelection(shape: Drawable, loc: Point, selectionPane: any) {
+  const shapeAny = shape as any;
+  const width = shapeAny.getWidth() || 100;
+  const height = shapeAny.getHeight() || 100;
+  
+  const halfWidth = width / 2;
+  const halfHeight = height / 2;
   
   // Create selection box (polygon)
   const selectionBox = new Polygon();
@@ -440,7 +466,7 @@ function updateSelectionShapes() {
   selectionBox.addEdge({ x: halfWidth, y: halfHeight });
   selectionBox.addEdge({ x: -halfWidth, y: halfHeight });
   (selectionBox as any)._isSelectionShape = true;
-  selectionModel.value.addShape(selectionBox);
+  selectionModel.value!.addShape(selectionBox);
   
   // Create resize handles (circles at corners)
   const handleSize = 6;
@@ -476,10 +502,117 @@ function updateSelectionShapes() {
   rotateHandle.setPane(selectionPane);
   (rotateHandle as any)._isSelectionShape = true;
   (rotateHandle as any)._handleType = 'rotate';
-  selectionModel.value.addShape(rotateHandle);
+  selectionModel.value!.addShape(rotateHandle);
+}
+
+function createPolygonSelection(shape: Drawable, loc: Point, selectionPane: any) {
+  const shapeAny = shape as any;
+  const edges = shapeAny.getEdges();
   
-  // Draw selection shapes
-  selectionModel.value.draw(canvas.value);
+  if (!edges || edges.length === 0) return;
+  
+  // Create selection polygon outline
+  const selectionPoly = new Polygon();
+  selectionPoly.setFillColor('rgba(0, 255, 136, 0.05)');
+  selectionPoly.setColor('#00ff88');
+  selectionPoly.setFillOpacity(0.08);
+  selectionPoly.setWeight(2);
+  selectionPoly.setOffset(loc);
+  selectionPoly.setPane(selectionPane);
+  
+  edges.forEach((edge: any) => {
+    selectionPoly.addEdge(edge);
+  });
+  
+  (selectionPoly as any)._isSelectionShape = true;
+  selectionModel.value!.addShape(selectionPoly);
+  
+  // Create handles at each edge point
+  edges.forEach((edge: any, index: number) => {
+    const handle = new Circle();
+    handle.setRadius(6);
+    handle.setFillColor('#00ff88');
+    handle.setColor('#ffffff');
+    handle.setFillOpacity(1);
+    handle.setWeight(2);
+    handle.setOffset({ x: loc.x + edge.x, y: loc.y + edge.y });
+    handle.setPane(selectionPane);
+    (handle as any)._isSelectionShape = true;
+    (handle as any)._handleType = `edge-${index}`;
+    selectionModel.value!.addShape(handle);
+  });
+  
+  // Create rotate handle (above the shape)
+  const xs = edges.map((e: any) => e.x);
+  const ys = edges.map((e: any) => e.y);
+  const centerX = (Math.min(...xs) + Math.max(...xs)) / 2;
+  const minY = Math.min(...ys);
+  
+  const rotateHandle = new Circle();
+  rotateHandle.setRadius(8);
+  rotateHandle.setFillColor('#0088ff');
+  rotateHandle.setColor('#ffffff');
+  rotateHandle.setFillOpacity(1);
+  rotateHandle.setWeight(2);
+  rotateHandle.setOffset({ x: loc.x + centerX, y: loc.y + minY - 30 });
+  rotateHandle.setPane(selectionPane);
+  (rotateHandle as any)._isSelectionShape = true;
+  (rotateHandle as any)._handleType = 'rotate';
+  selectionModel.value!.addShape(rotateHandle);
+}
+
+function createTextSelection(shape: Drawable, loc: Point, selectionPane: any) {
+  const shapeAny = shape as any;
+  const text = shapeAny.getText() || '';
+  const fontSize = shapeAny.getFontSize() || 16;
+  
+  // Estimate text bounds
+  const textWidth = Math.max(text.length * fontSize * 0.6, 40);
+  const textHeight = fontSize * 1.2;
+  
+  const halfWidth = textWidth / 2;
+  const halfHeight = textHeight / 2;
+  
+  // Create selection box
+  const selectionBox = new Polygon();
+  selectionBox.setFillColor('rgba(0, 255, 136, 0.05)');
+  selectionBox.setColor('#00ff88');
+  selectionBox.setFillOpacity(0.08);
+  selectionBox.setWeight(2);
+  selectionBox.setOffset({ x: loc.x, y: loc.y });
+  selectionBox.setPane(selectionPane);
+  selectionBox.addEdge({ x: -halfWidth, y: -halfHeight });
+  selectionBox.addEdge({ x: halfWidth, y: -halfHeight });
+  selectionBox.addEdge({ x: halfWidth, y: halfHeight });
+  selectionBox.addEdge({ x: -halfWidth, y: halfHeight });
+  (selectionBox as any)._isSelectionShape = true;
+  selectionModel.value!.addShape(selectionBox);
+  
+  // Create font size handle (at bottom-right)
+  const fontHandle = new Circle();
+  fontHandle.setRadius(6);
+  fontHandle.setFillColor('#00ff88');
+  fontHandle.setColor('#ffffff');
+  fontHandle.setFillOpacity(1);
+  fontHandle.setWeight(2);
+  fontHandle.setOffset({ x: loc.x + halfWidth, y: loc.y + halfHeight });
+  fontHandle.setPane(selectionPane);
+  (fontHandle as any)._isSelectionShape = true;
+  (fontHandle as any)._handleType = 'fontsize';
+  selectionModel.value!.addShape(fontHandle);
+  
+  // Create rotate handle (above the text)
+  const rotateHandle = new Circle();
+  rotateHandle.setRadius(8);
+  rotateHandle.setFillColor('#0088ff');
+  rotateHandle.setColor('#ffffff');
+  rotateHandle.setFillOpacity(1);
+  rotateHandle.setWeight(2);
+  rotateHandle.setOffset({ x: loc.x, y: loc.y - halfHeight - 20 });
+  rotateHandle.setPane(selectionPane);
+  (rotateHandle as any)._isSelectionShape = true;
+  (rotateHandle as any)._handleType = 'rotate';
+  selectionModel.value!.addShape(rotateHandle);
 }
 
 // Drag and drop
@@ -538,7 +671,10 @@ function startResize(event: MouseEvent, handle: string) {
   
   const shapeAny = selectedShape.value as any;
   shapeStartSize.value = {
-    scale: selectedShape.value.getScale(),
+    radius: shapeAny.getRadius?.(),
+    width: shapeAny.getWidth?.(),
+    height: shapeAny.getHeight?.(),
+    fontSize: shapeAny.getFontSize?.(),
     edges: shapeAny.getEdges?.() ? [...shapeAny.getEdges()] : null
   };
   
@@ -623,35 +759,52 @@ function handleMouseMove(event: MouseEvent) {
         Math.abs(currentContainerX - lastResizeUpdate.value.x) > 5 || 
         Math.abs(currentContainerY - lastResizeUpdate.value.y) > 5) {
       
-      const originalScale = shapeStartSize.value.scale;
-      let scaleX = originalScale.x;
-      let scaleY = originalScale.y;
+      const shapeAny = selectedShape.value as any;
       
-      const scaleFactor = 0.005; // adjust as needed
-      
-      switch (resizeHandle.value) {
-        case 'se': // bottom-right
-          scaleX += canvasDx * scaleFactor;
-          scaleY += canvasDy * scaleFactor;
-          break;
-        case 'sw': // bottom-left
-          scaleX -= canvasDx * scaleFactor;
-          scaleY += canvasDy * scaleFactor;
-          break;
-        case 'ne': // top-right
-          scaleX += canvasDx * scaleFactor;
-          scaleY -= canvasDy * scaleFactor;
-          break;
-        case 'nw': // top-left
-          scaleX -= canvasDx * scaleFactor;
-          scaleY -= canvasDy * scaleFactor;
-          break;
+      if (resizeHandle.value === 'radius' && shapeAny.setRadius) {
+        // Circle radius resize
+        const newRadius = Math.max(5, shapeStartSize.value.radius! + canvasDx);
+        shapeAny.setRadius(newRadius);
+      } else if (resizeHandle.value.startsWith('edge-') && shapeAny.setEdges) {
+        // Polygon/polyline edge point resize
+        const edgeIndex = parseInt(resizeHandle.value.split('-')[1]);
+        const edges = [...shapeStartSize.value.edges!];
+        edges[edgeIndex] = {
+          x: edges[edgeIndex].x + canvasDx,
+          y: edges[edgeIndex].y + canvasDy
+        };
+        shapeAny.setEdges(edges);
+      } else if (resizeHandle.value === 'fontsize' && shapeAny.setFontSize) {
+        // Text font size resize
+        const newFontSize = Math.max(8, shapeStartSize.value.fontSize! + canvasDy);
+        shapeAny.setFontSize(newFontSize);
+      } else if (shapeAny.setWidth && shapeAny.setHeight) {
+        // Rectangle resize (Div, SVGText, ImageOverlay)
+        let newWidth = shapeStartSize.value.width!;
+        let newHeight = shapeStartSize.value.height!;
+        
+        switch (resizeHandle.value) {
+          case 'se': // bottom-right
+            newWidth += canvasDx;
+            newHeight += canvasDy;
+            break;
+          case 'sw': // bottom-left
+            newWidth -= canvasDx;
+            newHeight += canvasDy;
+            break;
+          case 'ne': // top-right
+            newWidth += canvasDx;
+            newHeight -= canvasDy;
+            break;
+          case 'nw': // top-left
+            newWidth -= canvasDx;
+            newHeight -= canvasDy;
+            break;
+        }
+        
+        shapeAny.setWidth(Math.max(10, newWidth));
+        shapeAny.setHeight(Math.max(10, newHeight));
       }
-      
-      selectedShape.value.setScale({
-        x: Math.max(0.1, scaleX),
-        y: Math.max(0.1, scaleY)
-      });
       
       renderModelOnly();
       updateSelectionShapes();
