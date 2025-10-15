@@ -298,9 +298,6 @@ export class FaceplateRenderer {
     if (config.className && shapeAny.setClassName) {
       shapeAny.setClassName(config.className);
     }
-    if (config.scaleWithZoom !== undefined && shapeAny.setScaleWithZoom) {
-      shapeAny.setScaleWithZoom(config.scaleWithZoom);
-    }
     if (config.styles && shapeAny.setStyles) {
       shapeAny.setStyles(config.styles);
     }

@@ -65,7 +65,6 @@ export interface ShapeConfig {
   // Zoom behavior
   minZoom?: number;          // Minimum zoom to display
   maxZoom?: number;          // Maximum zoom to display
-  scaleWithZoom?: boolean;   // Scale with zoom level
   
   // Styling
   styles?: Record<string, any>;      // Custom CSS styles

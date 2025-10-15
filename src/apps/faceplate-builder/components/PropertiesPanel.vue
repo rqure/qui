@@ -278,15 +278,6 @@
             min="1"
           />
         </div>
-        
-        <div class="property-row">
-          <label>Scale with Zoom:</label>
-          <input 
-            type="checkbox" 
-            :checked="divProps.scaleWithZoom" 
-            @change="updateProperty('scaleWithZoom', ($event.target as HTMLInputElement).checked)"
-          />
-        </div>
       </div>
       
       <!-- Image Overlay properties -->
@@ -426,14 +417,13 @@ const svgTextProps = computed(() => {
 
 const divProps = computed(() => {
   props.updateTrigger; // dependency
-  if (!props.selectedShape) return { html: '<div>Hello</div>', className: '', width: 100, height: 100, scaleWithZoom: false };
+  if (!props.selectedShape) return { html: '<div>Hello</div>', className: '', width: 100, height: 100 };
   const shape = props.selectedShape as any;
   return {
     html: shape.getHtml?.() ?? '<div>Hello</div>',
     className: shape.getClassName?.() ?? '',
     width: shape.getWidth?.() ?? 100,
-    height: shape.getHeight?.() ?? 100,
-    scaleWithZoom: shape.getScaleWithZoom?.() ?? false
+    height: shape.getHeight?.() ?? 100
   };
 });
 

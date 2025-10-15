@@ -28,7 +28,6 @@ export abstract class Drawable {
   protected _pane: Pane | null = null;
   protected _minZoom: number | null = null;
   protected _maxZoom: number | null = null;
-  protected _scaleWithZoom: boolean = false;
   protected _currentZoom: number = 0;
 
   /**
@@ -164,14 +163,6 @@ export abstract class Drawable {
   }
 
   /**
-   * Set whether to scale with zoom
-   */
-  setScaleWithZoom(enabled: boolean): this {
-    this._scaleWithZoom = enabled;
-    return this;
-  }
-
-  /**
    * Set current zoom (used for zoom-aware rendering)
    */
   setZoom(zoom: number): this {
@@ -191,7 +182,7 @@ export abstract class Drawable {
    * Based on qschematic's approach
    */
   protected getEffectivePosition(): Point {
-    const pivot = this._location;
+    const pivot = this._pivot;
     
     // Apply scaling to the pivot
     const scale = this.getAbsoluteScale();

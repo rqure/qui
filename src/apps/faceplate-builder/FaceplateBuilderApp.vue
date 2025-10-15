@@ -349,7 +349,6 @@ function createDefaultShape(shapeType: string, location: { x: number; y: number 
     (shape as any).setClassName('');
     (shape as any).setWidth(100);
     (shape as any).setHeight(100);
-    (shape as any).setScaleWithZoom(false);
   } else if (shapeType === 'ImageOverlay') {
     (shape as any).setUrl('');
     (shape as any).setWidth(100);
@@ -393,8 +392,6 @@ function applyPropertyToShape(shape: Drawable, property: string, value: any) {
     shapeAny.setWidth(value);
   } else if (property === 'height' && shapeAny.setHeight) {
     shapeAny.setHeight(value);
-  } else if (property === 'scaleWithZoom' && shapeAny.setScaleWithZoom) {
-    shapeAny.setScaleWithZoom(value);
   } else if (property === 'url' && shapeAny.setUrl) {
     shapeAny.setUrl(value);
   }
@@ -434,7 +431,6 @@ function shapeToConfig(shape: Drawable): FaceplateShapeConfig {
   if (shapeAny.getClassName) config.className = shapeAny.getClassName();
   if (shapeAny.getWidth) config.width = shapeAny.getWidth();
   if (shapeAny.getHeight) config.height = shapeAny.getHeight();
-  if (shapeAny.getScaleWithZoom) config.scaleWithZoom = shapeAny.getScaleWithZoom();
   if (shapeAny.getUrl) config.url = shapeAny.getUrl();
   
   return config;
@@ -489,9 +485,6 @@ function configToModel(config: any): Model {
         }
         if (shapeConfig.height !== undefined && shapeAny.setHeight) {
           shapeAny.setHeight(shapeConfig.height);
-        }
-        if (shapeConfig.scaleWithZoom !== undefined && shapeAny.setScaleWithZoom) {
-          shapeAny.setScaleWithZoom(shapeConfig.scaleWithZoom);
         }
         if (shapeConfig.url && shapeAny.setUrl) {
           shapeAny.setUrl(shapeConfig.url);
