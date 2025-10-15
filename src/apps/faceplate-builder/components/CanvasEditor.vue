@@ -77,6 +77,7 @@ const dragStartLatLng = ref<L.LatLng | null>(null);
 const shapeStartLocation = ref<{ x: number; y: number } | null>(null);
 const shapeStartRotation = ref<number>(0);
 const shapeStartSize = ref<{ scale: any; edges: any[] | null } | null>(null);
+const lastResizeUpdate = ref<{ x: number; y: number } | null>(null);
 
 // Computed
 const selectedShape = computed((): Drawable | null => {
@@ -531,6 +532,8 @@ function startResize(event: MouseEvent, handle: string) {
     edges: shapeAny.getEdges?.() ? [...shapeAny.getEdges()] : null
   };
   
+  lastResizeUpdate.value = null; // Reset throttling
+  
   document.body.style.cursor = `${handle}-resize`;
   event.preventDefault();
 }
@@ -605,39 +608,47 @@ function handleMouseMove(event: MouseEvent) {
     const canvasDx = currentLatLng.lng - startLatLng.lng;
     const canvasDy = currentLatLng.lat - startLatLng.lat;
     
-    const originalScale = shapeStartSize.value.scale;
-    let scaleX = originalScale.x;
-    let scaleY = originalScale.y;
-    
-    const scaleFactor = 0.005; // adjust as needed
-    
-    switch (resizeHandle.value) {
-      case 'se': // bottom-right
-        scaleX += canvasDx * scaleFactor;
-        scaleY -= canvasDy * scaleFactor; // subtract because lat increases upward
-        break;
-      case 'sw': // bottom-left
-        scaleX -= canvasDx * scaleFactor;
-        scaleY -= canvasDy * scaleFactor;
-        break;
-      case 'ne': // top-right
-        scaleX += canvasDx * scaleFactor;
-        scaleY += canvasDy * scaleFactor;
-        break;
-      case 'nw': // top-left
-        scaleX -= canvasDx * scaleFactor;
-        scaleY += canvasDy * scaleFactor;
-        break;
+    // Throttle updates to reduce lag
+    if (!lastResizeUpdate.value || 
+        Math.abs(currentContainerX - lastResizeUpdate.value.x) > 5 || 
+        Math.abs(currentContainerY - lastResizeUpdate.value.y) > 5) {
+      
+      const originalScale = shapeStartSize.value.scale;
+      let scaleX = originalScale.x;
+      let scaleY = originalScale.y;
+      
+      const scaleFactor = 0.005; // adjust as needed
+      
+      switch (resizeHandle.value) {
+        case 'se': // bottom-right
+          scaleX += canvasDx * scaleFactor;
+          scaleY -= canvasDy * scaleFactor; // subtract because lat increases upward
+          break;
+        case 'sw': // bottom-left
+          scaleX -= canvasDx * scaleFactor;
+          scaleY -= canvasDy * scaleFactor;
+          break;
+        case 'ne': // top-right
+          scaleX += canvasDx * scaleFactor;
+          scaleY += canvasDy * scaleFactor;
+          break;
+        case 'nw': // top-left
+          scaleX -= canvasDx * scaleFactor;
+          scaleY += canvasDy * scaleFactor;
+          break;
+      }
+      
+      selectedShape.value.setScale({
+        x: Math.max(0.1, scaleX),
+        y: Math.max(0.1, scaleY)
+      });
+      
+      renderModelOnly();
+      updateSelectionShapes();
+      emit('shape-update');
+      
+      lastResizeUpdate.value = { x: currentContainerX, y: currentContainerY };
     }
-    
-    selectedShape.value.setScale({
-      x: Math.max(0.1, scaleX),
-      y: Math.max(0.1, scaleY)
-    });
-    
-    renderModelOnly();
-    updateSelectionShapes();
-    emit('shape-update');
   }
   
   // Rotating shape
@@ -671,6 +682,7 @@ function handleMouseUp() {
   shapeStartLocation.value = null;
   shapeStartRotation.value = 0;
   shapeStartSize.value = null;
+  lastResizeUpdate.value = null;
   document.body.style.cursor = '';
 }
 
