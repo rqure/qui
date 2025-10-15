@@ -128,6 +128,7 @@ export class Div extends Drawable {
         if (!element) return;
 
         const scale = this.getZoomScaleFactor();
+        const rotation = this.getAbsoluteRotation() * (180 / Math.PI); // Convert to degrees
 
         // Find the leaflet-div-icon container
         const container = element.firstElementChild as HTMLElement;
@@ -136,7 +137,7 @@ export class Div extends Drawable {
             container.style.width = `${this._width}px`;
             container.style.height = `${this._height}px`;
 
-            container.style.transform = `scale(${scale})`;
+            container.style.transform = `scale(${scale}) rotate(${rotation}deg)`;
             container.style.transformOrigin = 'center center';
             container.style.transition = 'transform 0.3s ease-in-out';
         }
@@ -210,7 +211,7 @@ export class Div extends Drawable {
         // Add to map
         this.layer.addTo(canvas.getMap());
 
-        // Apply styles and scaling (divs always scale with zoom)
+        // Apply styles, scaling, and rotation
         this.applyStyles();
         this.applySmoothScaling();
 

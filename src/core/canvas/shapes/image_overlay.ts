@@ -96,6 +96,17 @@ export class ImageOverlay extends Drawable {
     // Add to map
     this.layer.addTo(canvas.getMap());
 
+    // Apply rotation immediately
+    const container = this.layer?.getContainer?.();
+    if (container) {
+      const img = container.querySelector('img');
+      if (img) {
+        const rotation = this.getAbsoluteRotation() * (180 / Math.PI); // Convert to degrees
+        img.style.transform = `rotate(${rotation}deg)`;
+        img.style.transformOrigin = 'center center';
+      }
+    }
+
     // Emit draw event
     this.emit('draw');
   }

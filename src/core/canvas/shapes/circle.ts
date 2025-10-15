@@ -138,6 +138,14 @@ export class Circle extends Drawable {
     // Add to map
     this.layer.addTo(canvas.getMap());
 
+    // Apply rotation immediately
+    const element = this.layer?.getElement();
+    if (element && element.tagName === 'path') {
+      const rotation = this.getAbsoluteRotation() * (180 / Math.PI); // Convert to degrees
+      element.style.transform = `rotate(${rotation}deg)`;
+      element.style.transformOrigin = 'center center';
+    }
+
     // Emit draw event
     this.emit('draw');
   }

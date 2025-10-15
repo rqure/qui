@@ -141,6 +141,14 @@ export class SvgText extends Drawable {
     // Add to map
     this.layer.addTo(canvas.getMap());
 
+    // Apply rotation immediately
+    const container = this.layer?.getContainer?.();
+    if (container) {
+      const rotation = this.getAbsoluteRotation() * (180 / Math.PI); // Convert to degrees
+      container.style.transform = `rotate(${rotation}deg)`;
+      container.style.transformOrigin = 'center center';
+    }
+
     // Emit draw event
     this.emit('draw');
   }

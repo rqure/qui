@@ -139,18 +139,28 @@ export class Text extends Drawable {
       offset: [0, 0]
     });
 
-    // Apply text color via style
+    // Store reference and add to map
+    this.layer = marker;
+    this.layer.addTo(canvas.getMap());
+
+    // Apply rotation immediately
+    const rotation = this.getAbsoluteRotation() * (180 / Math.PI); // Convert to degrees
+    const tooltipEl = marker.getTooltip()?.getElement();
+    if (tooltipEl) {
+      tooltipEl.style.transform = `rotate(${rotation}deg)`;
+      tooltipEl.style.transformOrigin = 'center center';
+    }
+
+    // Also apply on add event for safety
     marker.on('add', () => {
       const tooltipEl = marker.getTooltip()?.getElement();
       if (tooltipEl) {
         tooltipEl.style.color = this._color;
         tooltipEl.style.fontSize = `${this._fontSize * this.getAbsoluteScale().x}px`;
+        tooltipEl.style.transform = `rotate(${rotation}deg)`;
+        tooltipEl.style.transformOrigin = 'center center';
       }
     });
-
-    // Store reference and add to map
-    this.layer = marker;
-    this.layer.addTo(canvas.getMap());
 
     // Emit draw event
     this.emit('draw');
