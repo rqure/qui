@@ -124,30 +124,48 @@ export class SvgText extends Drawable {
     svgElement.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
     svgElement.setAttribute('viewBox', `0 0 ${this._width} ${this._height}`);
     svgElement.innerHTML = `
-      <text x="0%" y="95%" style="font-size:${this._fontSize};" fill="${this._fillColor}">${this._text}</text>
+      <text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" style="font-size:${this._fontSize};" fill="${this._fillColor}">${this._text}</text>
     `;
 
-    // Create bounds for the overlay with scaling
+    // Create bounds for the overlay with scaling, centered on position
     const scaledWidth = this._width * scale.x;
     const scaledHeight = this._height * scale.y;
     const bounds: L.LatLngBoundsExpression = [
-      [pos.y, pos.x],
-      [pos.y + scaledHeight, pos.x + scaledWidth]
+      [pos.y - scaledHeight / 2, pos.x - scaledWidth / 2],
+      [pos.y + scaledHeight / 2, pos.x + scaledWidth / 2]
     ];
 
     // Create the Leaflet SVG overlay
     this.layer = L.svgOverlay(svgElement, bounds);
 
+    // Apply rotation to the SVG element
+    this.layer.on('add', () => {
+      const container = this.layer?.getContainer?.();
+      if (container) {
+        const svg = container.querySelector('svg');
+        if (svg) {
+          const rotation = -this.getAbsoluteRotation() * (180 / Math.PI); // Convert to degrees and negate for CSS clockwise rotation
+          svg.style.transform = `rotate(${rotation}deg)`;
+          svg.style.transformOrigin = 'center center';
+        }
+      }
+    });
+
     // Add to map
     this.layer.addTo(canvas.getMap());
 
     // Apply rotation immediately
-    const container = this.layer?.getContainer?.();
-    if (container) {
-      const rotation = -this.getAbsoluteRotation() * (180 / Math.PI); // Convert to degrees and negate for CSS clockwise rotation
-      container.style.transform = `rotate(${rotation}deg)`;
-      container.style.transformOrigin = 'center center';
-    }
+    setTimeout(() => {
+      const container = this.layer?.getContainer?.();
+      if (container) {
+        const svg = container.querySelector('svg');
+        if (svg) {
+          const rotation = -this.getAbsoluteRotation() * (180 / Math.PI); // Convert to degrees and negate for CSS clockwise rotation
+          svg.style.transform = `rotate(${rotation}deg)`;
+          svg.style.transformOrigin = 'center center';
+        }
+      }
+    }, 0);
 
     // Emit draw event
     this.emit('draw');
