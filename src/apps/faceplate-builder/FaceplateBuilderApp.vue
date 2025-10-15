@@ -150,6 +150,12 @@
       @close="showSaveModal = false"
       @save="onSaveFaceplate"
     />
+
+    <DeleteConfirmationModal
+      v-if="showDeleteModal"
+      @confirm="confirmDeleteShape"
+      @cancel="showDeleteModal = false"
+    />
   </div>
 </template>
 
@@ -165,6 +171,7 @@ import PropertiesPanel from './components/PropertiesPanel.vue';
 import LayerPanel from './components/LayerPanel.vue';
 import LoadFaceplateModal from './components/LoadFaceplateModal.vue';
 import SaveFaceplateModal from './components/SaveFaceplateModal.vue';
+import DeleteConfirmationModal from './components/DeleteConfirmationModal.vue';
 
 // State
 const currentModel = ref<Model>(new Model());
@@ -172,6 +179,7 @@ const selectedShapeIndex = ref<number | null>(null);
 const hasChanges = ref(false);
 const showLoadModal = ref(false);
 const showSaveModal = ref(false);
+const showDeleteModal = ref(false);
 const shapeUpdateTrigger = ref(0);
 const activeTab = ref<'shapes' | 'layers'>('shapes');
 
@@ -307,12 +315,28 @@ function onPropertyUpdate(property: string, value: any) {
 }
 
 function onDeleteShape() {
+  showDeleteModal.value = true;
+}
+
+function confirmDeleteShape() {
   if (selectedShapeIndex.value !== null) {
     const shapes = currentModel.value.getShapes();
+    const shapeToDelete = shapes[selectedShapeIndex.value];
+    
+    // Properly destroy the shape to clean up Leaflet layers
+    if (shapeToDelete) {
+      shapeToDelete.destroy();
+    }
+    
     shapes.splice(selectedShapeIndex.value, 1);
     selectedShapeIndex.value = null;
     hasChanges.value = true;
+    
+    // Trigger canvas re-render
+    canvasEditor.value?.renderModel();
+    shapeUpdateTrigger.value++;
   }
+  showDeleteModal.value = false;
 }
 
 // Canvas configuration methods

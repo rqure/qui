@@ -693,9 +693,7 @@ function updateProperty(property: string, value: any) {
 }
 
 function deleteShape() {
-  if (confirm('Delete this shape?')) {
-    emit('delete-shape');
-  }
+  emit('delete-shape');
 }
 </script>
 
@@ -804,7 +802,8 @@ function deleteShape() {
 }
 
 .property-row input[type="number"],
-.property-row input[type="text"] {
+.property-row input[type="text"],
+.property-row input[type="url"] {
   flex: 1;
   padding: 8px 12px;
   background: var(--qui-bg-primary, #1a1a1a);
@@ -819,7 +818,8 @@ function deleteShape() {
 }
 
 .property-row input[type="number"]:focus,
-.property-row input[type="text"]:focus {
+.property-row input[type="text"]:focus,
+.property-row input[type="url"]:focus {
   outline: none;
   border-color: var(--qui-accent-color, #00ff88);
   box-shadow: 0 0 0 2px rgba(0, 255, 136, 0.2);
