@@ -426,7 +426,13 @@ function createCircleSelection(shape: Drawable, loc: Point, selectionPane: any) 
   radiusHandle.setColor('#ffffff');
   radiusHandle.setFillOpacity(1);
   radiusHandle.setWeight(2);
-  radiusHandle.setOffset({ x: loc.x + radius, y: loc.y });
+  // Rotate the radius handle position to match selection circle rotation
+  const rotation = shape.getRotation();
+  const cos = Math.cos(rotation);
+  const sin = Math.sin(rotation);
+  const radiusX = radius * cos;
+  const radiusY = radius * sin;
+  radiusHandle.setOffset({ x: loc.x + radiusX, y: loc.y + radiusY });
   radiusHandle.setPane(selectionPane);
   (radiusHandle as any)._isSelectionShape = true;
   (radiusHandle as any)._handleType = 'radius';
@@ -472,6 +478,9 @@ function createRectangleSelection(shape: Drawable, loc: Point, selectionPane: an
   
   // Create resize handles (circles at corners)
   const handleSize = 6;
+  const rotation = shape.getRotation();
+  const cos = Math.cos(rotation);
+  const sin = Math.sin(rotation);
   const handles = [
     { x: -halfWidth, y: -halfHeight, type: 'nw' },
     { x: halfWidth, y: -halfHeight, type: 'ne' },
@@ -480,13 +489,17 @@ function createRectangleSelection(shape: Drawable, loc: Point, selectionPane: an
   ];
   
   handles.forEach(h => {
+    // Rotate handle position to match selection box rotation
+    const rotatedX = h.x * cos - h.y * sin;
+    const rotatedY = h.x * sin + h.y * cos;
+    
     const handle = new Circle();
     handle.setRadius(handleSize);
     handle.setFillColor('#00ff88');
     handle.setColor('#ffffff');
     handle.setFillOpacity(1);
     handle.setWeight(2);
-    handle.setOffset({ x: loc.x + h.x, y: loc.y + h.y });
+    handle.setOffset({ x: loc.x + rotatedX, y: loc.y + rotatedY });
     handle.setPane(selectionPane);
     (handle as any)._isSelectionShape = true;
     (handle as any)._handleType = h.type;
@@ -531,14 +544,21 @@ function createPolygonSelection(shape: Drawable, loc: Point, selectionPane: any)
   selectionModel.value!.addShape(selectionPoly);
   
   // Create handles at each edge point
+  const rotation = shape.getRotation();
+  const cos = Math.cos(rotation);
+  const sin = Math.sin(rotation);
   edges.forEach((edge: any, index: number) => {
+    // Rotate handle position to match selection polygon rotation
+    const rotatedX = edge.x * cos - edge.y * sin;
+    const rotatedY = edge.x * sin + edge.y * cos;
+    
     const handle = new Circle();
     handle.setRadius(6);
     handle.setFillColor('#00ff88');
     handle.setColor('#ffffff');
     handle.setFillOpacity(1);
     handle.setWeight(2);
-    handle.setOffset({ x: loc.x + edge.x, y: loc.y + edge.y });
+    handle.setOffset({ x: loc.x + rotatedX, y: loc.y + rotatedY });
     handle.setPane(selectionPane);
     (handle as any)._isSelectionShape = true;
     (handle as any)._handleType = `edge-${index}`;
@@ -599,7 +619,13 @@ function createTextSelection(shape: Drawable, loc: Point, selectionPane: any) {
   fontHandle.setColor('#ffffff');
   fontHandle.setFillOpacity(1);
   fontHandle.setWeight(2);
-  fontHandle.setOffset({ x: loc.x + halfWidth, y: loc.y + halfHeight });
+  // Rotate handle position to match selection box rotation
+  const rotation = shape.getRotation();
+  const cos = Math.cos(rotation);
+  const sin = Math.sin(rotation);
+  const rotatedX = halfWidth * cos - halfHeight * sin;
+  const rotatedY = halfWidth * sin + halfHeight * cos;
+  fontHandle.setOffset({ x: loc.x + rotatedX, y: loc.y + rotatedY });
   fontHandle.setPane(selectionPane);
   (fontHandle as any)._isSelectionShape = true;
   (fontHandle as any)._handleType = 'fontsize';
