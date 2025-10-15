@@ -76,7 +76,7 @@ const dragStart = ref<{ x: number; y: number } | null>(null);
 const dragStartLatLng = ref<L.LatLng | null>(null);
 const shapeStartLocation = ref<{ x: number; y: number } | null>(null);
 const shapeStartRotation = ref<number>(0);
-const shapeStartSize = ref<{ width: number; height: number; radius: number } | null>(null);
+const shapeStartSize = ref<{ scale: any; edges: any[] | null } | null>(null);
 
 // Computed
 const selectedShape = computed((): Drawable | null => {
@@ -225,7 +225,7 @@ function handleCanvasMouseDown(e: L.LeafletMouseEvent) {
   if (!selectionModel.value || !canvas.value) return;
   
   const clickPoint = e.latlng;
-  const selectionShapes = (selectionModel.value as any)._shapes || [];
+  const selectionShapes = selectionModel.value.getShapes();
   
   // Check if clicking on a selection handle
   for (const shape of selectionShapes) {
@@ -300,10 +300,23 @@ function isPointInShape(shape: Drawable, point: L.LatLng): boolean {
   // Check for Circle
   if (shapeAny.getRadius && typeof shapeAny.getRadius === 'function') {
     const radius = shapeAny.getRadius();
+    
+    // For circles, we need to check in pixel space since radius is in pixels
+    if (canvas.value) {
+      const leafletMap = (canvas.value as any).map;
+      const shapePoint = leafletMap.latLngToContainerPoint([loc.y, loc.x]);
+      const clickPoint = leafletMap.latLngToContainerPoint(point);
+      const pixelDistance = Math.sqrt(
+        Math.pow(clickPoint.x - shapePoint.x, 2) + Math.pow(clickPoint.y - shapePoint.y, 2)
+      );
+      return pixelDistance <= radius;
+    }
+    
+    // Fallback to coordinate distance (not accurate)
     const distance = Math.sqrt(
       Math.pow(point.lat - loc.y, 2) + Math.pow(point.lng - loc.x, 2)
     );
-    return distance <= radius;
+    return distance <= radius * 0.001; // rough approximation
   }
   
   // Check for shapes with explicit dimensions
@@ -362,18 +375,31 @@ function updateSelectionShapes() {
   let canvasWidth = 80;
   let canvasHeight = 80;
   
+  const shapeScale = shape.getScale();
+  
   if (shapeAny.getRadius && typeof shapeAny.getRadius === 'function') {
-    const radius = shapeAny.getRadius();
+    const radius = shapeAny.getRadius() * shapeScale.x;
     canvasWidth = radius * 2.2; // Add 10% padding
     canvasHeight = radius * 2.2;
   } else if (shapeAny.getWidth && shapeAny.getHeight) {
-    canvasWidth = shapeAny.getWidth() * 1.1;
-    canvasHeight = shapeAny.getHeight() * 1.1;
+    canvasWidth = shapeAny.getWidth() * shapeScale.x * 1.1;
+    canvasHeight = shapeAny.getHeight() * shapeScale.y * 1.1;
+  } else if (shapeAny.getText && shapeAny.getFontSize) {
+    // For text shapes, estimate bounds based on text length and font size
+    const text = shapeAny.getText() || '';
+    const fontSize = shapeAny.getFontSize() * shapeScale.x;
+    canvasWidth = Math.max(text.length * fontSize * 0.6, 40) * 1.2;
+    canvasHeight = fontSize * 1.5 * 1.2;
   } else if (shapeAny.getEdges && typeof shapeAny.getEdges === 'function') {
     const edges = shapeAny.getEdges();
     if (edges && edges.length > 0) {
-      const xs = edges.map((e: any) => e.x);
-      const ys = edges.map((e: any) => e.y);
+      // Use transformed edges to account for scaling
+      const transformedEdges = edges.map((edge: any) => ({
+        x: edge.x * shapeScale.x,
+        y: edge.y * shapeScale.y
+      }));
+      const xs = transformedEdges.map((e: any) => e.x);
+      const ys = transformedEdges.map((e: any) => e.y);
       const minX = Math.min(...xs);
       const maxX = Math.max(...xs);
       const minY = Math.min(...ys);
@@ -421,7 +447,7 @@ function updateSelectionShapes() {
     handle.setColor('#ffffff');
     handle.setFillOpacity(1);
     handle.setWeight(2);
-    handle.setLocation({ x: loc.x + h.x, y: loc.y + h.y });
+    handle.setOffset({ x: loc.x + h.x, y: loc.y + h.y });
     handle.setPane(selectionPane);
     (handle as any)._isSelectionShape = true;
     (handle as any)._handleType = h.type;
@@ -435,7 +461,7 @@ function updateSelectionShapes() {
   rotateHandle.setColor('#ffffff');
   rotateHandle.setFillOpacity(1);
   rotateHandle.setWeight(2);
-  rotateHandle.setLocation({ x: loc.x, y: loc.y - halfHeight - 20 });
+  rotateHandle.setOffset({ x: loc.x, y: loc.y - halfHeight - 20 });
   rotateHandle.setPane(selectionPane);
   (rotateHandle as any)._isSelectionShape = true;
   (rotateHandle as any)._handleType = 'rotate';
@@ -501,9 +527,8 @@ function startResize(event: MouseEvent, handle: string) {
   
   const shapeAny = selectedShape.value as any;
   shapeStartSize.value = {
-    width: shapeAny.getWidth?.() || 100,
-    height: shapeAny.getHeight?.() || 100,
-    radius: shapeAny.getRadius?.() || 50
+    scale: selectedShape.value.getScale(),
+    edges: shapeAny.getEdges?.() ? [...shapeAny.getEdges()] : null
   };
   
   document.body.style.cursor = `${handle}-resize`;
@@ -580,48 +605,35 @@ function handleMouseMove(event: MouseEvent) {
     const canvasDx = currentLatLng.lng - startLatLng.lng;
     const canvasDy = currentLatLng.lat - startLatLng.lat;
     
-    const shapeAny = selectedShape.value as any;
+    const originalScale = shapeStartSize.value.scale;
+    let scaleX = originalScale.x;
+    let scaleY = originalScale.y;
     
-    // Handle Circle radius
-    if (shapeAny.setRadius && typeof shapeAny.getRadius === 'function') {
-      const radiusChange = Math.sqrt(canvasDx * canvasDx + canvasDy * canvasDy) * 
-                          ((canvasDx - canvasDy) > 0 ? 1 : -1);
-      const newRadius = Math.max(5, shapeStartSize.value.radius + radiusChange);
-      shapeAny.setRadius(newRadius);
+    const scaleFactor = 0.005; // adjust as needed
+    
+    switch (resizeHandle.value) {
+      case 'se': // bottom-right
+        scaleX += canvasDx * scaleFactor;
+        scaleY -= canvasDy * scaleFactor; // subtract because lat increases upward
+        break;
+      case 'sw': // bottom-left
+        scaleX -= canvasDx * scaleFactor;
+        scaleY -= canvasDy * scaleFactor;
+        break;
+      case 'ne': // top-right
+        scaleX += canvasDx * scaleFactor;
+        scaleY += canvasDy * scaleFactor;
+        break;
+      case 'nw': // top-left
+        scaleX -= canvasDx * scaleFactor;
+        scaleY += canvasDy * scaleFactor;
+        break;
     }
     
-    // Handle shapes with width/height
-    else if (shapeAny.setWidth && shapeAny.setHeight) {
-      let newWidth = shapeStartSize.value.width;
-      let newHeight = shapeStartSize.value.height;
-      
-      // Apply resize based on handle direction
-      // Note: In Leaflet, lat increases upward (Y), lng increases rightward (X)
-      switch (resizeHandle.value) {
-        case 'se': // bottom-right
-          newWidth += canvasDx;
-          newHeight -= canvasDy; // subtract because lat increases upward
-          break;
-        case 'sw': // bottom-left
-          newWidth -= canvasDx;
-          newHeight -= canvasDy;
-          break;
-        case 'ne': // top-right
-          newWidth += canvasDx;
-          newHeight += canvasDy;
-          break;
-        case 'nw': // top-left
-          newWidth -= canvasDx;
-          newHeight += canvasDy;
-          break;
-      }
-      
-      newWidth = Math.max(10, newWidth);
-      newHeight = Math.max(10, newHeight);
-      
-      shapeAny.setWidth(newWidth);
-      shapeAny.setHeight(newHeight);
-    }
+    selectedShape.value.setScale({
+      x: Math.max(0.1, scaleX),
+      y: Math.max(0.1, scaleY)
+    });
     
     renderModelOnly();
     updateSelectionShapes();

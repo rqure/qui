@@ -123,7 +123,7 @@ export class Circle extends Drawable {
       fillColor: this._fillColor,
       fillOpacity: this._fillOpacity,
       weight: this._weight,
-      radius: this._radius
+      radius: this._radius * this.getAbsoluteScale().x
     };
 
     // Set pane if specified

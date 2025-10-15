@@ -144,7 +144,7 @@ export class Text extends Drawable {
       const tooltipEl = marker.getTooltip()?.getElement();
       if (tooltipEl) {
         tooltipEl.style.color = this._color;
-        tooltipEl.style.fontSize = `${this._fontSize}px`;
+        tooltipEl.style.fontSize = `${this._fontSize * this.getAbsoluteScale().x}px`;
       }
     });
 
