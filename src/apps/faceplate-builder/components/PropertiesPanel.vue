@@ -814,6 +814,8 @@ function deleteShape() {
   font-size: var(--qui-font-size-small, 13px);
   transition: all 0.15s ease;
   font-family: var(--qui-font-family, 'Segoe UI', sans-serif);
+  box-sizing: border-box;
+  min-width: 0;
 }
 
 .property-row input[type="number"]:focus,
@@ -836,6 +838,8 @@ function deleteShape() {
   resize: vertical;
   min-height: 60px;
   transition: all 0.15s ease;
+  box-sizing: border-box;
+  min-width: 0;
 }
 
 .property-row textarea:focus {
