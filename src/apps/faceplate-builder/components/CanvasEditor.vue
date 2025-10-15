@@ -622,19 +622,19 @@ function handleMouseMove(event: MouseEvent) {
       switch (resizeHandle.value) {
         case 'se': // bottom-right
           scaleX += canvasDx * scaleFactor;
-          scaleY -= canvasDy * scaleFactor; // subtract because lat increases upward
+          scaleY += canvasDy * scaleFactor;
           break;
         case 'sw': // bottom-left
           scaleX -= canvasDx * scaleFactor;
-          scaleY -= canvasDy * scaleFactor;
+          scaleY += canvasDy * scaleFactor;
           break;
         case 'ne': // top-right
           scaleX += canvasDx * scaleFactor;
-          scaleY += canvasDy * scaleFactor;
+          scaleY -= canvasDy * scaleFactor;
           break;
         case 'nw': // top-left
           scaleX -= canvasDx * scaleFactor;
-          scaleY += canvasDy * scaleFactor;
+          scaleY -= canvasDy * scaleFactor;
           break;
       }
       
