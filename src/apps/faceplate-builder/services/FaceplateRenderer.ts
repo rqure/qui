@@ -280,7 +280,38 @@ export class FaceplateRenderer {
       shapeAny.setDirection(config.direction);
     }
     
-    // TODO: Add more shape-specific properties as needed (Div, Image, SvgText)
+    // SvgText properties
+    if (config.width !== undefined && shapeAny.setWidth) {
+      shapeAny.setWidth(config.width);
+    }
+    if (config.height !== undefined && shapeAny.setHeight) {
+      shapeAny.setHeight(config.height);
+    }
+    if (config.fillColor && shapeAny.setFillColor) {
+      shapeAny.setFillColor(config.fillColor);
+    }
+    
+    // Div properties
+    if (config.html && shapeAny.setHtml) {
+      shapeAny.setHtml(config.html);
+    }
+    if (config.className && shapeAny.setClassName) {
+      shapeAny.setClassName(config.className);
+    }
+    if (config.scaleWithZoom !== undefined && shapeAny.setScaleWithZoom) {
+      shapeAny.setScaleWithZoom(config.scaleWithZoom);
+    }
+    if (config.styles && shapeAny.setStyles) {
+      shapeAny.setStyles(config.styles);
+    }
+    if (config.animations && shapeAny.setAnimations) {
+      shapeAny.setAnimations(config.animations);
+    }
+    
+    // ImageOverlay properties
+    if (config.url && shapeAny.setUrl) {
+      shapeAny.setUrl(config.url);
+    }
   }
   
   // ============================================================

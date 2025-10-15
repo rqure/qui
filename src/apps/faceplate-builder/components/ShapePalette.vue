@@ -68,6 +68,33 @@ const shapes: ShapeDefinition[] = [
     icon: `<svg width="40" height="40" viewBox="0 0 40 40">
       <text x="20" y="25" text-anchor="middle" fill="currentColor" font-size="20" font-weight="bold">T</text>
     </svg>`
+  },
+  {
+    type: 'SvgText',
+    name: 'SVG Text',
+    description: 'Scalable vector text',
+    icon: `<svg width="40" height="40" viewBox="0 0 40 40">
+      <text x="20" y="25" text-anchor="middle" fill="currentColor" font-size="16" font-weight="bold">SVG</text>
+    </svg>`
+  },
+  {
+    type: 'Div',
+    name: 'HTML Div',
+    description: 'Custom HTML content',
+    icon: `<svg width="40" height="40" viewBox="0 0 40 40">
+      <rect x="8" y="8" width="24" height="16" fill="none" stroke="currentColor" stroke-width="2" rx="2"/>
+      <text x="20" y="20" text-anchor="middle" fill="currentColor" font-size="10">&lt;/&gt;</text>
+    </svg>`
+  },
+  {
+    type: 'ImageOverlay',
+    name: 'Image',
+    description: 'Image overlay',
+    icon: `<svg width="40" height="40" viewBox="0 0 40 40">
+      <rect x="8" y="8" width="24" height="16" fill="none" stroke="currentColor" stroke-width="2" rx="2"/>
+      <circle cx="16" cy="16" r="2" fill="currentColor"/>
+      <polygon points="24,12 28,16 24,20 20,16" fill="currentColor"/>
+    </svg>`
   }
 ];
 

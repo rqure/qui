@@ -391,7 +391,14 @@ function updateSelectionShapes() {
     const fontSize = shapeAny.getFontSize() * shapeScale.x;
     canvasWidth = Math.max(text.length * fontSize * 0.6, 40) * 1.2;
     canvasHeight = fontSize * 1.5 * 1.2;
-  } else if (shapeAny.getEdges && typeof shapeAny.getEdges === 'function') {
+  } else if (shapeAny.getHtml) {
+    // For div shapes, use specified width/height
+    canvasWidth = (shapeAny.getWidth?.() || 100) * shapeScale.x * 1.1;
+    canvasHeight = (shapeAny.getHeight?.() || 100) * shapeScale.y * 1.1;
+  } else if (shapeAny.getUrl) {
+    // For image overlay shapes, use specified width/height
+    canvasWidth = (shapeAny.getWidth?.() || 100) * shapeScale.x * 1.1;
+    canvasHeight = (shapeAny.getHeight?.() || 100) * shapeScale.y * 1.1;
     const edges = shapeAny.getEdges();
     if (edges && edges.length > 0) {
       // Use transformed edges to account for scaling

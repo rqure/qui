@@ -179,6 +179,153 @@
         </div>
       </div>
       
+      <!-- SVG Text properties -->
+      <div v-if="shapeTypeName === 'SvgText'" class="property-section">
+        <div class="section-title">SVG Text</div>
+        
+        <div class="property-row">
+          <label>Content:</label>
+          <input 
+            type="text" 
+            :value="svgTextProps.text" 
+            @input="updateProperty('text', ($event.target as HTMLInputElement).value)"
+          />
+        </div>
+        
+        <div class="property-row">
+          <label>Font Size:</label>
+          <input 
+            type="text" 
+            :value="svgTextProps.fontSize" 
+            @input="updateProperty('fontSize', ($event.target as HTMLInputElement).value)"
+          />
+        </div>
+        
+        <div class="property-row">
+          <label>Width:</label>
+          <input 
+            type="number" 
+            :value="svgTextProps.width" 
+            @input="updateProperty('width', parseFloat(($event.target as HTMLInputElement).value))"
+            step="1"
+            min="1"
+          />
+        </div>
+        
+        <div class="property-row">
+          <label>Height:</label>
+          <input 
+            type="number" 
+            :value="svgTextProps.height" 
+            @input="updateProperty('height', parseFloat(($event.target as HTMLInputElement).value))"
+            step="1"
+            min="1"
+          />
+        </div>
+        
+        <div class="property-row">
+          <label>Fill Color:</label>
+          <input 
+            type="color" 
+            :value="svgTextProps.fillColor" 
+            @input="updateProperty('fillColor', ($event.target as HTMLInputElement).value)"
+          />
+        </div>
+      </div>
+      
+      <!-- Div properties -->
+      <div v-if="shapeTypeName === 'Div'" class="property-section">
+        <div class="section-title">HTML Div</div>
+        
+        <div class="property-row">
+          <label>HTML:</label>
+          <textarea 
+            :value="divProps.html" 
+            @input="updateProperty('html', ($event.target as HTMLTextAreaElement).value)"
+            rows="3"
+            placeholder="<div>Hello World</div>"
+          ></textarea>
+        </div>
+        
+        <div class="property-row">
+          <label>Class:</label>
+          <input 
+            type="text" 
+            :value="divProps.className" 
+            @input="updateProperty('className', ($event.target as HTMLInputElement).value)"
+            placeholder="my-custom-class"
+          />
+        </div>
+        
+        <div class="property-row">
+          <label>Width:</label>
+          <input 
+            type="number" 
+            :value="divProps.width" 
+            @input="updateProperty('width', parseFloat(($event.target as HTMLInputElement).value))"
+            step="1"
+            min="1"
+          />
+        </div>
+        
+        <div class="property-row">
+          <label>Height:</label>
+          <input 
+            type="number" 
+            :value="divProps.height" 
+            @input="updateProperty('height', parseFloat(($event.target as HTMLInputElement).value))"
+            step="1"
+            min="1"
+          />
+        </div>
+        
+        <div class="property-row">
+          <label>Scale with Zoom:</label>
+          <input 
+            type="checkbox" 
+            :checked="divProps.scaleWithZoom" 
+            @change="updateProperty('scaleWithZoom', ($event.target as HTMLInputElement).checked)"
+          />
+        </div>
+      </div>
+      
+      <!-- Image Overlay properties -->
+      <div v-if="shapeTypeName === 'ImageOverlay'" class="property-section">
+        <div class="section-title">Image Overlay</div>
+        
+        <div class="property-row">
+          <label>URL:</label>
+          <input 
+            type="url" 
+            :value="imageProps.url" 
+            @input="updateProperty('url', ($event.target as HTMLInputElement).value)"
+            placeholder="https://example.com/image.png"
+          />
+        </div>
+        
+        <div class="property-row">
+          <label>Width:</label>
+          <input 
+            type="number" 
+            :value="imageProps.width" 
+            @input="updateProperty('width', parseFloat(($event.target as HTMLInputElement).value))"
+            step="1"
+            min="1"
+          />
+        </div>
+        
+        <div class="property-row">
+          <label>Height:</label>
+          <input 
+            type="number" 
+            :value="imageProps.height" 
+            @input="updateProperty('height', parseFloat(($event.target as HTMLInputElement).value))"
+            step="1"
+            min="1"
+          />
+        </div>
+      </div>
+      
       <!-- Actions -->
       <div class="property-section actions-section">
         <button @click="deleteShape" class="btn btn-danger">
@@ -261,6 +408,43 @@ const textProps = computed(() => {
     text: shape.getText?.() ?? 'Text',
     fontSize: shape.getFontSize?.() ?? 16,
     color: shape.getColor?.() ?? '#ffffff'
+  };
+});
+
+const svgTextProps = computed(() => {
+  props.updateTrigger; // dependency
+  if (!props.selectedShape) return { text: 'SVG Text', fontSize: '1em', width: 100, height: 20, fillColor: '#000000' };
+  const shape = props.selectedShape as any;
+  return {
+    text: shape.getText?.() ?? 'SVG Text',
+    fontSize: shape.getFontSize?.() ?? '1em',
+    width: shape.getWidth?.() ?? 100,
+    height: shape.getHeight?.() ?? 20,
+    fillColor: shape.getFillColor?.() ?? '#000000'
+  };
+});
+
+const divProps = computed(() => {
+  props.updateTrigger; // dependency
+  if (!props.selectedShape) return { html: '<div>Hello</div>', className: '', width: 100, height: 100, scaleWithZoom: false };
+  const shape = props.selectedShape as any;
+  return {
+    html: shape.getHtml?.() ?? '<div>Hello</div>',
+    className: shape.getClassName?.() ?? '',
+    width: shape.getWidth?.() ?? 100,
+    height: shape.getHeight?.() ?? 100,
+    scaleWithZoom: shape.getScaleWithZoom?.() ?? false
+  };
+});
+
+const imageProps = computed(() => {
+  props.updateTrigger; // dependency
+  if (!props.selectedShape) return { url: '', width: 100, height: 100 };
+  const shape = props.selectedShape as any;
+  return {
+    url: shape.getUrl?.() ?? '',
+    width: shape.getWidth?.() ?? 100,
+    height: shape.getHeight?.() ?? 100
   };
 });
 
@@ -419,8 +603,28 @@ function deleteShape() {
   background: color-mix(in srgb, var(--qui-bg-primary, #1a1a1a) 95%, var(--qui-accent-color, #00ff88));
 }
 
-.property-row input[type="number"]:hover,
-.property-row input[type="text"]:hover {
+.property-row textarea {
+  flex: 1;
+  padding: 8px 12px;
+  background: var(--qui-bg-primary, #1a1a1a);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 5px;
+  color: var(--qui-text-primary, #fff);
+  font-size: var(--qui-font-size-small, 13px);
+  font-family: var(--qui-font-family, 'Segoe UI', sans-serif);
+  resize: vertical;
+  min-height: 60px;
+  transition: all 0.15s ease;
+}
+
+.property-row textarea:focus {
+  outline: none;
+  border-color: var(--qui-accent-color, #00ff88);
+  box-shadow: 0 0 0 2px rgba(0, 255, 136, 0.2);
+  background: color-mix(in srgb, var(--qui-bg-primary, #1a1a1a) 95%, var(--qui-accent-color, #00ff88));
+}
+
+.property-row textarea:hover {
   border-color: rgba(255, 255, 255, 0.25);
 }
 
