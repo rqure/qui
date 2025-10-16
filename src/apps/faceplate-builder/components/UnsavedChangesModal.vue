@@ -2,7 +2,7 @@
   <div class="modal-overlay" @click.self="cancel">
     <div class="modal-dialog">
       <div class="modal-header">
-        <h3>Delete Shape</h3>
+        <h3>Unsaved Changes</h3>
         <button @click="cancel" class="close-button">✕</button>
       </div>
 
@@ -10,18 +10,18 @@
         <div class="warning-content">
           <div class="warning-icon">⚠️</div>
           <p class="warning-message">
-            Are you sure you want to delete this shape?
+            You have unsaved changes.
           </p>
           <p class="warning-details">
-            This action cannot be undone.
+            {{ message }}
           </p>
         </div>
       </div>
 
       <div class="modal-footer">
         <button @click="cancel" class="btn btn-secondary">Cancel</button>
-        <button @click="confirm" class="btn btn-danger">
-          Delete Shape
+        <button @click="confirm" class="btn btn-primary">
+          {{ confirmText }}
         </button>
       </div>
     </div>
@@ -29,6 +29,11 @@
 </template>
 
 <script setup lang="ts">
+const props = defineProps<{
+  message: string;
+  confirmText: string;
+}>();
+
 const emit = defineEmits<{
   (e: 'confirm'): void;
   (e: 'cancel'): void;
@@ -60,10 +65,10 @@ function cancel() {
 .modal-dialog {
   width: 90%;
   max-width: 400px;
-  background: var(--qui-bg-secondary);
-  border: var(--qui-window-border);
-  border-radius: var(--qui-window-radius);
-  box-shadow: var(--qui-shadow-window);
+  background: var(--qui-bg-secondary, #2a2a2a);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
   display: flex;
   flex-direction: column;
 }
@@ -73,21 +78,21 @@ function cancel() {
   align-items: center;
   justify-content: space-between;
   padding: 20px 24px;
-  border-bottom: var(--qui-window-border);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .modal-header h3 {
   margin: 0;
-  font-size: var(--qui-font-size-large);
-  font-weight: var(--qui-font-weight-bold);
-  color: var(--qui-text-primary);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--qui-text-primary, #fff);
 }
 
 .close-button {
   background: none;
   border: none;
   font-size: 24px;
-  color: var(--qui-text-secondary);
+  color: var(--qui-text-secondary, #aaa);
   cursor: pointer;
   padding: 0;
   width: 32px;
@@ -95,12 +100,12 @@ function cancel() {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: var(--qui-window-radius);
-  transition: background var(--qui-interaction-speed);
+  border-radius: 4px;
+  transition: background 0.2s;
 }
 
 .close-button:hover {
-  background: var(--qui-overlay-hover);
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .modal-body {
@@ -122,15 +127,15 @@ function cancel() {
 
 .warning-message {
   margin: 0;
-  font-size: var(--qui-font-size-base);
-  color: var(--qui-text-primary);
-  font-weight: var(--qui-font-weight-medium);
+  font-size: var(--qui-font-size-base, 14px);
+  color: var(--qui-text-primary, #fff);
+  font-weight: var(--qui-font-weight-medium, 500);
 }
 
 .warning-details {
   margin: 0;
-  font-size: var(--qui-font-size-small);
-  color: var(--qui-text-secondary);
+  font-size: var(--qui-font-size-small, 12px);
+  color: var(--qui-text-secondary, #aaa);
   opacity: 0.8;
 }
 
@@ -140,18 +145,17 @@ function cancel() {
   justify-content: flex-end;
   gap: 12px;
   padding: 20px 24px;
-  border-top: var(--qui-window-border);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .btn {
   padding: 10px 20px;
   border: none;
-  border-radius: var(--qui-window-radius);
-  font-size: var(--qui-font-size-base);
-  font-weight: var(--qui-font-weight-medium);
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
-  transition: all var(--qui-interaction-speed);
-  font-family: var(--qui-font-family);
+  transition: all 0.2s ease;
 }
 
 .btn:disabled {
@@ -160,36 +164,21 @@ function cancel() {
 }
 
 .btn-primary {
-  background: var(--qui-accent-color);
-  color: var(--qui-bg-primary);
-  box-shadow: var(--qui-shadow-accent);
+  background: var(--qui-accent-color, #00ff88);
+  color: var(--qui-bg-primary, #000);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--qui-accent-secondary);
-  box-shadow: var(--qui-shadow-accent-strong);
-  transform: var(--qui-hover-lift);
+  background: color-mix(in srgb, var(--qui-accent-color, #00ff88) 110%, white);
 }
 
 .btn-secondary {
-  background: var(--qui-bg-secondary);
-  color: var(--qui-text-primary);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: var(--qui-bg-secondary, #2a2a2a);
+  color: var(--qui-text-primary, #fff);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background: var(--qui-overlay-hover);
-}
-
-.btn-danger {
-  background: var(--qui-danger-color);
-  color: white;
-  box-shadow: var(--qui-danger-glow);
-}
-
-.btn-danger:hover {
-  background: var(--qui-danger-hover);
-  transform: var(--qui-hover-lift);
-  box-shadow: var(--qui-danger-glow);
+  background: rgba(255, 255, 255, 0.05);
 }
 </style>

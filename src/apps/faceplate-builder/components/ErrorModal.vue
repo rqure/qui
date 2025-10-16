@@ -1,45 +1,43 @@
 <template>
-  <div class="modal-overlay" @click.self="cancel">
+  <div class="modal-overlay" @click.self="close">
     <div class="modal-dialog">
       <div class="modal-header">
-        <h3>Delete Shape</h3>
-        <button @click="cancel" class="close-button">✕</button>
+        <h3>Error</h3>
+        <button @click="close" class="close-button">✕</button>
       </div>
 
       <div class="modal-body">
-        <div class="warning-content">
-          <div class="warning-icon">⚠️</div>
-          <p class="warning-message">
-            Are you sure you want to delete this shape?
-          </p>
-          <p class="warning-details">
-            This action cannot be undone.
-          </p>
+        <div class="error-content">
+          <div class="error-icon">⚠️</div>
+          <div class="error-message">{{ message }}</div>
+          <div v-if="details" class="error-details">
+            <details>
+              <summary>Technical Details</summary>
+              <pre>{{ details }}</pre>
+            </details>
+          </div>
         </div>
       </div>
 
       <div class="modal-footer">
-        <button @click="cancel" class="btn btn-secondary">Cancel</button>
-        <button @click="confirm" class="btn btn-danger">
-          Delete Shape
-        </button>
+        <button @click="close" class="btn btn-primary">OK</button>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-const emit = defineEmits<{
-  (e: 'confirm'): void;
-  (e: 'cancel'): void;
+const props = defineProps<{
+  message: string;
+  details?: string;
 }>();
 
-function confirm() {
-  emit('confirm');
-}
+const emit = defineEmits<{
+  (e: 'close'): void;
+}>();
 
-function cancel() {
-  emit('cancel');
+function close() {
+  emit('close');
 }
 </script>
 
@@ -59,13 +57,14 @@ function cancel() {
 
 .modal-dialog {
   width: 90%;
-  max-width: 400px;
+  max-width: 500px;
   background: var(--qui-bg-secondary);
   border: var(--qui-window-border);
   border-radius: var(--qui-window-radius);
   box-shadow: var(--qui-shadow-window);
   display: flex;
   flex-direction: column;
+  max-height: 80vh;
 }
 
 .modal-header {
@@ -104,34 +103,68 @@ function cancel() {
 }
 
 .modal-body {
+  flex: 1;
   padding: 24px;
+  overflow-y: auto;
 }
 
-.warning-content {
+.error-content {
   display: flex;
   flex-direction: column;
   align-items: center;
-  text-align: center;
   gap: 16px;
+  text-align: center;
 }
 
-.warning-icon {
+.error-icon {
   font-size: 48px;
   opacity: 0.8;
 }
 
-.warning-message {
-  margin: 0;
+.error-message {
   font-size: var(--qui-font-size-base);
   color: var(--qui-text-primary);
-  font-weight: var(--qui-font-weight-medium);
+  line-height: var(--qui-line-height);
 }
 
-.warning-details {
+.error-details {
+  width: 100%;
+  margin-top: 16px;
+}
+
+.error-details details {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--qui-window-radius);
+  background: var(--qui-bg-primary);
+}
+
+.error-details summary {
+  padding: 12px 16px;
+  cursor: pointer;
+  font-size: var(--qui-font-size-base);
+  font-weight: var(--qui-font-weight-medium);
+  color: var(--qui-text-secondary);
+  background: var(--qui-bg-primary);
+  border-radius: var(--qui-window-radius);
+  transition: background var(--qui-interaction-speed);
+}
+
+.error-details summary:hover {
+  background: var(--qui-overlay-hover);
+}
+
+.error-details pre {
+  padding: 16px;
   margin: 0;
+  background: var(--qui-bg-primary);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0 0 var(--qui-window-radius) var(--qui-window-radius);
+  font-family: monospace;
   font-size: var(--qui-font-size-small);
   color: var(--qui-text-secondary);
-  opacity: 0.8;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: auto;
 }
 
 .modal-footer {
@@ -154,42 +187,15 @@ function cancel() {
   font-family: var(--qui-font-family);
 }
 
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
 .btn-primary {
   background: var(--qui-accent-color);
   color: var(--qui-bg-primary);
   box-shadow: var(--qui-shadow-accent);
 }
 
-.btn-primary:hover:not(:disabled) {
+.btn-primary:hover {
   background: var(--qui-accent-secondary);
   box-shadow: var(--qui-shadow-accent-strong);
   transform: var(--qui-hover-lift);
-}
-
-.btn-secondary {
-  background: var(--qui-bg-secondary);
-  color: var(--qui-text-primary);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-}
-
-.btn-secondary:hover:not(:disabled) {
-  background: var(--qui-overlay-hover);
-}
-
-.btn-danger {
-  background: var(--qui-danger-color);
-  color: white;
-  box-shadow: var(--qui-danger-glow);
-}
-
-.btn-danger:hover {
-  background: var(--qui-danger-hover);
-  transform: var(--qui-hover-lift);
-  box-shadow: var(--qui-danger-glow);
 }
 </style>

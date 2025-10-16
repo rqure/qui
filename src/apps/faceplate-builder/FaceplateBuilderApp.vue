@@ -14,7 +14,7 @@
         <button @click="loadFaceplate" class="btn btn-secondary" title="Load Existing">
           <span class="icon">📂</span> Load
         </button>
-        <button @click="saveFaceplate" :disabled="!hasChanges" class="btn btn-primary" title="Save">
+        <button @click="saveFaceplate" :disabled="!hasChanges && !currentFaceplateId" class="btn btn-primary" title="Save">
           <span class="icon">💾</span> Save
         </button>
         
@@ -179,30 +179,12 @@
       </div>
     </div>
     
-    <!-- Modals -->
-    <LoadFaceplateModal
-      v-if="showLoadModal"
-      @close="showLoadModal = false"
-      @load="onLoadFaceplate"
-    />
-    
-    <SaveFaceplateModal
-      v-if="showSaveModal"
-      :current-config="currentConfig"
-      @close="showSaveModal = false"
-      @save="onSaveFaceplate"
-    />
-
-    <DeleteConfirmationModal
-      v-if="showDeleteModal"
-      @confirm="confirmDeleteShape"
-      @cancel="showDeleteModal = false"
-    />
+    <!-- Modals removed - now using separate windows -->
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, markRaw } from 'vue';
 import { Model } from '@/core/canvas/model';
 import type { Drawable } from '@/core/canvas/shapes/base';
 import type { FaceplateConfig, FaceplateShapeConfig, FaceplateModelConfig, NotificationChannel, UINotificationChannel } from './types';
@@ -211,21 +193,29 @@ import ShapePalette from './components/ShapePalette.vue';
 import CanvasEditor from './components/CanvasEditor.vue';
 import PropertiesPanel from './components/PropertiesPanel.vue';
 import LayerPanel from './components/LayerPanel.vue';
-import LoadFaceplateModal from './components/LoadFaceplateModal.vue';
-import SaveFaceplateModal from './components/SaveFaceplateModal.vue';
-import DeleteConfirmationModal from './components/DeleteConfirmationModal.vue';
 import CallbacksEditor from './components/CallbacksEditor.vue';
 import NotificationsPanel from './components/NotificationsPanel.vue';
+import LoadFaceplateModal from './components/LoadFaceplateModal.vue';
+import DeleteConfirmationModal from './components/DeleteConfirmationModal.vue';
+import UnsavedChangesModal from './components/UnsavedChangesModal.vue';
+import ErrorModal from './components/ErrorModal.vue';
+import type { EntityId } from '@/core/data/types';
+import { useDataStore } from '@/stores/data';
+import { useWindowStore } from '@/stores/windows';
 
 // State
 const currentModel = ref<Model>(new Model());
 const selectedShapeIndex = ref<number | null>(null);
 const hasChanges = ref(false);
-const showLoadModal = ref(false);
-const showSaveModal = ref(false);
-const showDeleteModal = ref(false);
+const errorMessage = ref('');
+const errorDetails = ref('');
+const pendingAction = ref<(() => void) | null>(null);
 const shapeUpdateTrigger = ref(0);
 const activeTab = ref<'shapes' | 'layers'>('shapes');
+
+// Current faceplate state
+const currentFaceplateId = ref<EntityId | null>(null);
+const currentFaceplateName = ref<string>('');
 
 // View controls
 const showGrid = ref(true);
@@ -254,6 +244,15 @@ const faceplateConfig = ref<FaceplateConfig>({
 // Canvas ref
 const canvasEditor = ref<InstanceType<typeof CanvasEditor> | null>(null);
 
+// Data store
+const dataStore = useDataStore();
+
+// Window store
+const windowStore = useWindowStore();
+
+// Child window tracking for parent-child relationships
+const childWindowIds = ref<string[]>([]);
+
 // Computed
 const selectedShape = computed((): Drawable | null => {
   if (selectedShapeIndex.value === null) return null;
@@ -270,26 +269,60 @@ const currentConfig = computed((): FaceplateConfig => {
 // File actions
 function createNew() {
   if (hasChanges.value) {
-    const confirmed = confirm('You have unsaved changes. Create new faceplate?');
-    if (!confirmed) return;
+    pendingAction.value = () => {
+      currentModel.value = new Model();
+      selectedShapeIndex.value = null;
+      hasChanges.value = false;
+      currentFaceplateId.value = null;
+      currentFaceplateName.value = '';
+    };
+    openUnsavedChangesWindow();
+  } else {
+    currentModel.value = new Model();
+    selectedShapeIndex.value = null;
+    hasChanges.value = false;
+    currentFaceplateId.value = null;
+    currentFaceplateName.value = '';
   }
-  
-  currentModel.value = new Model();
-  selectedShapeIndex.value = null;
-  hasChanges.value = false;
 }
 
 function loadFaceplate() {
   if (hasChanges.value) {
-    const confirmed = confirm('You have unsaved changes. Load faceplate?');
-    if (!confirmed) return;
+    pendingAction.value = () => {
+      openLoadFaceplateWindow();
+    };
+    openUnsavedChangesWindow();
+  } else {
+    openLoadFaceplateWindow();
   }
-  
-  showLoadModal.value = true;
+}
+
+function openLoadFaceplateWindow() {
+  const window = windowStore.createWindow({
+    title: 'Load Faceplate',
+    component: markRaw(LoadFaceplateModal),
+    props: {
+      parentWindowId: 'faceplate-builder', // TODO: Get actual parent window ID
+      windowId: undefined // Will be set after creation
+    },
+    width: 600,
+    height: 500,
+    minWidth: 500,
+    minHeight: 400
+  });
+  // Set the window ID in the props after creation
+  window.props = { ...window.props, windowId: window.id };
+  childWindowIds.value.push(window.id);
 }
 
 function saveFaceplate() {
-  showSaveModal.value = true;
+  if (currentFaceplateId.value) {
+    // Save to existing faceplate immediately
+    saveToExistingFaceplate();
+  } else {
+    // No current faceplate, create a new one automatically
+    createNewFaceplate();
+  }
 }
 
 async function onLoadFaceplate(config: FaceplateConfig) {
@@ -297,21 +330,83 @@ async function onLoadFaceplate(config: FaceplateConfig) {
     currentModel.value = configToModel(config.model);
     selectedShapeIndex.value = null;
     hasChanges.value = false;
-    showLoadModal.value = false;
+    
+    // Clear current faceplate state since we're loading a different one
+    // (we don't know which entity this config came from)
+    currentFaceplateId.value = null;
+    currentFaceplateName.value = '';
   } catch (error) {
     console.error('Failed to load faceplate:', error);
-    alert('Failed to load faceplate: ' + error);
+    showError('Failed to load faceplate', error);
   }
 }
 
-async function onSaveFaceplate(entityId: number, name: string, targetType: string) {
+async function saveToExistingFaceplate() {
+  if (!currentFaceplateId.value) return;
+  
   try {
-    // Save logic will be implemented in SaveFaceplateModal
+    // Write configuration to existing faceplate
+    const configField = await dataStore.getFieldType('Configuration');
+    await dataStore.write(
+      currentFaceplateId.value,
+      [configField],
+      { String: JSON.stringify(currentConfig.value, null, 2) },
+      null,
+      null,
+      null,
+      null
+    );
+    
     hasChanges.value = false;
-    showSaveModal.value = false;
   } catch (error) {
     console.error('Failed to save faceplate:', error);
-    alert('Failed to save faceplate: ' + error);
+    showError('Failed to save faceplate', error);
+  }
+}
+
+async function createNewFaceplate() {
+  try {
+    // Generate a default name
+    const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+    const defaultName = `Faceplate_${timestamp}`;
+    
+    // Create new faceplate entity
+    const faceplateType = await dataStore.getEntityType('Faceplate');
+    const rootId = 1; // Assuming root entity is 1
+    const entityId = await dataStore.createEntity(faceplateType, rootId, defaultName);
+
+    // Set target type to Object by default
+    const targetTypeField = await dataStore.getFieldType('TargetEntityType');
+    await dataStore.write(
+      entityId,
+      [targetTypeField],
+      { String: 'Object' },
+      null,
+      null,
+      null,
+      null
+    );
+
+    // Write configuration
+    const configField = await dataStore.getFieldType('Configuration');
+    await dataStore.write(
+      entityId,
+      [configField],
+      { String: JSON.stringify(currentConfig.value, null, 2) },
+      null,
+      null,
+      null,
+      null
+    );
+
+    // Set as current faceplate
+    currentFaceplateId.value = entityId;
+    currentFaceplateName.value = defaultName;
+    
+    hasChanges.value = false;
+  } catch (error) {
+    console.error('Failed to create faceplate:', error);
+    showError('Failed to create faceplate', error);
   }
 }
 
@@ -373,7 +468,34 @@ function onPropertyUpdate(property: string, value: any) {
 }
 
 function onDeleteShape() {
-  showDeleteModal.value = true;
+  openDeleteConfirmationWindow();
+}
+
+function openDeleteConfirmationWindow() {
+  const window = windowStore.createWindow({
+    title: 'Confirm Delete',
+    component: markRaw(DeleteConfirmationModal),
+    props: {
+      parentWindowId: 'faceplate-builder', // TODO: Get actual parent window ID
+    },
+    width: 400,
+    height: 200,
+    minWidth: 350,
+    minHeight: 150
+  });
+  childWindowIds.value.push(window.id);
+}
+
+function handleDeleteShape() {
+  if (selectedShapeIndex.value !== null) {
+    const shape = currentModel.value.getShape(selectedShapeIndex.value);
+    if (shape) {
+      currentModel.value.removeShape(shape);
+      selectedShapeIndex.value = null;
+      hasChanges.value = true;
+      shapeUpdateTrigger.value++;
+    }
+  }
 }
 
 function onCallbacksUpdate(callbacks: { handlers?: Record<string, string>; methods?: Record<string, string>; contextMenu?: Record<string, string> }) {
@@ -422,25 +544,55 @@ function onNotificationsUpdate(notificationChannels: UINotificationChannel[]) {
   hasChanges.value = true;
 }
 
-function confirmDeleteShape() {
-  if (selectedShapeIndex.value !== null) {
-    const shapes = currentModel.value.getShapes();
-    const shapeToDelete = shapes[selectedShapeIndex.value];
-    
-    // Properly destroy the shape to clean up Leaflet layers
-    if (shapeToDelete) {
-      shapeToDelete.destroy();
-    }
-    
-    shapes.splice(selectedShapeIndex.value, 1);
-    selectedShapeIndex.value = null;
-    hasChanges.value = true;
-    
-    // Trigger canvas re-render
-    canvasEditor.value?.renderModel();
-    shapeUpdateTrigger.value++;
+function confirmUnsavedChanges() {
+  if (pendingAction.value) {
+    pendingAction.value();
+    pendingAction.value = null;
   }
-  showDeleteModal.value = false;
+}
+
+function cancelUnsavedChanges() {
+  pendingAction.value = null;
+}
+
+function openUnsavedChangesWindow() {
+  const window = windowStore.createWindow({
+    title: 'Unsaved Changes',
+    component: markRaw(UnsavedChangesModal),
+    props: {
+      parentWindowId: 'faceplate-builder', // TODO: Get actual parent window ID
+      message: "Do you want to proceed? Your current changes will be lost.",
+      confirmText: "Proceed"
+    },
+    width: 400,
+    height: 200,
+    minWidth: 350,
+    minHeight: 150
+  });
+  childWindowIds.value.push(window.id);
+}
+
+// Error handling
+function showError(message: string, error?: any) {
+  const errorDetails = error ? String(error) : '';
+  openErrorWindow(message, errorDetails);
+}
+
+function openErrorWindow(message: string, details: string) {
+  const window = windowStore.createWindow({
+    title: 'Error',
+    component: markRaw(ErrorModal),
+    props: {
+      parentWindowId: 'faceplate-builder', // TODO: Get actual parent window ID
+      message,
+      details
+    },
+    width: 500,
+    height: 300,
+    minWidth: 400,
+    minHeight: 200
+  });
+  childWindowIds.value.push(window.id);
 }
 
 // Canvas configuration methods
