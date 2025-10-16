@@ -29,6 +29,11 @@ export abstract class Drawable {
   protected _minZoom: number | null = null;
   protected _maxZoom: number | null = null;
   protected _currentZoom: number = 0;
+  
+  // Callback properties (for faceplate integration)
+  protected _handlers: Record<string, string> = {};
+  protected _methods: Record<string, string> = {};
+  protected _contextMenu: Record<string, string> = {};
 
   /**
    * Set the parent drawable
@@ -189,6 +194,51 @@ export abstract class Drawable {
    */
   getZoom(): number {
     return this._currentZoom;
+  }
+
+  /**
+   * Set event handlers (JavaScript code strings)
+   */
+  setHandlers(handlers: Record<string, string>): this {
+    this._handlers = { ...handlers };
+    return this;
+  }
+
+  /**
+   * Get event handlers
+   */
+  getHandlers(): Record<string, string> {
+    return { ...this._handlers };
+  }
+
+  /**
+   * Set custom methods (JavaScript code strings)
+   */
+  setMethods(methods: Record<string, string>): this {
+    this._methods = { ...methods };
+    return this;
+  }
+
+  /**
+   * Get custom methods
+   */
+  getMethods(): Record<string, string> {
+    return { ...this._methods };
+  }
+
+  /**
+   * Set context menu items (JavaScript code strings)
+   */
+  setContextMenu(contextMenu: Record<string, string>): this {
+    this._contextMenu = { ...contextMenu };
+    return this;
+  }
+
+  /**
+   * Get context menu items
+   */
+  getContextMenu(): Record<string, string> {
+    return { ...this._contextMenu };
   }
 
   /**

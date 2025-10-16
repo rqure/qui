@@ -72,35 +72,40 @@ export class FaceplateContext {
   }
   
   /**
-   * Write a field to the target entity
+   * Write a field to the target entity (supports indirection)
    * 
-   * @param fieldName - Name of the field to write
+   * @param fieldPath - Array of field names for indirection
+   *                    ['TestValue'] writes TestValue on target
+   *                    ['Parent', 'Name'] writes Parent->Name
    * @param value - Value to write
    * 
    * Example:
    * ```javascript
-   * await this.write('TestValue', { Int: 42 });
-   * await this.write('TestFlag', { Bool: true });
+   * await this.write(['TestValue'], { Int: 42 });
+   * await this.write(['Parent', 'Name'], { String: 'New Name' });
    * ```
    */
-  async write(fieldName: string, value: Value): Promise<void> {
-    const fieldType = await this.dataStore.getFieldType(fieldName);
-    if (!fieldType) {
-      throw new Error(`Unknown field type: ${fieldName}`);
+  async write(fieldPath: string[], value: Value): Promise<void> {
+    // Convert field names to FieldType
+    const fieldTypes: FieldType[] = [];
+    for (const fieldName of fieldPath) {
+      const fieldType = await this.dataStore.getFieldType(fieldName);
+      if (!fieldType) {
+        throw new Error(`Unknown field type: ${fieldName}`);
+      }
+      fieldTypes.push(fieldType);
     }
     
     await this.dataStore.write(
       this.targetEntityId,
-      [fieldType],
+      fieldTypes,
       value,
       undefined,  // timestamp (auto-generated)
       undefined,  // writerId (auto-assigned)
       undefined,  // pushCondition
       undefined   // adjustBehavior
     );
-  }
-  
-  // ============================================================
+  }  // ============================================================
   // Model Navigation
   // ============================================================
   

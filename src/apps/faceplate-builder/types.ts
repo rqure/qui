@@ -43,6 +43,36 @@ export interface NotificationChannel {
 }
 
 /**
+ * UI-friendly notification channel configuration.
+ * Uses field names as strings instead of FieldType numbers for easier editing.
+ */
+export interface UINotificationChannel {
+  /** Name/ID for this channel (for debugging/management) */
+  name: string;
+  
+  /** Notification type */
+  type: 'EntityId' | 'EntityType';
+  
+  /** Entity ID (for EntityId type) */
+  entityId?: number;
+  
+  /** Entity type name (for EntityType type) */
+  entityType?: string;
+  
+  /** Field name to watch */
+  fieldName: string;
+  
+  /** Trigger on change only */
+  triggerOnChange: boolean;
+  
+  /** Context field names (as "FieldName" or "Parent->Child") */
+  contextFields: string[];
+  
+  /** Callback function as JavaScript code string */
+  callback: string;
+}
+
+/**
  * Extended shape configuration that includes faceplate-specific callbacks.
  * Extends the generic ShapeConfig with Store-aware functionality.
  * 

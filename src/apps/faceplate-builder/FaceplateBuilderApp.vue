@@ -125,15 +125,57 @@
         />
       </div>
       
-      <!-- Right sidebar - Properties -->
+      <!-- Right sidebar - Properties, Callbacks, Notifications -->
       <div class="sidebar sidebar-right">
-        <PropertiesPanel
-          :selected-shape="selectedShape"
-          :selected-index="selectedShapeIndex"
-          :update-trigger="shapeUpdateTrigger"
-          @update-property="onPropertyUpdate"
-          @delete-shape="onDeleteShape"
-        />
+        <div class="sidebar-tabs">
+          <button 
+            class="tab-button" 
+            :class="{ active: rightSidebarTab === 'properties' }"
+            @click="rightSidebarTab = 'properties'"
+          >
+            <span class="tab-icon">⚙️</span>
+            Properties
+          </button>
+          <button 
+            class="tab-button" 
+            :class="{ active: rightSidebarTab === 'callbacks' }"
+            @click="rightSidebarTab = 'callbacks'"
+          >
+            <span class="tab-icon">⚡</span>
+            Callbacks
+          </button>
+          <button 
+            class="tab-button" 
+            :class="{ active: rightSidebarTab === 'notifications' }"
+            @click="rightSidebarTab = 'notifications'"
+          >
+            <span class="tab-icon">📡</span>
+            Notifications
+          </button>
+        </div>
+        
+        <div class="tab-content">
+          <PropertiesPanel
+            v-if="rightSidebarTab === 'properties'"
+            :selected-shape="selectedShape"
+            :selected-index="selectedShapeIndex"
+            :update-trigger="shapeUpdateTrigger"
+            @update-property="onPropertyUpdate"
+            @delete-shape="onDeleteShape"
+          />
+          <CallbacksEditor
+            v-if="rightSidebarTab === 'callbacks'"
+            :selected-shape="selectedShape"
+            :selected-index="selectedShapeIndex"
+            :update-trigger="shapeUpdateTrigger"
+            @update-callbacks="onCallbacksUpdate"
+          />
+          <NotificationsPanel
+            v-if="rightSidebarTab === 'notifications'"
+            :faceplate-config="faceplateConfig"
+            @update-notifications="onNotificationsUpdate"
+          />
+        </div>
       </div>
     </div>
     
@@ -163,7 +205,7 @@
 import { ref, computed, watch } from 'vue';
 import { Model } from '@/core/canvas/model';
 import type { Drawable } from '@/core/canvas/shapes/base';
-import type { FaceplateConfig, FaceplateShapeConfig, FaceplateModelConfig } from './types';
+import type { FaceplateConfig, FaceplateShapeConfig, FaceplateModelConfig, NotificationChannel, UINotificationChannel } from './types';
 import { createShape } from '@/core/canvas/shapes';
 import ShapePalette from './components/ShapePalette.vue';
 import CanvasEditor from './components/CanvasEditor.vue';
@@ -172,6 +214,8 @@ import LayerPanel from './components/LayerPanel.vue';
 import LoadFaceplateModal from './components/LoadFaceplateModal.vue';
 import SaveFaceplateModal from './components/SaveFaceplateModal.vue';
 import DeleteConfirmationModal from './components/DeleteConfirmationModal.vue';
+import CallbacksEditor from './components/CallbacksEditor.vue';
+import NotificationsPanel from './components/NotificationsPanel.vue';
 
 // State
 const currentModel = ref<Model>(new Model());
@@ -186,12 +230,26 @@ const activeTab = ref<'shapes' | 'layers'>('shapes');
 // View controls
 const showGrid = ref(true);
 const snapToGrid = ref(true);
+const rightSidebarTab = ref<'properties' | 'callbacks' | 'notifications'>('properties');
 
 // Canvas configuration
 const showCanvasConfig = ref(false);
 const canvasWidth = ref(1000);
 const canvasHeight = ref(600);
 const canvasBackground = ref('#1a1a1a');
+
+// Faceplate configuration
+const faceplateConfig = ref<FaceplateConfig>({
+  model: {
+    type: 'Model',
+    boundary: {
+      from: { x: 0, y: 0 },
+      to: { x: 1000, y: 600 }
+    },
+    shapes: []
+  },
+  targetEntityType: 'Object'
+});
 
 // Canvas ref
 const canvasEditor = ref<InstanceType<typeof CanvasEditor> | null>(null);
@@ -204,7 +262,7 @@ const selectedShape = computed((): Drawable | null => {
 
 const currentConfig = computed((): FaceplateConfig => {
   return {
-    targetEntityType: 'Object', // Default, can be edited in save modal
+    ...faceplateConfig.value,
     model: modelToConfig(currentModel.value as any)
   };
 });
@@ -316,6 +374,52 @@ function onPropertyUpdate(property: string, value: any) {
 
 function onDeleteShape() {
   showDeleteModal.value = true;
+}
+
+function onCallbacksUpdate(callbacks: { handlers?: Record<string, string>; methods?: Record<string, string>; contextMenu?: Record<string, string> }) {
+  if (selectedShape.value) {
+    // Apply callbacks to shape
+    const shapeAny = selectedShape.value as any;
+    
+    if (callbacks.handlers && shapeAny.setHandlers) {
+      shapeAny.setHandlers(callbacks.handlers);
+    }
+    if (callbacks.methods && shapeAny.setMethods) {
+      shapeAny.setMethods(callbacks.methods);
+    }
+    if (callbacks.contextMenu && shapeAny.setContextMenu) {
+      shapeAny.setContextMenu(callbacks.contextMenu);
+    }
+    
+    hasChanges.value = true;
+    shapeUpdateTrigger.value++;
+  }
+}
+
+function onNotificationsUpdate(notificationChannels: UINotificationChannel[]) {
+  // Convert UI channels to NotificationChannel format
+  const channels: NotificationChannel[] = notificationChannels.map(uiChannel => ({
+    name: uiChannel.name,
+    config: uiChannel.type === 'EntityId' ? {
+      EntityId: {
+        entity_id: uiChannel.entityId || 0,
+        field_type: uiChannel.fieldName as any, // Will be converted to FieldType at runtime
+        trigger_on_change: uiChannel.triggerOnChange,
+        context: uiChannel.contextFields.map((field: string) => field.split('->').map((s: string) => s.trim())) as any
+      }
+    } : {
+      EntityType: {
+        entity_type: uiChannel.entityType || '',
+        field_type: uiChannel.fieldName as any, // Will be converted to FieldType at runtime
+        trigger_on_change: uiChannel.triggerOnChange,
+        context: uiChannel.contextFields.map((field: string) => field.split('->').map((s: string) => s.trim())) as any
+      }
+    } as any,
+    callback: uiChannel.callback
+  }));
+
+  faceplateConfig.value.notificationChannels = channels;
+  hasChanges.value = true;
 }
 
 function confirmDeleteShape() {
@@ -547,6 +651,16 @@ function shapeToConfig(shape: Drawable): FaceplateShapeConfig {
   if (shapeAny.getCss) config.css = shapeAny.getCss();
   if (shapeAny.getKeyframes) config.keyframes = shapeAny.getKeyframes();
   
+  // Add callback properties
+  const handlers = shapeAny.getHandlers?.();
+  if (handlers && Object.keys(handlers).length > 0) config.handlers = handlers;
+  
+  const methods = shapeAny.getMethods?.();
+  if (methods && Object.keys(methods).length > 0) config.methods = methods;
+  
+  const contextMenu = shapeAny.getContextMenu?.();
+  if (contextMenu && Object.keys(contextMenu).length > 0) config.contextMenu = contextMenu;
+  
   return config;
 }
 
@@ -617,6 +731,17 @@ function configToModel(config: any): Model {
         }
         if (shapeConfig.keyframes && shapeAny.setKeyframes) {
           shapeAny.setKeyframes(shapeConfig.keyframes);
+        }
+        
+        // Restore callback properties
+        if (shapeConfig.handlers && shapeAny.setHandlers) {
+          shapeAny.setHandlers(shapeConfig.handlers);
+        }
+        if (shapeConfig.methods && shapeAny.setMethods) {
+          shapeAny.setMethods(shapeConfig.methods);
+        }
+        if (shapeConfig.contextMenu && shapeAny.setContextMenu) {
+          shapeAny.setContextMenu(shapeConfig.contextMenu);
         }
         
         model.addShape(shape);
