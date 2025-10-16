@@ -195,10 +195,10 @@ import PropertiesPanel from './components/PropertiesPanel.vue';
 import LayerPanel from './components/LayerPanel.vue';
 import CallbacksEditor from './components/CallbacksEditor.vue';
 import NotificationsPanel from './components/NotificationsPanel.vue';
-import LoadFaceplateModal from './components/LoadFaceplateModal.vue';
-import DeleteConfirmationModal from './components/DeleteConfirmationModal.vue';
-import UnsavedChangesModal from './components/UnsavedChangesModal.vue';
-import ErrorModal from './components/ErrorModal.vue';
+import LoadFaceplateWindow from './components/LoadFaceplateWindow.vue';
+import DeleteConfirmationWindow from './components/DeleteConfirmationWindow.vue';
+import UnsavedChangesWindow from './components/UnsavedChangesWindow.vue';
+import ErrorWindow from './components/ErrorWindow.vue';
 import type { EntityId } from '@/core/data/types';
 import { useDataStore } from '@/stores/data';
 import { useWindowStore } from '@/stores/windows';
@@ -302,7 +302,7 @@ function loadFaceplate() {
 function openLoadFaceplateWindow() {
   const window = windowStore.createWindow({
     title: 'Load Faceplate',
-    component: markRaw(LoadFaceplateModal),
+    component: markRaw(LoadFaceplateWindow),
     parentId: props.windowId,
     props: {
       windowId: undefined // Will be set after creation
@@ -476,7 +476,7 @@ function onDeleteShape() {
 function openDeleteConfirmationWindow() {
   const window = windowStore.createWindow({
     title: 'Confirm Delete',
-    component: markRaw(DeleteConfirmationModal),
+    component: markRaw(DeleteConfirmationWindow),
     parentId: props.windowId,
     props: {
       windowId: undefined // Will be set after creation
@@ -563,7 +563,7 @@ function cancelUnsavedChanges() {
 function openUnsavedChangesWindow() {
   const window = windowStore.createWindow({
     title: 'Unsaved Changes',
-    component: markRaw(UnsavedChangesModal),
+    component: markRaw(UnsavedChangesWindow),
     parentId: props.windowId,
     props: {
       windowId: undefined, // Will be set after creation
@@ -589,7 +589,7 @@ function showError(message: string, error?: any) {
 function openErrorWindow(message: string, details: string) {
   const window = windowStore.createWindow({
     title: 'Error',
-    component: markRaw(ErrorModal),
+    component: markRaw(ErrorWindow),
     parentId: props.windowId,
     props: {
       windowId: undefined, // Will be set after creation
