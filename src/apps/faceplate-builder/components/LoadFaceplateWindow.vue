@@ -1,80 +1,99 @@
 <template>
   <div class="window-content">
-    <div v-if="loading" class="loading-state">
-      <div class="spinner"></div>
-      <p>Loading faceplates...</p>
-    </div>
-
-    <div v-else-if="error" class="error-state">
-      <p class="error-message">{{ error }}</p>
-      <button @click="loadFaceplates" class="btn btn-secondary">Retry</button>
-    </div>
-
-    <div v-else>
-      <div class="form-group">
-        <label>Search Faceplates:</label>
+    <!-- Search Section -->
+    <div class="search-section">
+      <div class="search-input-wrapper">
+        <div class="search-icon">🔍</div>
         <input
           type="text"
           v-model="searchQuery"
-          class="form-control search-input"
-          placeholder="Type to search faceplates..."
-          @input="filterFaceplates"
+          class="search-input"
+          placeholder="Search faceplates..."
         />
+        <div v-if="searchQuery" class="clear-search" @click="clearSearch">✕</div>
+      </div>
+    </div>
+
+    <!-- Content Area -->
+    <div class="content-area">
+      <div v-if="loading" class="loading-state">
+        <div class="spinner"></div>
+        <p>Loading faceplates...</p>
       </div>
 
-      <div v-if="filteredFaceplates.length > 0" class="results-section">
-        <div class="results-header">
-          Found {{ filteredFaceplates.length }} faceplate{{ filteredFaceplates.length === 1 ? '' : 's' }}
-        </div>
-        <div class="results-list">
-          <div
-            v-for="fp in filteredFaceplates"
-            :key="fp.id"
-            class="result-item"
-            :class="{ selected: selectedFaceplateId === fp.id }"
-            @click="selectFaceplate(fp.id)"
-          >
-            <div class="result-name">{{ fp.name }}</div>
-            <div class="result-meta">
-              <span class="result-type">{{ fp.targetType }}</span>
-              <span class="result-shapes">{{ fp.shapeCount }} shapes</span>
-            </div>
-          </div>
-        </div>
+      <div v-else-if="error" class="error-state">
+        <div class="error-icon">⚠️</div>
+        <p class="error-message">{{ error }}</p>
+        <button @click="loadFaceplates" class="btn btn-secondary">Retry</button>
       </div>
 
-      <div v-else-if="searchQuery && filteredFaceplates.length === 0" class="no-results">
-        No faceplates found matching "{{ searchQuery }}"
+      <div v-else-if="filteredFaceplates.length === 0 && searchQuery" class="empty-state">
+        <div class="empty-icon">🔍</div>
+        <h3>No Results Found</h3>
+        <p>No faceplates match "<strong>{{ searchQuery }}</strong>"</p>
+        <button @click="clearSearch" class="btn btn-secondary">Clear Search</button>
       </div>
 
-      <div v-if="selectedFaceplate" class="preview-section">
-        <div class="preview-header">Selected Faceplate:</div>
-        <div class="preview-details">
-          <div class="detail-row">
-            <span class="label">Name:</span>
-            <span class="value">{{ selectedFaceplate.name }}</span>
-          </div>
-          <div class="detail-row">
-            <span class="label">Target Type:</span>
-            <span class="value">{{ selectedFaceplate.targetType }}</span>
-          </div>
-          <div class="detail-row">
-            <span class="label">Shapes:</span>
-            <span class="value">{{ selectedFaceplate.shapeCount }}</span>
-          </div>
+      <div v-else-if="faceplates.length === 0" class="empty-state">
+        <div class="empty-icon">📄</div>
+        <h3>No Faceplates Available</h3>
+        <p>Create your first faceplate to get started</p>
+      </div>
+
+      <div v-else class="table-container">
+        <div class="table-wrapper">
+          <table class="faceplate-table">
+            <thead>
+              <tr>
+                <th class="col-id">Entity ID</th>
+                <th class="col-name">Name</th>
+                <th class="col-description">Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="fp in filteredFaceplates"
+                :key="fp.id"
+                :class="{ selected: selectedFaceplateId === fp.id }"
+                @click="selectFaceplate(fp.id)"
+              >
+                <td class="col-id">
+                  <span class="entity-id">{{ fp.id }}</span>
+                </td>
+                <td class="col-name">
+                  <div class="faceplate-name">{{ fp.name }}</div>
+                </td>
+                <td class="col-description">
+                  <div class="faceplate-description">{{ fp.description || 'No description' }}</div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
 
+    <!-- Footer -->
     <div class="window-footer">
-      <button @click="close" class="btn btn-secondary">Cancel</button>
-      <button
-        @click="loadFaceplate"
-        :disabled="!selectedFaceplateId || loading"
-        class="btn btn-primary"
-      >
-        Load
-      </button>
+      <div class="footer-info">
+        <span v-if="selectedFaceplate" class="selected-info">
+          Selected: <strong>{{ selectedFaceplate.name }}</strong>
+        </span>
+        <span v-else-if="faceplates.length > 0" class="stats-info">
+          <span class="stats-count">{{ filteredFaceplates.length }} faceplate{{ filteredFaceplates.length === 1 ? '' : 's' }}</span>
+          <span v-if="searchQuery" class="stats-filter">of {{ faceplates.length }} total</span>
+        </span>
+      </div>
+      <div class="footer-actions">
+        <button @click="close" class="btn btn-secondary">Cancel</button>
+        <button
+          @click="loadFaceplate"
+          :disabled="!selectedFaceplateId || loading"
+          class="btn btn-primary"
+        >
+          Load Faceplate
+        </button>
+      </div>
     </div>
   </div>
 </template>
@@ -102,8 +121,7 @@ const windowStore = useWindowStore();
 interface FaceplateListItem {
   id: EntityId;
   name: string;
-  targetType: string;
-  shapeCount: number;
+  description: string;
   config: FaceplateConfig;
 }
 
@@ -123,7 +141,8 @@ const filteredFaceplates = computed(() => {
   const query = searchQuery.value.toLowerCase();
   return faceplates.value.filter(fp =>
     fp.name.toLowerCase().includes(query) ||
-    fp.targetType.toLowerCase().includes(query)
+    fp.description.toLowerCase().includes(query) ||
+    String(fp.id).toLowerCase().includes(query)
   );
 });
 
@@ -141,6 +160,7 @@ async function loadFaceplates() {
     const faceplateEntities = await dataStore.findEntities(faceplateType);
 
     const nameField = await dataStore.getFieldType('Name');
+    const descriptionField = await dataStore.getFieldType('Description');
     const configField = await dataStore.getFieldType('Configuration');
 
     // Load details for each faceplate
@@ -148,17 +168,17 @@ async function loadFaceplates() {
     for (const id of faceplateEntities) {
       try {
         const [nameValue] = await dataStore.read(id, [nameField]);
+        const [descriptionValue] = await dataStore.read(id, [descriptionField]);
         const [configValue] = await dataStore.read(id, [configField]);
 
         const name = ValueHelpers.isString(nameValue) ? nameValue.String : `Faceplate ${id}`;
+        const description = ValueHelpers.isString(descriptionValue) ? descriptionValue.String : '';
 
         let config: FaceplateConfig | null = null;
-        let shapeCount = 0;
 
         if (ValueHelpers.isString(configValue)) {
           try {
             config = JSON.parse(configValue.String);
-            shapeCount = config?.model?.shapes?.length || 0;
           } catch {
             console.warn(`Failed to parse config for faceplate ${id}`);
           }
@@ -168,8 +188,7 @@ async function loadFaceplates() {
           items.push({
             id,
             name,
-            targetType: config.targetEntityType || 'Unknown',
-            shapeCount,
+            description,
             config
           });
         }
@@ -191,8 +210,8 @@ async function loadFaceplates() {
   }
 }
 
-function filterFaceplates() {
-  // Filtering is handled by the computed property
+function clearSearch() {
+  searchQuery.value = '';
 }
 
 function selectFaceplate(id: EntityId) {
@@ -213,26 +232,95 @@ function close() {
 
 <style scoped>
 .window-content {
-  padding: 20px;
   height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  background: var(--qui-bg-primary);
+  color: var(--qui-text-primary);
 }
 
+/* Search Section */
+.search-section {
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--qui-window-border);
+  background: var(--qui-bg-secondary);
+}
+
+.search-input-wrapper {
+  position: relative;
+  max-width: 400px;
+}
+
+.search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 16px;
+  color: var(--qui-text-secondary);
+  pointer-events: none;
+}
+
+.search-input {
+  width: 100%;
+  padding: 10px 36px 10px 36px;
+  background: var(--qui-bg-primary);
+  border: 1px solid var(--qui-window-border);
+  border-radius: var(--qui-window-radius);
+  color: var(--qui-text-primary);
+  font-size: var(--qui-font-size-base);
+  font-family: var(--qui-font-family);
+  transition: all var(--qui-interaction-speed);
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: var(--qui-accent-color);
+  box-shadow: 0 0 0 2px rgba(0, 255, 136, 0.1);
+}
+
+.clear-search {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 14px;
+  color: var(--qui-text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 50%;
+  transition: all var(--qui-interaction-speed);
+}
+
+.clear-search:hover {
+  background: var(--qui-overlay-hover);
+  color: var(--qui-text-primary);
+}
+
+/* Content Area */
+.content-area {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Loading and Error States */
 .loading-state,
-.error-state {
+.error-state,
+.empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 40px 20px;
+  padding: 60px 24px;
+  text-align: center;
   gap: 16px;
 }
 
 .spinner {
-  width: 40px;
-  height: 40px;
+  width: 48px;
+  height: 48px;
   border: 4px solid var(--qui-border-opacity);
   border-top-color: var(--qui-accent-color);
   border-radius: 50%;
@@ -243,179 +331,167 @@ function close() {
   to { transform: rotate(360deg); }
 }
 
+.error-icon,
+.empty-icon {
+  font-size: 64px;
+  opacity: 0.6;
+  margin-bottom: 8px;
+}
+
 .error-message {
   color: var(--qui-danger-color);
   margin: 0;
-  text-align: center;
-}
-
-.form-group {
-  margin-bottom: 0;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 8px;
   font-size: var(--qui-font-size-base);
-  font-weight: var(--qui-font-weight-medium);
+  max-width: 400px;
+}
+
+.empty-state h3 {
+  margin: 0 0 8px 0;
+  font-size: var(--qui-font-size-lg);
+  font-weight: var(--qui-font-weight-semibold);
   color: var(--qui-text-primary);
 }
 
-.form-control {
-  width: 100%;
-  padding: 10px 12px;
-  background: var(--qui-bg-primary);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: var(--qui-window-radius);
-  color: var(--qui-text-primary);
+.empty-state p {
+  margin: 0;
   font-size: var(--qui-font-size-base);
-  font-family: var(--qui-font-family);
-  transition: border-color var(--qui-interaction-speed);
+  color: var(--qui-text-secondary);
+  max-width: 400px;
 }
 
-.form-control:focus {
-  outline: none;
-  border-color: var(--qui-accent-color);
-  box-shadow: 0 0 0 2px rgba(0, 255, 136, 0.2);
-}
-
-.results-section {
+/* Table Container */
+.table-container {
   flex: 1;
   display: flex;
   flex-direction: column;
-  min-height: 0;
-}
-
-.results-header {
-  font-size: var(--qui-font-size-small);
-  font-weight: var(--qui-font-weight-medium);
-  color: var(--qui-text-secondary);
-  margin-bottom: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  flex-shrink: 0;
-}
-
-.results-list {
-  flex: 1;
-  overflow-y: auto;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+  border: 2px solid var(--qui-window-border);
   border-radius: var(--qui-window-radius);
   background: var(--qui-bg-primary);
-  min-height: 200px;
 }
 
-.result-item {
-  padding: 12px 16px;
+.table-wrapper {
+  flex: 1;
+  overflow: auto;
+  background: var(--qui-bg-primary);
+}
+
+.faceplate-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--qui-font-size-base);
+}
+
+.faceplate-table thead {
+  position: sticky;
+  top: 0;
+  background: var(--qui-bg-secondary);
+  z-index: 1;
+}
+
+.faceplate-table th {
+  padding: 14px 24px;
+  text-align: left;
+  font-weight: var(--qui-font-weight-semibold);
+  font-size: var(--qui-font-size-sm);
+  color: var(--qui-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 2px solid var(--qui-window-border);
+  border-right: 1px solid var(--qui-window-border);
+}
+
+.faceplate-table th:last-child {
+  border-right: none;
+}
+
+.faceplate-table td {
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--qui-window-border);
+  vertical-align: middle;
+  border-right: 1px solid var(--qui-window-border);
+}
+
+.faceplate-table td:last-child {
+  border-right: none;
+}
+
+.faceplate-table tbody tr {
   cursor: pointer;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  transition: background var(--qui-interaction-speed);
+  transition: all var(--qui-interaction-speed);
 }
 
-.result-item:last-child {
-  border-bottom: none;
-}
-
-.result-item:hover {
+.faceplate-table tbody tr:hover {
   background: var(--qui-overlay-hover);
 }
 
-.result-item.selected {
+.faceplate-table tbody tr.selected {
   background: var(--qui-overlay-primary);
-  border-left: 3px solid var(--qui-accent-color);
+  border-left: 4px solid var(--qui-accent-color);
 }
 
-.result-name {
-  font-size: var(--qui-font-size-base);
-  font-weight: var(--qui-font-weight-medium);
-  color: var(--qui-text-primary);
-  margin-bottom: 4px;
+.faceplate-table tbody tr.selected:hover {
+  background: var(--qui-overlay-primary);
 }
 
-.result-meta {
-  display: flex;
-  gap: 12px;
-  font-size: var(--qui-font-size-small);
-  color: var(--qui-text-secondary);
+/* Column Styles */
+.col-id {
+  width: 25%;
 }
 
-.no-results {
-  padding: 20px;
-  text-align: center;
-  color: var(--qui-text-secondary);
-  font-style: italic;
-  background: var(--qui-bg-primary);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: var(--qui-window-radius);
+.col-name {
+  width: 35%;
 }
 
-.preview-section {
-  padding: 16px;
-  background: var(--qui-bg-primary);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: var(--qui-window-radius);
-  flex-shrink: 0;
+.col-description {
+  width: 40%;
 }
 
-.preview-header {
-  font-size: var(--qui-font-size-small);
-  font-weight: var(--qui-font-weight-medium);
-  color: var(--qui-text-primary);
-  margin-bottom: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.preview-details {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.detail-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.detail-row .label {
-  flex: 0 0 100px;
-  font-size: var(--qui-font-size-small);
-  color: var(--qui-text-secondary);
-}
-
-.detail-row .value {
-  flex: 1;
-  font-size: var(--qui-font-size-small);
-  color: var(--qui-text-primary);
+.entity-id {
   font-family: monospace;
+  font-size: var(--qui-font-size-sm);
+  color: var(--qui-text-secondary);
+  font-weight: var(--qui-font-weight-medium);
 }
 
-.window-footer {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 12px;
-  padding: 20px 0 0 0;
-  border-top: var(--qui-window-border);
-  margin-top: auto;
-  flex-shrink: 0;
+.faceplate-name {
+  font-weight: var(--qui-font-weight-medium);
+  color: var(--qui-text-primary);
+  font-size: var(--qui-font-size-base);
 }
 
+.faceplate-description {
+  color: var(--qui-text-secondary);
+  font-size: var(--qui-font-size-sm);
+  line-height: 1.4;
+  max-height: 2.8em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Buttons */
 .btn {
-  padding: 10px 20px;
+  padding: 8px 16px;
   border: none;
   border-radius: var(--qui-window-radius);
-  font-size: var(--qui-font-size-base);
+  font-size: var(--qui-font-size-sm);
   font-weight: var(--qui-font-weight-medium);
   cursor: pointer;
   transition: all var(--qui-interaction-speed);
   font-family: var(--qui-font-family);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: var(--qui-font-size-xs);
 }
 
 .btn-primary {
@@ -427,16 +503,93 @@ function close() {
 .btn-primary:hover:not(:disabled) {
   background: var(--qui-accent-secondary);
   box-shadow: var(--qui-shadow-accent-strong);
-  transform: var(--qui-hover-lift);
+  transform: translateY(-1px);
 }
 
 .btn-secondary {
   background: var(--qui-bg-secondary);
   color: var(--qui-text-primary);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid var(--qui-window-border);
 }
 
 .btn-secondary:hover:not(:disabled) {
   background: var(--qui-overlay-hover);
+  border-color: var(--qui-accent-color);
+}
+
+/* Footer */
+.window-footer {
+  padding: 20px 24px;
+  border-top: 1px solid var(--qui-window-border);
+  background: var(--qui-bg-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.footer-info {
+  flex: 1;
+  font-size: var(--qui-font-size-sm);
+  color: var(--qui-text-secondary);
+}
+
+.selected-info {
+  color: var(--qui-text-primary);
+}
+
+.stats-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stats-count {
+  font-weight: var(--qui-font-weight-medium);
+  color: var(--qui-text-primary);
+}
+
+.stats-filter {
+  color: var(--qui-text-secondary);
+}
+
+.footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .faceplate-table th,
+  .faceplate-table td {
+    padding: 12px 16px;
+  }
+
+  .col-id {
+    width: 30%;
+  }
+
+  .col-name {
+    width: 35%;
+  }
+
+  .col-description {
+    width: 35%;
+  }
+
+  .window-footer {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .footer-info {
+    text-align: center;
+  }
+
+  .footer-actions {
+    justify-content: center;
+  }
 }
 </style>
