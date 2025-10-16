@@ -465,11 +465,16 @@ function updateCanvasBackground() {
 }
 
 // Helper functions
+function generateUniqueId(): string {
+  return 'shape_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+}
+
 function createDefaultShape(shapeType: string, location: { x: number; y: number }): Drawable | null {
   const shape = createShape(shapeType);
   
   if (!shape) return null;
   
+  shape.setId(generateUniqueId());
   shape.setOffset(location);
   shape.setPivot({ x: 0, y: 0 });
   shape.setScale({ x: 1, y: 1 }); // Ensure scale is 1 for direct property manipulation
@@ -522,7 +527,9 @@ function createDefaultShape(shapeType: string, location: { x: number; y: number 
 function applyPropertyToShape(shape: Drawable, property: string, value: any) {
   const shapeAny = shape as any;
   
-  if (property === 'x' || property === 'y' || property === 'z') {
+  if (property === 'id') {
+    shape.setId(value);
+  } else if (property === 'x' || property === 'y' || property === 'z') {
     const offset = shape.getOffset();
     if (property === 'x') {
       shape.setOffset({ ...offset, x: value });
@@ -614,6 +621,7 @@ function modelToConfig(model: Model): FaceplateModelConfig {
 function shapeToConfig(shape: Drawable): FaceplateShapeConfig {
   const config: FaceplateShapeConfig = {
     type: shape.constructor.name,
+    id: shape.getId() || undefined,
     location: shape.getOffset(),
     rotation: shape.getRotation(),
     scale: shape.getScale(),
@@ -676,6 +684,7 @@ function configToModel(config: any): Model {
         shape.setPivot(shapeConfig.pivot || { x: 0, y: 0 });
         shape.setScale(shapeConfig.scale || { x: 1, y: 1 });
         if (shapeConfig.rotation !== undefined) shape.setRotation(shapeConfig.rotation);
+        if (shapeConfig.id) shape.setId(shapeConfig.id);
         if (shapeConfig.minZoom !== undefined) shape.setMinZoom(shapeConfig.minZoom);
         if (shapeConfig.maxZoom !== undefined) shape.setMaxZoom(shapeConfig.maxZoom);
         if (shapeConfig.pane) shape.setPane(shapeConfig.pane);

@@ -84,6 +84,13 @@ export class Model extends Drawable {
   }
 
   /**
+   * Find shape by unique ID
+   */
+  findShapeById(id: string): Drawable | undefined {
+    return this.findShapeByIdRecursive(this, id);
+  }
+
+  /**
    * Recursively search for a shape by type
    */
   private findShapeRecursive(drawable: Drawable, typeName: string): Drawable | undefined {
@@ -94,6 +101,26 @@ export class Model extends Drawable {
     if (drawable instanceof Model) {
       for (const shape of drawable.shapes) {
         const found = this.findShapeRecursive(shape, typeName);
+        if (found) {
+          return found;
+        }
+      }
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Recursively search for a shape by ID
+   */
+  private findShapeByIdRecursive(drawable: Drawable, id: string): Drawable | undefined {
+    if (drawable.getId() === id) {
+      return drawable;
+    }
+
+    if (drawable instanceof Model) {
+      for (const shape of drawable.shapes) {
+        const found = this.findShapeByIdRecursive(shape, id);
         if (found) {
           return found;
         }

@@ -28,6 +28,9 @@ export interface Pane {
 export interface ShapeConfig {
   type: string;  // 'Circle', 'Polygon', 'Text', etc.
   
+  // Unique identifier
+  id?: string;
+  
   // Transform properties
   location?: Point;
   rotation?: number;

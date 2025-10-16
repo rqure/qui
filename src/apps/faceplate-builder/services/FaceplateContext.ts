@@ -141,21 +141,21 @@ export class FaceplateContext {
   }
   
   /**
-   * Find a shape by type name (searches recursively)
+   * Find a shape by its unique ID
    * 
-   * @param typeName - Type name to search for ('Circle', 'Polygon', etc.)
-   * @returns The first matching shape, or undefined if not found
+   * @param id - The unique string identifier of the shape
+   * @returns The shape with the matching ID, or undefined if not found
    * 
    * Example:
    * ```javascript
-   * const circle = this.findShapeByType('Circle');
-   * if (circle) {
-   *   circle.setFillColor('green');
+   * const pumpShape = this.getShapeById('main-pump');
+   * if (pumpShape) {
+   *   pumpShape.setFillColor('red');
    * }
    * ```
    */
-  findShapeByType(typeName: string): Drawable | undefined {
-    return this.model.findShapeByType(typeName);
+  getShapeById(id: string): Drawable | undefined {
+    return this.model.findShapeById(id);
   }
   
   /**

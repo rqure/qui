@@ -29,6 +29,7 @@ export abstract class Drawable {
   protected _minZoom: number | null = null;
   protected _maxZoom: number | null = null;
   protected _currentZoom: number = 0;
+  protected _id: string = ''; // Unique string identifier
   
   // Callback properties (for faceplate integration)
   protected _handlers: Record<string, string> = {};
@@ -194,6 +195,21 @@ export abstract class Drawable {
    */
   getZoom(): number {
     return this._currentZoom;
+  }
+
+  /**
+   * Set unique string identifier
+   */
+  setId(id: string): this {
+    this._id = id;
+    return this;
+  }
+
+  /**
+   * Get unique string identifier
+   */
+  getId(): string {
+    return this._id;
   }
 
   /**

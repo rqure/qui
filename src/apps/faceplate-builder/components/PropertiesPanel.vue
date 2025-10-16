@@ -16,6 +16,21 @@
         <div class="property-value readonly">{{ shapeTypeName }}</div>
       </div>
       
+      <!-- Shape ID -->
+      <div class="property-section">
+        <div class="section-title">Identification</div>
+        
+        <div class="property-row">
+          <label>ID:</label>
+          <input 
+            type="text" 
+            :value="shapeId" 
+            @input="updateProperty('id', ($event.target as HTMLInputElement).value)"
+            placeholder="unique-shape-id"
+          />
+        </div>
+      </div>
+      
       <!-- Transform properties -->
       <div class="property-section">
         <div class="section-title">Transform</div>
@@ -556,6 +571,12 @@ const emit = defineEmits<{
 const shapeTypeName = computed(() => {
   if (!props.selectedShape) return '';
   return props.selectedShape.constructor.name;
+});
+
+const shapeId = computed(() => {
+  props.updateTrigger; // dependency
+  if (!props.selectedShape) return '';
+  return (props.selectedShape as any).getId?.() ?? '';
 });
 
 const location = computed(() => {
