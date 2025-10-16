@@ -490,6 +490,8 @@ function applyPropertyToShape(shape: Drawable, property: string, value: any) {
     shapeAny.setUrl(value);
   } else if (property === 'css' && shapeAny.setCss) {
     shapeAny.setCss(value);
+  } else if (property === 'keyframes' && shapeAny.setKeyframes) {
+    shapeAny.setKeyframes(value);
   }
 }
 
@@ -543,6 +545,7 @@ function shapeToConfig(shape: Drawable): FaceplateShapeConfig {
   if (shapeAny.getHeight) config.height = shapeAny.getHeight();
   if (shapeAny.getUrl) config.url = shapeAny.getUrl();
   if (shapeAny.getCss) config.css = shapeAny.getCss();
+  if (shapeAny.getKeyframes) config.keyframes = shapeAny.getKeyframes();
   
   return config;
 }
@@ -611,6 +614,9 @@ function configToModel(config: any): Model {
         }
         if (shapeConfig.css && shapeAny.setCss) {
           shapeAny.setCss(shapeConfig.css);
+        }
+        if (shapeConfig.keyframes && shapeAny.setKeyframes) {
+          shapeAny.setKeyframes(shapeConfig.keyframes);
         }
         
         model.addShape(shape);

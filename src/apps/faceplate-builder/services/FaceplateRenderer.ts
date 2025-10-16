@@ -301,6 +301,9 @@ export class FaceplateRenderer {
     if (config.css && shapeAny.setCss) {
       shapeAny.setCss(config.css);
     }
+    if (config.keyframes && shapeAny.setKeyframes) {
+      shapeAny.setKeyframes(config.keyframes);
+    }
     
     // ImageOverlay properties
     if (config.url && shapeAny.setUrl) {

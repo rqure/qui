@@ -475,7 +475,17 @@
             :value="divProps.css" 
             @input="updateProperty('css', ($event.target as HTMLTextAreaElement).value)"
             rows="4"
-            placeholder="@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }&#10;color: red; background: blue; animation: spin 2s infinite;"
+            placeholder="color: red; background: blue; animation: spin 2s infinite;"
+          ></textarea>
+        </div>
+        
+        <div class="property-row">
+          <label>Keyframes:</label>
+          <textarea 
+            :value="divProps.keyframes" 
+            @input="updateProperty('keyframes', ($event.target as HTMLTextAreaElement).value)"
+            rows="4"
+            placeholder="@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }"
           ></textarea>
         </div>
       </div>
@@ -650,14 +660,15 @@ const svgTextProps = computed(() => {
 
 const divProps = computed(() => {
   props.updateTrigger; // dependency
-  if (!props.selectedShape) return { html: '<div>Hello</div>', className: '', width: 100, height: 100, css: '' };
+  if (!props.selectedShape) return { html: '<div>Hello</div>', className: '', width: 100, height: 100, css: '', keyframes: '' };
   const shape = props.selectedShape as any;
   return {
     html: shape.getHtml?.() ?? '<div>Hello</div>',
     className: shape.getClassName?.() ?? '',
     width: shape.getWidth?.() ?? 100,
     height: shape.getHeight?.() ?? 100,
-    css: shape.getCss?.() ?? ''
+    css: shape.getCss?.() ?? '',
+    keyframes: shape.getKeyframes?.() ?? ''
   };
 });
 

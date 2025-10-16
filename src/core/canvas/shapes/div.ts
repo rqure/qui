@@ -14,6 +14,7 @@ export class Div extends Drawable {
     private _width: number = 100;
     private _height: number = 100;
     private _css: string = '';
+    private _keyframes: string = '';
     private _styleElement: HTMLStyleElement | null = null;
     private _uniqueClass: string = '';
 
@@ -78,7 +79,7 @@ export class Div extends Drawable {
     }
 
     /**
-     * Set CSS styles and animations as a single CSS string
+     * Set CSS styles as a string
      */
     setCss(css: string): this {
         this._css = css;
@@ -86,10 +87,25 @@ export class Div extends Drawable {
     }
 
     /**
-     * Get CSS styles and animations as a string
+     * Get CSS styles as a string
      */
     getCss(): string {
         return this._css;
+    }
+
+    /**
+     * Set CSS keyframes as a string
+     */
+    setKeyframes(keyframes: string): this {
+        this._keyframes = keyframes;
+        return this;
+    }
+
+    /**
+     * Get CSS keyframes as a string
+     */
+    getKeyframes(): string {
+        return this._keyframes;
     }
 
     /**
@@ -128,7 +144,7 @@ export class Div extends Drawable {
      * Apply CSS styles and animations
      */
     private applyStyles(): void {
-        if (!this.layer || !this._css.trim()) return;
+        if (!this.layer || (!this._css.trim() && !this._keyframes.trim())) return;
 
         const element = (this.layer as any).getElement?.();
         if (!element) return;
@@ -145,9 +161,6 @@ export class Div extends Drawable {
             container.classList.add(this._uniqueClass);
         }
 
-        // Process CSS to scope keyframes
-        const processedCss = this.processCssForScoping(this._css, this._uniqueClass);
-
         // Create or get style element
         const styleId = `style-${this._uniqueClass}`;
         this._styleElement = document.getElementById(styleId) as HTMLStyleElement;
@@ -157,47 +170,14 @@ export class Div extends Drawable {
             document.head.appendChild(this._styleElement);
         }
 
-        // Set CSS content
-        this._styleElement.textContent = processedCss;
+        // Combine keyframes and scoped CSS
+        const keyframesCss = this._keyframes.trim();
+        const scopedCss = this._css.trim() ? `.${this._uniqueClass} { ${this._css} }` : '';
+
+        this._styleElement.textContent = `${keyframesCss}\n${scopedCss}`.trim();
     }
 
-    /**
-     * Process CSS to scope keyframes and animations to this div instance
-     */
-    private processCssForScoping(css: string, uniqueClass: string): string {
-        let processedCss = css;
 
-        // Find all @keyframes definitions
-        const keyframesRegex = /@keyframes\s+([^\s{]+)\s*{([^}]*)}/g;
-        const keyframesMap = new Map<string, string>();
-
-        // Extract keyframes and create unique names
-        let match;
-        while ((match = keyframesRegex.exec(css)) !== null) {
-            const originalName = match[1];
-            const uniqueName = `${uniqueClass}-${originalName}`;
-            keyframesMap.set(originalName, uniqueName);
-
-            // Replace the keyframe name in the definition
-            processedCss = processedCss.replace(
-                new RegExp(`@keyframes\\s+${originalName}\\s*{`, 'g'),
-                `@keyframes ${uniqueName} {`
-            );
-        }
-
-        // Replace animation references to use unique keyframe names
-        keyframesMap.forEach((uniqueName, originalName) => {
-            const animationRegex = new RegExp(`(animation[^:]*:\\s*[^;]*\\b)${originalName}(\\b[^;]*;)`, 'gi');
-            processedCss = processedCss.replace(animationRegex, `$1${uniqueName}$2`);
-        });
-
-        // Wrap the remaining CSS (excluding keyframes) in the unique class selector
-        const keyframesOnly = processedCss.match(/@keyframes[^{]*{[^}]*}/g)?.join('\n') || '';
-        const cssWithoutKeyframes = processedCss.replace(/@keyframes[^{]*{[^}]*}/g, '').trim();
-
-        // Combine: keyframes first (global), then scoped CSS
-        return `${keyframesOnly}\n.${uniqueClass} { ${cssWithoutKeyframes} }`.trim();
-    }
 
     /**
      * Draw the div marker
