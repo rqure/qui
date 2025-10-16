@@ -108,7 +108,7 @@ import { ValueHelpers } from '@/core/data/types';
 
 const emit = defineEmits<{
   (e: 'close'): void;
-  (e: 'load', config: FaceplateConfig): void;
+  (e: 'load', config: FaceplateConfig, entityId: EntityId, name: string): void;
 }>();
 
 const props = defineProps<{
@@ -220,7 +220,13 @@ function selectFaceplate(id: EntityId) {
 
 function loadFaceplate() {
   if (selectedFaceplate.value) {
-    emit('load', selectedFaceplate.value.config);
+    // Find this window and call its onEvent handler
+    const thisWindow = windowStore.windows.find(w => w.id === props.windowId);
+    
+    if (thisWindow?.onEvent) {
+      thisWindow.onEvent('load', selectedFaceplate.value.config, selectedFaceplate.value.id, selectedFaceplate.value.name);
+    }
+    
     windowStore.closeWindow(props.windowId!);
   }
 }

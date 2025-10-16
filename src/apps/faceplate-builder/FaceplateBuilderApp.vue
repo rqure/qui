@@ -3,7 +3,12 @@
     <!-- Top toolbar -->
     <div class="top-toolbar">
       <div class="toolbar-section">
-        <h2 class="app-title">Faceplate Builder</h2>
+        <div class="faceplate-info">
+          <span v-if="currentFaceplateId" class="faceplate-id">{{ currentFaceplateId }}</span>
+          <span v-if="currentFaceplateId && currentFaceplateName" class="faceplate-separator">•</span>
+          <span v-if="currentFaceplateName" class="faceplate-name">{{ currentFaceplateName }}</span>
+          <span v-else-if="!currentFaceplateId" class="faceplate-placeholder">New Faceplate</span>
+        </div>
       </div>
       
       <div class="toolbar-section toolbar-actions">
@@ -202,6 +207,7 @@ import ErrorWindow from './components/ErrorWindow.vue';
 import type { EntityId } from '@/core/data/types';
 import { useDataStore } from '@/stores/data';
 import { useWindowStore } from '@/stores/windows';
+import { ValueHelpers } from '@/core/data/types';
 
 const props = defineProps<{
   windowId?: string
@@ -310,7 +316,13 @@ function openLoadFaceplateWindow() {
     width: 600,
     height: 500,
     minWidth: 500,
-    minHeight: 400
+    minHeight: 400,
+    onEvent: (event: string, ...args: any[]) => {
+      if (event === 'load') {
+        const [config, entityId, name] = args;
+        onLoadFaceplate(config, entityId, name);
+      }
+    }
   });
   // Set the window ID in the props after creation
   window.props = { ...window.props, windowId: window.id };
@@ -327,16 +339,15 @@ function saveFaceplate() {
   }
 }
 
-async function onLoadFaceplate(config: FaceplateConfig) {
+async function onLoadFaceplate(config: FaceplateConfig, entityId: EntityId, name: string) {
   try {
     currentModel.value = configToModel(config.model);
     selectedShapeIndex.value = null;
     hasChanges.value = false;
     
-    // Clear current faceplate state since we're loading a different one
-    // (we don't know which entity this config came from)
-    currentFaceplateId.value = null;
-    currentFaceplateName.value = '';
+    // Set the current faceplate information
+    currentFaceplateId.value = entityId;
+    currentFaceplateName.value = name;
   } catch (error) {
     console.error('Failed to load faceplate:', error);
     showError('Failed to load faceplate', error);
@@ -360,6 +371,13 @@ async function saveToExistingFaceplate() {
     );
     
     hasChanges.value = false;
+    
+    // Update the faceplate name in case it was changed
+    const nameField = await dataStore.getFieldType('Name');
+    const [nameValue] = await dataStore.read(currentFaceplateId.value, [nameField]);
+    if (ValueHelpers.isString(nameValue)) {
+      currentFaceplateName.value = nameValue.String;
+    }
   } catch (error) {
     console.error('Failed to save faceplate:', error);
     showError('Failed to save faceplate', error);
@@ -484,7 +502,13 @@ function openDeleteConfirmationWindow() {
     width: 400,
     height: 200,
     minWidth: 350,
-    minHeight: 150
+    minHeight: 150,
+    onEvent: (event: string, ...args: any[]) => {
+      if (event === 'confirm') {
+        handleDeleteShape();
+      }
+      // 'cancel' event is handled automatically by window close
+    }
   });
   // Set the window ID in the props after creation
   window.props = { ...window.props, windowId: window.id };
@@ -573,7 +597,13 @@ function openUnsavedChangesWindow() {
     width: 400,
     height: 200,
     minWidth: 350,
-    minHeight: 150
+    minHeight: 150,
+    onEvent: (event: string, ...args: any[]) => {
+      if (event === 'confirm') {
+        confirmUnsavedChanges();
+      }
+      // 'cancel' event is handled automatically by window close
+    }
   });
   // Set the window ID in the props after creation
   window.props = { ...window.props, windowId: window.id };
@@ -968,6 +998,38 @@ watch(() => currentModel.value.getShapes().length, () => {
   font-weight: var(--qui-font-weight-bold, 600);
   color: var(--qui-text-primary, #fff);
   letter-spacing: -0.02em;
+}
+
+.faceplate-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--qui-font-size-large, 16px);
+  font-weight: var(--qui-font-weight-medium, 500);
+}
+
+.faceplate-id {
+  font-family: monospace;
+  color: var(--qui-accent-color, #00ff88);
+  background: rgba(0, 255, 136, 0.1);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: var(--qui-font-size-small, 13px);
+  font-weight: var(--qui-font-weight-bold, 600);
+}
+
+.faceplate-separator {
+  color: var(--qui-text-secondary, #aaa);
+  font-weight: var(--qui-font-weight-normal, 400);
+}
+
+.faceplate-name {
+  color: var(--qui-text-primary, #fff);
+}
+
+.faceplate-placeholder {
+  color: var(--qui-text-secondary, #aaa);
+  font-style: italic;
 }
 
 .btn {

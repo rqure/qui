@@ -26,6 +26,7 @@ export interface WindowState {
   },
   parentId?: string
   props?: Record<string, any>
+  onEvent?: (event: string, ...args: any[]) => void
 }
 
 export interface WindowOptions {
@@ -41,4 +42,5 @@ export interface WindowOptions {
   icon?: string
   parentId?: string
   props?: Record<string, any>  // Add props for passing to components
+  onEvent?: (event: string, ...args: any[]) => void  // Add event handler
 }

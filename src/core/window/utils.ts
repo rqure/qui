@@ -19,6 +19,7 @@ export const createWindowState = (options: WindowOptions): WindowState => ({
   resizeHandle: '',
   parentId: options.parentId,
   props: options.props || {},
+  onEvent: options.onEvent,
 })
 
 // We can add more window-related utilities here in the future
