@@ -13,9 +13,9 @@ export class Div extends Drawable {
     private _className: string = '';
     private _width: number = 100;
     private _height: number = 100;
-    private _styles: Map<string, any> = new Map();
-    private _animations: Map<string, any> = new Map();
+    private _css: string = '';
     private _styleElement: HTMLStyleElement | null = null;
+    private _uniqueClass: string = '';
 
     /**
      * Set HTML content
@@ -78,37 +78,18 @@ export class Div extends Drawable {
     }
 
     /**
-     * Set CSS styles
+     * Set CSS styles and animations as a single CSS string
      */
-    setStyles(styles: Record<string, any>): this {
-        if (styles) {
-            this._styles = new Map(Object.entries(styles));
-        }
+    setCss(css: string): this {
+        this._css = css;
         return this;
     }
 
     /**
-     * Set CSS animations
+     * Get CSS styles and animations as a string
      */
-    setAnimations(animations: Record<string, any>): this {
-        if (animations) {
-            this._animations = new Map(Object.entries(animations));
-        }
-        return this;
-    }
-
-    /**
-     * Get CSS styles
-     */
-    getStyles(): Record<string, any> {
-        return Object.fromEntries(this._styles);
-    }
-
-    /**
-     * Get CSS animations
-     */
-    getAnimations(): Record<string, any> {
-        return Object.fromEntries(this._animations);
+    getCss(): string {
+        return this._css;
     }
 
     /**
@@ -147,13 +128,28 @@ export class Div extends Drawable {
      * Apply CSS styles and animations
      */
     private applyStyles(): void {
-        if (!this.layer) return;
+        if (!this.layer || !this._css.trim()) return;
 
         const element = (this.layer as any).getElement?.();
-        if (!element || (this._styles.size === 0 && this._animations.size === 0)) return;
+        if (!element) return;
+
+        // Generate unique class for this div instance
+        if (!this._uniqueClass) {
+            this._uniqueClass = `div-${Math.random().toString(36).substr(2, 9)}`;
+        }
+
+        // Find the leaflet-div-icon container
+        const container = element.firstElementChild as HTMLElement;
+        if (container) {
+            // Add the unique class to the container
+            container.classList.add(this._uniqueClass);
+        }
+
+        // Process CSS to scope keyframes
+        const processedCss = this.processCssForScoping(this._css, this._uniqueClass);
 
         // Create or get style element
-        const styleId = `style-${Math.random().toString(36).substr(2, 9)}`;
+        const styleId = `style-${this._uniqueClass}`;
         this._styleElement = document.getElementById(styleId) as HTMLStyleElement;
         if (!this._styleElement) {
             this._styleElement = document.createElement('style');
@@ -161,20 +157,46 @@ export class Div extends Drawable {
             document.head.appendChild(this._styleElement);
         }
 
-        // Build CSS content
-        let css = '';
+        // Set CSS content
+        this._styleElement.textContent = processedCss;
+    }
 
-        // Add animations
-        this._animations.forEach((keyframes: any, name: string) => {
-            css += `@keyframes ${name} { ${keyframes} }\n`;
+    /**
+     * Process CSS to scope keyframes and animations to this div instance
+     */
+    private processCssForScoping(css: string, uniqueClass: string): string {
+        let processedCss = css;
+
+        // Find all @keyframes definitions
+        const keyframesRegex = /@keyframes\s+([^\s{]+)\s*{([^}]*)}/g;
+        const keyframesMap = new Map<string, string>();
+
+        // Extract keyframes and create unique names
+        let match;
+        while ((match = keyframesRegex.exec(css)) !== null) {
+            const originalName = match[1];
+            const uniqueName = `${uniqueClass}-${originalName}`;
+            keyframesMap.set(originalName, uniqueName);
+
+            // Replace the keyframe name in the definition
+            processedCss = processedCss.replace(
+                new RegExp(`@keyframes\\s+${originalName}\\s*{`, 'g'),
+                `@keyframes ${uniqueName} {`
+            );
+        }
+
+        // Replace animation references to use unique keyframe names
+        keyframesMap.forEach((uniqueName, originalName) => {
+            const animationRegex = new RegExp(`(animation[^:]*:\\s*[^;]*\\b)${originalName}(\\b[^;]*;)`, 'gi');
+            processedCss = processedCss.replace(animationRegex, `$1${uniqueName}$2`);
         });
 
-        // Add styles
-        this._styles.forEach((rules: any, selector: string) => {
-            css += `${selector} { ${rules} }\n`;
-        });
+        // Wrap the remaining CSS (excluding keyframes) in the unique class selector
+        const keyframesOnly = processedCss.match(/@keyframes[^{]*{[^}]*}/g)?.join('\n') || '';
+        const cssWithoutKeyframes = processedCss.replace(/@keyframes[^{]*{[^}]*}/g, '').trim();
 
-        this._styleElement.textContent = css;
+        // Combine: keyframes first (global), then scoped CSS
+        return `${keyframesOnly}\n.${uniqueClass} { ${cssWithoutKeyframes} }`.trim();
     }
 
     /**

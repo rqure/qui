@@ -470,22 +470,12 @@
         </div>
         
         <div class="property-row">
-          <label>Styles:</label>
+          <label>CSS:</label>
           <textarea 
-            :value="JSON.stringify(divProps.styles, null, 2)" 
-            @input="updateProperty('styles', JSON.parse(($event.target as HTMLTextAreaElement).value))"
+            :value="divProps.css" 
+            @input="updateProperty('css', ($event.target as HTMLTextAreaElement).value)"
             rows="4"
-            placeholder='{"background": "red", "border": "1px solid black"}'
-          ></textarea>
-        </div>
-        
-        <div class="property-row">
-          <label>Animations:</label>
-          <textarea 
-            :value="JSON.stringify(divProps.animations, null, 2)" 
-            @input="updateProperty('animations', JSON.parse(($event.target as HTMLTextAreaElement).value))"
-            rows="4"
-            placeholder='{"pulse": "@keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }"}'
+            placeholder="@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }&#10;color: red; background: blue; animation: spin 2s infinite;"
           ></textarea>
         </div>
       </div>
@@ -660,15 +650,14 @@ const svgTextProps = computed(() => {
 
 const divProps = computed(() => {
   props.updateTrigger; // dependency
-  if (!props.selectedShape) return { html: '<div>Hello</div>', className: '', width: 100, height: 100, styles: {}, animations: {} };
+  if (!props.selectedShape) return { html: '<div>Hello</div>', className: '', width: 100, height: 100, css: '' };
   const shape = props.selectedShape as any;
   return {
     html: shape.getHtml?.() ?? '<div>Hello</div>',
     className: shape.getClassName?.() ?? '',
     width: shape.getWidth?.() ?? 100,
     height: shape.getHeight?.() ?? 100,
-    styles: shape.getStyles?.() ?? {},
-    animations: shape.getAnimations?.() ?? {}
+    css: shape.getCss?.() ?? ''
   };
 });
 

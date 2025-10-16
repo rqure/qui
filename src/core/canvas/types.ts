@@ -67,8 +67,7 @@ export interface ShapeConfig {
   maxZoom?: number;          // Maximum zoom to display
   
   // Styling
-  styles?: Record<string, any>;      // Custom CSS styles
-  animations?: Record<string, any>;  // Animation definitions
+  css?: string;              // CSS styles and animations as string
   
   // Pane/layer
   pane?: Pane;

@@ -488,10 +488,8 @@ function applyPropertyToShape(shape: Drawable, property: string, value: any) {
     shapeAny.setHeight(value);
   } else if (property === 'url' && shapeAny.setUrl) {
     shapeAny.setUrl(value);
-  } else if (property === 'styles' && shapeAny.setStyles) {
-    shapeAny.setStyles(value);
-  } else if (property === 'animations' && shapeAny.setAnimations) {
-    shapeAny.setAnimations(value);
+  } else if (property === 'css' && shapeAny.setCss) {
+    shapeAny.setCss(value);
   }
 }
 
@@ -544,8 +542,7 @@ function shapeToConfig(shape: Drawable): FaceplateShapeConfig {
   if (shapeAny.getWidth) config.width = shapeAny.getWidth();
   if (shapeAny.getHeight) config.height = shapeAny.getHeight();
   if (shapeAny.getUrl) config.url = shapeAny.getUrl();
-  if (shapeAny.getStyles) config.styles = shapeAny.getStyles();
-  if (shapeAny.getAnimations) config.animations = shapeAny.getAnimations();
+  if (shapeAny.getCss) config.css = shapeAny.getCss();
   
   return config;
 }
@@ -612,11 +609,8 @@ function configToModel(config: any): Model {
         if (shapeConfig.url && shapeAny.setUrl) {
           shapeAny.setUrl(shapeConfig.url);
         }
-        if (shapeConfig.styles && shapeAny.setStyles) {
-          shapeAny.setStyles(shapeConfig.styles);
-        }
-        if (shapeConfig.animations && shapeAny.setAnimations) {
-          shapeAny.setAnimations(shapeConfig.animations);
+        if (shapeConfig.css && shapeAny.setCss) {
+          shapeAny.setCss(shapeConfig.css);
         }
         
         model.addShape(shape);

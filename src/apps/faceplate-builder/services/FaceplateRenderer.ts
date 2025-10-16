@@ -298,11 +298,8 @@ export class FaceplateRenderer {
     if (config.className && shapeAny.setClassName) {
       shapeAny.setClassName(config.className);
     }
-    if (config.styles && shapeAny.setStyles) {
-      shapeAny.setStyles(config.styles);
-    }
-    if (config.animations && shapeAny.setAnimations) {
-      shapeAny.setAnimations(config.animations);
+    if (config.css && shapeAny.setCss) {
+      shapeAny.setCss(config.css);
     }
     
     // ImageOverlay properties
