@@ -203,7 +203,9 @@ import type { EntityId } from '@/core/data/types';
 import { useDataStore } from '@/stores/data';
 import { useWindowStore } from '@/stores/windows';
 
-// State
+const props = defineProps<{
+  windowId?: string
+}>()
 const currentModel = ref<Model>(new Model());
 const selectedShapeIndex = ref<number | null>(null);
 const hasChanges = ref(false);
@@ -301,8 +303,8 @@ function openLoadFaceplateWindow() {
   const window = windowStore.createWindow({
     title: 'Load Faceplate',
     component: markRaw(LoadFaceplateModal),
+    parentId: props.windowId,
     props: {
-      parentWindowId: 'faceplate-builder', // TODO: Get actual parent window ID
       windowId: undefined // Will be set after creation
     },
     width: 600,
@@ -475,14 +477,17 @@ function openDeleteConfirmationWindow() {
   const window = windowStore.createWindow({
     title: 'Confirm Delete',
     component: markRaw(DeleteConfirmationModal),
+    parentId: props.windowId,
     props: {
-      parentWindowId: 'faceplate-builder', // TODO: Get actual parent window ID
+      windowId: undefined // Will be set after creation
     },
     width: 400,
     height: 200,
     minWidth: 350,
     minHeight: 150
   });
+  // Set the window ID in the props after creation
+  window.props = { ...window.props, windowId: window.id };
   childWindowIds.value.push(window.id);
 }
 
@@ -559,8 +564,9 @@ function openUnsavedChangesWindow() {
   const window = windowStore.createWindow({
     title: 'Unsaved Changes',
     component: markRaw(UnsavedChangesModal),
+    parentId: props.windowId,
     props: {
-      parentWindowId: 'faceplate-builder', // TODO: Get actual parent window ID
+      windowId: undefined, // Will be set after creation
       message: "Do you want to proceed? Your current changes will be lost.",
       confirmText: "Proceed"
     },
@@ -569,6 +575,8 @@ function openUnsavedChangesWindow() {
     minWidth: 350,
     minHeight: 150
   });
+  // Set the window ID in the props after creation
+  window.props = { ...window.props, windowId: window.id };
   childWindowIds.value.push(window.id);
 }
 
@@ -582,8 +590,9 @@ function openErrorWindow(message: string, details: string) {
   const window = windowStore.createWindow({
     title: 'Error',
     component: markRaw(ErrorModal),
+    parentId: props.windowId,
     props: {
-      parentWindowId: 'faceplate-builder', // TODO: Get actual parent window ID
+      windowId: undefined, // Will be set after creation
       message,
       details
     },
@@ -592,6 +601,8 @@ function openErrorWindow(message: string, details: string) {
     minWidth: 400,
     minHeight: 200
   });
+  // Set the window ID in the props after creation
+  window.props = { ...window.props, windowId: window.id };
   childWindowIds.value.push(window.id);
 }
 

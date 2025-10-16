@@ -1,110 +1,59 @@
 <template>
-  <div class="modal-overlay" @click.self="cancel">
-    <div class="modal-dialog">
-      <div class="modal-header">
-        <h3>Delete Shape</h3>
-        <button @click="cancel" class="close-button">✕</button>
-      </div>
+  <div class="window-content">
+    <div class="warning-content">
+      <div class="warning-icon">⚠️</div>
+      <p class="warning-message">
+        Are you sure you want to delete this shape?
+      </p>
+      <p class="warning-details">
+        This action cannot be undone.
+      </p>
+    </div>
 
-      <div class="modal-body">
-        <div class="warning-content">
-          <div class="warning-icon">⚠️</div>
-          <p class="warning-message">
-            Are you sure you want to delete this shape?
-          </p>
-          <p class="warning-details">
-            This action cannot be undone.
-          </p>
-        </div>
-      </div>
-
-      <div class="modal-footer">
-        <button @click="cancel" class="btn btn-secondary">Cancel</button>
-        <button @click="confirm" class="btn btn-danger">
-          Delete Shape
-        </button>
-      </div>
+    <div class="window-footer">
+      <button @click="cancel" class="btn btn-secondary">Cancel</button>
+      <button @click="confirm" class="btn btn-danger">
+        Delete Shape
+      </button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
+import { useWindowStore } from '@/stores/windows';
+
+const props = defineProps<{
+  windowId?: string;
+}>();
+
 const emit = defineEmits<{
   (e: 'confirm'): void;
   (e: 'cancel'): void;
 }>();
 
+const windowStore = useWindowStore();
+
 function confirm() {
   emit('confirm');
+  windowStore.closeWindow(props.windowId!);
 }
 
 function cancel() {
   emit('cancel');
+  windowStore.closeWindow(props.windowId!);
 }
 </script>
 
 <style scoped>
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
+.window-content {
+  padding: 20px;
   height: 100%;
-  background: rgba(0, 0, 0, 0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modal-dialog {
-  width: 90%;
-  max-width: 400px;
-  background: var(--qui-bg-secondary);
-  border: var(--qui-window-border);
-  border-radius: var(--qui-window-radius);
-  box-shadow: var(--qui-shadow-window);
   display: flex;
   flex-direction: column;
-}
-
-.modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 20px 24px;
-  border-bottom: var(--qui-window-border);
-}
-
-.modal-header h3 {
-  margin: 0;
-  font-size: var(--qui-font-size-large);
-  font-weight: var(--qui-font-weight-bold);
-  color: var(--qui-text-primary);
-}
-
-.close-button {
-  background: none;
-  border: none;
-  font-size: 24px;
-  color: var(--qui-text-secondary);
-  cursor: pointer;
-  padding: 0;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
   justify-content: center;
-  border-radius: var(--qui-window-radius);
-  transition: background var(--qui-interaction-speed);
-}
-
-.close-button:hover {
-  background: var(--qui-overlay-hover);
-}
-
-.modal-body {
-  padding: 24px;
+  align-items: center;
+  gap: 24px;
 }
 
 .warning-content {
@@ -113,6 +62,8 @@ function cancel() {
   align-items: center;
   text-align: center;
   gap: 16px;
+  flex: 1;
+  justify-content: center;
 }
 
 .warning-icon {
@@ -134,13 +85,15 @@ function cancel() {
   opacity: 0.8;
 }
 
-.modal-footer {
+.window-footer {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 12px;
-  padding: 20px 24px;
+  padding: 20px 0 0 0;
   border-top: var(--qui-window-border);
+  width: 100%;
+  flex-shrink: 0;
 }
 
 .btn {
@@ -157,18 +110,6 @@ function cancel() {
 .btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-}
-
-.btn-primary {
-  background: var(--qui-accent-color);
-  color: var(--qui-bg-primary);
-  box-shadow: var(--qui-shadow-accent);
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: var(--qui-accent-secondary);
-  box-shadow: var(--qui-shadow-accent-strong);
-  transform: var(--qui-hover-lift);
 }
 
 .btn-secondary {

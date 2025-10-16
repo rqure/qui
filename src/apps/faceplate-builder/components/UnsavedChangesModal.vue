@@ -1,35 +1,29 @@
 <template>
-  <div class="modal-overlay" @click.self="cancel">
-    <div class="modal-dialog">
-      <div class="modal-header">
-        <h3>Unsaved Changes</h3>
-        <button @click="cancel" class="close-button">✕</button>
-      </div>
+  <div class="window-content">
+    <div class="warning-content">
+      <div class="warning-icon">⚠️</div>
+      <p class="warning-message">
+        You have unsaved changes.
+      </p>
+      <p class="warning-details">
+        {{ message }}
+      </p>
+    </div>
 
-      <div class="modal-body">
-        <div class="warning-content">
-          <div class="warning-icon">⚠️</div>
-          <p class="warning-message">
-            You have unsaved changes.
-          </p>
-          <p class="warning-details">
-            {{ message }}
-          </p>
-        </div>
-      </div>
-
-      <div class="modal-footer">
-        <button @click="cancel" class="btn btn-secondary">Cancel</button>
-        <button @click="confirm" class="btn btn-primary">
-          {{ confirmText }}
-        </button>
-      </div>
+    <div class="window-footer">
+      <button @click="cancel" class="btn btn-secondary">Cancel</button>
+      <button @click="confirm" class="btn btn-primary">
+        {{ confirmText }}
+      </button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { useWindowStore } from '@/stores/windows';
+
 const props = defineProps<{
+  windowId?: string;
   message: string;
   confirmText: string;
 }>();
@@ -39,77 +33,28 @@ const emit = defineEmits<{
   (e: 'cancel'): void;
 }>();
 
+const windowStore = useWindowStore();
+
 function confirm() {
   emit('confirm');
+  windowStore.closeWindow(props.windowId!);
 }
 
 function cancel() {
   emit('cancel');
+  windowStore.closeWindow(props.windowId!);
 }
 </script>
 
 <style scoped>
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
+.window-content {
+  padding: 20px;
   height: 100%;
-  background: rgba(0, 0, 0, 0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modal-dialog {
-  width: 90%;
-  max-width: 400px;
-  background: var(--qui-bg-secondary, #2a2a2a);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
   display: flex;
   flex-direction: column;
-}
-
-.modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 20px 24px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.modal-header h3 {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--qui-text-primary, #fff);
-}
-
-.close-button {
-  background: none;
-  border: none;
-  font-size: 24px;
-  color: var(--qui-text-secondary, #aaa);
-  cursor: pointer;
-  padding: 0;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
   justify-content: center;
-  border-radius: 4px;
-  transition: background 0.2s;
-}
-
-.close-button:hover {
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.modal-body {
-  padding: 24px;
+  align-items: center;
+  gap: 24px;
 }
 
 .warning-content {
@@ -118,6 +63,8 @@ function cancel() {
   align-items: center;
   text-align: center;
   gap: 16px;
+  flex: 1;
+  justify-content: center;
 }
 
 .warning-icon {
@@ -127,35 +74,38 @@ function cancel() {
 
 .warning-message {
   margin: 0;
-  font-size: var(--qui-font-size-base, 14px);
-  color: var(--qui-text-primary, #fff);
-  font-weight: var(--qui-font-weight-medium, 500);
+  font-size: var(--qui-font-size-base);
+  color: var(--qui-text-primary);
+  font-weight: var(--qui-font-weight-medium);
 }
 
 .warning-details {
   margin: 0;
-  font-size: var(--qui-font-size-small, 12px);
-  color: var(--qui-text-secondary, #aaa);
+  font-size: var(--qui-font-size-small);
+  color: var(--qui-text-secondary);
   opacity: 0.8;
 }
 
-.modal-footer {
+.window-footer {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 12px;
-  padding: 20px 24px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 20px 0 0 0;
+  border-top: var(--qui-window-border);
+  width: 100%;
+  flex-shrink: 0;
 }
 
 .btn {
   padding: 10px 20px;
   border: none;
-  border-radius: 4px;
-  font-size: 14px;
-  font-weight: 500;
+  border-radius: var(--qui-window-radius);
+  font-size: var(--qui-font-size-base);
+  font-weight: var(--qui-font-weight-medium);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all var(--qui-interaction-speed);
+  font-family: var(--qui-font-family);
 }
 
 .btn:disabled {
@@ -164,18 +114,21 @@ function cancel() {
 }
 
 .btn-primary {
-  background: var(--qui-accent-color, #00ff88);
-  color: var(--qui-bg-primary, #000);
+  background: var(--qui-accent-color);
+  color: var(--qui-bg-primary);
+  box-shadow: var(--qui-shadow-accent);
 }
 
 .btn-primary:hover:not(:disabled) {
   background: color-mix(in srgb, var(--qui-accent-color, #00ff88) 110%, white);
+  box-shadow: var(--qui-shadow-accent-strong);
+  transform: translateY(-1px);
 }
 
 .btn-secondary {
-  background: var(--qui-bg-secondary, #2a2a2a);
-  color: var(--qui-text-primary, #fff);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--qui-bg-secondary);
+  color: var(--qui-text-primary);
+  border: 1px solid rgba(255, 255, 255, 0.15);
 }
 
 .btn-secondary:hover:not(:disabled) {

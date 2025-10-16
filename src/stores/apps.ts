@@ -16,13 +16,19 @@ export const useAppStore = defineStore('apps', () => {
     if (app) {
       const defaultSize = app.manifest.defaultWindowSize || { width: 800, height: 600 }
 
-      windowStore.createWindow({
+      const window = windowStore.createWindow({
         title: app.manifest.name,
         component: app.component.default,
         icon: app.manifest.icon,
         width: defaultSize.width,
         height: defaultSize.height,
+        props: {
+          windowId: undefined // Will be set after creation
+        }
       })
+      
+      // Set the window ID in the props after creation
+      window.props = { ...window.props, windowId: window.id }
     }
   }
 

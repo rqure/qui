@@ -1,33 +1,27 @@
 <template>
-  <div class="modal-overlay" @click.self="close">
-    <div class="modal-dialog">
-      <div class="modal-header">
-        <h3>Error</h3>
-        <button @click="close" class="close-button">✕</button>
+  <div class="window-content">
+    <div class="error-content">
+      <div class="error-icon">⚠️</div>
+      <div class="error-message">{{ message }}</div>
+      <div v-if="details" class="error-details">
+        <details>
+          <summary>Technical Details</summary>
+          <pre>{{ details }}</pre>
+        </details>
       </div>
+    </div>
 
-      <div class="modal-body">
-        <div class="error-content">
-          <div class="error-icon">⚠️</div>
-          <div class="error-message">{{ message }}</div>
-          <div v-if="details" class="error-details">
-            <details>
-              <summary>Technical Details</summary>
-              <pre>{{ details }}</pre>
-            </details>
-          </div>
-        </div>
-      </div>
-
-      <div class="modal-footer">
-        <button @click="close" class="btn btn-primary">OK</button>
-      </div>
+    <div class="window-footer">
+      <button @click="close" class="btn btn-primary">OK</button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { useWindowStore } from '@/stores/windows';
+
 const props = defineProps<{
+  windowId?: string;
   message: string;
   details?: string;
 }>();
@@ -36,76 +30,21 @@ const emit = defineEmits<{
   (e: 'close'): void;
 }>();
 
+const windowStore = useWindowStore();
+
 function close() {
   emit('close');
+  windowStore.closeWindow(props.windowId!);
 }
 </script>
 
 <style scoped>
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
+.window-content {
+  padding: 20px;
   height: 100%;
-  background: rgba(0, 0, 0, 0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modal-dialog {
-  width: 90%;
-  max-width: 500px;
-  background: var(--qui-bg-secondary);
-  border: var(--qui-window-border);
-  border-radius: var(--qui-window-radius);
-  box-shadow: var(--qui-shadow-window);
   display: flex;
   flex-direction: column;
-  max-height: 80vh;
-}
-
-.modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 20px 24px;
-  border-bottom: var(--qui-window-border);
-}
-
-.modal-header h3 {
-  margin: 0;
-  font-size: var(--qui-font-size-large);
-  font-weight: var(--qui-font-weight-bold);
-  color: var(--qui-text-primary);
-}
-
-.close-button {
-  background: none;
-  border: none;
-  font-size: 24px;
-  color: var(--qui-text-secondary);
-  cursor: pointer;
-  padding: 0;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--qui-window-radius);
-  transition: background var(--qui-interaction-speed);
-}
-
-.close-button:hover {
-  background: var(--qui-overlay-hover);
-}
-
-.modal-body {
-  flex: 1;
-  padding: 24px;
-  overflow-y: auto;
+  gap: 20px;
 }
 
 .error-content {
@@ -114,6 +53,7 @@ function close() {
   align-items: center;
   gap: 16px;
   text-align: center;
+  flex: 1;
 }
 
 .error-icon {
@@ -167,13 +107,14 @@ function close() {
   overflow-x: auto;
 }
 
-.modal-footer {
+.window-footer {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 12px;
-  padding: 20px 24px;
+  padding: 20px 0 0 0;
   border-top: var(--qui-window-border);
+  flex-shrink: 0;
 }
 
 .btn {

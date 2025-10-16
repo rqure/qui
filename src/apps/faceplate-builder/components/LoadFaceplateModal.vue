@@ -1,94 +1,5 @@
 <template>
-  <!-- Only show modal overlay when not in a window -->
-  <div v-if="!parentWindowId" class="modal-overlay" @click.self="close">
-    <div class="modal-dialog">
-      <div class="modal-header">
-        <h3>Load Faceplate</h3>
-        <button @click="close" class="close-button">✕</button>
-      </div>
-
-      <div class="modal-body">
-        <div v-if="loading" class="loading-state">
-          <div class="spinner"></div>
-          <p>Loading faceplates...</p>
-        </div>
-
-        <div v-else-if="error" class="error-state">
-          <p class="error-message">{{ error }}</p>
-          <button @click="loadFaceplates" class="btn btn-secondary">Retry</button>
-        </div>
-
-        <div v-else>
-          <div class="form-group">
-            <label>Search Faceplates:</label>
-            <input
-              type="text"
-              v-model="searchQuery"
-              class="form-control search-input"
-              placeholder="Type to search faceplates..."
-              @input="filterFaceplates"
-            />
-          </div>
-
-          <div v-if="filteredFaceplates.length > 0" class="results-section">
-            <div class="results-header">
-              Found {{ filteredFaceplates.length }} faceplate{{ filteredFaceplates.length === 1 ? '' : 's' }}
-            </div>
-            <div class="results-list">
-              <div
-                v-for="fp in filteredFaceplates"
-                :key="fp.id"
-                class="result-item"
-                :class="{ selected: selectedFaceplateId === fp.id }"
-                @click="selectFaceplate(fp.id)"
-              >
-                <div class="result-name">{{ fp.name }}</div>
-                <div class="result-meta">
-                  <span class="result-type">{{ fp.targetType }}</span>
-                  <span class="result-shapes">{{ fp.shapeCount }} shapes</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div v-else-if="searchQuery && filteredFaceplates.length === 0" class="no-results">
-            No faceplates found matching "{{ searchQuery }}"
-          </div>
-
-          <div v-if="selectedFaceplate" class="preview-section">
-            <div class="preview-header">Selected Faceplate:</div>
-            <div class="preview-details">
-              <div class="detail-row">
-                <span class="label">Name:</span>
-                <span class="value">{{ selectedFaceplate.name }}</span>
-              </div>
-              <div class="detail-row">
-                <span class="label">Target Type:</span>
-                <span class="value">{{ selectedFaceplate.targetType }}</span>
-              </div>
-              <div class="detail-row">
-                <span class="label">Shapes:</span>
-                <span class="value">{{ selectedFaceplate.shapeCount }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="modal-footer">
-        <button @click="close" class="btn btn-secondary">Cancel</button>
-        <button
-          @click="loadFaceplate"
-          :disabled="!selectedFaceplateId || loading"
-          class="btn btn-primary"
-        >
-          Load
-        </button>
-      </div>
-    </div>
-  </div>
-  <!-- When in a window, just show the content directly without modal chrome -->
-  <div v-else class="window-content">
+  <div class="window-content">
     <div v-if="loading" class="loading-state">
       <div class="spinner"></div>
       <p>Loading faceplates...</p>
@@ -155,7 +66,7 @@
       </div>
     </div>
 
-    <div class="modal-footer">
+    <div class="window-footer">
       <button @click="close" class="btn btn-secondary">Cancel</button>
       <button
         @click="loadFaceplate"
@@ -182,7 +93,6 @@ const emit = defineEmits<{
 }>();
 
 const props = defineProps<{
-  parentWindowId?: string;
   windowId?: string;
 }>();
 
@@ -291,93 +201,23 @@ function selectFaceplate(id: EntityId) {
 
 function loadFaceplate() {
   if (selectedFaceplate.value) {
-    if (props.windowId) {
-      // When in a window, load and close the window
-      emit('load', selectedFaceplate.value.config);
-      windowStore.closeWindow(props.windowId);
-    } else {
-      // When in modal, just emit load event
-      emit('load', selectedFaceplate.value.config);
-    }
+    emit('load', selectedFaceplate.value.config);
+    windowStore.closeWindow(props.windowId!);
   }
 }
 
 function close() {
-  if (props.windowId) {
-    // When in a window, close the window
-    windowStore.closeWindow(props.windowId);
-  } else {
-    // When in modal, emit close event
-    emit('close');
-  }
+  windowStore.closeWindow(props.windowId!);
 }
 </script>
 
 <style scoped>
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
+.window-content {
+  padding: 20px;
   height: 100%;
-  background: rgba(0, 0, 0, 0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modal-dialog {
-  width: 90%;
-  max-width: 600px;
-  background: var(--qui-bg-secondary);
-  border: var(--qui-window-border);
-  border-radius: var(--qui-window-radius);
-  box-shadow: var(--qui-shadow-window);
   display: flex;
   flex-direction: column;
-  max-height: 80vh;
-}
-
-.modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 20px 24px;
-  border-bottom: var(--qui-window-border);
-}
-
-.modal-header h3 {
-  margin: 0;
-  font-size: var(--qui-font-size-large);
-  font-weight: var(--qui-font-weight-bold);
-  color: var(--qui-text-primary);
-}
-
-.close-button {
-  background: none;
-  border: none;
-  font-size: 24px;
-  color: var(--qui-text-secondary);
-  cursor: pointer;
-  padding: 0;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--qui-window-radius);
-  transition: background var(--qui-interaction-speed);
-}
-
-.close-button:hover {
-  background: var(--qui-overlay-hover);
-}
-
-.modal-body {
-  flex: 1;
-  padding: 24px;
-  overflow-y: auto;
+  gap: 20px;
 }
 
 .loading-state,
@@ -410,7 +250,7 @@ function close() {
 }
 
 .form-group {
-  margin-bottom: 20px;
+  margin-bottom: 0;
 }
 
 .form-group label {
@@ -440,7 +280,10 @@ function close() {
 }
 
 .results-section {
-  margin-top: 20px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .results-header {
@@ -450,14 +293,16 @@ function close() {
   margin-bottom: 12px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  flex-shrink: 0;
 }
 
 .results-list {
-  max-height: 300px;
+  flex: 1;
   overflow-y: auto;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: var(--qui-window-radius);
   background: var(--qui-bg-primary);
+  min-height: 200px;
 }
 
 .result-item {
@@ -495,7 +340,6 @@ function close() {
 }
 
 .no-results {
-  margin-top: 20px;
   padding: 20px;
   text-align: center;
   color: var(--qui-text-secondary);
@@ -506,11 +350,11 @@ function close() {
 }
 
 .preview-section {
-  margin-top: 24px;
   padding: 16px;
   background: var(--qui-bg-primary);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: var(--qui-window-radius);
+  flex-shrink: 0;
 }
 
 .preview-header {
@@ -547,13 +391,15 @@ function close() {
   font-family: monospace;
 }
 
-.modal-footer {
+.window-footer {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 12px;
-  padding: 20px 24px;
+  padding: 20px 0 0 0;
   border-top: var(--qui-window-border);
+  margin-top: auto;
+  flex-shrink: 0;
 }
 
 .btn {
@@ -592,12 +438,5 @@ function close() {
 
 .btn-secondary:hover:not(:disabled) {
   background: var(--qui-overlay-hover);
-}
-
-.window-content {
-  padding: 20px;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
 }
 </style>

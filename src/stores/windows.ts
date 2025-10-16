@@ -34,6 +34,15 @@ export const useWindowStore = defineStore('windows', () => {
   const closeWindow = (id: string) => {
     const index = windows.value.findIndex((w) => w.id === id)
     if (index !== -1) {
+      const window = windows.value[index]
+      
+      // Close all child windows first
+      const childWindows = windows.value.filter(w => w.parentId === id)
+      for (const child of childWindows) {
+        closeWindow(child.id)
+      }
+      
+      // Then close this window
       windows.value.splice(index, 1)
     }
   }

@@ -24,6 +24,7 @@ export interface WindowState {
     width: number
     height: number
   },
+  parentId?: string
   props?: Record<string, any>
 }
 
@@ -38,5 +39,6 @@ export interface WindowOptions {
   minHeight?: number // Add minHeight property
   component: Component
   icon?: string
+  parentId?: string
   props?: Record<string, any>  // Add props for passing to components
 }
