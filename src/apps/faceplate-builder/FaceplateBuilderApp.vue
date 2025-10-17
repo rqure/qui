@@ -185,6 +185,14 @@
     </div>
     
     <!-- Modals removed - now using separate windows -->
+    
+    <!-- Toast notifications -->
+    <Toast
+      v-model:visible="toastVisible"
+      :message="toastMessage"
+      :type="toastType"
+      :duration="3000"
+    />
   </div>
 </template>
 
@@ -204,6 +212,7 @@ import LoadFaceplateWindow from './components/LoadFaceplateWindow.vue';
 import DeleteConfirmationWindow from './components/DeleteConfirmationWindow.vue';
 import UnsavedChangesWindow from './components/UnsavedChangesWindow.vue';
 import ErrorWindow from './components/ErrorWindow.vue';
+import Toast from '@/components/Toast.vue';
 import type { EntityId } from '@/core/data/types';
 import { useDataStore } from '@/stores/data';
 import { useWindowStore } from '@/stores/windows';
@@ -235,6 +244,18 @@ const showCanvasConfig = ref(false);
 const canvasWidth = ref(1000);
 const canvasHeight = ref(600);
 const canvasBackground = ref('#1a1a1a');
+
+// Toast notifications
+const toastVisible = ref(false);
+const toastMessage = ref('');
+const toastType = ref<'success' | 'error' | 'info'>('info');
+
+// Toast notifications
+function showToast(message: string, type: 'success' | 'error' | 'info' = 'info') {
+  toastMessage.value = message;
+  toastType.value = type;
+  toastVisible.value = true;
+}
 
 // Faceplate configuration
 const faceplateConfig = ref<FaceplateConfig>({
@@ -401,6 +422,8 @@ async function saveToExistingFaceplate() {
     if (ValueHelpers.isString(nameValue)) {
       currentFaceplateName.value = nameValue.String;
     }
+    
+    showToast('Faceplate saved successfully', 'success');
   } catch (error) {
     console.error('Failed to save faceplate:', error);
     showError('Failed to save faceplate', error);
@@ -447,6 +470,8 @@ async function createNewFaceplate() {
     currentFaceplateName.value = defaultName;
     
     hasChanges.value = false;
+    
+    showToast('Faceplate created and saved successfully', 'success');
   } catch (error) {
     console.error('Failed to create faceplate:', error);
     showError('Failed to create faceplate', error);
