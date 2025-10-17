@@ -90,7 +90,7 @@ export const faceplateBuilderApp: RegisteredApp = {
     permissions: ['data.read', 'data.write'],
     defaultWindowSize: {
       width: 1400,
-      height: 900
+      height: 730
     }
   },
   component: {

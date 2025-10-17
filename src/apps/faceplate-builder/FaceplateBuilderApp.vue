@@ -30,7 +30,7 @@
           </span>
           
           <!-- Description editing -->
-          <div v-if="currentFaceplateId && (currentFaceplateDescription || isEditingDescription)" class="faceplate-meta">
+          <div v-if="currentFaceplateId" class="faceplate-meta">
             <span v-if="currentFaceplateName || isEditingName" class="faceplate-separator">•</span>
             <div v-if="isEditingDescription" class="inline-editor">
               <input
