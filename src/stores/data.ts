@@ -610,12 +610,80 @@ export const useDataStore = defineStore('data', {
     },
 
     /**
-     * Get all entity types with pagination
-     * Corresponds to: fn get_entity_types_paginated(&self, page_opts: Option<&PageOpts>) -> Result<PageResult<EntityType>>
+     * Resolve a path to an entity ID by traversing down from the root
+     * Path format: "RootName/FolderName/EntityName"
      */
-    async getEntityTypesPaginated(pageOpts: PageOpts | null): Promise<PageResult<EntityType>> {
-      // qweb doesn't have this endpoint - would need backend support
-      throw new Error('getEntityTypesPaginated not implemented in qweb backend');
+    async resolvePath(path: string): Promise<EntityId> {
+      if (!path || path.trim() === '') {
+        throw new Error('Empty path');
+      }
+
+      const pathParts = path.split('/').filter(part => part.trim() !== '');
+      
+      // Get root entity type
+      const rootEntityType = await this.getEntityType('Root');
+      const nameField = await this.getFieldType('Name');
+      const childrenField = await this.getFieldType('Children');
+      
+      // Find root entities and match the first path part
+      const rootEntities = await this.findEntities(rootEntityType);
+      let currentEntityId: EntityId | null = null;
+      
+      for (const rootId of rootEntities) {
+        try {
+          const [nameValue] = await this.read(rootId, [nameField]);
+          if (nameValue && typeof nameValue === 'object' && 'String' in nameValue) {
+            if (nameValue.String === pathParts[0]) {
+              currentEntityId = rootId;
+              break;
+            }
+          }
+        } catch (error) {
+          // Skip entities that can't be read
+          console.warn(`Failed to read root entity ${rootId}:`, error);
+        }
+      }
+      
+      if (!currentEntityId) {
+        throw new Error(`Root entity "${pathParts[0]}" not found`);
+      }
+      
+      // Traverse down the path by following Children relationships
+      for (let i = 1; i < pathParts.length; i++) {
+        const part = pathParts[i];
+        let found = false;
+        
+        try {
+          const [childrenValue] = await this.read(currentEntityId, [childrenField]);
+          if (childrenValue && typeof childrenValue === 'object' && 'EntityList' in childrenValue) {
+            const children = childrenValue.EntityList;
+            
+            for (const childId of children) {
+              try {
+                const [childNameValue] = await this.read(childId, [nameField]);
+                if (childNameValue && typeof childNameValue === 'object' && 'String' in childNameValue) {
+                  if (childNameValue.String === part) {
+                    currentEntityId = childId;
+                    found = true;
+                    break;
+                  }
+                }
+              } catch (error) {
+                // Skip children that can't be read
+                console.warn(`Failed to read child entity ${childId}:`, error);
+              }
+            }
+          }
+        } catch (error) {
+          throw new Error(`Failed to read children of entity ${currentEntityId}: ${error}`);
+        }
+        
+        if (!found) {
+          throw new Error(`Entity "${part}" not found in path "${pathParts.slice(0, i + 1).join('/')}"`);
+        }
+      }
+      
+      return currentEntityId;
     },
 
     // ============================================================

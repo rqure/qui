@@ -430,16 +430,49 @@ async function saveToExistingFaceplate() {
   }
 }
 
+async function generateUniqueFaceplateName(): Promise<string> {
+  // Get all existing faceplate names
+  const faceplateType = await dataStore.getEntityType('Faceplate');
+  const faceplateEntities = await dataStore.findEntities(faceplateType);
+  
+  const nameField = await dataStore.getFieldType('Name');
+  const existingNames = new Set<string>();
+  
+  for (const entityId of faceplateEntities) {
+    try {
+      const [nameValue] = await dataStore.read(entityId, [nameField]);
+      if (ValueHelpers.isString(nameValue)) {
+        existingNames.add(nameValue.String);
+      }
+    } catch (error) {
+      // Skip entities that can't be read
+      console.warn(`Failed to read name for faceplate ${entityId}:`, error);
+    }
+  }
+  
+  // Generate unique name starting with "Untitled Faceplate"
+  let counter = 0;
+  let candidateName: string;
+  
+  do {
+    candidateName = counter === 0 ? 'Untitled Faceplate' : `Untitled Faceplate ${counter}`;
+    counter++;
+  } while (existingNames.has(candidateName));
+  
+  return candidateName;
+}
+
 async function createNewFaceplate() {
   try {
-    // Generate a default name
-    const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
-    const defaultName = `Faceplate_${timestamp}`;
+    // Generate a unique name starting with "Untitled Faceplate"
+    const uniqueName = await generateUniqueFaceplateName();
+    
+    // Find the Faceplate Builder folder to use as parent
+    const faceplateBuilderFolderId = await dataStore.resolvePath('QOS/Faceplate Builder');
     
     // Create new faceplate entity
     const faceplateType = await dataStore.getEntityType('Faceplate');
-    const rootId = 1; // Assuming root entity is 1
-    const entityId = await dataStore.createEntity(faceplateType, rootId, defaultName);
+    const entityId = await dataStore.createEntity(faceplateType, faceplateBuilderFolderId, uniqueName);
 
     // Set target type to Object by default
     const targetTypeField = await dataStore.getFieldType('TargetEntityType');
@@ -467,7 +500,7 @@ async function createNewFaceplate() {
 
     // Set as current faceplate
     currentFaceplateId.value = entityId;
-    currentFaceplateName.value = defaultName;
+    currentFaceplateName.value = uniqueName;
     
     hasChanges.value = false;
     
