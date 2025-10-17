@@ -313,14 +313,24 @@ function openLoadFaceplateWindow() {
     props: {
       windowId: undefined // Will be set after creation
     },
-    width: 600,
-    height: 500,
-    minWidth: 500,
-    minHeight: 400,
+    width: 800,
+    height: 600,
+    minWidth: 600,
+    minHeight: 500,
     onEvent: (event: string, ...args: any[]) => {
+      const windowId = args[args.length - 1];
       if (event === 'load') {
-        const [config, entityId, name] = args;
+        const [config, entityId, name] = args.slice(0, -1);
         onLoadFaceplate(config, entityId, name);
+        // Close the window after processing the event
+        if (windowId) {
+          windowStore.closeWindow(windowId);
+        }
+      } else if (event === 'close') {
+        // Close the window
+        if (windowId) {
+          windowStore.closeWindow(windowId);
+        }
       }
     }
   });
@@ -504,10 +514,19 @@ function openDeleteConfirmationWindow() {
     minWidth: 350,
     minHeight: 150,
     onEvent: (event: string, ...args: any[]) => {
+      const windowId = args[args.length - 1];
       if (event === 'confirm') {
         handleDeleteShape();
+        // Close the window after processing
+        if (windowId) {
+          windowStore.closeWindow(windowId);
+        }
+      } else if (event === 'cancel') {
+        // Just close the window
+        if (windowId) {
+          windowStore.closeWindow(windowId);
+        }
       }
-      // 'cancel' event is handled automatically by window close
     }
   });
   // Set the window ID in the props after creation
@@ -599,10 +618,19 @@ function openUnsavedChangesWindow() {
     minWidth: 350,
     minHeight: 150,
     onEvent: (event: string, ...args: any[]) => {
+      const windowId = args[args.length - 1];
       if (event === 'confirm') {
         confirmUnsavedChanges();
+        // Close the window after processing
+        if (windowId) {
+          windowStore.closeWindow(windowId);
+        }
+      } else if (event === 'cancel') {
+        // Just close the window
+        if (windowId) {
+          windowStore.closeWindow(windowId);
+        }
       }
-      // 'cancel' event is handled automatically by window close
     }
   });
   // Set the window ID in the props after creation

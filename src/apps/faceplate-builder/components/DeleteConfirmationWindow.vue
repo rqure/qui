@@ -36,12 +36,12 @@ const windowStore = useWindowStore();
 
 function confirm() {
   emit('confirm');
-  windowStore.closeWindow(props.windowId!);
+  // Don't close the window here - let the parent handle it
 }
 
 function cancel() {
   emit('cancel');
-  windowStore.closeWindow(props.windowId!);
+  // Don't close the window here - let the parent handle it
 }
 </script>
 

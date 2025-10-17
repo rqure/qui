@@ -220,19 +220,12 @@ function selectFaceplate(id: EntityId) {
 
 function loadFaceplate() {
   if (selectedFaceplate.value) {
-    // Find this window and call its onEvent handler
-    const thisWindow = windowStore.windows.find(w => w.id === props.windowId);
-    
-    if (thisWindow?.onEvent) {
-      thisWindow.onEvent('load', selectedFaceplate.value.config, selectedFaceplate.value.id, selectedFaceplate.value.name);
-    }
-    
-    windowStore.closeWindow(props.windowId!);
+    emit('load', selectedFaceplate.value.config, selectedFaceplate.value.id, selectedFaceplate.value.name);
   }
 }
 
 function close() {
-  windowStore.closeWindow(props.windowId!);
+  emit('close');
 }
 </script>
 

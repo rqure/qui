@@ -231,7 +231,10 @@ const startResize = (handle: string, e: MouseEvent) => {
       <component 
         :is="window.component" 
         v-bind="window.props || {}"
-        @emit="(event: string, ...args: any[]) => window.onEvent?.(event, ...args)"
+        @load="(...args: any[]) => window.onEvent?.('load', ...args, window.id)"
+        @close="(...args: any[]) => window.onEvent?.('close', ...args, window.id)"
+        @confirm="(...args: any[]) => window.onEvent?.('confirm', ...args, window.id)"
+        @cancel="(...args: any[]) => window.onEvent?.('cancel', ...args, window.id)"
       />
     </div>
     <template v-if="!window.isMaximized">
