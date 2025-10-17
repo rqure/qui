@@ -189,7 +189,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, markRaw } from 'vue';
+import { ref, computed, watch, markRaw, nextTick } from 'vue';
 import { Model } from '@/core/canvas/model';
 import type { Drawable } from '@/core/canvas/shapes/base';
 import type { FaceplateConfig, FaceplateShapeConfig, FaceplateModelConfig, NotificationChannel, UINotificationChannel } from './types';
@@ -283,6 +283,10 @@ function createNew() {
       hasChanges.value = false;
       currentFaceplateId.value = null;
       currentFaceplateName.value = '';
+      // Force canvas re-render
+      nextTick(() => {
+        canvasEditor.value?.renderModel();
+      });
     };
     openUnsavedChangesWindow();
   } else {
@@ -291,6 +295,10 @@ function createNew() {
     hasChanges.value = false;
     currentFaceplateId.value = null;
     currentFaceplateName.value = '';
+    // Force canvas re-render
+    nextTick(() => {
+      canvasEditor.value?.renderModel();
+    });
   }
 }
 
@@ -358,6 +366,11 @@ async function onLoadFaceplate(config: FaceplateConfig, entityId: EntityId, name
     // Set the current faceplate information
     currentFaceplateId.value = entityId;
     currentFaceplateName.value = name;
+    
+    // Force canvas re-render
+    nextTick(() => {
+      canvasEditor.value?.renderModel();
+    });
   } catch (error) {
     console.error('Failed to load faceplate:', error);
     showError('Failed to load faceplate', error);

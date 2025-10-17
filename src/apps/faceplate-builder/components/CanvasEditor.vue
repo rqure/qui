@@ -99,18 +99,20 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', handleResize);
   window.removeEventListener('mousemove', handleMouseMove);
   window.removeEventListener('mouseup', handleMouseUp);
-  if (canvas.value) {
-    canvas.value.destroy();
-  }
+  destroyCanvas();
 });
 
 // Watch for model changes
 watch(() => props.model, () => {
-  renderModel();
+  // Destroy and recreate canvas to ensure complete cleanup
+  destroyCanvas();
+  initCanvas();
 });
 
 watch(() => props.model.getShapes().length, () => {
-  renderModel();
+  // Destroy and recreate canvas to ensure complete cleanup
+  destroyCanvas();
+  initCanvas();
 });
 
 watch(() => props.selectedShapeIndex, () => {
@@ -204,6 +206,20 @@ function initCanvas() {
   renderModel();
 }
 
+// Destroy canvas
+function destroyCanvas() {
+  if (canvas.value) {
+    canvas.value.destroy();
+    canvas.value = null;
+  }
+  
+  if (selectionModel.value) {
+    selectionModel.value.erase();
+    selectionModel.value.destroy();
+    selectionModel.value = null;
+  }
+}
+
 // Render model without updating selection (for property changes)
 function renderModelOnly() {
   if (!canvas.value) return;
@@ -219,10 +235,8 @@ function renderModelOnly() {
 function renderModel() {
   renderModelOnly();
   
-  // Update selection shapes after render to reflect any changes
-  nextTick(() => {
-    updateSelectionShapes();
-  });
+  // Always clear and recreate selection shapes
+  updateSelectionShapes();
 }
 
 // Canvas mouse down handler to detect handle clicks
