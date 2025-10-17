@@ -399,28 +399,19 @@ function isPointInShape(shape: Drawable, point: L.LatLng): boolean {
   if (shapeAny.getRadius && typeof shapeAny.getRadius === 'function') {
     const radius = shapeAny.getRadius();
     
-    // For circles, we need to check in pixel space since radius is in pixels
-    if (canvas.value) {
-      const leafletMap = (canvas.value as any).map;
-      const shapePoint = leafletMap.latLngToContainerPoint([loc.y, loc.x]);
-      const clickPoint = leafletMap.latLngToContainerPoint(point);
-      const pixelDistance = Math.sqrt(
-        Math.pow(clickPoint.x - shapePoint.x, 2) + Math.pow(clickPoint.y - shapePoint.y, 2)
-      );
-      return pixelDistance <= radius;
-    }
-    
-    // Fallback to coordinate distance (not accurate)
+    // Calculate coordinate distance between shape center and click point
     const distance = Math.sqrt(
       Math.pow(point.lat - loc.y, 2) + Math.pow(point.lng - loc.x, 2)
     );
-    return distance <= radius * 0.001; // rough approximation
+    return distance <= radius;
   }
   
   // Check for shapes with explicit dimensions
   if (shapeAny.getWidth && shapeAny.getHeight) {
-    const halfWidth = shapeAny.getWidth() / 2;
-    const halfHeight = shapeAny.getHeight() / 2;
+    const width = shapeAny.getWidth();
+    const height = shapeAny.getHeight();
+    const halfWidth = width / 2;
+    const halfHeight = height / 2;
     return Math.abs(point.lng - loc.x) <= halfWidth && 
            Math.abs(point.lat - loc.y) <= halfHeight;
   }
@@ -436,8 +427,12 @@ function isPointInShape(shape: Drawable, point: L.LatLng): boolean {
       const maxX = Math.max(...xs);
       const minY = Math.min(...ys);
       const maxY = Math.max(...ys);
-      // Check if point is within bounds (with some padding)
-      const padding = 20;
+      
+      // Get padding in coordinate units
+      const map = getMap();
+      const padding = map ? p2crs(10, map) : 10; // 10 pixel padding
+      
+      // Check if point is within bounds
       return point.lng >= loc.x + minX - padding && point.lng <= loc.x + maxX + padding &&
              point.lat >= loc.y + minY - padding && point.lat <= loc.y + maxY + padding;
     }
@@ -447,7 +442,12 @@ function isPointInShape(shape: Drawable, point: L.LatLng): boolean {
   const distance = Math.sqrt(
     Math.pow(point.lat - loc.y, 2) + Math.pow(point.lng - loc.x, 2)
   );
-  return distance < 50;
+  
+  // Get threshold in coordinate units
+  const map = getMap();
+  const threshold = map ? p2crs(25, map) : 25; // 25 pixel threshold
+  
+  return distance < threshold;
 }
 
 // Update selection shapes

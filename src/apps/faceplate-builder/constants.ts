@@ -19,43 +19,82 @@ export const SELECTION_UI_SPACING = {
     polygonRotateOffset: 18  // Distance above polygon for rotate handle in pixels
 };
 
-// Shape default sizes in coordinate units
+// Shape default sizes in pixels (these remain constant pixel values)
+export const DEFAULT_SHAPE_SIZES = {
+  circle: {
+    radius: 6
+  },
+  polygon: {
+    edges: [
+      { x: -5, y: -5 },
+      { x: 5, y: -5 },
+      { x: 0, y: 5 }
+    ]
+  },
+  polyline: {
+    edges: [
+      { x: -6, y: 0 },
+      { x: 0, y: -4 },
+      { x: 6, y: 0 }
+    ]
+  },
+  text: {
+    fontSize: 16
+  },
+  svgText: {
+    width: 12,
+    height: 2,
+    fontSize: '1em'
+  },
+  div: {
+    width: 12,
+    height: 12
+  },
+  imageOverlay: {
+    width: 12,
+    height: 12
+  }
+};
+
+/**
+ * Get default shape sizes in coordinate units for the current zoom level
+ * @param map Leaflet map instance
+ * @returns Default shape sizes in coordinate units
+ */
 export function getDefaultShapeSizes(map: any) {
-    return {
-        circle: {
-            radius: p2crs(6, map)
-        },
-        polygon: {
-            edges: [
-                { x: p2crs(-5, map), y: p2crs(-5, map) },
-                { x: p2crs(5, map), y: p2crs(-5, map) },
-                { x: 0, y: p2crs(5, map) }
-            ]
-        },
-        polyline: {
-            edges: [
-                { x: p2crs(-6, map), y: 0 },
-                { x: 0, y: p2crs(-4, map) },
-                { x: p2crs(6, map), y: 0 }
-            ]
-        },
-        text: {
-            fontSize: p2crs(16, map)
-        },
-        svgText: {
-            width: p2crs(12, map),
-            height: p2crs(2, map),
-            fontSize: '1em'
-        },
-        div: {
-            width: p2crs(12, map),
-            height: p2crs(12, map)
-        },
-        imageOverlay: {
-            width: p2crs(12, map),
-            height: p2crs(12, map)
-        }
-    };
+  return {
+    circle: {
+      radius: p2crs(DEFAULT_SHAPE_SIZES.circle.radius, map)
+    },
+    polygon: {
+      edges: DEFAULT_SHAPE_SIZES.polygon.edges.map(edge => ({
+        x: p2crs(edge.x, map),
+        y: p2crs(edge.y, map)
+      }))
+    },
+    polyline: {
+      edges: DEFAULT_SHAPE_SIZES.polyline.edges.map(edge => ({
+        x: p2crs(edge.x, map),
+        y: p2crs(edge.y, map)
+      }))
+    },
+    text: {
+      fontSize: p2crs(DEFAULT_SHAPE_SIZES.text.fontSize, map)
+    },
+    svgText: {
+      width: p2crs(DEFAULT_SHAPE_SIZES.svgText.width, map),
+      height: p2crs(DEFAULT_SHAPE_SIZES.svgText.height, map),
+      fontSize: DEFAULT_SHAPE_SIZES.svgText.fontSize
+    },
+    div: {
+      width: p2crs(DEFAULT_SHAPE_SIZES.div.width, map),
+      height: p2crs(DEFAULT_SHAPE_SIZES.div.height, map)
+    },
+    imageOverlay: {
+      width: p2crs(DEFAULT_SHAPE_SIZES.imageOverlay.width, map),
+      height: p2crs(DEFAULT_SHAPE_SIZES.imageOverlay.height, map)
+    }
+  };
 }
 
 // Grid size in coordinate units (calibrated for zoom level 9)
