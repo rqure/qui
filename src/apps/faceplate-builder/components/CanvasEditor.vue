@@ -21,6 +21,38 @@
       </defs>
       <rect width="100%" height="100%" fill="url(#grid)" />
     </svg>
+    
+    <!-- Zoom level indicator -->
+    <div class="zoom-indicator">
+      {{ zoomLevel }}
+    </div>
+    
+    <!-- Runtime bounds indicator -->
+    <div v-if="showRuntimeBounds" class="runtime-bounds-overlay">
+      <svg :viewBox="`0 0 ${containerSize.width} ${containerSize.height}`" class="runtime-bounds-svg">
+        <rect 
+          x="0" 
+          y="0" 
+          :width="runtimeBounds.width" 
+          :height="runtimeBounds.height" 
+          fill="none" 
+          stroke="#ff6b35" 
+          stroke-width="2" 
+          stroke-dasharray="5,5"
+          opacity="0.8"
+        />
+        <text 
+          x="10" 
+          y="20" 
+          fill="#ff6b35" 
+          font-size="12" 
+          font-weight="bold"
+          opacity="0.9"
+        >
+          Runtime Canvas ({{ runtimeBounds.width }}×{{ runtimeBounds.height }})
+        </text>
+      </svg>
+    </div>
   </div>
 </template>
 
@@ -31,6 +63,8 @@ import { Model } from '@/core/canvas/model';
 import type { Drawable } from '@/core/canvas/shapes/base';
 import type { Point } from '@/core/canvas/types';
 import { Polygon, Circle } from '@/core/canvas/shapes';
+import { createShape } from '@/core/canvas/shapes';
+import { shapeToConfig } from '../utils';
 import L from 'leaflet';
 
 const props = withDefaults(defineProps<{
@@ -54,6 +88,7 @@ const emit = defineEmits<{
   (e: 'shape-update'): void;
   (e: 'shape-drop', shapeType: string, location: { x: number; y: number }): void;
   (e: 'canvas-click'): void;
+  (e: 'shape-delete'): void;
 }>();
 
 // Refs
@@ -63,6 +98,17 @@ const canvas = ref<Canvas | null>(null);
 const containerSize = ref({ width: 1000, height: 600 });
 const canvasId = `canvas-editor-${Math.random().toString(36).substr(2, 9)}`;
 const selectionModel = ref<Model | null>(null);
+
+// Zoom and runtime bounds
+const currentZoom = ref(9);
+const showRuntimeBounds = ref(true);
+const runtimeBounds = ref({ width: 1000, height: 600 }); // Default runtime canvas size
+
+// Clipboard and undo/redo
+const clipboardShape = ref<any>(null);
+const undoStack = ref<any[]>([]);
+const redoStack = ref<any[]>([]);
+const maxUndoSteps = 50;
 
 // Grid
 const gridSize = 20;
@@ -86,12 +132,19 @@ const selectedShape = computed((): Drawable | null => {
   return props.model.getShape(props.selectedShapeIndex) || null;
 });
 
+const zoomLevel = computed((): number => {
+  // Return the actual Leaflet zoom level
+  return currentZoom.value;
+});
+
 // Lifecycle
 onMounted(() => {
   initCanvas();
   window.addEventListener('resize', handleResize);
   window.addEventListener('mousemove', handleMouseMove);
   window.addEventListener('mouseup', handleMouseUp);
+  window.addEventListener('keydown', handleKeyDown);
+  window.addEventListener('wheel', handleWheel, { passive: false });
   updateContainerSize();
 });
 
@@ -99,6 +152,8 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', handleResize);
   window.removeEventListener('mousemove', handleMouseMove);
   window.removeEventListener('mouseup', handleMouseUp);
+  window.removeEventListener('keydown', handleKeyDown);
+  window.removeEventListener('wheel', handleWheel);
   destroyCanvas();
 });
 
@@ -198,6 +253,13 @@ function initCanvas() {
     leafletMap.on('zoomend', () => {
       handleZoomChange();
     });
+    
+    // Set initial zoom to 9
+    leafletMap.setZoom(9);
+    leafletMap.setView([300, 500], 9);
+    
+    // Initialize zoom level for shapes
+    handleZoomChange();
     
     // Disable map dragging initially
     leafletMap.dragging.disable();
@@ -924,8 +986,8 @@ function resetZoom() {
   if (canvas.value) {
     const leafletMap = (canvas.value as any).map;
     if (leafletMap) {
-      leafletMap.setZoom(0);
-      leafletMap.setView([300, 500], 0);
+      leafletMap.setZoom(9);
+      leafletMap.setView([300, 500], 9);
     }
   }
 }
@@ -945,6 +1007,7 @@ function handleZoomChange() {
   if (!canvas.value) return;
   
   const zoom = canvas.value.getZoom();
+  currentZoom.value = zoom;
   
   // Update zoom level for all shapes
   const shapes = props.model.getShapes();
@@ -955,6 +1018,303 @@ function handleZoomChange() {
   // Re-render shapes that depend on zoom
   renderModelOnly();
   updateSelectionShapes();
+}
+
+// Mouse wheel zoom handler
+function handleWheel(event: WheelEvent) {
+  if (!canvas.value || !containerRef.value) return;
+  
+  // Check if the wheel event is over the canvas container
+  const rect = containerRef.value.getBoundingClientRect();
+  const isOverCanvas = event.clientX >= rect.left && event.clientX <= rect.right &&
+                       event.clientY >= rect.top && event.clientY <= rect.bottom;
+  
+  if (!isOverCanvas) return;
+  
+  event.preventDefault();
+  
+  const leafletMap = (canvas.value as any).map;
+  if (!leafletMap) return;
+  
+  // Zoom in/out based on wheel direction
+  if (event.deltaY < 0) {
+    leafletMap.zoomIn();
+  } else {
+    leafletMap.zoomOut();
+  }
+}
+
+// Keyboard shortcuts handler
+function handleKeyDown(event: KeyboardEvent) {
+  // Only handle shortcuts when canvas is focused or when no input is focused
+  const activeElement = document.activeElement;
+  const isInputFocused = activeElement && 
+    (activeElement.tagName === 'INPUT' || 
+     activeElement.tagName === 'TEXTAREA' || 
+     (activeElement as HTMLElement).contentEditable === 'true');
+  
+  if (isInputFocused) return;
+  
+  // Delete selected shape
+  if (event.key === 'Delete' || event.key === 'Backspace') {
+    if (selectedShape.value) {
+      event.preventDefault();
+      emit('shape-delete');
+    }
+  }
+  
+  // Copy (Ctrl+C / Cmd+C)
+  if ((event.ctrlKey || event.metaKey) && event.key === 'c') {
+    if (selectedShape.value) {
+      event.preventDefault();
+      copySelectedShape();
+    }
+  }
+  
+  // Paste (Ctrl+V / Cmd+V)
+  if ((event.ctrlKey || event.metaKey) && event.key === 'v') {
+    event.preventDefault();
+    pasteShape();
+  }
+  
+  // Duplicate (Ctrl+D / Cmd+D)
+  if ((event.ctrlKey || event.metaKey) && event.key === 'd') {
+    if (selectedShape.value) {
+      event.preventDefault();
+      duplicateSelectedShape();
+    }
+  }
+  
+  // Select all (Ctrl+A / Cmd+A)
+  if ((event.ctrlKey || event.metaKey) && event.key === 'a') {
+    event.preventDefault();
+    // Could implement select all functionality here
+  }
+  
+  // Undo (Ctrl+Z / Cmd+Z)
+  if ((event.ctrlKey || event.metaKey) && event.key === 'z' && !event.shiftKey) {
+    event.preventDefault();
+    undo();
+  }
+  
+  // Redo (Ctrl+Y / Cmd+Y or Ctrl+Shift+Z / Cmd+Shift+Z)
+  if (((event.ctrlKey || event.metaKey) && event.key === 'y') || 
+      ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key === 'z')) {
+    event.preventDefault();
+    redo();
+  }
+}
+
+// Clipboard functions
+function copySelectedShape() {
+  if (!selectedShape.value) return;
+  
+  // Create a deep copy of the shape configuration
+  const shapeConfig = shapeToConfig(selectedShape.value);
+  clipboardShape.value = JSON.parse(JSON.stringify(shapeConfig));
+}
+
+function pasteShape() {
+  if (!clipboardShape.value || !canvas.value) return;
+  
+  const leafletMap = (canvas.value as any).map;
+  if (!leafletMap) return;
+  
+  // Get center of current view for paste location
+  const center = leafletMap.getCenter();
+  const pasteLocation = { x: center.lng + 50, y: center.lat + 50 }; // Offset slightly
+  
+  // Create new shape from clipboard
+  const newShape = createShapeFromConfig(clipboardShape.value);
+  if (newShape) {
+    // Offset the shape slightly so it's visible
+    const currentOffset = newShape.getOffset();
+    newShape.setOffset({
+      x: currentOffset.x + pasteLocation.x - currentOffset.x,
+      y: currentOffset.y + pasteLocation.y - currentOffset.y
+    });
+    
+    // Add to model
+    props.model.addShape(newShape);
+    
+    // Select the new shape
+    const newIndex = props.model.getShapes().length - 1;
+    emit('shape-select', newIndex);
+    emit('shape-update');
+    
+    // Save state for undo
+    saveStateForUndo();
+  }
+}
+
+function duplicateSelectedShape() {
+  if (!selectedShape.value) return;
+  
+  // Copy current shape to clipboard first
+  copySelectedShape();
+  
+  // Then paste it
+  pasteShape();
+}
+
+// Undo/Redo functions
+function saveStateForUndo() {
+  // Save current model state
+  const state = {
+    shapes: props.model.getShapes().map((shape: Drawable) => shapeToConfig(shape)),
+    selectedIndex: props.selectedShapeIndex
+  };
+  
+  undoStack.value.push(state);
+  
+  // Limit undo stack size
+  if (undoStack.value.length > maxUndoSteps) {
+    undoStack.value.shift();
+  }
+  
+  // Clear redo stack when new action is performed
+  redoStack.value.length = 0;
+}
+
+function undo() {
+  if (undoStack.value.length === 0) return;
+  
+  // Save current state to redo stack
+  const currentState = {
+    shapes: props.model.getShapes().map((shape: Drawable) => shapeToConfig(shape)),
+    selectedIndex: props.selectedShapeIndex
+  };
+  redoStack.value.push(currentState);
+  
+  // Restore previous state
+  const previousState = undoStack.value.pop()!;
+  restoreModelState(previousState);
+}
+
+function redo() {
+  if (redoStack.value.length === 0) return;
+  
+  // Save current state to redo stack
+  const currentState = {
+    shapes: props.model.getShapes().map((shape: Drawable) => shapeToConfig(shape)),
+    selectedIndex: props.selectedShapeIndex
+  };
+  undoStack.value.push(currentState);
+  
+  // Restore next state
+  const nextState = redoStack.value.pop()!;
+  restoreModelState(nextState);
+}
+
+function restoreModelState(state: any) {
+  // Clear current model
+  props.model.erase();
+  props.model.destroy();
+  
+  // Recreate model with saved shapes
+  const newModel = new Model();
+  state.shapes.forEach((shapeConfig: any) => {
+    const shape = createShapeFromConfig(shapeConfig);
+    if (shape) {
+      newModel.addShape(shape);
+    }
+  });
+  
+  // Replace model reference
+  (props.model as any).shapes = newModel.getShapes();
+  
+  // Restore selection
+  if (state.selectedIndex !== null && state.selectedIndex < props.model.getShapes().length) {
+    emit('shape-select', state.selectedIndex);
+  } else {
+    emit('canvas-click'); // Deselect
+  }
+  
+  // Re-render
+  renderModel();
+  emit('shape-update');
+}
+
+// Helper function to create shape from config (similar to configToModel logic)
+function createShapeFromConfig(config: any): Drawable | null {
+  const shape = createShape(config.type);
+  if (!shape) return null;
+  
+  // Apply config properties
+  if (config.location) shape.setOffset(config.location);
+  shape.setPivot(config.pivot || { x: 0, y: 0 });
+  shape.setScale(config.scale || { x: 1, y: 1 });
+  if (config.rotation !== undefined) shape.setRotation(config.rotation);
+  if (config.id) shape.setId(config.id);
+  if (config.minZoom !== undefined) shape.setMinZoom(config.minZoom);
+  if (config.maxZoom !== undefined) shape.setMaxZoom(config.maxZoom);
+  if (config.pane) shape.setPane(config.pane);
+  
+  const shapeAny = shape as any;
+  if (config.radius !== undefined && shapeAny.setRadius) {
+    shapeAny.setRadius(config.radius);
+  }
+  if (config.fillColor && shapeAny.setFillColor) {
+    shapeAny.setFillColor(config.fillColor);
+  }
+  if (config.fillOpacity !== undefined && shapeAny.setFillOpacity) {
+    shapeAny.setFillOpacity(config.fillOpacity);
+  }
+  if (config.color && shapeAny.setColor) {
+    shapeAny.setColor(config.color);
+  }
+  if (config.weight !== undefined && shapeAny.setWeight) {
+    shapeAny.setWeight(config.weight);
+  }
+  if (config.opacity !== undefined && shapeAny.setOpacity) {
+    shapeAny.setOpacity(config.opacity);
+  }
+  if (config.edges && shapeAny.setEdges) {
+    shapeAny.setEdges(config.edges);
+  }
+  if (config.text && shapeAny.setText) {
+    shapeAny.setText(config.text);
+  }
+  if (config.fontSize !== undefined && shapeAny.setFontSize) {
+    shapeAny.setFontSize(config.fontSize);
+  }
+  if (config.direction && shapeAny.setDirection) {
+    shapeAny.setDirection(config.direction);
+  }
+  if (config.html && shapeAny.setHtml) {
+    shapeAny.setHtml(config.html);
+  }
+  if (config.className && shapeAny.setClassName) {
+    shapeAny.setClassName(config.className);
+  }
+  if (config.width !== undefined && shapeAny.setWidth) {
+    shapeAny.setWidth(config.width);
+  }
+  if (config.height !== undefined && shapeAny.setHeight) {
+    shapeAny.setHeight(config.height);
+  }
+  if (config.url && shapeAny.setUrl) {
+    shapeAny.setUrl(config.url);
+  }
+  if (config.css && shapeAny.setCss) {
+    shapeAny.setCss(config.css);
+  }
+  if (config.keyframes && shapeAny.setKeyframes) {
+    shapeAny.setKeyframes(config.keyframes);
+  }
+  
+  // Restore callback properties
+  if (config.handlers && shapeAny.setHandlers) {
+    shapeAny.setHandlers(config.handlers);
+  }
+  if (config.methods && shapeAny.setMethods) {
+    shapeAny.setMethods(config.methods);
+  }
+  if (config.contextMenu && shapeAny.setContextMenu) {
+    shapeAny.setContextMenu(config.contextMenu);
+  }
+  
+  return shape;
 }
 
 function updateContainerSize() {
@@ -986,6 +1346,9 @@ defineExpose({
   zoomIn,
   zoomOut,
   resetZoom,
+  undo,
+  redo,
+  saveStateForUndo,
   updateBoundary,
   updateBackground,
   renderModel
@@ -1016,5 +1379,33 @@ defineExpose({
   height: 100%;
   pointer-events: none;
   z-index: 1;
+}
+
+.zoom-indicator {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: bold;
+  z-index: 1000;
+}
+
+.runtime-bounds-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.runtime-bounds-svg {
+  width: 100%;
+  height: 100%;
 }
 </style>

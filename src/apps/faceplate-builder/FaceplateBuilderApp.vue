@@ -93,6 +93,16 @@
         
         <div class="separator"></div>
         
+        <!-- Undo/Redo controls -->
+        <button @click="undo" class="btn btn-secondary" title="Undo" :disabled="undoStack.length === 0">
+          <span class="icon">↶</span>
+        </button>
+        <button @click="redo" class="btn btn-secondary" title="Redo" :disabled="redoStack.length === 0">
+          <span class="icon">↷</span>
+        </button>
+        
+        <div class="separator"></div>
+        
         <!-- Grid/snap controls -->
         <label class="checkbox-label">
           <input type="checkbox" v-model="showGrid" />
@@ -257,6 +267,7 @@ import { Model } from '@/core/canvas/model';
 import type { Drawable } from '@/core/canvas/shapes/base';
 import type { FaceplateConfig, FaceplateShapeConfig, FaceplateModelConfig, NotificationChannel, UINotificationChannel } from './types';
 import { createShape } from '@/core/canvas/shapes';
+import { shapeToConfig } from './utils';
 import ShapePalette from './components/ShapePalette.vue';
 import CanvasEditor from './components/CanvasEditor.vue';
 import PropertiesPanel from './components/PropertiesPanel.vue';
@@ -306,6 +317,11 @@ const showCanvasConfig = ref(false);
 const canvasWidth = ref(1000);
 const canvasHeight = ref(600);
 const canvasBackground = ref('#1a1a1a');
+
+// Undo/Redo
+const undoStack = ref<any[]>([]);
+const redoStack = ref<any[]>([]);
+const maxUndoSteps = 50;
 
 // Toast notifications
 const toastVisible = ref(false);
@@ -715,6 +731,25 @@ function resetZoom() {
   canvasEditor.value?.resetZoom();
 }
 
+// Undo/Redo controls
+function undo() {
+  if (canvasEditor.value) {
+    const editor = canvasEditor.value as any;
+    if (editor.undo) {
+      editor.undo();
+    }
+  }
+}
+
+function redo() {
+  if (canvasEditor.value) {
+    const editor = canvasEditor.value as any;
+    if (editor.redo) {
+      editor.redo();
+    }
+  }
+}
+
 // Shape operations
 function onShapeDragStart(shapeType: string) {
   // Handled by CanvasEditor
@@ -727,6 +762,14 @@ function onShapeSelect(index: number) {
 function onShapeUpdate() {
   hasChanges.value = true;
   shapeUpdateTrigger.value++;
+  
+  // Save state for undo
+  if (canvasEditor.value) {
+    const editor = canvasEditor.value as any;
+    if (editor.saveStateForUndo) {
+      editor.saveStateForUndo();
+    }
+  }
 }
 
 function onShapeDrop(shapeType: string, location: { x: number; y: number }) {
@@ -737,6 +780,14 @@ function onShapeDrop(shapeType: string, location: { x: number; y: number }) {
     selectedShapeIndex.value = currentModel.value.getShapes().length - 1;
     hasChanges.value = true;
     shapeUpdateTrigger.value++;
+    
+    // Save state for undo
+    if (canvasEditor.value) {
+      const editor = canvasEditor.value as any;
+      if (editor.saveStateForUndo) {
+        editor.saveStateForUndo();
+      }
+    }
   }
 }
 
@@ -756,6 +807,14 @@ function onPropertyUpdate(property: string, value: any) {
     
     // Trigger UI updates
     shapeUpdateTrigger.value++;
+    
+    // Save state for undo
+    if (canvasEditor.value) {
+      const editor = canvasEditor.value as any;
+      if (editor.saveStateForUndo) {
+        editor.saveStateForUndo();
+      }
+    }
   }
 }
 
@@ -804,6 +863,14 @@ function handleDeleteShape() {
       selectedShapeIndex.value = null;
       hasChanges.value = true;
       shapeUpdateTrigger.value++;
+      
+      // Save state for undo
+      if (canvasEditor.value) {
+        const editor = canvasEditor.value as any;
+        if (editor.saveStateForUndo) {
+          editor.saveStateForUndo();
+        }
+      }
     }
   }
 }
@@ -825,6 +892,14 @@ function onCallbacksUpdate(callbacks: { handlers?: Record<string, string>; metho
     
     hasChanges.value = true;
     shapeUpdateTrigger.value++;
+    
+    // Save state for undo
+    if (canvasEditor.value) {
+      const editor = canvasEditor.value as any;
+      if (editor.saveStateForUndo) {
+        editor.saveStateForUndo();
+      }
+    }
   }
 }
 
@@ -1099,60 +1174,6 @@ function modelToConfig(model: Model): FaceplateModelConfig {
     },
     shapes: shapes.map(shapeToConfig)
   };
-}
-
-function shapeToConfig(shape: Drawable): FaceplateShapeConfig {
-  const config: FaceplateShapeConfig = {
-    type: shape.constructor.name,
-    id: shape.getId() || undefined,
-    location: shape.getOffset(),
-    rotation: shape.getRotation(),
-    scale: shape.getScale(),
-    pivot: shape.getPivot()
-  };
-  
-  // Add optional properties only if they have values
-  const minZoom = shape.getMinZoom();
-  if (minZoom !== null) config.minZoom = minZoom;
-  
-  const maxZoom = shape.getMaxZoom();
-  if (maxZoom !== null) config.maxZoom = maxZoom;
-  
-  const pane = shape.getPane();
-  if (pane) config.pane = pane;
-  
-  const shapeAny = shape as any;
-  
-  // Add shape-specific properties
-  if (shapeAny.getRadius) config.radius = shapeAny.getRadius();
-  if (shapeAny.getColor) config.color = shapeAny.getColor();
-  if (shapeAny.getFillColor) config.fillColor = shapeAny.getFillColor();
-  if (shapeAny.getFillOpacity) config.fillOpacity = shapeAny.getFillOpacity();
-  if (shapeAny.getWeight) config.weight = shapeAny.getWeight();
-  if (shapeAny.getOpacity) config.opacity = shapeAny.getOpacity();
-  if (shapeAny.getText) config.text = shapeAny.getText();
-  if (shapeAny.getFontSize) config.fontSize = shapeAny.getFontSize();
-  if (shapeAny.getDirection) config.direction = shapeAny.getDirection();
-  if (shapeAny.getEdges) config.edges = shapeAny.getEdges();
-  if (shapeAny.getHtml) config.html = shapeAny.getHtml();
-  if (shapeAny.getClassName) config.className = shapeAny.getClassName();
-  if (shapeAny.getWidth) config.width = shapeAny.getWidth();
-  if (shapeAny.getHeight) config.height = shapeAny.getHeight();
-  if (shapeAny.getUrl) config.url = shapeAny.getUrl();
-  if (shapeAny.getCss) config.css = shapeAny.getCss();
-  if (shapeAny.getKeyframes) config.keyframes = shapeAny.getKeyframes();
-  
-  // Add callback properties
-  const handlers = shapeAny.getHandlers?.();
-  if (handlers && Object.keys(handlers).length > 0) config.handlers = handlers;
-  
-  const methods = shapeAny.getMethods?.();
-  if (methods && Object.keys(methods).length > 0) config.methods = methods;
-  
-  const contextMenu = shapeAny.getContextMenu?.();
-  if (contextMenu && Object.keys(contextMenu).length > 0) config.contextMenu = contextMenu;
-  
-  return config;
 }
 
 function configToModel(config: any): Model {
