@@ -283,6 +283,7 @@ import type { EntityId } from '@/core/data/types';
 import { useDataStore } from '@/stores/data';
 import { useWindowStore } from '@/stores/windows';
 import { ValueHelpers } from '@/core/data/types';
+import { getDefaultShapeSizes, GRID_SIZE } from './constants';
 
 const props = defineProps<{
   windowId?: string
@@ -774,7 +775,7 @@ function onShapeUpdate() {
 
 function onShapeDrop(shapeType: string, location: { x: number; y: number }) {
   // Create new shape and add to model
-  const shape = createDefaultShape(shapeType, location);
+  const shape = createDefaultShape(shapeType, location, canvasEditor.value?.getMap?.());
   if (shape) {
     currentModel.value.addShape(shape);
     selectedShapeIndex.value = currentModel.value.getShapes().length - 1;
@@ -1027,7 +1028,7 @@ function generateUniqueId(): string {
   return 'shape_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
 }
 
-function createDefaultShape(shapeType: string, location: { x: number; y: number }): Drawable | null {
+function createDefaultShape(shapeType: string, location: { x: number; y: number }, map?: any): Drawable | null {
   const shape = createShape(shapeType);
   
   if (!shape) return null;
@@ -1037,46 +1038,38 @@ function createDefaultShape(shapeType: string, location: { x: number; y: number 
   shape.setPivot({ x: 0, y: 0 });
   shape.setScale({ x: 1, y: 1 }); // Ensure scale is 1 for direct property manipulation
   
-  // Set default properties based on type
+  // Set default properties based on type using zoom-aware constants
   if (shapeType === 'Circle') {
-    (shape as any).setRadius(50);
+    (shape as any).setRadius(getDefaultShapeSizes(map).circle.radius);
     (shape as any).setFillColor('#00ff88');
     (shape as any).setFillOpacity(0.5);
   } else if (shapeType === 'Polygon') {
-    (shape as any).setEdges([
-      { x: -40, y: -40 },
-      { x: 40, y: -40 },
-      { x: 0, y: 40 }
-    ]);
+    (shape as any).setEdges(getDefaultShapeSizes(map).polygon.edges);
     (shape as any).setFillColor('#0088ff');
     (shape as any).setFillOpacity(0.5);
   } else if (shapeType === 'Polyline') {
-    (shape as any).setEdges([
-      { x: -50, y: 0 },
-      { x: 0, y: -30 },
-      { x: 50, y: 0 }
-    ]);
+    (shape as any).setEdges(getDefaultShapeSizes(map).polyline.edges);
     (shape as any).setColor('#ff0088');
     (shape as any).setWeight(3);
   } else if (shapeType === 'Text') {
     (shape as any).setText('Text');
-    (shape as any).setFontSize(16);
+    (shape as any).setFontSize(getDefaultShapeSizes(map).text.fontSize);
     (shape as any).setColor('#ffffff');
   } else if (shapeType === 'SvgText') {
     (shape as any).setText('SVG Text');
-    (shape as any).setFontSize('1em');
-    (shape as any).setWidth(100);
-    (shape as any).setHeight(20);
+    (shape as any).setFontSize(getDefaultShapeSizes(map).svgText.fontSize);
+    (shape as any).setWidth(getDefaultShapeSizes(map).svgText.width);
+    (shape as any).setHeight(getDefaultShapeSizes(map).svgText.height);
     (shape as any).setFillColor('#000000');
   } else if (shapeType === 'Div') {
     (shape as any).setHtml('<div>Hello World</div>');
-    (shape as any).setClassName('');
-    (shape as any).setWidth(100);
-    (shape as any).setHeight(100);
+    (shape as any).setClassName('');  
+    (shape as any).setWidth(getDefaultShapeSizes(map).div.width);
+    (shape as any).setHeight(getDefaultShapeSizes(map).div.height);
   } else if (shapeType === 'ImageOverlay') {
     (shape as any).setUrl('');
-    (shape as any).setWidth(100);
-    (shape as any).setHeight(100);
+    (shape as any).setWidth(getDefaultShapeSizes(map).imageOverlay.width);
+    (shape as any).setHeight(getDefaultShapeSizes(map).imageOverlay.height);
   }
   
   return shape;

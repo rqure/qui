@@ -66,6 +66,14 @@ import { Polygon, Circle } from '@/core/canvas/shapes';
 import { createShape } from '@/core/canvas/shapes';
 import { shapeToConfig } from '../utils';
 import L from 'leaflet';
+import {
+  SELECTION_HANDLE_SIZES,
+  SELECTION_UI_SPACING,
+  GRID_SIZE,
+  p2crs,
+  getSelectionHandleSizes,
+  getSelectionUISpacing
+} from '../constants';
 
 const props = withDefaults(defineProps<{
   model: any; // Model instance with methods
@@ -111,7 +119,10 @@ const redoStack = ref<any[]>([]);
 const maxUndoSteps = 50;
 
 // Grid
-const gridSize = 20;
+const gridSize = computed(() => {
+  const map = getMap();
+  return map ? p2crs(GRID_SIZE, map) : GRID_SIZE;
+});
 
 // Selection
 const isDragging = ref(false);
@@ -224,6 +235,12 @@ watch(
   },
   { deep: true }
 );
+
+// Get the Leaflet map instance
+function getMap() {
+  if (!canvas.value) return null;
+  return (canvas.value as any).map;
+}
 
 // Initialize canvas
 function initCanvas() {
@@ -495,9 +512,15 @@ function createCircleSelection(shape: Drawable, loc: Point, selectionPane: any) 
   (selectionCircle as any)._isSelectionShape = true;
   selectionModel.value!.addShape(selectionCircle);
   
+  // Get zoom-scaled handle sizes and spacing
+  const map = getMap();
+  if (!map) return;
+  const handleSizes = getSelectionHandleSizes(map);
+  const uiSpacing = getSelectionUISpacing(map);
+  
   // Create radius handle (at the right edge)
   const radiusHandle = new Circle();
-  radiusHandle.setRadius(6);
+  radiusHandle.setRadius(handleSizes.resize);
   radiusHandle.setFillColor('#00ff88');
   radiusHandle.setColor('#ffffff');
   radiusHandle.setFillOpacity(1);
@@ -516,12 +539,12 @@ function createCircleSelection(shape: Drawable, loc: Point, selectionPane: any) 
   
   // Create rotate handle (circle above)
   const rotateHandle = new Circle();
-  rotateHandle.setRadius(8);
+  rotateHandle.setRadius(handleSizes.rotate);
   rotateHandle.setFillColor('#0088ff');
   rotateHandle.setColor('#ffffff');
   rotateHandle.setFillOpacity(1);
   rotateHandle.setWeight(2);
-  rotateHandle.setOffset({ x: loc.x, y: loc.y - radius - 20 });
+  rotateHandle.setOffset({ x: loc.x, y: loc.y - radius - uiSpacing.rotateHandleOffset });
   rotateHandle.setPane(selectionPane);
   (rotateHandle as any)._isSelectionShape = true;
   (rotateHandle as any)._handleType = 'rotate';
@@ -552,8 +575,13 @@ function createRectangleSelection(shape: Drawable, loc: Point, selectionPane: an
   (selectionBox as any)._isSelectionShape = true;
   selectionModel.value!.addShape(selectionBox);
   
+  // Get zoom-scaled handle sizes and spacing
+  const map = getMap();
+  if (!map) return;
+  const handleSizes = getSelectionHandleSizes(map);
+  const uiSpacing = getSelectionUISpacing(map);
+  
   // Create resize handles (circles at corners)
-  const handleSize = 6;
   const rotation = shape.getRotation();
   const cos = Math.cos(rotation);
   const sin = Math.sin(rotation);
@@ -570,7 +598,7 @@ function createRectangleSelection(shape: Drawable, loc: Point, selectionPane: an
     const rotatedY = h.x * sin + h.y * cos;
     
     const handle = new Circle();
-    handle.setRadius(handleSize);
+    handle.setRadius(handleSizes.resize);
     handle.setFillColor('#00ff88');
     handle.setColor('#ffffff');
     handle.setFillOpacity(1);
@@ -584,12 +612,12 @@ function createRectangleSelection(shape: Drawable, loc: Point, selectionPane: an
   
   // Create rotate handle (circle above)
   const rotateHandle = new Circle();
-  rotateHandle.setRadius(8);
+  rotateHandle.setRadius(handleSizes.rotate);
   rotateHandle.setFillColor('#0088ff');
   rotateHandle.setColor('#ffffff');
   rotateHandle.setFillOpacity(1);
   rotateHandle.setWeight(2);
-  rotateHandle.setOffset({ x: loc.x, y: loc.y - halfHeight - 20 });
+  rotateHandle.setOffset({ x: loc.x, y: loc.y - halfHeight - uiSpacing.rotateHandleOffset });
   rotateHandle.setPane(selectionPane);
   (rotateHandle as any)._isSelectionShape = true;
   (rotateHandle as any)._handleType = 'rotate';
@@ -619,6 +647,12 @@ function createPolygonSelection(shape: Drawable, loc: Point, selectionPane: any)
   (selectionPoly as any)._isSelectionShape = true;
   selectionModel.value!.addShape(selectionPoly);
   
+  // Get zoom-scaled handle sizes and spacing
+  const map = getMap();
+  if (!map) return;
+  const handleSizes = getSelectionHandleSizes(map);
+  const uiSpacing = getSelectionUISpacing(map);
+  
   // Create handles at each edge point
   const rotation = shape.getRotation();
   const cos = Math.cos(rotation);
@@ -629,7 +663,7 @@ function createPolygonSelection(shape: Drawable, loc: Point, selectionPane: any)
     const rotatedY = edge.x * sin + edge.y * cos;
     
     const handle = new Circle();
-    handle.setRadius(6);
+    handle.setRadius(handleSizes.edge);
     handle.setFillColor('#00ff88');
     handle.setColor('#ffffff');
     handle.setFillOpacity(1);
@@ -648,12 +682,12 @@ function createPolygonSelection(shape: Drawable, loc: Point, selectionPane: any)
   const minY = Math.min(...ys);
   
   const rotateHandle = new Circle();
-  rotateHandle.setRadius(8);
+  rotateHandle.setRadius(handleSizes.rotate);
   rotateHandle.setFillColor('#0088ff');
   rotateHandle.setColor('#ffffff');
   rotateHandle.setFillOpacity(1);
   rotateHandle.setWeight(2);
-  rotateHandle.setOffset({ x: loc.x + centerX, y: loc.y + minY - 30 });
+  rotateHandle.setOffset({ x: loc.x + centerX, y: loc.y + minY - uiSpacing.polygonRotateOffset });
   rotateHandle.setPane(selectionPane);
   (rotateHandle as any)._isSelectionShape = true;
   (rotateHandle as any)._handleType = 'rotate';
@@ -688,9 +722,15 @@ function createTextSelection(shape: Drawable, loc: Point, selectionPane: any) {
   (selectionBox as any)._isSelectionShape = true;
   selectionModel.value!.addShape(selectionBox);
   
+  // Get zoom-scaled handle sizes and spacing
+  const map = getMap();
+  if (!map) return;
+  const handleSizes = getSelectionHandleSizes(map);
+  const uiSpacing = getSelectionUISpacing(map);
+  
   // Create font size handle (at bottom-right)
   const fontHandle = new Circle();
-  fontHandle.setRadius(6);
+  fontHandle.setRadius(handleSizes.resize);
   fontHandle.setFillColor('#00ff88');
   fontHandle.setColor('#ffffff');
   fontHandle.setFillOpacity(1);
@@ -709,12 +749,12 @@ function createTextSelection(shape: Drawable, loc: Point, selectionPane: any) {
   
   // Create rotate handle (above the text)
   const rotateHandle = new Circle();
-  rotateHandle.setRadius(8);
+  rotateHandle.setRadius(handleSizes.rotate);
   rotateHandle.setFillColor('#0088ff');
   rotateHandle.setColor('#ffffff');
   rotateHandle.setFillOpacity(1);
   rotateHandle.setWeight(2);
-  rotateHandle.setOffset({ x: loc.x, y: loc.y - halfHeight - 20 });
+  rotateHandle.setOffset({ x: loc.x, y: loc.y - halfHeight - uiSpacing.rotateHandleOffset });
   rotateHandle.setPane(selectionPane);
   (rotateHandle as any)._isSelectionShape = true;
   (rotateHandle as any)._handleType = 'rotate';
@@ -958,8 +998,8 @@ function handleMouseUp() {
 // Grid snapping
 function snapToGridCoords(location: { x: number; y: number }): { x: number; y: number } {
   return {
-    x: Math.round(location.x / gridSize) * gridSize,
-    y: Math.round(location.y / gridSize) * gridSize
+    x: Math.round(location.x / gridSize.value) * gridSize.value,
+    y: Math.round(location.y / gridSize.value) * gridSize.value
   };
 }
 
@@ -1351,7 +1391,8 @@ defineExpose({
   saveStateForUndo,
   updateBoundary,
   updateBackground,
-  renderModel
+  renderModel,
+  getMap
 });
 </script>
 
