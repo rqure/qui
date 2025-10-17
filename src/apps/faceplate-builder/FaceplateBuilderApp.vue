@@ -5,8 +5,63 @@
       <div class="toolbar-section">
         <div class="faceplate-info">
           <span v-if="currentFaceplateId" class="faceplate-id">{{ currentFaceplateId }}</span>
-          <span v-if="currentFaceplateId && currentFaceplateName" class="faceplate-separator">•</span>
-          <span v-if="currentFaceplateName" class="faceplate-name">{{ currentFaceplateName }}</span>
+          <span v-if="currentFaceplateId && (currentFaceplateName || isEditingName)" class="faceplate-separator">•</span>
+          
+          <!-- Name editing -->
+          <div v-if="isEditingName" class="inline-editor">
+            <input
+              ref="nameInput"
+              v-model="editNameValue"
+              @blur="finishEditingName"
+              @keyup.enter="finishEditingName"
+              @keyup.escape="cancelEditingName"
+              class="inline-input"
+              type="text"
+              placeholder="Faceplate name"
+            />
+          </div>
+          <span 
+            v-else-if="currentFaceplateName" 
+            class="faceplate-name editable"
+            @click="startEditingName"
+            :title="'Click to edit name'"
+          >
+            {{ currentFaceplateName }}
+          </span>
+          
+          <!-- Description editing -->
+          <div v-if="currentFaceplateId && (currentFaceplateDescription || isEditingDescription)" class="faceplate-meta">
+            <span v-if="currentFaceplateName || isEditingName" class="faceplate-separator">•</span>
+            <div v-if="isEditingDescription" class="inline-editor">
+              <input
+                ref="descriptionInput"
+                v-model="editDescriptionValue"
+                @blur="finishEditingDescription"
+                @keyup.enter="finishEditingDescription"
+                @keyup.escape="cancelEditingDescription"
+                class="inline-input"
+                type="text"
+                placeholder="Description (optional)"
+              />
+            </div>
+            <span 
+              v-else-if="currentFaceplateDescription" 
+              class="faceplate-description editable"
+              @click="startEditingDescription"
+              :title="'Click to edit description'"
+            >
+              {{ currentFaceplateDescription }}
+            </span>
+            <span 
+              v-else 
+              class="faceplate-description-placeholder editable"
+              @click="startEditingDescription"
+              :title="'Click to add description'"
+            >
+              Add description
+            </span>
+          </div>
+          
           <span v-else-if="!currentFaceplateId" class="faceplate-placeholder">New Faceplate</span>
         </div>
       </div>
@@ -233,6 +288,13 @@ const activeTab = ref<'shapes' | 'layers'>('shapes');
 // Current faceplate state
 const currentFaceplateId = ref<EntityId | null>(null);
 const currentFaceplateName = ref<string>('');
+const currentFaceplateDescription = ref<string>('');
+
+// Editing state
+const isEditingName = ref(false);
+const isEditingDescription = ref(false);
+const editNameValue = ref('');
+const editDescriptionValue = ref('');
 
 // View controls
 const showGrid = ref(true);
@@ -257,6 +319,123 @@ function showToast(message: string, type: 'success' | 'error' | 'info' = 'info')
   toastVisible.value = true;
 }
 
+// Inline editing functions
+function startEditingName() {
+  if (!currentFaceplateId.value) return;
+  isEditingName.value = true;
+  editNameValue.value = currentFaceplateName.value;
+  nextTick(() => {
+    const input = nameInput.value as HTMLInputElement;
+    if (input) {
+      input.focus();
+      input.select();
+    }
+  });
+}
+
+function finishEditingName() {
+  if (!currentFaceplateId.value || !isEditingName.value) return;
+  
+  const newName = editNameValue.value.trim();
+  if (newName && newName !== currentFaceplateName.value) {
+    updateFaceplateName(newName);
+  }
+  
+  isEditingName.value = false;
+  editNameValue.value = '';
+}
+
+function cancelEditingName() {
+  isEditingName.value = false;
+  editNameValue.value = '';
+}
+
+function startEditingDescription() {
+  if (!currentFaceplateId.value) return;
+  isEditingDescription.value = true;
+  editDescriptionValue.value = currentFaceplateDescription.value;
+  nextTick(() => {
+    const input = descriptionInput.value as HTMLInputElement;
+    if (input) {
+      input.focus();
+      input.select();
+    }
+  });
+}
+
+function finishEditingDescription() {
+  if (!currentFaceplateId.value || !isEditingDescription.value) return;
+  
+  const newDescription = editDescriptionValue.value.trim();
+  if (newDescription !== currentFaceplateDescription.value) {
+    updateFaceplateDescription(newDescription);
+  }
+  
+  isEditingDescription.value = false;
+  editDescriptionValue.value = '';
+}
+
+function cancelEditingDescription() {
+  isEditingDescription.value = false;
+  editDescriptionValue.value = '';
+}
+
+async function updateFaceplateName(newName: string) {
+  if (!currentFaceplateId.value) return;
+  
+  try {
+    // Check if the name already exists (excluding current faceplate)
+    const uniqueName = await generateUniqueFaceplateName(newName, currentFaceplateId.value);
+    
+    // Update the name in the store
+    const nameField = await dataStore.getFieldType('Name');
+    await dataStore.write(
+      currentFaceplateId.value,
+      [nameField],
+      { String: uniqueName },
+      null,
+      null,
+      null,
+      null
+    );
+    
+    // Update local state
+    currentFaceplateName.value = uniqueName;
+    
+    // Show warning if name was changed due to conflict
+    if (uniqueName !== newName) {
+      showToast(`"${newName}" already exists. Renamed to "${uniqueName}".`, 'info');
+    }
+  } catch (error) {
+    console.error('Failed to update faceplate name:', error);
+    showError('Failed to update faceplate name', error);
+  }
+}
+
+async function updateFaceplateDescription(newDescription: string) {
+  if (!currentFaceplateId.value) return;
+  
+  try {
+    // Update the description in the store
+    const descriptionField = await dataStore.getFieldType('Description');
+    await dataStore.write(
+      currentFaceplateId.value,
+      [descriptionField],
+      { String: newDescription },
+      null,
+      null,
+      null,
+      null
+    );
+    
+    // Update local state
+    currentFaceplateDescription.value = newDescription;
+  } catch (error) {
+    console.error('Failed to update faceplate description:', error);
+    showError('Failed to update faceplate description', error);
+  }
+}
+
 // Faceplate configuration
 const faceplateConfig = ref<FaceplateConfig>({
   model: {
@@ -272,6 +451,10 @@ const faceplateConfig = ref<FaceplateConfig>({
 
 // Canvas ref
 const canvasEditor = ref<InstanceType<typeof CanvasEditor> | null>(null);
+
+// Input refs for inline editing
+const nameInput = ref<HTMLInputElement | null>(null);
+const descriptionInput = ref<HTMLInputElement | null>(null);
 
 // Data store
 const dataStore = useDataStore();
@@ -388,6 +571,15 @@ async function onLoadFaceplate(config: FaceplateConfig, entityId: EntityId, name
     currentFaceplateId.value = entityId;
     currentFaceplateName.value = name;
     
+    // Load description
+    const descriptionField = await dataStore.getFieldType('Description');
+    try {
+      const [descriptionValue] = await dataStore.read(entityId, [descriptionField]);
+      currentFaceplateDescription.value = ValueHelpers.isString(descriptionValue) ? descriptionValue.String : '';
+    } catch (error) {
+      currentFaceplateDescription.value = '';
+    }
+    
     // Force canvas re-render
     nextTick(() => {
       canvasEditor.value?.renderModel();
@@ -416,13 +608,6 @@ async function saveToExistingFaceplate() {
     
     hasChanges.value = false;
     
-    // Update the faceplate name in case it was changed
-    const nameField = await dataStore.getFieldType('Name');
-    const [nameValue] = await dataStore.read(currentFaceplateId.value, [nameField]);
-    if (ValueHelpers.isString(nameValue)) {
-      currentFaceplateName.value = nameValue.String;
-    }
-    
     showToast('Faceplate saved successfully', 'success');
   } catch (error) {
     console.error('Failed to save faceplate:', error);
@@ -430,7 +615,7 @@ async function saveToExistingFaceplate() {
   }
 }
 
-async function generateUniqueFaceplateName(): Promise<string> {
+async function generateUniqueFaceplateName(desiredName?: string, excludeEntityId?: EntityId): Promise<string> {
   // Get all existing faceplate names
   const faceplateType = await dataStore.getEntityType('Faceplate');
   const faceplateEntities = await dataStore.findEntities(faceplateType);
@@ -439,6 +624,9 @@ async function generateUniqueFaceplateName(): Promise<string> {
   const existingNames = new Set<string>();
   
   for (const entityId of faceplateEntities) {
+    // Skip the entity we're excluding (for renaming existing faceplates)
+    if (excludeEntityId && entityId === excludeEntityId) continue;
+    
     try {
       const [nameValue] = await dataStore.read(entityId, [nameField]);
       if (ValueHelpers.isString(nameValue)) {
@@ -450,12 +638,15 @@ async function generateUniqueFaceplateName(): Promise<string> {
     }
   }
   
-  // Generate unique name starting with "Untitled Faceplate"
+  // If no desired name provided, use "Untitled Faceplate" as base
+  const baseName = desiredName || 'Untitled Faceplate';
+  
+  // Generate unique name starting with the desired/base name
   let counter = 0;
   let candidateName: string;
   
   do {
-    candidateName = counter === 0 ? 'Untitled Faceplate' : `Untitled Faceplate ${counter}`;
+    candidateName = counter === 0 ? baseName : `${baseName} ${counter}`;
     counter++;
   } while (existingNames.has(candidateName));
   
@@ -1128,6 +1319,55 @@ watch(() => currentModel.value.getShapes().length, () => {
 
 .faceplate-placeholder {
   color: var(--qui-text-secondary, #aaa);
+  font-style: italic;
+}
+
+.editable {
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 2px 4px;
+  transition: background 0.15s ease;
+}
+
+.editable:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.inline-editor {
+  display: inline-block;
+}
+
+.inline-input {
+  background: var(--qui-bg-primary, #1a1a1a);
+  border: 1px solid var(--qui-accent-color, #00ff88);
+  border-radius: 4px;
+  color: var(--qui-text-primary, #fff);
+  font-size: var(--qui-font-size-large, 16px);
+  font-weight: var(--qui-font-weight-medium, 500);
+  padding: 2px 6px;
+  min-width: 200px;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(0, 255, 136, 0.2);
+}
+
+.inline-input::placeholder {
+  color: var(--qui-text-secondary, #aaa);
+}
+
+.faceplate-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.faceplate-description {
+  color: var(--qui-text-secondary, #aaa);
+  font-size: var(--qui-font-size-base, 14px);
+  font-weight: var(--qui-font-weight-normal, 400);
+}
+
+.faceplate-description-placeholder {
+  color: var(--qui-text-secondary, #666);
   font-style: italic;
 }
 
