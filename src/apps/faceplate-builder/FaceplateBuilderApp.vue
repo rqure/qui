@@ -93,16 +93,6 @@
         
         <div class="separator"></div>
         
-        <!-- Undo/Redo controls -->
-        <button @click="undo" class="btn btn-secondary" title="Undo" :disabled="undoStack.length === 0">
-          <span class="icon">↶</span>
-        </button>
-        <button @click="redo" class="btn btn-secondary" title="Redo" :disabled="redoStack.length === 0">
-          <span class="icon">↷</span>
-        </button>
-        
-        <div class="separator"></div>
-        
         <!-- Grid/snap controls -->
         <label class="checkbox-label">
           <input type="checkbox" v-model="showGrid" />
@@ -267,7 +257,6 @@ import { Model } from '@/core/canvas/model';
 import type { Drawable } from '@/core/canvas/shapes/base';
 import type { FaceplateConfig, FaceplateShapeConfig, FaceplateModelConfig, NotificationChannel, UINotificationChannel } from './types';
 import { createShape } from '@/core/canvas/shapes';
-import { shapeToConfig } from './utils';
 import ShapePalette from './components/ShapePalette.vue';
 import CanvasEditor from './components/CanvasEditor.vue';
 import PropertiesPanel from './components/PropertiesPanel.vue';
@@ -283,7 +272,6 @@ import type { EntityId } from '@/core/data/types';
 import { useDataStore } from '@/stores/data';
 import { useWindowStore } from '@/stores/windows';
 import { ValueHelpers } from '@/core/data/types';
-import { getDefaultShapeSizes, GRID_SIZE } from './constants';
 
 const props = defineProps<{
   windowId?: string
@@ -318,11 +306,6 @@ const showCanvasConfig = ref(false);
 const canvasWidth = ref(1000);
 const canvasHeight = ref(600);
 const canvasBackground = ref('#1a1a1a');
-
-// Undo/Redo
-const undoStack = ref<any[]>([]);
-const redoStack = ref<any[]>([]);
-const maxUndoSteps = 50;
 
 // Toast notifications
 const toastVisible = ref(false);
@@ -732,25 +715,6 @@ function resetZoom() {
   canvasEditor.value?.resetZoom();
 }
 
-// Undo/Redo controls
-function undo() {
-  if (canvasEditor.value) {
-    const editor = canvasEditor.value as any;
-    if (editor.undo) {
-      editor.undo();
-    }
-  }
-}
-
-function redo() {
-  if (canvasEditor.value) {
-    const editor = canvasEditor.value as any;
-    if (editor.redo) {
-      editor.redo();
-    }
-  }
-}
-
 // Shape operations
 function onShapeDragStart(shapeType: string) {
   // Handled by CanvasEditor
@@ -763,32 +727,16 @@ function onShapeSelect(index: number) {
 function onShapeUpdate() {
   hasChanges.value = true;
   shapeUpdateTrigger.value++;
-  
-  // Save state for undo
-  if (canvasEditor.value) {
-    const editor = canvasEditor.value as any;
-    if (editor.saveStateForUndo) {
-      editor.saveStateForUndo();
-    }
-  }
 }
 
 function onShapeDrop(shapeType: string, location: { x: number; y: number }) {
   // Create new shape and add to model
-  const shape = createDefaultShape(shapeType, location, canvasEditor.value?.getMap?.());
+  const shape = createDefaultShape(shapeType, location);
   if (shape) {
     currentModel.value.addShape(shape);
     selectedShapeIndex.value = currentModel.value.getShapes().length - 1;
     hasChanges.value = true;
     shapeUpdateTrigger.value++;
-    
-    // Save state for undo
-    if (canvasEditor.value) {
-      const editor = canvasEditor.value as any;
-      if (editor.saveStateForUndo) {
-        editor.saveStateForUndo();
-      }
-    }
   }
 }
 
@@ -808,14 +756,6 @@ function onPropertyUpdate(property: string, value: any) {
     
     // Trigger UI updates
     shapeUpdateTrigger.value++;
-    
-    // Save state for undo
-    if (canvasEditor.value) {
-      const editor = canvasEditor.value as any;
-      if (editor.saveStateForUndo) {
-        editor.saveStateForUndo();
-      }
-    }
   }
 }
 
@@ -864,14 +804,6 @@ function handleDeleteShape() {
       selectedShapeIndex.value = null;
       hasChanges.value = true;
       shapeUpdateTrigger.value++;
-      
-      // Save state for undo
-      if (canvasEditor.value) {
-        const editor = canvasEditor.value as any;
-        if (editor.saveStateForUndo) {
-          editor.saveStateForUndo();
-        }
-      }
     }
   }
 }
@@ -893,14 +825,6 @@ function onCallbacksUpdate(callbacks: { handlers?: Record<string, string>; metho
     
     hasChanges.value = true;
     shapeUpdateTrigger.value++;
-    
-    // Save state for undo
-    if (canvasEditor.value) {
-      const editor = canvasEditor.value as any;
-      if (editor.saveStateForUndo) {
-        editor.saveStateForUndo();
-      }
-    }
   }
 }
 
@@ -1028,7 +952,7 @@ function generateUniqueId(): string {
   return 'shape_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
 }
 
-function createDefaultShape(shapeType: string, location: { x: number; y: number }, map?: any): Drawable | null {
+function createDefaultShape(shapeType: string, location: { x: number; y: number }): Drawable | null {
   const shape = createShape(shapeType);
   
   if (!shape) return null;
@@ -1038,38 +962,46 @@ function createDefaultShape(shapeType: string, location: { x: number; y: number 
   shape.setPivot({ x: 0, y: 0 });
   shape.setScale({ x: 1, y: 1 }); // Ensure scale is 1 for direct property manipulation
   
-  // Set default properties based on type using zoom-aware constants
+  // Set default properties based on type
   if (shapeType === 'Circle') {
-    (shape as any).setRadius(getDefaultShapeSizes(map).circle.radius);
+    (shape as any).setRadius(50);
     (shape as any).setFillColor('#00ff88');
     (shape as any).setFillOpacity(0.5);
   } else if (shapeType === 'Polygon') {
-    (shape as any).setEdges(getDefaultShapeSizes(map).polygon.edges);
+    (shape as any).setEdges([
+      { x: -40, y: -40 },
+      { x: 40, y: -40 },
+      { x: 0, y: 40 }
+    ]);
     (shape as any).setFillColor('#0088ff');
     (shape as any).setFillOpacity(0.5);
   } else if (shapeType === 'Polyline') {
-    (shape as any).setEdges(getDefaultShapeSizes(map).polyline.edges);
+    (shape as any).setEdges([
+      { x: -50, y: 0 },
+      { x: 0, y: -30 },
+      { x: 50, y: 0 }
+    ]);
     (shape as any).setColor('#ff0088');
     (shape as any).setWeight(3);
   } else if (shapeType === 'Text') {
     (shape as any).setText('Text');
-    (shape as any).setFontSize(getDefaultShapeSizes(map).text.fontSize);
+    (shape as any).setFontSize(16);
     (shape as any).setColor('#ffffff');
   } else if (shapeType === 'SvgText') {
     (shape as any).setText('SVG Text');
-    (shape as any).setFontSize(getDefaultShapeSizes(map).svgText.fontSize);
-    (shape as any).setWidth(getDefaultShapeSizes(map).svgText.width);
-    (shape as any).setHeight(getDefaultShapeSizes(map).svgText.height);
+    (shape as any).setFontSize('1em');
+    (shape as any).setWidth(100);
+    (shape as any).setHeight(20);
     (shape as any).setFillColor('#000000');
   } else if (shapeType === 'Div') {
     (shape as any).setHtml('<div>Hello World</div>');
-    (shape as any).setClassName('');  
-    (shape as any).setWidth(getDefaultShapeSizes(map).div.width);
-    (shape as any).setHeight(getDefaultShapeSizes(map).div.height);
+    (shape as any).setClassName('');
+    (shape as any).setWidth(100);
+    (shape as any).setHeight(100);
   } else if (shapeType === 'ImageOverlay') {
     (shape as any).setUrl('');
-    (shape as any).setWidth(getDefaultShapeSizes(map).imageOverlay.width);
-    (shape as any).setHeight(getDefaultShapeSizes(map).imageOverlay.height);
+    (shape as any).setWidth(100);
+    (shape as any).setHeight(100);
   }
   
   return shape;
@@ -1167,6 +1099,60 @@ function modelToConfig(model: Model): FaceplateModelConfig {
     },
     shapes: shapes.map(shapeToConfig)
   };
+}
+
+function shapeToConfig(shape: Drawable): FaceplateShapeConfig {
+  const config: FaceplateShapeConfig = {
+    type: shape.constructor.name,
+    id: shape.getId() || undefined,
+    location: shape.getOffset(),
+    rotation: shape.getRotation(),
+    scale: shape.getScale(),
+    pivot: shape.getPivot()
+  };
+  
+  // Add optional properties only if they have values
+  const minZoom = shape.getMinZoom();
+  if (minZoom !== null) config.minZoom = minZoom;
+  
+  const maxZoom = shape.getMaxZoom();
+  if (maxZoom !== null) config.maxZoom = maxZoom;
+  
+  const pane = shape.getPane();
+  if (pane) config.pane = pane;
+  
+  const shapeAny = shape as any;
+  
+  // Add shape-specific properties
+  if (shapeAny.getRadius) config.radius = shapeAny.getRadius();
+  if (shapeAny.getColor) config.color = shapeAny.getColor();
+  if (shapeAny.getFillColor) config.fillColor = shapeAny.getFillColor();
+  if (shapeAny.getFillOpacity) config.fillOpacity = shapeAny.getFillOpacity();
+  if (shapeAny.getWeight) config.weight = shapeAny.getWeight();
+  if (shapeAny.getOpacity) config.opacity = shapeAny.getOpacity();
+  if (shapeAny.getText) config.text = shapeAny.getText();
+  if (shapeAny.getFontSize) config.fontSize = shapeAny.getFontSize();
+  if (shapeAny.getDirection) config.direction = shapeAny.getDirection();
+  if (shapeAny.getEdges) config.edges = shapeAny.getEdges();
+  if (shapeAny.getHtml) config.html = shapeAny.getHtml();
+  if (shapeAny.getClassName) config.className = shapeAny.getClassName();
+  if (shapeAny.getWidth) config.width = shapeAny.getWidth();
+  if (shapeAny.getHeight) config.height = shapeAny.getHeight();
+  if (shapeAny.getUrl) config.url = shapeAny.getUrl();
+  if (shapeAny.getCss) config.css = shapeAny.getCss();
+  if (shapeAny.getKeyframes) config.keyframes = shapeAny.getKeyframes();
+  
+  // Add callback properties
+  const handlers = shapeAny.getHandlers?.();
+  if (handlers && Object.keys(handlers).length > 0) config.handlers = handlers;
+  
+  const methods = shapeAny.getMethods?.();
+  if (methods && Object.keys(methods).length > 0) config.methods = methods;
+  
+  const contextMenu = shapeAny.getContextMenu?.();
+  if (contextMenu && Object.keys(contextMenu).length > 0) config.contextMenu = contextMenu;
+  
+  return config;
 }
 
 function configToModel(config: any): Model {
