@@ -54,6 +54,8 @@ const emit = defineEmits<{
   (e: 'shape-update'): void;
   (e: 'shape-drop', shapeType: string, location: { x: number; y: number }): void;
   (e: 'canvas-click'): void;
+  (e: 'zoom-change', zoom: number): void;
+  (e: 'mouse-move', x: number, y: number): void;
 }>();
 
 // Refs
@@ -66,6 +68,27 @@ const selectionModel = ref<Model | null>(null);
 
 // Grid
 const gridSize = 20;
+
+// Helper function to calculate handle size based on zoom level
+// This keeps handles a consistent visual size regardless of zoom
+function getHandleSize(baseSize: number = 6): number {
+  if (!canvas.value) return baseSize;
+  const zoom = canvas.value.getZoom();
+  // Scale inversely with zoom to maintain consistent screen size
+  return baseSize / Math.pow(2, zoom);
+}
+
+function getStrokeWeight(baseWeight: number = 2): number {
+  if (!canvas.value) return baseWeight;
+  const zoom = canvas.value.getZoom();
+  return baseWeight / Math.pow(2, zoom);
+}
+
+function getScaledOffset(distance: number): number {
+  if (!canvas.value) return distance;
+  const zoom = canvas.value.getZoom();
+  return distance / Math.pow(2, zoom);
+}
 
 // Selection
 const isDragging = ref(false);
@@ -104,12 +127,6 @@ onBeforeUnmount(() => {
 
 // Watch for model changes
 watch(() => props.model, () => {
-  // Destroy and recreate canvas to ensure complete cleanup
-  destroyCanvas();
-  initCanvas();
-});
-
-watch(() => props.model.getShapes().length, () => {
   // Destroy and recreate canvas to ensure complete cleanup
   destroyCanvas();
   initCanvas();
@@ -186,9 +203,11 @@ function initCanvas() {
   // Create selection model
   selectionModel.value = new Model();
   
-  // Add click handler and disable drag when shape selected
+  // Ensure we emit the initial zoom level after the canvas is ready
   const leafletMap = (canvas.value as any).map;
   if (leafletMap) {
+    emit('zoom-change', leafletMap.getZoom());
+    
     leafletMap.on('click', (e: L.LeafletMouseEvent) => {
       handleCanvasClick(e);
     });
@@ -197,6 +216,9 @@ function initCanvas() {
     });
     leafletMap.on('zoomend', () => {
       handleZoomChange();
+    });
+    leafletMap.on('mousemove', (e: L.LeafletMouseEvent) => {
+      handleCanvasMouseMove(e);
     });
     
     // Disable map dragging initially
@@ -313,62 +335,82 @@ function handleCanvasClick(e: L.LeafletMouseEvent) {
 
 // Check if point is in shape
 function isPointInShape(shape: Drawable, point: L.LatLng): boolean {
+  const layer = (shape as any).getLayer?.() as L.Layer | null;
+  const map = canvas.value?.getMap();
+
+  if (layer) {
+    const boundsFn = (layer as any).getBounds as (() => L.LatLngBounds) | undefined;
+    if (boundsFn) {
+      const bounds = boundsFn.call(layer);
+      if (bounds) {
+        // Pad bounds slightly to make selection easier
+        const padded = bounds.pad(0.1);
+        if (padded.contains(point)) {
+          return true;
+        }
+      }
+    }
+
+    const latLngFn = (layer as any).getLatLng as (() => L.LatLng) | undefined;
+    if (latLngFn && map) {
+      const layerLatLng = latLngFn.call(layer);
+      const layerPoint = map.latLngToContainerPoint(layerLatLng);
+      const clickPoint = map.latLngToContainerPoint(point);
+
+      // Determine marker dimensions if available
+      const iconOptions = (layer as any).options?.icon?.options;
+      const iconSize: [number, number] = iconOptions?.iconSize || [24, 24];
+      const halfWidth = iconSize[0] / 2 + 6;
+      const halfHeight = iconSize[1] / 2 + 6;
+
+      if (Math.abs(clickPoint.x - layerPoint.x) <= halfWidth &&
+          Math.abs(clickPoint.y - layerPoint.y) <= halfHeight) {
+        return true;
+      }
+    }
+  }
+
+  // Fallback: approximate using shape geometry
   const loc = shape.getOffset();
   const shapeAny = shape as any;
-  
-  // Check for Circle
+  const zoom = canvas.value?.getZoom() || 0;
+  const zoomScale = Math.pow(2, zoom);
+
   if (shapeAny.getRadius && typeof shapeAny.getRadius === 'function') {
     const radius = shapeAny.getRadius();
-    
-    // For circles, we need to check in pixel space since radius is in pixels
-    if (canvas.value) {
-      const leafletMap = (canvas.value as any).map;
-      const shapePoint = leafletMap.latLngToContainerPoint([loc.y, loc.x]);
-      const clickPoint = leafletMap.latLngToContainerPoint(point);
-      const pixelDistance = Math.sqrt(
-        Math.pow(clickPoint.x - shapePoint.x, 2) + Math.pow(clickPoint.y - shapePoint.y, 2)
-      );
-      return pixelDistance <= radius;
-    }
-    
-    // Fallback to coordinate distance (not accurate)
     const distance = Math.sqrt(
       Math.pow(point.lat - loc.y, 2) + Math.pow(point.lng - loc.x, 2)
     );
-    return distance <= radius * 0.001; // rough approximation
+    return distance <= radius + (1 / zoomScale);
   }
-  
-  // Check for shapes with explicit dimensions
+
   if (shapeAny.getWidth && shapeAny.getHeight) {
     const halfWidth = shapeAny.getWidth() / 2;
     const halfHeight = shapeAny.getHeight() / 2;
-    return Math.abs(point.lng - loc.x) <= halfWidth && 
-           Math.abs(point.lat - loc.y) <= halfHeight;
+    const tolerance = 1 / zoomScale;
+    return Math.abs(point.lng - loc.x) <= halfWidth + tolerance &&
+           Math.abs(point.lat - loc.y) <= halfHeight + tolerance;
   }
-  
-  // Check for polygons/polylines
+
   if (shapeAny.getEdges && typeof shapeAny.getEdges === 'function') {
     const edges = shapeAny.getEdges();
     if (edges && edges.length > 0) {
-      // Calculate bounds (edges are relative to shape position)
       const xs = edges.map((e: any) => e.x);
       const ys = edges.map((e: any) => e.y);
       const minX = Math.min(...xs);
       const maxX = Math.max(...xs);
       const minY = Math.min(...ys);
       const maxY = Math.max(...ys);
-      // Check if point is within bounds (with some padding)
-      const padding = 20;
+      const padding = 1 / zoomScale;
       return point.lng >= loc.x + minX - padding && point.lng <= loc.x + maxX + padding &&
              point.lat >= loc.y + minY - padding && point.lat <= loc.y + maxY + padding;
     }
   }
-  
-  // For other shapes, use a simple distance threshold
+
   const distance = Math.sqrt(
     Math.pow(point.lat - loc.y, 2) + Math.pow(point.lng - loc.x, 2)
   );
-  return distance < 50;
+  return distance < (2 / zoomScale);
 }
 
 // Update selection shapes
@@ -425,7 +467,7 @@ function createCircleSelection(shape: Drawable, loc: Point, selectionPane: any) 
   selectionCircle.setFillColor('rgba(0, 255, 136, 0.05)');
   selectionCircle.setColor('#00ff88');
   selectionCircle.setFillOpacity(0.08);
-  selectionCircle.setWeight(2);
+  selectionCircle.setWeight(getStrokeWeight(2));
   selectionCircle.setRadius(radius);
   selectionCircle.setOffset(loc);
   selectionCircle.setRotation(shape.getRotation()); // Apply shape rotation
@@ -435,11 +477,11 @@ function createCircleSelection(shape: Drawable, loc: Point, selectionPane: any) 
   
   // Create radius handle (at the right edge)
   const radiusHandle = new Circle();
-  radiusHandle.setRadius(6);
+  radiusHandle.setRadius(getHandleSize(6));
   radiusHandle.setFillColor('#00ff88');
   radiusHandle.setColor('#ffffff');
   radiusHandle.setFillOpacity(1);
-  radiusHandle.setWeight(2);
+  radiusHandle.setWeight(getStrokeWeight(2));
   // Rotate the radius handle position to match selection circle rotation
   const rotation = shape.getRotation();
   const cos = Math.cos(rotation);
@@ -454,12 +496,12 @@ function createCircleSelection(shape: Drawable, loc: Point, selectionPane: any) 
   
   // Create rotate handle (circle above)
   const rotateHandle = new Circle();
-  rotateHandle.setRadius(8);
+  rotateHandle.setRadius(getHandleSize(8));
   rotateHandle.setFillColor('#0088ff');
   rotateHandle.setColor('#ffffff');
   rotateHandle.setFillOpacity(1);
-  rotateHandle.setWeight(2);
-  rotateHandle.setOffset({ x: loc.x, y: loc.y - radius - 20 });
+  rotateHandle.setWeight(getStrokeWeight(2));
+  rotateHandle.setOffset({ x: loc.x, y: loc.y - radius - getScaledOffset(20) });
   rotateHandle.setPane(selectionPane);
   (rotateHandle as any)._isSelectionShape = true;
   (rotateHandle as any)._handleType = 'rotate';
@@ -479,7 +521,7 @@ function createRectangleSelection(shape: Drawable, loc: Point, selectionPane: an
   selectionBox.setFillColor('rgba(0, 255, 136, 0.05)');
   selectionBox.setColor('#00ff88');
   selectionBox.setFillOpacity(0.08);
-  selectionBox.setWeight(2);
+  selectionBox.setWeight(getStrokeWeight(2));
   selectionBox.setOffset(loc);
   selectionBox.setRotation(shape.getRotation()); // Apply shape rotation
   selectionBox.setPane(selectionPane);
@@ -491,7 +533,7 @@ function createRectangleSelection(shape: Drawable, loc: Point, selectionPane: an
   selectionModel.value!.addShape(selectionBox);
   
   // Create resize handles (circles at corners)
-  const handleSize = 6;
+  const handleSize = getHandleSize(6);
   const rotation = shape.getRotation();
   const cos = Math.cos(rotation);
   const sin = Math.sin(rotation);
@@ -512,7 +554,7 @@ function createRectangleSelection(shape: Drawable, loc: Point, selectionPane: an
     handle.setFillColor('#00ff88');
     handle.setColor('#ffffff');
     handle.setFillOpacity(1);
-    handle.setWeight(2);
+    handle.setWeight(getStrokeWeight(2));
     handle.setOffset({ x: loc.x + rotatedX, y: loc.y + rotatedY });
     handle.setPane(selectionPane);
     (handle as any)._isSelectionShape = true;
@@ -522,12 +564,12 @@ function createRectangleSelection(shape: Drawable, loc: Point, selectionPane: an
   
   // Create rotate handle (circle above)
   const rotateHandle = new Circle();
-  rotateHandle.setRadius(8);
+  rotateHandle.setRadius(getHandleSize(8));
   rotateHandle.setFillColor('#0088ff');
   rotateHandle.setColor('#ffffff');
   rotateHandle.setFillOpacity(1);
-  rotateHandle.setWeight(2);
-  rotateHandle.setOffset({ x: loc.x, y: loc.y - halfHeight - 20 });
+  rotateHandle.setWeight(getStrokeWeight(2));
+  rotateHandle.setOffset({ x: loc.x, y: loc.y - halfHeight - getScaledOffset(20) });
   rotateHandle.setPane(selectionPane);
   (rotateHandle as any)._isSelectionShape = true;
   (rotateHandle as any)._handleType = 'rotate';
@@ -545,7 +587,7 @@ function createPolygonSelection(shape: Drawable, loc: Point, selectionPane: any)
   selectionPoly.setFillColor('rgba(0, 255, 136, 0.05)');
   selectionPoly.setColor('#00ff88');
   selectionPoly.setFillOpacity(0.08);
-  selectionPoly.setWeight(2);
+  selectionPoly.setWeight(getStrokeWeight(2));
   selectionPoly.setOffset(loc);
   selectionPoly.setRotation(shape.getRotation()); // Apply shape rotation
   selectionPoly.setPane(selectionPane);
@@ -567,11 +609,11 @@ function createPolygonSelection(shape: Drawable, loc: Point, selectionPane: any)
     const rotatedY = edge.x * sin + edge.y * cos;
     
     const handle = new Circle();
-    handle.setRadius(6);
+    handle.setRadius(getHandleSize(6));
     handle.setFillColor('#00ff88');
     handle.setColor('#ffffff');
     handle.setFillOpacity(1);
-    handle.setWeight(2);
+    handle.setWeight(getStrokeWeight(2));
     handle.setOffset({ x: loc.x + rotatedX, y: loc.y + rotatedY });
     handle.setPane(selectionPane);
     (handle as any)._isSelectionShape = true;
@@ -586,12 +628,12 @@ function createPolygonSelection(shape: Drawable, loc: Point, selectionPane: any)
   const minY = Math.min(...ys);
   
   const rotateHandle = new Circle();
-  rotateHandle.setRadius(8);
+  rotateHandle.setRadius(getHandleSize(8));
   rotateHandle.setFillColor('#0088ff');
   rotateHandle.setColor('#ffffff');
   rotateHandle.setFillOpacity(1);
-  rotateHandle.setWeight(2);
-  rotateHandle.setOffset({ x: loc.x + centerX, y: loc.y + minY - 30 });
+  rotateHandle.setWeight(getStrokeWeight(2));
+  rotateHandle.setOffset({ x: loc.x + centerX, y: loc.y + minY - getScaledOffset(30) });
   rotateHandle.setPane(selectionPane);
   (rotateHandle as any)._isSelectionShape = true;
   (rotateHandle as any)._handleType = 'rotate';
@@ -615,7 +657,7 @@ function createTextSelection(shape: Drawable, loc: Point, selectionPane: any) {
   selectionBox.setFillColor('rgba(0, 255, 136, 0.05)');
   selectionBox.setColor('#00ff88');
   selectionBox.setFillOpacity(0.08);
-  selectionBox.setWeight(2);
+  selectionBox.setWeight(getStrokeWeight(2));
   selectionBox.setOffset(loc);
   selectionBox.setRotation(shape.getRotation()); // Apply shape rotation
   selectionBox.setPane(selectionPane);
@@ -628,11 +670,11 @@ function createTextSelection(shape: Drawable, loc: Point, selectionPane: any) {
   
   // Create font size handle (at bottom-right)
   const fontHandle = new Circle();
-  fontHandle.setRadius(6);
+  fontHandle.setRadius(getHandleSize(6));
   fontHandle.setFillColor('#00ff88');
   fontHandle.setColor('#ffffff');
   fontHandle.setFillOpacity(1);
-  fontHandle.setWeight(2);
+  fontHandle.setWeight(getStrokeWeight(2));
   // Rotate handle position to match selection box rotation
   const rotation = shape.getRotation();
   const cos = Math.cos(rotation);
@@ -647,12 +689,12 @@ function createTextSelection(shape: Drawable, loc: Point, selectionPane: any) {
   
   // Create rotate handle (above the text)
   const rotateHandle = new Circle();
-  rotateHandle.setRadius(8);
+  rotateHandle.setRadius(getHandleSize(8));
   rotateHandle.setFillColor('#0088ff');
   rotateHandle.setColor('#ffffff');
   rotateHandle.setFillOpacity(1);
-  rotateHandle.setWeight(2);
-  rotateHandle.setOffset({ x: loc.x, y: loc.y - halfHeight - 20 });
+  rotateHandle.setWeight(getStrokeWeight(2));
+  rotateHandle.setOffset({ x: loc.x, y: loc.y - halfHeight - getScaledOffset(20) });
   rotateHandle.setPane(selectionPane);
   (rotateHandle as any)._isSelectionShape = true;
   (rotateHandle as any)._handleType = 'rotate';
@@ -895,9 +937,26 @@ function handleMouseUp() {
 
 // Grid snapping
 function snapToGridCoords(location: { x: number; y: number }): { x: number; y: number } {
+  if (!canvas.value) {
+    return location;
+  }
+
+  const leafletMap = (canvas.value as any).map;
+  if (!leafletMap) {
+    return location;
+  }
+
+  const containerPoint = leafletMap.latLngToContainerPoint([location.y, location.x]);
+  const snappedPoint = L.point(
+    Math.round(containerPoint.x / gridSize) * gridSize,
+    Math.round(containerPoint.y / gridSize) * gridSize
+  );
+
+  const snappedLatLng = leafletMap.containerPointToLatLng(snappedPoint);
+
   return {
-    x: Math.round(location.x / gridSize) * gridSize,
-    y: Math.round(location.y / gridSize) * gridSize
+    x: snappedLatLng.lng,
+    y: snappedLatLng.lat
   };
 }
 
@@ -924,8 +983,22 @@ function resetZoom() {
   if (canvas.value) {
     const leafletMap = (canvas.value as any).map;
     if (leafletMap) {
-      leafletMap.setZoom(0);
-      leafletMap.setView([300, 500], 0);
+      leafletMap.setZoom(5);
+      leafletMap.setView([300, 500], 5);
+    }
+  }
+}
+
+function fitBounds(bounds: { minX: number; minY: number; maxX: number; maxY: number }) {
+  if (canvas.value) {
+    const leafletMap = (canvas.value as any).map;
+    if (leafletMap) {
+      // Convert our coordinate system to Leaflet lat/lng bounds
+      const latLngBounds = L.latLngBounds(
+        L.latLng(bounds.minY, bounds.minX),
+        L.latLng(bounds.maxY, bounds.maxX)
+      );
+      leafletMap.fitBounds(latLngBounds, { padding: [20, 20] });
     }
   }
 }
@@ -946,6 +1019,9 @@ function handleZoomChange() {
   
   const zoom = canvas.value.getZoom();
   
+  // Emit zoom change event
+  emit('zoom-change', zoom);
+  
   // Update zoom level for all shapes
   const shapes = props.model.getShapes();
   shapes.forEach((shape: Drawable) => {
@@ -955,6 +1031,13 @@ function handleZoomChange() {
   // Re-render shapes that depend on zoom
   renderModelOnly();
   updateSelectionShapes();
+}
+
+function handleCanvasMouseMove(e: L.LeafletMouseEvent) {
+  if (!canvas.value) return;
+  
+  // Emit mouse position
+  emit('mouse-move', Math.round(e.latlng.lng), Math.round(e.latlng.lat));
 }
 
 function updateContainerSize() {
@@ -986,6 +1069,7 @@ defineExpose({
   zoomIn,
   zoomOut,
   resetZoom,
+  fitBounds,
   updateBoundary,
   updateBackground,
   renderModel

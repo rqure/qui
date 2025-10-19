@@ -16,6 +16,7 @@ export class Canvas implements ICanvas {
   private listeners: Map<string, Set<CanvasEventHandler>> = new Map();
   private containerId: string;
   private panes: Map<string, HTMLElement> = new Map();
+  private boundsInitialized = false;
 
   constructor(containerId: string, options?: CanvasOptions) {
     this.containerId = containerId;
@@ -25,13 +26,19 @@ export class Canvas implements ICanvas {
       crs: L.CRS.Simple,
       zoomControl: false,
       attributionControl: false,
-      scrollWheelZoom: false,
+      scrollWheelZoom: true,  // Enable mouse wheel zoom for better UX
+      zoomSnap: 0.1,          // Allow fractional zoom levels (0.1 increments)
+      zoomDelta: 0.25,        // Zoom in/out by 0.25 levels per click
+      minZoom: 1,             // Minimum zoom level
       doubleClickZoom: false,
       ...options
     };
 
     // Create the map
     this.map = L.map(containerId, defaultOptions);
+
+    // Set default zoom level to 5 for better initial view
+    this.map.setView([300, 500], 5);
 
     // Set up event handlers
     this.setupEventHandlers();
@@ -100,13 +107,27 @@ export class Canvas implements ICanvas {
    * Set canvas boundary
    */
   setBoundary(from: Point, to: Point): this {
-    const bounds: L.LatLngBoundsExpression = [
+    const bounds: L.LatLngBounds = L.latLngBounds(
       [from.y, from.x],
       [to.y, to.x]
-    ];
+    );
 
-    this.map.fitBounds(bounds);
+    // Preserve current zoom and center when adjusting bounds
+    const currentCenter = this.map.getCenter();
+    const currentZoom = this.map.getZoom();
+
     this.map.setMaxBounds(bounds);
+
+    if (!this.boundsInitialized) {
+      // Center the map within the bounds while respecting min zoom
+      const center = bounds.getCenter();
+      const minZoom = this.map.getMinZoom() ?? 1;
+      this.map.setView(center, Math.max(currentZoom, minZoom));
+      this.boundsInitialized = true;
+    } else {
+      // Restore previous view to avoid zoom resets
+      this.map.setView(currentCenter, currentZoom, { animate: false });
+    }
 
     return this;
   }

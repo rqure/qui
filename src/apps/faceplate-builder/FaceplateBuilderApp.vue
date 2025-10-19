@@ -80,6 +80,16 @@
         
         <div class="separator"></div>
         
+        <!-- Edit controls -->
+        <button @click="undo" :disabled="!canUndo()" class="btn btn-secondary" title="Undo (Ctrl+Z / Cmd+Z)">
+          <span class="icon">↶</span> Undo
+        </button>
+        <button @click="redo" :disabled="!canRedo()" class="btn btn-secondary" title="Redo (Ctrl+Shift+Z / Cmd+Shift+Z)">
+          <span class="icon">↷</span> Redo
+        </button>
+        
+        <div class="separator"></div>
+        
         <!-- View controls -->
         <button @click="zoomIn" class="btn btn-secondary" title="Zoom In">
           <span class="icon">🔍+</span>
@@ -89,6 +99,16 @@
         </button>
         <button @click="resetZoom" class="btn btn-secondary" title="Reset Zoom">
           <span class="icon">⊡</span>
+        </button>
+        <button @click="fitToView" class="btn btn-secondary" title="Fit All Shapes">
+          <span class="icon">⊞</span>
+        </button>
+        
+        <div class="separator"></div>
+        
+        <!-- Help -->
+        <button @click="showKeyboardShortcuts = !showKeyboardShortcuts" class="btn btn-secondary" :class="{ active: showKeyboardShortcuts }" title="Keyboard Shortcuts">
+          <span class="icon">⌨️</span>
         </button>
         
         <div class="separator"></div>
@@ -125,6 +145,39 @@
       <div class="config-group">
         <label>Background:</label>
         <input type="color" v-model="canvasBackground" @change="updateCanvasBackground" />
+      </div>
+    </div>
+    
+    <!-- Keyboard Shortcuts Panel -->
+    <div v-if="showKeyboardShortcuts" class="shortcuts-panel">
+      <div class="shortcuts-header">
+        <h4>Keyboard Shortcuts</h4>
+      </div>
+      <div class="shortcuts-grid">
+        <div class="shortcut-item">
+          <kbd>Ctrl/Cmd + Z</kbd>
+          <span>Undo</span>
+        </div>
+        <div class="shortcut-item">
+          <kbd>Ctrl/Cmd + Shift + Z</kbd>
+          <span>Redo</span>
+        </div>
+        <div class="shortcut-item">
+          <kbd>Ctrl/Cmd + Y</kbd>
+          <span>Redo (Alt)</span>
+        </div>
+        <div class="shortcut-item">
+          <kbd>Delete / Backspace</kbd>
+          <span>Delete Selected Shape</span>
+        </div>
+        <div class="shortcut-item">
+          <kbd>Ctrl/Cmd + S</kbd>
+          <span>Save</span>
+        </div>
+        <div class="shortcut-item">
+          <kbd>Esc</kbd>
+          <span>Deselect Shape</span>
+        </div>
       </div>
     </div>
     
@@ -182,7 +235,37 @@
           @shape-update="onShapeUpdate"
           @shape-drop="onShapeDrop"
           @canvas-click="onCanvasClick"
+          @zoom-change="onZoomChange"
+          @mouse-move="onMouseMove"
         />
+        
+        <!-- Status bar -->
+        <div class="status-bar">
+          <div class="status-item">
+            <span class="status-label">X:</span>
+            <span class="status-value">{{ mouseX }}</span>
+          </div>
+          <div class="status-separator">|</div>
+          <div class="status-item">
+            <span class="status-label">Y:</span>
+            <span class="status-value">{{ mouseY }}</span>
+          </div>
+          <div class="status-separator">|</div>
+          <div class="status-item">
+            <span class="status-label">Zoom:</span>
+            <span class="status-value">{{ currentZoom.toFixed(2) }}</span>
+          </div>
+          <div class="status-separator">|</div>
+          <div class="status-item">
+            <span class="status-label">Shapes:</span>
+            <span class="status-value">{{ currentModel.getShapes().length }}</span>
+          </div>
+          <div v-if="selectedShapeIndex !== null" class="status-separator">|</div>
+          <div v-if="selectedShapeIndex !== null" class="status-item">
+            <span class="status-label">Selected:</span>
+            <span class="status-value">{{ selectedShape?.constructor.name || 'None' }}</span>
+          </div>
+        </div>
       </div>
       
       <!-- Right sidebar - Properties, Callbacks, Notifications -->
@@ -252,7 +335,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, markRaw, nextTick } from 'vue';
+import { ref, computed, watch, markRaw, nextTick, onMounted, onBeforeUnmount } from 'vue';
 import { Model } from '@/core/canvas/model';
 import type { Drawable } from '@/core/canvas/shapes/base';
 import type { FaceplateConfig, FaceplateShapeConfig, FaceplateModelConfig, NotificationChannel, UINotificationChannel } from './types';
@@ -285,6 +368,21 @@ const pendingAction = ref<(() => void) | null>(null);
 const shapeUpdateTrigger = ref(0);
 const activeTab = ref<'shapes' | 'layers'>('shapes');
 
+// History management for undo/redo
+interface HistoryEntry {
+  modelConfig: FaceplateModelConfig;
+  selectedIndex: number | null;
+  timestamp: number;
+}
+const history = ref<HistoryEntry[]>([]);
+const historyIndex = ref(-1);
+const maxHistorySize = 50;
+
+// Status bar state
+const mouseX = ref(0);
+const mouseY = ref(0);
+const currentZoom = ref(0);
+
 // Current faceplate state
 const currentFaceplateId = ref<EntityId | null>(null);
 const currentFaceplateName = ref<string>('');
@@ -303,6 +401,7 @@ const rightSidebarTab = ref<'properties' | 'callbacks' | 'notifications'>('prope
 
 // Canvas configuration
 const showCanvasConfig = ref(false);
+const showKeyboardShortcuts = ref(false);
 const canvasWidth = ref(1000);
 const canvasHeight = ref(600);
 const canvasBackground = ref('#1a1a1a');
@@ -317,6 +416,134 @@ function showToast(message: string, type: 'success' | 'error' | 'info' = 'info')
   toastMessage.value = message;
   toastType.value = type;
   toastVisible.value = true;
+}
+
+// History management functions
+function saveHistory() {
+  // Serialize the current model state
+  const modelConfig = modelToConfig(currentModel.value as any);
+  
+  // If we're not at the end of history, remove all entries after current position
+  if (historyIndex.value < history.value.length - 1) {
+    history.value = history.value.slice(0, historyIndex.value + 1);
+  }
+  
+  // Add new entry
+  history.value.push({
+    modelConfig: modelConfig,
+    selectedIndex: selectedShapeIndex.value,
+    timestamp: Date.now()
+  });
+  
+  // Limit history size
+  if (history.value.length > maxHistorySize) {
+    history.value.shift();
+  } else {
+    historyIndex.value++;
+  }
+}
+
+function undo() {
+  if (!canUndo()) return;
+  
+  historyIndex.value--;
+  restoreHistoryEntry(history.value[historyIndex.value]);
+  showToast('Undo', 'info');
+}
+
+function redo() {
+  if (!canRedo()) return;
+  
+  historyIndex.value++;
+  restoreHistoryEntry(history.value[historyIndex.value]);
+  showToast('Redo', 'info');
+}
+
+function canUndo(): boolean {
+  return historyIndex.value > 0;
+}
+
+function canRedo(): boolean {
+  return historyIndex.value < history.value.length - 1;
+}
+
+function restoreHistoryEntry(entry: HistoryEntry) {
+  currentModel.value = configToModel(entry.modelConfig);
+  selectedShapeIndex.value = entry.selectedIndex;
+  
+  // Force canvas re-render
+  nextTick(() => {
+    canvasEditor.value?.renderModel();
+  });
+}
+
+function cloneModel(model: Model): Model {
+  // Serialize and deserialize for deep clone
+  const config = modelToConfig(model as any);
+  return configToModel(config);
+}
+
+function handleKeydown(event: KeyboardEvent) {
+  const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+  const ctrlKey = isMac ? event.metaKey : event.ctrlKey;
+  
+  // Ctrl/Cmd + S = Save
+  if (ctrlKey && event.key === 's') {
+    event.preventDefault();
+    saveFaceplate();
+    return;
+  }
+  
+  // Ctrl/Cmd + Z = Undo
+  if (ctrlKey && event.key === 'z' && !event.shiftKey) {
+    event.preventDefault();
+    undo();
+    return;
+  }
+  
+  // Ctrl/Cmd + Shift + Z = Redo
+  if (ctrlKey && event.key === 'z' && event.shiftKey) {
+    event.preventDefault();
+    redo();
+    return;
+  }
+  
+  // Ctrl/Cmd + Y = Redo (alternative)
+  if (ctrlKey && event.key === 'y') {
+    event.preventDefault();
+    redo();
+    return;
+  }
+  
+  // Escape = Deselect
+  if (event.key === 'Escape') {
+    if (selectedShapeIndex.value !== null) {
+      selectedShapeIndex.value = null;
+      event.preventDefault();
+    }
+    return;
+  }
+  
+  // Delete key = Delete selected shape
+  if ((event.key === 'Delete' || event.key === 'Backspace') && selectedShapeIndex.value !== null) {
+    // Don't delete if user is typing in an input field
+    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+      return;
+    }
+    event.preventDefault();
+    openDeleteConfirmationWindow();
+    return;
+  }
+}
+
+// Status bar update handlers
+function onZoomChange(zoom: number) {
+  currentZoom.value = zoom;
+}
+
+function onMouseMove(x: number, y: number) {
+  mouseX.value = x;
+  mouseY.value = y;
 }
 
 // Inline editing functions
@@ -487,6 +714,9 @@ function createNew() {
       hasChanges.value = false;
       currentFaceplateId.value = null;
       currentFaceplateName.value = '';
+      history.value = [];
+      historyIndex.value = -1;
+      saveHistory();
       // Force canvas re-render
       nextTick(() => {
         canvasEditor.value?.renderModel();
@@ -499,6 +729,9 @@ function createNew() {
     hasChanges.value = false;
     currentFaceplateId.value = null;
     currentFaceplateName.value = '';
+    history.value = [];
+    historyIndex.value = -1;
+    saveHistory();
     // Force canvas re-render
     nextTick(() => {
       canvasEditor.value?.renderModel();
@@ -579,6 +812,11 @@ async function onLoadFaceplate(config: FaceplateConfig, entityId: EntityId, name
     } catch (error) {
       currentFaceplateDescription.value = '';
     }
+    
+    // Clear and initialize history
+    history.value = [];
+    historyIndex.value = -1;
+    saveHistory();
     
     // Force canvas re-render
     nextTick(() => {
@@ -715,6 +953,82 @@ function resetZoom() {
   canvasEditor.value?.resetZoom();
 }
 
+function fitToView() {
+  // Calculate bounding box of all shapes
+  const shapes = currentModel.value.getShapes();
+  if (shapes.length === 0) {
+    resetZoom();
+    return;
+  }
+  
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  
+  for (const shape of shapes) {
+    const offset = shape.getOffset();
+    const shapeAny = shape as any;
+    
+    // Get shape bounds based on type
+    let shapeBounds = { minX: offset.x, minY: offset.y, maxX: offset.x, maxY: offset.y };
+    
+    if (shapeAny.getRadius) {
+      const radius = shapeAny.getRadius();
+      shapeBounds = {
+        minX: offset.x - radius,
+        minY: offset.y - radius,
+        maxX: offset.x + radius,
+        maxY: offset.y + radius
+      };
+    } else if (shapeAny.getEdges) {
+      const edges = shapeAny.getEdges();
+      if (edges.length > 0) {
+        const xs = edges.map((e: any) => offset.x + e.x);
+        const ys = edges.map((e: any) => offset.y + e.y);
+        shapeBounds = {
+          minX: Math.min(...xs),
+          minY: Math.min(...ys),
+          maxX: Math.max(...xs),
+          maxY: Math.max(...ys)
+        };
+      }
+    } else if (shapeAny.getWidth && shapeAny.getHeight) {
+      const width = shapeAny.getWidth();
+      const height = shapeAny.getHeight();
+      shapeBounds = {
+        minX: offset.x - width / 2,
+        minY: offset.y - height / 2,
+        maxX: offset.x + width / 2,
+        maxY: offset.y + height / 2
+      };
+    }
+    
+    minX = Math.min(minX, shapeBounds.minX);
+    minY = Math.min(minY, shapeBounds.minY);
+    maxX = Math.max(maxX, shapeBounds.maxX);
+    maxY = Math.max(maxY, shapeBounds.maxY);
+  }
+  
+  // Add padding
+  const padding = 50;
+  minX -= padding;
+  minY -= padding;
+  maxX += padding;
+  maxY += padding;
+  
+  // Calculate center and zoom to fit
+  const centerX = (minX + maxX) / 2;
+  const centerY = (minY + maxY) / 2;
+  const width = maxX - minX;
+  const height = maxY - minY;
+  
+  // Tell canvas editor to fit this bounds
+  if (canvasEditor.value) {
+    const editor = canvasEditor.value as any;
+    if (editor.fitBounds) {
+      editor.fitBounds({ minX, minY, maxX, maxY });
+    }
+  }
+}
+
 // Shape operations
 function onShapeDragStart(shapeType: string) {
   // Handled by CanvasEditor
@@ -727,6 +1041,7 @@ function onShapeSelect(index: number) {
 function onShapeUpdate() {
   hasChanges.value = true;
   shapeUpdateTrigger.value++;
+  saveHistory();
 }
 
 function onShapeDrop(shapeType: string, location: { x: number; y: number }) {
@@ -737,6 +1052,7 @@ function onShapeDrop(shapeType: string, location: { x: number; y: number }) {
     selectedShapeIndex.value = currentModel.value.getShapes().length - 1;
     hasChanges.value = true;
     shapeUpdateTrigger.value++;
+    saveHistory();
   }
 }
 
@@ -756,6 +1072,7 @@ function onPropertyUpdate(property: string, value: any) {
     
     // Trigger UI updates
     shapeUpdateTrigger.value++;
+    saveHistory();
   }
 }
 
@@ -804,6 +1121,7 @@ function handleDeleteShape() {
       selectedShapeIndex.value = null;
       hasChanges.value = true;
       shapeUpdateTrigger.value++;
+      saveHistory();
     }
   }
 }
@@ -964,44 +1282,44 @@ function createDefaultShape(shapeType: string, location: { x: number; y: number 
   
   // Set default properties based on type
   if (shapeType === 'Circle') {
-    (shape as any).setRadius(50);
+    (shape as any).setRadius(0.8);
     (shape as any).setFillColor('#00ff88');
     (shape as any).setFillOpacity(0.5);
   } else if (shapeType === 'Polygon') {
     (shape as any).setEdges([
-      { x: -40, y: -40 },
-      { x: 40, y: -40 },
-      { x: 0, y: 40 }
+      { x: -0.7, y: -0.7 },
+      { x: 0.7, y: -0.7 },
+      { x: 0, y: 0.9 }
     ]);
     (shape as any).setFillColor('#0088ff');
     (shape as any).setFillOpacity(0.5);
   } else if (shapeType === 'Polyline') {
     (shape as any).setEdges([
-      { x: -50, y: 0 },
-      { x: 0, y: -30 },
-      { x: 50, y: 0 }
+      { x: -0.8, y: 0 },
+      { x: 0, y: -0.6 },
+      { x: 0.8, y: 0 }
     ]);
     (shape as any).setColor('#ff0088');
-    (shape as any).setWeight(3);
+    (shape as any).setWeight(0.8);
   } else if (shapeType === 'Text') {
     (shape as any).setText('Text');
-    (shape as any).setFontSize(16);
+    (shape as any).setFontSize(6);
     (shape as any).setColor('#ffffff');
   } else if (shapeType === 'SvgText') {
     (shape as any).setText('SVG Text');
-    (shape as any).setFontSize('1em');
-    (shape as any).setWidth(100);
-    (shape as any).setHeight(20);
+    (shape as any).setFontSize('0.45em');
+    (shape as any).setWidth(10);
+    (shape as any).setHeight(6);
     (shape as any).setFillColor('#000000');
   } else if (shapeType === 'Div') {
     (shape as any).setHtml('<div>Hello World</div>');
     (shape as any).setClassName('');
-    (shape as any).setWidth(100);
-    (shape as any).setHeight(100);
+    (shape as any).setWidth(18);
+    (shape as any).setHeight(18);
   } else if (shapeType === 'ImageOverlay') {
     (shape as any).setUrl('');
-    (shape as any).setWidth(100);
-    (shape as any).setHeight(100);
+    (shape as any).setWidth(18);
+    (shape as any).setHeight(18);
   }
   
   return shape;
@@ -1244,6 +1562,20 @@ function configToModel(config: any): Model {
   return model;
 }
 
+// Lifecycle hooks
+onMounted(() => {
+  // Register keyboard shortcuts
+  window.addEventListener('keydown', handleKeydown);
+  
+  // Initialize history with first entry
+  saveHistory();
+});
+
+onBeforeUnmount(() => {
+  // Cleanup keyboard shortcuts
+  window.removeEventListener('keydown', handleKeydown);
+});
+
 // Watch for changes
 watch(() => currentModel.value.getShapes().length, () => {
   // Model changed
@@ -1411,6 +1743,12 @@ watch(() => currentModel.value.getShapes().length, () => {
   filter: grayscale(0.5);
 }
 
+.btn.active {
+  background: var(--qui-accent-color, #00ff88);
+  color: var(--qui-bg-primary, #000);
+  box-shadow: 0 0 8px rgba(0, 255, 136, 0.4);
+}
+
 .btn-primary {
   background: var(--qui-accent-color, #00ff88);
   color: var(--qui-bg-primary, #000);
@@ -1495,7 +1833,8 @@ watch(() => currentModel.value.getShapes().length, () => {
   cursor: not-allowed;
 }
 
-.canvas-config-panel {
+.canvas-config-panel,
+.shortcuts-panel {
   display: flex;
   align-items: center;
   gap: 20px;
@@ -1504,6 +1843,58 @@ watch(() => currentModel.value.getShapes().length, () => {
   border-bottom: 1px solid var(--qui-titlebar-border, rgba(255, 255, 255, 0.1));
   box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2);
   flex-shrink: 0;
+}
+
+.shortcuts-panel {
+  flex-wrap: wrap;
+}
+
+.shortcuts-header {
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+.shortcuts-header h4 {
+  margin: 0;
+  font-size: var(--qui-font-size-base, 14px);
+  font-weight: var(--qui-font-weight-bold, 600);
+  color: var(--qui-text-primary, #fff);
+}
+
+.shortcuts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 12px;
+  width: 100%;
+}
+
+.shortcut-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: var(--qui-bg-primary, #1a1a1a);
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.shortcut-item kbd {
+  font-family: monospace;
+  font-size: var(--qui-font-size-small, 12px);
+  font-weight: var(--qui-font-weight-bold, 600);
+  padding: 4px 8px;
+  background: var(--qui-bg-secondary, #2a2a2a);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  color: var(--qui-accent-color, #00ff88);
+  min-width: 80px;
+  text-align: center;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.shortcut-item span {
+  font-size: var(--qui-font-size-small, 13px);
+  color: var(--qui-text-secondary, #aaa);
 }
 
 .config-group {
@@ -1676,5 +2067,44 @@ watch(() => currentModel.value.getShapes().length, () => {
   position: relative;
   overflow: hidden;
   background: #0a0a0a;
+  display: flex;
+  flex-direction: column;
+}
+
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: var(--qui-bg-secondary, #2a2a2a);
+  border-top: 1px solid var(--qui-window-border, rgba(255, 255, 255, 0.1));
+  font-size: var(--qui-font-size-small, 12px);
+  color: var(--qui-text-secondary, #aaa);
+  font-family: monospace;
+  flex-shrink: 0;
+  z-index: 10;
+}
+
+.status-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.status-label {
+  color: var(--qui-text-secondary, #888);
+  font-weight: var(--qui-font-weight-medium, 500);
+}
+
+.status-value {
+  color: var(--qui-accent-color, #00ff88);
+  font-weight: var(--qui-font-weight-bold, 600);
+  min-width: 40px;
+  text-align: right;
+}
+
+.status-separator {
+  color: rgba(255, 255, 255, 0.2);
+  user-select: none;
 }
 </style>
