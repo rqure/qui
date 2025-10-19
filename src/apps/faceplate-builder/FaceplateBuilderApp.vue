@@ -1282,44 +1282,44 @@ function createDefaultShape(shapeType: string, location: { x: number; y: number 
   
   // Set default properties based on type
   if (shapeType === 'Circle') {
-    (shape as any).setRadius(0.8);
+    (shape as any).setRadius(5.0);
     (shape as any).setFillColor('#00ff88');
     (shape as any).setFillOpacity(0.5);
   } else if (shapeType === 'Polygon') {
     (shape as any).setEdges([
-      { x: -0.7, y: -0.7 },
-      { x: 0.7, y: -0.7 },
-      { x: 0, y: 0.9 }
+      { x: -4.5, y: -4.5 },
+      { x: 4.5, y: -4.5 },
+      { x: 0, y: 5.5 }
     ]);
     (shape as any).setFillColor('#0088ff');
     (shape as any).setFillOpacity(0.5);
   } else if (shapeType === 'Polyline') {
     (shape as any).setEdges([
-      { x: -0.8, y: 0 },
-      { x: 0, y: -0.6 },
-      { x: 0.8, y: 0 }
+      { x: -5.0, y: 0 },
+      { x: 0, y: -3.5 },
+      { x: 5.0, y: 0 }
     ]);
     (shape as any).setColor('#ff0088');
-    (shape as any).setWeight(0.8);
+    (shape as any).setWeight(4.0);
   } else if (shapeType === 'Text') {
     (shape as any).setText('Text');
-    (shape as any).setFontSize(6);
+    (shape as any).setFontSize(35);
     (shape as any).setColor('#ffffff');
   } else if (shapeType === 'SvgText') {
     (shape as any).setText('SVG Text');
-    (shape as any).setFontSize('0.45em');
-    (shape as any).setWidth(10);
-    (shape as any).setHeight(6);
+    (shape as any).setFontSize('2.8em');
+    (shape as any).setWidth(60);
+    (shape as any).setHeight(35);
     (shape as any).setFillColor('#000000');
   } else if (shapeType === 'Div') {
     (shape as any).setHtml('<div>Hello World</div>');
     (shape as any).setClassName('');
-    (shape as any).setWidth(18);
-    (shape as any).setHeight(18);
+    (shape as any).setWidth(100);
+    (shape as any).setHeight(100);
   } else if (shapeType === 'ImageOverlay') {
     (shape as any).setUrl('');
-    (shape as any).setWidth(18);
-    (shape as any).setHeight(18);
+    (shape as any).setWidth(100);
+    (shape as any).setHeight(100);
   }
   
   return shape;

@@ -37,8 +37,8 @@ export class Canvas implements ICanvas {
     // Create the map
     this.map = L.map(containerId, defaultOptions);
 
-    // Set default zoom level to 5 for better initial view
-    this.map.setView([300, 500], 5);
+    // Set default zoom level to 2 for better initial view
+    this.map.setView([300, 500], 2);
 
     // Set up event handlers
     this.setupEventHandlers();
