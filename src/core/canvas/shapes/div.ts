@@ -184,6 +184,9 @@ export class Div extends Drawable {
      */
     draw(canvas: ICanvas): void {
         this.canvas = canvas;
+        
+        // Update current zoom level
+        this._currentZoom = canvas.getZoom();
 
         // Check zoom visibility
         if (!this.isVisibleAtZoom(canvas.getZoom())) {
