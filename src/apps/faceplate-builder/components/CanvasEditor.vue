@@ -102,6 +102,7 @@ const shapeStartLocation = ref<{ x: number; y: number } | null>(null);
 const shapeStartRotation = ref<number>(0);
 const shapeStartSize = ref<{ radius?: number; width?: number; height?: number; fontSize?: number; edges?: any[] | null } | null>(null);
 const lastResizeUpdate = ref<{ x: number; y: number } | null>(null);
+const pendingShapeDrag = ref<{ index: number; event: MouseEvent } | null>(null);
 
 // Computed
 const selectedShape = computed((): Drawable | null => {
@@ -147,6 +148,16 @@ watch(() => props.selectedShapeIndex, () => {
         leafletMap.dragging.disable();
       }
     }
+  }
+
+  const pending = pendingShapeDrag.value;
+  if (pending && pending.index === props.selectedShapeIndex) {
+    nextTick(() => {
+      startDrag(pending.event);
+      pendingShapeDrag.value = null;
+    });
+  } else if (pending) {
+    pendingShapeDrag.value = null;
   }
 });
 
@@ -209,10 +220,7 @@ function initCanvas() {
     emit('zoom-change', leafletMap.getZoom());
     
     leafletMap.on('click', (e: L.LeafletMouseEvent) => {
-      handleCanvasClick(e);
-    });
-    leafletMap.on('mousedown', (e: L.LeafletMouseEvent) => {
-      handleCanvasMouseDown(e);
+      handleMapClick(e);
     });
     leafletMap.on('zoomend', () => {
       handleZoomChange();
@@ -230,6 +238,8 @@ function initCanvas() {
 
 // Destroy canvas
 function destroyCanvas() {
+  pendingShapeDrag.value = null;
+
   if (canvas.value) {
     canvas.value.destroy();
     canvas.value = null;
@@ -251,6 +261,8 @@ function renderModelOnly() {
   
   // Draw the model (it will automatically draw all shapes)
   props.model.draw(canvas.value);
+
+  attachModelShapeEvents();
 }
 
 // Render model
@@ -261,156 +273,113 @@ function renderModel() {
   updateSelectionShapes();
 }
 
-// Canvas mouse down handler to detect handle clicks
-function handleCanvasMouseDown(e: L.LeafletMouseEvent) {
-  if (!selectionModel.value || !canvas.value) return;
-  
-  const clickPoint = e.latlng;
-  const selectionShapes = selectionModel.value.getShapes();
-  
-  // Check if clicking on a selection handle
-  for (const shape of selectionShapes) {
-    if ((shape as any)._handleType && isPointInShape(shape, clickPoint)) {
-      const handleType = (shape as any)._handleType;
-      
-      if (handleType === 'rotate') {
-        startRotate(e.originalEvent as MouseEvent);
-      } else {
-        startResize(e.originalEvent as MouseEvent, handleType);
-      }
-      
-      L.DomEvent.stopPropagation(e);
-      if (e.originalEvent) {
-        e.originalEvent.preventDefault();
-        e.originalEvent.stopPropagation();
-      }
+function attachModelShapeEvents() {
+  const shapes = props.model.getShapes();
+
+  shapes.forEach((shape: Drawable, index: number) => {
+    if ((shape as any)._isSelectionShape) {
       return;
     }
-  }
-  
-  // Check if clicking on selection box itself (for dragging)
-  if (selectedShape.value) {
-    for (const shape of selectionShapes) {
-      if (!(shape as any)._handleType && isPointInShape(shape, clickPoint)) {
-        startDrag(e.originalEvent as MouseEvent);
-        L.DomEvent.stopPropagation(e);
-        if (e.originalEvent) {
-          e.originalEvent.preventDefault();
-          e.originalEvent.stopPropagation();
-        }
+
+    const layer = (shape as any).getLayer?.() as L.Layer | null;
+    if (!layer) {
+      return;
+    }
+
+    const layerId = (layer as any)._leaflet_id;
+    if ((shape as any)._editorLayerId === layerId) {
+      return;
+    }
+    (shape as any)._editorLayerId = layerId;
+
+    layer.on('click', (event: L.LeafletMouseEvent) => {
+      L.DomEvent.stop(event);
+      emit('shape-select', index);
+    });
+
+    layer.on('mousedown', (event: L.LeafletMouseEvent) => {
+      if (!event.originalEvent) {
         return;
       }
-    }
-    
-    // Check if clicking on the selected shape itself (for dragging)
-    if (isPointInShape(selectedShape.value, clickPoint)) {
-      startDrag(e.originalEvent as MouseEvent);
-      L.DomEvent.stopPropagation(e);
-      if (e.originalEvent) {
-        e.originalEvent.preventDefault();
-        e.originalEvent.stopPropagation();
+
+      const mouseEvent = event.originalEvent as MouseEvent;
+      if (mouseEvent.button !== 0) {
+        return;
       }
-      return;
-    }
-  }
+
+      L.DomEvent.stop(event);
+      mouseEvent.preventDefault();
+      if (mouseEvent.stopPropagation) {
+        mouseEvent.stopPropagation();
+      }
+
+      if (props.selectedShapeIndex !== index) {
+        pendingShapeDrag.value = { index, event: mouseEvent };
+        emit('shape-select', index);
+      } else {
+        pendingShapeDrag.value = null;
+        startDrag(mouseEvent);
+      }
+    });
+  });
 }
 
-// Canvas click handler
-function handleCanvasClick(e: L.LeafletMouseEvent) {
-  const clickPoint = e.latlng;
-  const shapes = props.model.getShapes();
-  
-  // Find clicked shape (reverse order for top-most)
-  for (let i = shapes.length - 1; i >= 0; i--) {
-    const shape = shapes[i];
-    if (isPointInShape(shape, clickPoint)) {
-      emit('shape-select', i);
+function attachSelectionShapeEvents() {
+  if (!selectionModel.value) return;
+
+  const selectionShapes = selectionModel.value.getShapes();
+
+  selectionShapes.forEach(shape => {
+    const layer = (shape as any).getLayer?.() as L.Layer | null;
+    if (!layer) {
       return;
     }
-  }
-  
-  // No shape clicked
+
+    const layerId = (layer as any)._leaflet_id;
+    if ((shape as any)._editorLayerId === layerId) {
+      return;
+    }
+    (shape as any)._editorLayerId = layerId;
+
+    const handleType = (shape as any)._handleType as string | undefined;
+
+    layer.on('mousedown', (event: L.LeafletMouseEvent) => {
+      if (!event.originalEvent) {
+        return;
+      }
+
+      const mouseEvent = event.originalEvent as MouseEvent;
+      if (mouseEvent.button !== 0) {
+        return;
+      }
+
+      L.DomEvent.stop(event);
+      mouseEvent.preventDefault();
+      if (mouseEvent.stopPropagation) {
+        mouseEvent.stopPropagation();
+      }
+
+      if (!handleType) {
+        startDrag(mouseEvent);
+        return;
+      }
+
+      if (handleType === 'rotate') {
+        startRotate(mouseEvent);
+        return;
+      }
+
+      startResize(mouseEvent, handleType);
+    });
+
+    layer.on('click', (event: L.LeafletMouseEvent) => {
+      L.DomEvent.stop(event);
+    });
+  });
+}
+
+function handleMapClick(_: L.LeafletMouseEvent) {
   emit('canvas-click');
-}
-
-// Check if point is in shape
-function isPointInShape(shape: Drawable, point: L.LatLng): boolean {
-  const layer = (shape as any).getLayer?.() as L.Layer | null;
-  const map = canvas.value?.getMap();
-
-  if (layer) {
-    const boundsFn = (layer as any).getBounds as (() => L.LatLngBounds) | undefined;
-    if (boundsFn) {
-      const bounds = boundsFn.call(layer);
-      if (bounds) {
-        // Pad bounds slightly to make selection easier
-        const padded = bounds.pad(0.1);
-        if (padded.contains(point)) {
-          return true;
-        }
-      }
-    }
-
-    const latLngFn = (layer as any).getLatLng as (() => L.LatLng) | undefined;
-    if (latLngFn && map) {
-      const layerLatLng = latLngFn.call(layer);
-      const layerPoint = map.latLngToContainerPoint(layerLatLng);
-      const clickPoint = map.latLngToContainerPoint(point);
-
-      // Determine marker dimensions if available
-      const iconOptions = (layer as any).options?.icon?.options;
-      const iconSize: [number, number] = iconOptions?.iconSize || [24, 24];
-      const halfWidth = iconSize[0] / 2 + 6;
-      const halfHeight = iconSize[1] / 2 + 6;
-
-      if (Math.abs(clickPoint.x - layerPoint.x) <= halfWidth &&
-          Math.abs(clickPoint.y - layerPoint.y) <= halfHeight) {
-        return true;
-      }
-    }
-  }
-
-  // Fallback: approximate using shape geometry
-  const loc = shape.getOffset();
-  const shapeAny = shape as any;
-  const zoom = canvas.value?.getZoom() || 0;
-  const zoomScale = Math.pow(2, zoom);
-
-  if (shapeAny.getRadius && typeof shapeAny.getRadius === 'function') {
-    const radius = shapeAny.getRadius();
-    const distance = Math.sqrt(
-      Math.pow(point.lat - loc.y, 2) + Math.pow(point.lng - loc.x, 2)
-    );
-    return distance <= radius + (1 / zoomScale);
-  }
-
-  if (shapeAny.getWidth && shapeAny.getHeight) {
-    const halfWidth = shapeAny.getWidth() / 2;
-    const halfHeight = shapeAny.getHeight() / 2;
-    const tolerance = 1 / zoomScale;
-    return Math.abs(point.lng - loc.x) <= halfWidth + tolerance &&
-           Math.abs(point.lat - loc.y) <= halfHeight + tolerance;
-  }
-
-  if (shapeAny.getEdges && typeof shapeAny.getEdges === 'function') {
-    const edges = shapeAny.getEdges();
-    if (edges && edges.length > 0) {
-      const xs = edges.map((e: any) => e.x);
-      const ys = edges.map((e: any) => e.y);
-      const minX = Math.min(...xs);
-      const maxX = Math.max(...xs);
-      const minY = Math.min(...ys);
-      const maxY = Math.max(...ys);
-      const padding = 1 / zoomScale;
-      return point.lng >= loc.x + minX - padding && point.lng <= loc.x + maxX + padding &&
-             point.lat >= loc.y + minY - padding && point.lat <= loc.y + maxY + padding;
-    }
-  }
-
-  const distance = Math.sqrt(
-    Math.pow(point.lat - loc.y, 2) + Math.pow(point.lng - loc.x, 2)
-  );
-  return distance < (2 / zoomScale);
 }
 
 // Update selection shapes
@@ -456,6 +425,7 @@ function updateSelectionShapes() {
   
   // Draw selection shapes
   selectionModel.value.draw(canvas.value);
+  attachSelectionShapeEvents();
 }
 
 function createCircleSelection(shape: Drawable, loc: Point, selectionPane: any) {
@@ -933,6 +903,7 @@ function handleMouseUp() {
   shapeStartSize.value = null;
   lastResizeUpdate.value = null;
   document.body.style.cursor = '';
+  pendingShapeDrag.value = null;
 }
 
 // Grid snapping
