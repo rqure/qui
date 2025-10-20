@@ -135,8 +135,17 @@ export class SvgText extends Drawable {
       [pos.y + scaledHeight / 2, pos.x + scaledWidth / 2]
     ];
 
+    svgElement.style.pointerEvents = 'auto';
+
+    const overlayOptions: L.ImageOverlayOptions = { interactive: true };
+
+    if (this._pane) {
+      canvas.getOrCreatePane(this._pane.name, this._pane.level);
+      overlayOptions.pane = this._pane.name;
+    }
+
     // Create the Leaflet SVG overlay
-    this.layer = L.svgOverlay(svgElement, bounds);
+    this.layer = L.svgOverlay(svgElement, bounds, overlayOptions);
 
     // Apply rotation to the SVG element
     this.layer.on('add', () => {
@@ -147,8 +156,10 @@ export class SvgText extends Drawable {
           container.style.transform = container.style.transform.replace(/ rotate\(.+\)/, "");
           container.style.transformOrigin = "center center";
 
-          container.style.transform += " rotate(" + rotation + "deg)";
-          container.style.transform += " scale(" + scale + ")";
+          const scaleX = scale.x ?? 1;
+          const scaleY = scale.y ?? 1;
+          const currentTransform = container.style.transform ? container.style.transform + " " : "";
+          container.style.transform = `${currentTransform}rotate(${rotation}deg) scale(${scaleX}, ${scaleY})`;
       }
     });
 
