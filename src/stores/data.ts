@@ -43,6 +43,11 @@ export const useDataStore = defineStore('data', {
     reconnectDelay: 1000,
     connectionTimeout: null as number | null,
     connectionTimeoutMs: 5000,
+    // Type resolution caches - cleared on connection loss
+    entityTypeNames: {} as Record<string, EntityType>, // name -> EntityType
+    entityTypes: {} as Record<number, string>, // EntityType -> name (use number for EntityType)
+    fieldTypeNames: {} as Record<string, FieldType>, // name -> FieldType
+    fieldTypes: {} as Record<number, string>, // FieldType -> name (use number for FieldType)
   }),
 
   actions: {
@@ -351,8 +356,20 @@ export const useDataStore = defineStore('data', {
      * Corresponds to: fn get_entity_type(&self, name: &str) -> Result<EntityType>
      */
     async getEntityType(name: string): Promise<EntityType> {
+      // Check cache first
+      if (this.entityTypeNames[name] !== undefined) {
+        return this.entityTypeNames[name];
+      }
+      
+      // Not in cache, make request and cache result
       const data = await this.request('GetEntityType', { name });
-      return data.entity_type;
+      const entityType = data.entity_type;
+      
+      // Cache both directions
+      this.entityTypeNames[name] = entityType;
+      this.entityTypes[entityType] = name;
+      
+      return entityType;
     },
 
     /**
@@ -360,8 +377,20 @@ export const useDataStore = defineStore('data', {
      * Corresponds to: fn resolve_entity_type(&self, entity_type: EntityType) -> Result<String>
      */
     async resolveEntityType(entityType: EntityType): Promise<string> {
+      // Check cache first
+      if (this.entityTypes[entityType] !== undefined) {
+        return this.entityTypes[entityType];
+      }
+      
+      // Not in cache, make request and cache result
       const data = await this.request('ResolveEntityType', { entity_type: entityType });
-      return data.name;
+      const name = data.name;
+      
+      // Cache both directions
+      this.entityTypes[entityType] = name;
+      this.entityTypeNames[name] = entityType;
+      
+      return name;
     },
 
     /**
@@ -369,8 +398,20 @@ export const useDataStore = defineStore('data', {
      * Corresponds to: fn get_field_type(&self, name: &str) -> Result<FieldType>
      */
     async getFieldType(name: string): Promise<FieldType> {
+      // Check cache first
+      if (this.fieldTypeNames[name] !== undefined) {
+        return this.fieldTypeNames[name];
+      }
+      
+      // Not in cache, make request and cache result
       const data = await this.request('GetFieldType', { name });
-      return data.field_type;
+      const fieldType = data.field_type;
+      
+      // Cache both directions
+      this.fieldTypeNames[name] = fieldType;
+      this.fieldTypes[fieldType] = name;
+      
+      return fieldType;
     },
 
     /**
@@ -378,8 +419,20 @@ export const useDataStore = defineStore('data', {
      * Corresponds to: fn resolve_field_type(&self, field_type: FieldType) -> Result<String>
      */
     async resolveFieldType(fieldType: FieldType): Promise<string> {
+      // Check cache first
+      if (this.fieldTypes[fieldType] !== undefined) {
+        return this.fieldTypes[fieldType];
+      }
+      
+      // Not in cache, make request and cache result
       const data = await this.request('ResolveFieldType', { field_type: fieldType });
-      return data.name;
+      const name = data.name;
+      
+      // Cache both directions
+      this.fieldTypes[fieldType] = name;
+      this.fieldTypeNames[name] = fieldType;
+      
+      return name;
     },
 
     // ============================================================
@@ -867,6 +920,13 @@ export const useDataStore = defineStore('data', {
      */
     triggerConnectionLostCallbacks() {
       console.warn('Database connection lost - triggering callbacks');
+      
+      // Clear type resolution caches on connection loss
+      this.entityTypeNames = {};
+      this.entityTypes = {};
+      this.fieldTypeNames = {};
+      this.fieldTypes = {};
+      
       this.connectionLostCallbacks.forEach(callback => {
         try {
           callback();
