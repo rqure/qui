@@ -671,8 +671,7 @@ const faceplateConfig = ref<FaceplateConfig>({
       to: { x: 1000, y: 600 }
     },
     shapes: []
-  },
-  targetEntityType: 'Object'
+  }
 });
 
 // Canvas ref
@@ -901,18 +900,6 @@ async function createNewFaceplate() {
     // Create new faceplate entity
     const faceplateType = await dataStore.getEntityType('Faceplate');
     const entityId = await dataStore.createEntity(faceplateType, faceplateBuilderFolderId, uniqueName);
-
-    // Set target type to Object by default
-    const targetTypeField = await dataStore.getFieldType('TargetEntityType');
-    await dataStore.write(
-      entityId,
-      [targetTypeField],
-      { String: 'Object' },
-      null,
-      null,
-      null,
-      null
-    );
 
     // Write configuration
     const configField = await dataStore.getFieldType('Configuration');

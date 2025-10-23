@@ -22,7 +22,7 @@
               :key="faceplate.id"
               :value="faceplate.id"
             >
-              {{ faceplate.name }} ({{ faceplate.targetType }})
+              {{ faceplate.name }}
             </option>
           </select>
         </div>
@@ -106,7 +106,7 @@ import FaceplateViewer from './components/FaceplateViewer.vue';
 const dataStore = useDataStore();
 
 // State
-const faceplates = ref<Array<{ id: EntityId; name: string; targetType: string }>>([]);
+const faceplates = ref<Array<{ id: EntityId; name: string }>>([]);
 const targetEntities = ref<Array<{ id: EntityId; name: string }>>([]);
 const selectedFaceplateId = ref<EntityId | null>(null);
 const selectedTargetId = ref<EntityId | null>(null);
@@ -129,27 +129,24 @@ async function loadFaceplates() {
     // Find all Faceplate entities
     const entities = await dataStore.findEntities(faceplateType, null);
     
-    // Get Name and TargetEntityType fields for each
+    // Get Name field for each
     const nameFieldType = await dataStore.getFieldType('Name');
-    const targetFieldType = await dataStore.getFieldType('TargetEntityType');
     
-    if (!nameFieldType || !targetFieldType) {
-      console.warn('Required field types not found');
+    if (!nameFieldType) {
+      console.warn('Name field type not found');
       return;
     }
     
     // Load details for each faceplate
-    const loadedFaceplates: Array<{ id: EntityId; name: string; targetType: string }> = [];
+    const loadedFaceplates: Array<{ id: EntityId; name: string }> = [];
     
     for (const entityId of entities) {
       try {
         const [nameValue] = await dataStore.read(entityId, [nameFieldType]);
-        const [targetValue] = await dataStore.read(entityId, [targetFieldType]);
         
         loadedFaceplates.push({
           id: entityId,
-          name: (nameValue && ValueHelpers.isString(nameValue)) ? nameValue.String : `Faceplate ${entityId}`,
-          targetType: (targetValue && ValueHelpers.isString(targetValue)) ? targetValue.String : 'Unknown'
+          name: (nameValue && ValueHelpers.isString(nameValue)) ? nameValue.String : `Faceplate ${entityId}`
         });
       } catch (err) {
         console.warn('Failed to load faceplate details:', entityId, err);
@@ -213,21 +210,12 @@ async function loadTargetEntities(targetTypeName: string) {
 
 // Event handlers
 async function onFaceplateChanged() {
-  // Reset target selection
+  // Reset target entity selection
   selectedTargetId.value = null;
-  targetEntities.value = [];
   isLoaded.value = false;
   
-  if (selectedFaceplateId.value === null) return;
-  
-  // Find selected faceplate
-  const faceplate = faceplates.value.find(
-    f => f.id === selectedFaceplateId.value
-  );
-  
-  if (faceplate && faceplate.targetType) {
-    await loadTargetEntities(faceplate.targetType);
-  }
+  // Load all Object entities (base type for all entities)
+  await loadTargetEntities('Object');
 }
 
 function onTargetChanged() {

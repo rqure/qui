@@ -46,17 +46,6 @@
           />
         </div>
         
-        <div v-if="saveMode === 'new'" class="form-group">
-          <label>Target Entity Type: *</label>
-          <select v-model="targetType" class="form-control">
-            <option value="Object">Object (Generic)</option>
-            <option value="Device">Device</option>
-            <option value="Sensor">Sensor</option>
-            <option value="Actuator">Actuator</option>
-            <option value="Controller">Controller</option>
-          </select>
-        </div>
-        
         <div class="form-group">
           <label>Description:</label>
           <textarea 
@@ -112,7 +101,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'close'): void;
-  (e: 'save', entityId: EntityId, name: string, targetType: string): void;
+  (e: 'save', entityId: EntityId, name: string): void;
 }>();
 
 const dataStore = useDataStore();
@@ -126,14 +115,13 @@ const saveMode = ref<'new' | 'update'>('new');
 const faceplates = ref<FaceplateListItem[]>([]);
 const selectedFaceplateId = ref<EntityId | null>(null);
 const name = ref('');
-const targetType = ref('Object');
 const description = ref('');
 const saving = ref(false);
 const error = ref<string | null>(null);
 
 const canSave = computed(() => {
   if (saveMode.value === 'new') {
-    return name.value.trim().length > 0 && targetType.value.length > 0;
+    return name.value.trim().length > 0;
   } else {
     return selectedFaceplateId.value !== null;
   }
@@ -181,18 +169,6 @@ async function save() {
       const rootId = 1; // Assuming root entity is 1
       entityId = await dataStore.createEntity(faceplateType, rootId, name.value);
       entityName = name.value;
-      
-      // Set target type
-      const targetTypeField = await dataStore.getFieldType('TargetEntityType');
-      await dataStore.write(
-        entityId,
-        [targetTypeField],
-        { String: targetType.value },
-        null,
-        null,
-        null,
-        null
-      );
     } else {
       // Update existing
       if (!selectedFaceplateId.value) {
@@ -232,8 +208,7 @@ async function save() {
       );
     }
     
-    const finalTargetType = saveMode.value === 'new' ? targetType.value : (props.currentConfig.targetEntityType || 'Object');
-    emit('save', entityId, entityName, finalTargetType);
+    emit('save', entityId, entityName);
   } catch (err) {
     console.error('Failed to save faceplate:', err);
     error.value = 'Failed to save: ' + String(err);
