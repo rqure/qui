@@ -62,25 +62,7 @@ const faceplateBuilderIcon = `
 // Convert builder SVG to data URL
 const builderIconDataUrl = `data:image/svg+xml;base64,${btoa(faceplateBuilderIcon)}`
 
-// Define the viewer app
-const faceplateViewerApp: RegisteredApp = {
-  manifest: {
-    id: 'faceplate-viewer',
-    name: 'Faceplate Viewer',
-    version: '1.0.0',
-    icon: viewerIconDataUrl,
-    permissions: ['data.read'],
-    defaultWindowSize: {
-      width: 1200,
-      height: 800
-    }
-  },
-  component: {
-    default: markRaw(FaceplateViewerApp)
-  }
-}
-
-// Define the builder app
+// Only export the builder app (viewer is accessed via context menu)
 export const faceplateBuilderApp: RegisteredApp = {
   manifest: {
     id: 'faceplate-builder',
@@ -98,13 +80,15 @@ export const faceplateBuilderApp: RegisteredApp = {
   }
 }
 
-export default faceplateViewerApp
+export default faceplateBuilderApp
+
+// Export FaceplateViewer component for programmatic use (e.g., from context menus)
+export { default as FaceplateViewer } from './components/FaceplateViewer.vue';
 
 // Also export services for programmatic use
 export { FaceplateContext } from './services/FaceplateContext';
 export { CallbackManager } from './services/CallbackManager';
 export { FaceplateRenderer } from './services/FaceplateRenderer';
-export { default as FaceplateViewer } from './components/FaceplateViewer.vue';
 
 // Types
 export type {

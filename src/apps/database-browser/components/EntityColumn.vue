@@ -166,9 +166,9 @@ async function openFaceplateWindow(entity: EntityItem, faceplate: EntityFaceplat
     
     if (configValue && typeof configValue === 'object' && 'String' in configValue) {
       const config = JSON.parse(configValue.String);
-      if (config.metadata?.viewport) {
-        width = config.metadata.viewport.width || width;
-        height = config.metadata.viewport.height || height;
+      if (config.model?.boundary) {
+        width = config.model.boundary.to.x || width;
+        height = config.model.boundary.to.y || height;
         // Add some padding for window chrome
         height += 80;
       }
@@ -176,6 +176,38 @@ async function openFaceplateWindow(entity: EntityItem, faceplate: EntityFaceplat
   } catch (err) {
     console.warn('Could not load faceplate dimensions, using defaults', err);
   }
+
+  // Import FaceplateViewer dynamically
+  const { FaceplateViewer } = await import('@/apps/faceplate-builder');
+  const { useWindowStore } = await import('@/stores/windows');
+  const { markRaw } = await import('vue');
+  
+  const windowStore = useWindowStore();
+  
+  // Create faceplate viewer icon
+  const faceplateIcon = `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+      <rect x="2" y="3" width="20" height="14" rx="1" fill="none" stroke="#00ffaa" stroke-width="1.5"/>
+      <path d="M8,17 L16,17 M12,14 L12,17" stroke="#00ffaa" stroke-width="1.5" stroke-linecap="round"/>
+      <circle cx="7" cy="8" r="2" fill="#00ffaa" opacity="0.7"/>
+      <rect x="11" y="6" width="9" height="1.5" fill="#00ffaa" opacity="0.6"/>
+    </svg>
+  `;
+  const iconDataUrl = `data:image/svg+xml;base64,${btoa(faceplateIcon)}`;
+  
+  windowStore.createWindow({
+    title: `${faceplate.name} - ${entity.name}`,
+    icon: iconDataUrl,
+    component: markRaw(FaceplateViewer),
+    props: {
+      faceplateId: faceplate.id,
+      targetEntityId: entity.id
+    },
+    width,
+    height,
+    minWidth: 400,
+    minHeight: 300
+  });
 }
 
 // Group entities by their type
