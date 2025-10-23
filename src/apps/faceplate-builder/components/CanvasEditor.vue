@@ -954,8 +954,8 @@ function resetZoom() {
   if (canvas.value) {
     const leafletMap = (canvas.value as any).map;
     if (leafletMap) {
-      leafletMap.setZoom(5);
-      leafletMap.setView([300, 500], 5);
+      leafletMap.setZoom(2);
+      leafletMap.setView([300, 500], 2);
     }
   }
 }
