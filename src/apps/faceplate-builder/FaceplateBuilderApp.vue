@@ -347,7 +347,6 @@ import LayerPanel from './components/LayerPanel.vue';
 import CallbacksEditor from './components/CallbacksEditor.vue';
 import NotificationsPanel from './components/NotificationsPanel.vue';
 import LoadFaceplateWindow from './components/LoadFaceplateWindow.vue';
-import DeleteConfirmationWindow from './components/DeleteConfirmationWindow.vue';
 import UnsavedChangesWindow from './components/UnsavedChangesWindow.vue';
 import ErrorWindow from './components/ErrorWindow.vue';
 import Toast from '@/components/Toast.vue';
@@ -531,7 +530,7 @@ function handleKeydown(event: KeyboardEvent) {
       return;
     }
     event.preventDefault();
-    openDeleteConfirmationWindow();
+    handleDeleteShape();
     return;
   }
 }
@@ -1077,40 +1076,7 @@ function onPropertyUpdate(property: string, value: any) {
 }
 
 function onDeleteShape() {
-  openDeleteConfirmationWindow();
-}
-
-function openDeleteConfirmationWindow() {
-  const window = windowStore.createWindow({
-    title: 'Confirm Delete',
-    component: markRaw(DeleteConfirmationWindow),
-    parentId: props.windowId,
-    props: {
-      windowId: undefined // Will be set after creation
-    },
-    width: 400,
-    height: 200,
-    minWidth: 350,
-    minHeight: 150,
-    onEvent: (event: string, ...args: any[]) => {
-      const windowId = args[args.length - 1];
-      if (event === 'confirm') {
-        handleDeleteShape();
-        // Close the window after processing
-        if (windowId) {
-          windowStore.closeWindow(windowId);
-        }
-      } else if (event === 'cancel') {
-        // Just close the window
-        if (windowId) {
-          windowStore.closeWindow(windowId);
-        }
-      }
-    }
-  });
-  // Set the window ID in the props after creation
-  window.props = { ...window.props, windowId: window.id };
-  childWindowIds.value.push(window.id);
+  handleDeleteShape();
 }
 
 function handleDeleteShape() {
@@ -1119,6 +1085,7 @@ function handleDeleteShape() {
     if (shape) {
       currentModel.value.removeShape(shape);
       selectedShapeIndex.value = null;
+      canvasEditor.value?.renderModel();
       hasChanges.value = true;
       shapeUpdateTrigger.value++;
       saveHistory();

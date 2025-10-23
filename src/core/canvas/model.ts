@@ -26,7 +26,7 @@ export class Model extends Drawable {
     const index = this.shapes.indexOf(shape);
     if (index > -1) {
       this.shapes.splice(index, 1);
-      shape.setParent(null);
+      shape.destroy();
       return true;
     }
     return false;
@@ -39,7 +39,7 @@ export class Model extends Drawable {
     if (index >= 0 && index < this.shapes.length) {
       const shape = this.shapes[index];
       this.shapes.splice(index, 1);
-      shape.setParent(null);
+      shape.destroy();
       return shape;
     }
     return null;
