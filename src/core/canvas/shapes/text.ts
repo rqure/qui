@@ -1,13 +1,13 @@
 /**
- * SvgText shape
+ * Text shape
  *
- * Ported from qschematic's SvgText class
+ * Ported from qschematic's Text class
  */
 
 import L from 'leaflet';
 import { Drawable, type ICanvas } from './base';
 
-export class SvgText extends Drawable {
+export class Text extends Drawable {
   private _text: string = '';
   private _fontSize: string = '1em';
   private _width: number = 100;

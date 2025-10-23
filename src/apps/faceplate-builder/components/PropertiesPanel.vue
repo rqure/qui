@@ -326,7 +326,7 @@
       </div>
       
       <!-- Text properties -->
-      <div v-if="shapeTypeName === 'SvgText'" class="property-section">
+      <div v-if="shapeTypeName === 'Text'" class="property-section">
         <div class="section-title">Text</div>
         
         <div class="property-row">

@@ -73,7 +73,7 @@ function getShapeIcon(shape: Drawable): string {
       return `<svg width="32" height="32" viewBox="0 0 40 40">
         <text x="20" y="25" text-anchor="middle" fill="currentColor" font-size="20" font-weight="bold">T</text>
       </svg>`;
-    case 'SvgText':
+    case 'Text':
       return `<svg width="32" height="32" viewBox="0 0 40 40">
         <text x="20" y="25" text-anchor="middle" fill="currentColor" font-size="16" font-weight="bold">SVG</text>
       </svg>`;
