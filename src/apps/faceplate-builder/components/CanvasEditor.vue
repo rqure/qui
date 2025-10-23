@@ -410,7 +410,7 @@ function updateSelectionShapes() {
     // Circle - show radius handle
     createCircleSelection(shape, loc, selectionPane);
   } else if (shapeAny.getWidth && shapeAny.getHeight) {
-    // Div, SVGText, ImageOverlay - show corner resize handles
+    // Div, Text, ImageOverlay - show corner resize handles
     createRectangleSelection(shape, loc, selectionPane);
   } else if (shapeAny.getEdges && typeof shapeAny.getEdges === 'function') {
     // Polygon, Polyline - show edge point handles
@@ -835,7 +835,7 @@ function handleMouseMove(event: MouseEvent) {
         const newFontSize = Math.max(8, shapeStartSize.value.fontSize! + canvasDy);
         shapeAny.setFontSize(newFontSize);
       } else if (shapeAny.setWidth && shapeAny.setHeight) {
-        // Rectangle resize (Div, SVGText, ImageOverlay)
+        // Rectangle resize (Div, Text, ImageOverlay)
         let newWidth = shapeStartSize.value.width!;
         let newHeight = shapeStartSize.value.height!;
         

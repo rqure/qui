@@ -8,12 +8,11 @@ import { Drawable } from './base';
 import { Circle } from './circle';
 import { Polygon } from './polygon';
 import { Polyline } from './polyline';
-import { Text } from './text';
 import { SvgText } from './svg_text';
 import { Div } from './div';
 import { ImageOverlay } from './image_overlay';
 
-export { Drawable, Circle, Polygon, Polyline, Text, SvgText, Div, ImageOverlay };
+export { Drawable, Circle, Polygon, Polyline, SvgText, Div, ImageOverlay };
 
 // Shape factory type
 export type ShapeFactory = () => Drawable;
@@ -23,8 +22,7 @@ export const ShapeRegistry: Record<string, ShapeFactory> = {
   Circle: () => new Circle(),
   Polygon: () => new Polygon(),
   Polyline: () => new Polyline(),
-  Text: () => new Text(),
-  SvgText: () => new SvgText(),
+  Text: () => new SvgText(),
   Div: () => new Div(),
   ImageOverlay: () => new ImageOverlay(),
 };

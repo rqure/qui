@@ -1270,10 +1270,6 @@ function createDefaultShape(shapeType: string, location: { x: number; y: number 
     (shape as any).setWeight(4.0);
   } else if (shapeType === 'Text') {
     (shape as any).setText('Text');
-    (shape as any).setFontSize(35);
-    (shape as any).setColor('#ffffff');
-  } else if (shapeType === 'SvgText') {
-    (shape as any).setText('SVG Text');
     (shape as any).setFontSize('2.8em');
     (shape as any).setWidth(60);
     (shape as any).setHeight(35);

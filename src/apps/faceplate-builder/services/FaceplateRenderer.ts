@@ -280,7 +280,7 @@ export class FaceplateRenderer {
       shapeAny.setDirection(config.direction);
     }
     
-    // SvgText properties
+    // Text properties
     if (config.width !== undefined && shapeAny.setWidth) {
       shapeAny.setWidth(config.width);
     }

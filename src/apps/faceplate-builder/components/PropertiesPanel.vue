@@ -326,7 +326,7 @@
       </div>
       
       <!-- Text properties -->
-      <div v-if="shapeTypeName === 'Text'" class="property-section">
+      <div v-if="shapeTypeName === 'SvgText'" class="property-section">
         <div class="section-title">Text</div>
         
         <div class="property-row">
@@ -341,67 +341,8 @@
         <div class="property-row">
           <label>Font Size:</label>
           <input 
-            type="number" 
+            type="text" 
             :value="textProps.fontSize" 
-            @input="updateProperty('fontSize', parseFloat(($event.target as HTMLInputElement).value))"
-            step="1"
-            min="8"
-          />
-          <span class="unit">px</span>
-        </div>
-        
-        <div class="property-row">
-          <label>Color:</label>
-          <input 
-            type="color" 
-            :value="textProps.color" 
-            @input="updateProperty('color', ($event.target as HTMLInputElement).value)"
-          />
-        </div>
-        
-        <div class="property-row">
-          <label>Direction:</label>
-          <select 
-            :value="textProps.direction" 
-            @input="updateProperty('direction', ($event.target as HTMLSelectElement).value)"
-          >
-            <option value="center">Center</option>
-            <option value="top">Top</option>
-            <option value="bottom">Bottom</option>
-            <option value="left">Left</option>
-            <option value="right">Right</option>
-          </select>
-        </div>
-        
-        <div class="property-row">
-          <label>Class:</label>
-          <input 
-            type="text" 
-            :value="textProps.className" 
-            @input="updateProperty('className', ($event.target as HTMLInputElement).value)"
-            placeholder="custom-text-class"
-          />
-        </div>
-      </div>
-      
-      <!-- SVG Text properties -->
-      <div v-if="shapeTypeName === 'SvgText'" class="property-section">
-        <div class="section-title">SVG Text</div>
-        
-        <div class="property-row">
-          <label>Content:</label>
-          <input 
-            type="text" 
-            :value="svgTextProps.text" 
-            @input="updateProperty('text', ($event.target as HTMLInputElement).value)"
-          />
-        </div>
-        
-        <div class="property-row">
-          <label>Font Size:</label>
-          <input 
-            type="text" 
-            :value="svgTextProps.fontSize" 
             @input="updateProperty('fontSize', ($event.target as HTMLInputElement).value)"
           />
         </div>
@@ -410,7 +351,7 @@
           <label>Width:</label>
           <input 
             type="number" 
-            :value="svgTextProps.width" 
+            :value="textProps.width" 
             @input="updateProperty('width', parseFloat(($event.target as HTMLInputElement).value))"
             step="1"
             min="1"
@@ -421,7 +362,7 @@
           <label>Height:</label>
           <input 
             type="number" 
-            :value="svgTextProps.height" 
+            :value="textProps.height" 
             @input="updateProperty('height', parseFloat(($event.target as HTMLInputElement).value))"
             step="1"
             min="1"
@@ -432,7 +373,7 @@
           <label>Fill Color:</label>
           <input 
             type="color" 
-            :value="svgTextProps.fillColor" 
+            :value="textProps.fillColor" 
             @input="updateProperty('fillColor', ($event.target as HTMLInputElement).value)"
           />
         </div>
@@ -655,26 +596,13 @@ const polylineProps = computed(() => {
 
 const textProps = computed(() => {
   props.updateTrigger; // dependency
-  if (!props.selectedShape) return { text: 'Text', fontSize: 16, color: '#ffffff', direction: 'center', className: '' };
+  if (!props.selectedShape) return { text: 'Text', fontSize: '2.8em', width: 60, height: 35, fillColor: '#000000' };
   const shape = props.selectedShape as any;
   return {
     text: shape.getText?.() ?? 'Text',
-    fontSize: shape.getFontSize?.() ?? 16,
-    color: shape.getColor?.() ?? '#ffffff',
-    direction: shape.getDirection?.() ?? 'center',
-    className: shape.getClassName?.() ?? ''
-  };
-});
-
-const svgTextProps = computed(() => {
-  props.updateTrigger; // dependency
-  if (!props.selectedShape) return { text: 'SVG Text', fontSize: '1em', width: 100, height: 20, fillColor: '#000000' };
-  const shape = props.selectedShape as any;
-  return {
-    text: shape.getText?.() ?? 'SVG Text',
-    fontSize: shape.getFontSize?.() ?? '1em',
-    width: shape.getWidth?.() ?? 100,
-    height: shape.getHeight?.() ?? 20,
+    fontSize: shape.getFontSize?.() ?? '2.8em',
+    width: shape.getWidth?.() ?? 60,
+    height: shape.getHeight?.() ?? 35,
     fillColor: shape.getFillColor?.() ?? '#000000'
   };
 });
