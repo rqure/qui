@@ -1748,10 +1748,8 @@ watch(() => currentModel.value.getShapes().length, () => {
   display: flex;
   align-items: center;
   gap: 10px;
-  background: rgba(0, 0, 0, 0.25);
   padding: 6px 12px;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .config-item {
@@ -1772,8 +1770,8 @@ watch(() => currentModel.value.getShapes().length, () => {
 
 .config-item input[type="number"] {
   width: 68px;
-  height: 28px;
-  padding: 4px 8px;
+  height: 24px;
+  padding: 2px 8px;
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 5px;
   background: var(--qui-bg-primary, #1a1a1a);
@@ -1799,8 +1797,8 @@ watch(() => currentModel.value.getShapes().length, () => {
 
 .config-item-color input[type="color"] {
   width: 48px;
-  height: 28px;
-  padding: 2px;
+  height: 24px;
+  padding: 2px 8px;
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 5px;
   background: var(--qui-bg-primary, #1a1a1a);
@@ -1821,7 +1819,6 @@ watch(() => currentModel.value.getShapes().length, () => {
 
 .button-group-compact {
   gap: 4px;
-  background: rgba(0, 0, 0, 0.2);
   padding: 4px;
   border-radius: 8px;
 }
@@ -1834,22 +1831,25 @@ watch(() => currentModel.value.getShapes().length, () => {
   align-items: center;
   justify-content: center;
   border-radius: 6px;
-  border: 1px solid transparent;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   background: transparent;
   color: var(--qui-text-primary, #fff);
   cursor: pointer;
   transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
 }
 
 .btn-icon:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.1);
   border-color: rgba(255, 255, 255, 0.15);
   transform: translateY(-1px);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.15);
 }
 
 .btn-icon:active:not(:disabled) {
   transform: translateY(0) scale(0.95);
   background: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
 }
 
 .btn-icon.active {
