@@ -59,10 +59,6 @@ export const useDataStore = defineStore('data', {
       this.connect();
     },
 
-    cleanup() {
-      this.disconnect();
-    },
-
     connect() {
       if (this.socket && (this.socket.readyState === WebSocket.CONNECTING || this.socket.readyState === WebSocket.OPEN)) {
         console.log('WebSocket already connected or connecting');

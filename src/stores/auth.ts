@@ -169,7 +169,7 @@ export const useAuthStore = defineStore('auth', {
       try {
         // First disconnect the data store
         const dataStore = useDataStore();
-        dataStore.cleanup();
+        dataStore.disconnect();
 
         // Logout using the current provider
         if (this.currentProvider) {
