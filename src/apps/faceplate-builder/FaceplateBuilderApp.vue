@@ -1,37 +1,36 @@
 <template>
   <div class="faceplate-builder-app">
-    <!-- Top toolbar -->
+    <!-- Multi-Row Toolbar -->
     <div class="top-toolbar">
-      <div class="toolbar-section">
-        <div class="faceplate-info">
+      <!-- ROW 1: Identity & Primary Actions -->
+      <div class="toolbar-row toolbar-row-primary">
+        <!-- Left: Faceplate Identity -->
+        <div class="toolbar-section toolbar-identity">
           <span v-if="currentFaceplateId" class="faceplate-id">{{ currentFaceplateId }}</span>
-          <span v-if="currentFaceplateId && (currentFaceplateName || isEditingName)" class="faceplate-separator">•</span>
           
-          <!-- Name editing -->
-          <div v-if="isEditingName" class="inline-editor">
-            <input
-              ref="nameInput"
-              v-model="editNameValue"
-              @blur="finishEditingName"
-              @keyup.enter="finishEditingName"
-              @keyup.escape="cancelEditingName"
-              class="inline-input"
-              type="text"
-              placeholder="Faceplate name"
-            />
+          <!-- Name Editor -->
+          <div class="identity-field identity-field-name">
+            <div v-if="isEditingName" class="inline-editor">
+              <input
+                ref="nameInput"
+                v-model="editNameValue"
+                @blur="finishEditingName"
+                @keyup.enter="finishEditingName"
+                @keyup.escape="cancelEditingName"
+                class="inline-input"
+                type="text"
+                placeholder="Faceplate name"
+              />
+            </div>
+            <div v-else class="identity-display" @click="startEditingName" :title="currentFaceplateName || 'Click to set name'">
+              <span v-if="currentFaceplateName" class="identity-text">{{ currentFaceplateName }}</span>
+              <span v-else class="identity-placeholder">Untitled Faceplate</span>
+            </div>
           </div>
-          <span 
-            v-else-if="currentFaceplateName" 
-            class="faceplate-name editable"
-            @click="startEditingName"
-            :title="'Click to edit name'"
-          >
-            {{ currentFaceplateName }}
-          </span>
           
-          <!-- Description editing -->
-          <div v-if="currentFaceplateId" class="faceplate-meta">
-            <span v-if="currentFaceplateName || isEditingName" class="faceplate-separator">•</span>
+          <!-- Description Editor -->
+          <div v-if="currentFaceplateId || currentFaceplateName" class="identity-field identity-field-description">
+            <span class="identity-separator">•</span>
             <div v-if="isEditingDescription" class="inline-editor">
               <input
                 ref="descriptionInput"
@@ -41,110 +40,107 @@
                 @keyup.escape="cancelEditingDescription"
                 class="inline-input"
                 type="text"
-                placeholder="Description (optional)"
+                placeholder="Add description"
               />
             </div>
-            <span 
-              v-else-if="currentFaceplateDescription" 
-              class="faceplate-description editable"
-              @click="startEditingDescription"
-              :title="'Click to edit description'"
-            >
-              {{ currentFaceplateDescription }}
-            </span>
-            <span 
-              v-else 
-              class="faceplate-description-placeholder editable"
-              @click="startEditingDescription"
-              :title="'Click to add description'"
-            >
-              Add description
-            </span>
+            <div v-else class="identity-display" @click="startEditingDescription" :title="currentFaceplateDescription || 'Click to add description'">
+              <span v-if="currentFaceplateDescription" class="identity-text identity-text-muted">{{ currentFaceplateDescription }}</span>
+              <span v-else class="identity-placeholder identity-placeholder-muted">Add description</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Right: Primary Actions -->
+        <div class="toolbar-section toolbar-actions">
+          <div class="button-group">
+            <button @click="createNew" class="btn btn-secondary btn-compact" title="New Faceplate">
+              <span class="icon">📄</span>
+              <span class="btn-label">New</span>
+            </button>
+            <button @click="loadFaceplate" class="btn btn-secondary btn-compact" title="Load Existing">
+              <span class="icon">📂</span>
+              <span class="btn-label">Load</span>
+            </button>
+            <button @click="saveFaceplate" :disabled="!hasChanges && !currentFaceplateId" class="btn btn-primary btn-compact" title="Save">
+              <span class="icon">💾</span>
+              <span class="btn-label">Save</span>
+            </button>
           </div>
           
-          <span v-else-if="!currentFaceplateId" class="faceplate-placeholder">New Faceplate</span>
+          <div class="separator"></div>
+          
+          <div class="button-group">
+            <button @click="undo" :disabled="!canUndo()" class="btn btn-secondary btn-compact" title="Undo (Ctrl+Z / Cmd+Z)">
+              <span class="icon">↶</span>
+              <span class="btn-label">Undo</span>
+            </button>
+            <button @click="redo" :disabled="!canRedo()" class="btn btn-secondary btn-compact" title="Redo (Ctrl+Shift+Z / Cmd+Shift+Z)">
+              <span class="icon">↷</span>
+              <span class="btn-label">Redo</span>
+            </button>
+          </div>
         </div>
       </div>
       
-      <div class="toolbar-section toolbar-actions">
-        <!-- File actions -->
-        <button @click="createNew" class="btn btn-secondary" title="New Faceplate">
-          <span class="icon">📄</span> New
-        </button>
-        <button @click="loadFaceplate" class="btn btn-secondary" title="Load Existing">
-          <span class="icon">📂</span> Load
-        </button>
-        <button @click="saveFaceplate" :disabled="!hasChanges && !currentFaceplateId" class="btn btn-primary" title="Save">
-          <span class="icon">💾</span> Save
-        </button>
+      <!-- ROW 2: Canvas Config & View Controls -->
+      <div class="toolbar-row toolbar-row-secondary">
+        <!-- Left: Canvas Configuration -->
+        <div class="toolbar-section toolbar-canvas-config">
+          <div class="config-group-inline">
+            <div class="config-item">
+              <label>W:</label>
+              <input type="number" v-model.number="canvasWidth" @change="updateCanvasSize" min="100" max="4000" step="50" />
+            </div>
+            <div class="config-item">
+              <label>H:</label>
+              <input type="number" v-model.number="canvasHeight" @change="updateCanvasSize" min="100" max="4000" step="50" />
+            </div>
+            <div class="config-item config-item-color">
+              <label>BG:</label>
+              <input type="color" v-model="canvasBackground" @change="updateCanvasBackground" />
+            </div>
+          </div>
+        </div>
         
         <div class="separator"></div>
         
-        <!-- Edit controls -->
-        <button @click="undo" :disabled="!canUndo()" class="btn btn-secondary" title="Undo (Ctrl+Z / Cmd+Z)">
-          <span class="icon">↶</span> Undo
-        </button>
-        <button @click="redo" :disabled="!canRedo()" class="btn btn-secondary" title="Redo (Ctrl+Shift+Z / Cmd+Shift+Z)">
-          <span class="icon">↷</span> Redo
-        </button>
+        <!-- Center: View Controls -->
+        <div class="toolbar-section toolbar-view-controls">
+          <div class="button-group button-group-compact">
+            <button @click="zoomIn" class="btn btn-icon" title="Zoom In">
+              <span class="icon">🔍+</span>
+            </button>
+            <button @click="zoomOut" class="btn btn-icon" title="Zoom Out">
+              <span class="icon">🔍-</span>
+            </button>
+            <button @click="resetZoom" class="btn btn-icon" title="Reset Zoom">
+              <span class="icon">⊡</span>
+            </button>
+            <button @click="fitToView" class="btn btn-icon" title="Fit All Shapes">
+              <span class="icon">⊞</span>
+            </button>
+          </div>
+        </div>
         
         <div class="separator"></div>
         
-        <!-- View controls -->
-        <button @click="zoomIn" class="btn btn-secondary" title="Zoom In">
-          <span class="icon">🔍+</span>
-        </button>
-        <button @click="zoomOut" class="btn btn-secondary" title="Zoom Out">
-          <span class="icon">🔍-</span>
-        </button>
-        <button @click="resetZoom" class="btn btn-secondary" title="Reset Zoom">
-          <span class="icon">⊡</span>
-        </button>
-        <button @click="fitToView" class="btn btn-secondary" title="Fit All Shapes">
-          <span class="icon">⊞</span>
-        </button>
-        
-        <div class="separator"></div>
-        
-        <!-- Help -->
-        <button @click="showKeyboardShortcuts = !showKeyboardShortcuts" class="btn btn-secondary" :class="{ active: showKeyboardShortcuts }" title="Keyboard Shortcuts">
-          <span class="icon">⌨️</span>
-        </button>
-        
-        <div class="separator"></div>
-        
-        <!-- Grid/snap controls -->
-        <label class="checkbox-label">
-          <input type="checkbox" v-model="showGrid" />
-          Grid
-        </label>
-        <label class="checkbox-label">
-          <input type="checkbox" v-model="snapToGrid" :disabled="!showGrid" />
-          Snap
-        </label>
-        
-        <div class="separator"></div>
-        
-        <!-- Canvas config -->
-        <button @click="showCanvasConfig = !showCanvasConfig" class="btn btn-secondary" title="Canvas Settings">
-          <span class="icon">⚙️</span> Canvas
-        </button>
-      </div>
-    </div>
-    
-    <!-- Canvas Configuration Panel -->
-    <div v-if="showCanvasConfig" class="canvas-config-panel">
-      <div class="config-group">
-        <label>Width:</label>
-        <input type="number" v-model.number="canvasWidth" @change="updateCanvasSize" min="100" max="4000" step="50" />
-      </div>
-      <div class="config-group">
-        <label>Height:</label>
-        <input type="number" v-model.number="canvasHeight" @change="updateCanvasSize" min="100" max="4000" step="50" />
-      </div>
-      <div class="config-group">
-        <label>Background:</label>
-        <input type="color" v-model="canvasBackground" @change="updateCanvasBackground" />
+        <!-- Right: Help & Toggles -->
+        <div class="toolbar-section toolbar-toggles">
+          <button @click="showKeyboardShortcuts = !showKeyboardShortcuts" class="btn btn-icon" :class="{ active: showKeyboardShortcuts }" title="Keyboard Shortcuts">
+            <span class="icon">⌨️</span>
+          </button>
+          
+          <div class="separator"></div>
+          
+          <label class="checkbox-label checkbox-label-compact">
+            <input type="checkbox" v-model="showGrid" />
+            <span>Grid</span>
+          </label>
+          <label class="checkbox-label checkbox-label-compact">
+            <input type="checkbox" v-model="snapToGrid" :disabled="!showGrid" />
+            <span>Snap</span>
+          </label>
+        </div>
       </div>
     </div>
     
@@ -399,7 +395,6 @@ const snapToGrid = ref(true);
 const rightSidebarTab = ref<'properties' | 'callbacks' | 'notifications'>('properties');
 
 // Canvas configuration
-const showCanvasConfig = ref(false);
 const showKeyboardShortcuts = ref(false);
 const canvasWidth = ref(1000);
 const canvasHeight = ref(600);
@@ -1540,133 +1535,383 @@ watch(() => currentModel.value.getShapes().length, () => {
   background: var(--qui-color-background);
 }
 
+/* ===== MULTI-ROW TOOLBAR ===== */
 .top-toolbar {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 20px;
+  flex-direction: column;
   background: var(--qui-titlebar-bg, #1e1e1e);
   border-bottom: 1px solid var(--qui-titlebar-border, rgba(255, 255, 255, 0.1));
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
-  gap: 16px;
-  min-height: 60px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
   flex-shrink: 0;
+  position: relative;
+  z-index: 100;
 }
 
+/* ----- ROW STRUCTURE ----- */
+.toolbar-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  gap: 16px;
+  position: relative;
+}
+
+.toolbar-row-primary {
+  height: 48px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(180deg, 
+    var(--qui-titlebar-bg, #1e1e1e) 0%, 
+    color-mix(in srgb, var(--qui-titlebar-bg, #1e1e1e) 97%, black) 100%
+  );
+}
+
+.toolbar-row-secondary {
+  height: 44px;
+  background: color-mix(in srgb, var(--qui-titlebar-bg, #1e1e1e) 95%, black);
+}
+
+/* ----- TOOLBAR SECTIONS ----- */
 .toolbar-section {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.toolbar-actions {
-  flex: 1;
-  justify-content: flex-end;
-}
-
-.app-title {
-  margin: 0;
-  font-size: var(--qui-font-size-large, 16px);
-  font-weight: var(--qui-font-weight-bold, 600);
-  color: var(--qui-text-primary, #fff);
-  letter-spacing: -0.02em;
-}
-
-.faceplate-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: var(--qui-font-size-large, 16px);
-  font-weight: var(--qui-font-weight-medium, 500);
+/* ===== ROW 1: IDENTITY SECTION ===== */
+.toolbar-identity {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 50%;
+  gap: 10px;
+  overflow: hidden;
 }
 
 .faceplate-id {
-  font-family: monospace;
+  flex: 0 0 auto;
+  font-family: 'JetBrains Mono', 'Courier New', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
   color: var(--qui-accent-color, #00ff88);
-  background: rgba(0, 255, 136, 0.1);
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: var(--qui-font-size-small, 13px);
-  font-weight: var(--qui-font-weight-bold, 600);
+  background: rgba(0, 255, 136, 0.12);
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 255, 136, 0.25);
+  box-shadow: 0 1px 3px rgba(0, 255, 136, 0.15);
+  white-space: nowrap;
 }
 
-.faceplate-separator {
-  color: var(--qui-text-secondary, #aaa);
-  font-weight: var(--qui-font-weight-normal, 400);
-}
-
-.faceplate-name {
-  color: var(--qui-text-primary, #fff);
-}
-
-.faceplate-placeholder {
-  color: var(--qui-text-secondary, #aaa);
-  font-style: italic;
-}
-
-.editable {
-  cursor: pointer;
-  border-radius: 4px;
-  padding: 2px 4px;
-  transition: background 0.15s ease;
-}
-
-.editable:hover {
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.inline-editor {
-  display: inline-block;
-}
-
-.inline-input {
-  background: var(--qui-bg-primary, #1a1a1a);
-  border: 1px solid var(--qui-accent-color, #00ff88);
-  border-radius: 4px;
-  color: var(--qui-text-primary, #fff);
-  font-size: var(--qui-font-size-large, 16px);
-  font-weight: var(--qui-font-weight-medium, 500);
-  padding: 2px 6px;
-  min-width: 200px;
-  outline: none;
-  box-shadow: 0 0 0 2px rgba(0, 255, 136, 0.2);
-}
-
-.inline-input::placeholder {
-  color: var(--qui-text-secondary, #aaa);
-}
-
-.faceplate-meta {
+.identity-field {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
+  flex-shrink: 1;
 }
 
-.faceplate-description {
-  color: var(--qui-text-secondary, #aaa);
-  font-size: var(--qui-font-size-base, 14px);
-  font-weight: var(--qui-font-weight-normal, 400);
+.identity-field-name {
+  flex: 1 1 auto;
+  min-width: 120px;
 }
 
-.faceplate-description-placeholder {
-  color: var(--qui-text-secondary, #666);
-  font-style: italic;
+.identity-field-description {
+  flex: 0 1 auto;
+  min-width: 100px;
+  max-width: 280px;
 }
 
-.btn {
-  padding: 8px 16px;
-  border: none;
+.identity-separator {
+  flex: 0 0 auto;
+  color: rgba(255, 255, 255, 0.25);
+  font-weight: 300;
+  font-size: 14px;
+  user-select: none;
+}
+
+.identity-display {
+  min-width: 0;
+  overflow: hidden;
+  cursor: pointer;
+  padding: 4px 8px;
   border-radius: 6px;
-  font-size: var(--qui-font-size-base, 14px);
-  font-weight: var(--qui-font-weight-medium, 500);
+  transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid transparent;
+  position: relative;
+}
+
+.identity-display:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.identity-display:active {
+  background: rgba(255, 255, 255, 0.08);
+  transform: scale(0.98);
+}
+
+.identity-text {
+  display: block;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--qui-text-primary, #ffffff);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: -0.01em;
+}
+
+.identity-text-muted {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--qui-text-secondary, #a0a0a0);
+}
+
+.identity-placeholder {
+  display: block;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--qui-text-secondary, #666666);
+  font-style: italic;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.identity-placeholder-muted {
+  font-size: 13px;
+  color: var(--qui-text-secondary, #555555);
+}
+
+.inline-editor {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.inline-input {
+  width: 100%;
+  min-width: 0;
+  background: var(--qui-bg-primary, #1a1a1a);
+  border: 2px solid var(--qui-accent-color, #00ff88);
+  border-radius: 6px;
+  color: var(--qui-text-primary, #fff);
+  font-size: 15px;
+  font-weight: 600;
+  padding: 6px 10px;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(0, 255, 136, 0.15), 
+              0 2px 8px rgba(0, 255, 136, 0.2);
+  transition: all 0.2s ease;
+}
+
+.inline-input:focus {
+  box-shadow: 0 0 0 4px rgba(0, 255, 136, 0.25), 
+              0 4px 12px rgba(0, 255, 136, 0.3);
+}
+
+.inline-input::placeholder {
+  color: var(--qui-text-secondary, #888888);
+  font-style: italic;
+  font-weight: 500;
+}
+
+/* ===== ROW 1: ACTIONS SECTION ===== */
+.toolbar-actions {
+  flex: 0 0 auto;
+  gap: 12px;
+}
+
+.button-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-compact {
+  padding: 7px 12px;
+  font-size: 13px;
+  gap: 5px;
+  min-width: 70px;
+}
+
+.btn-label {
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+/* ===== ROW 2: CANVAS CONFIG ===== */
+.toolbar-canvas-config {
+  flex: 0 0 auto;
+}
+
+.config-group-inline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.config-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  position: relative;
+}
+
+.config-item label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--qui-text-secondary, #999999);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  min-width: 18px;
+}
+
+.config-item input[type="number"] {
+  width: 68px;
+  height: 28px;
+  padding: 4px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 5px;
+  background: var(--qui-bg-primary, #1a1a1a);
+  color: var(--qui-text-primary, #fff);
+  font-size: 13px;
+  font-weight: 500;
+  font-family: 'JetBrains Mono', monospace;
+  transition: all 0.18s ease;
+  text-align: center;
+}
+
+.config-item input[type="number"]:hover {
+  border-color: rgba(255, 255, 255, 0.25);
+  background: color-mix(in srgb, var(--qui-bg-primary, #1a1a1a) 95%, white);
+}
+
+.config-item input[type="number"]:focus {
+  outline: none;
+  border-color: var(--qui-accent-color, #00ff88);
+  box-shadow: 0 0 0 2px rgba(0, 255, 136, 0.2);
+  background: var(--qui-bg-primary, #1a1a1a);
+}
+
+.config-item-color input[type="color"] {
+  width: 48px;
+  height: 28px;
+  padding: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 5px;
+  background: var(--qui-bg-primary, #1a1a1a);
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.config-item-color input[type="color"]:hover {
+  border-color: var(--qui-accent-color, #00ff88);
+  box-shadow: 0 0 0 2px rgba(0, 255, 136, 0.15);
+  transform: scale(1.05);
+}
+
+/* ===== ROW 2: VIEW CONTROLS ===== */
+.toolbar-view-controls {
+  flex: 0 0 auto;
+}
+
+.button-group-compact {
+  gap: 4px;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 4px;
+  border-radius: 8px;
+}
+
+.btn-icon {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--qui-text-primary, #fff);
+  cursor: pointer;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-icon:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.15);
+  transform: translateY(-1px);
+}
+
+.btn-icon:active:not(:disabled) {
+  transform: translateY(0) scale(0.95);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.btn-icon.active {
+  background: var(--qui-accent-color, #00ff88);
+  color: var(--qui-bg-primary, #000);
+  border-color: var(--qui-accent-color, #00ff88);
+  box-shadow: 0 0 10px rgba(0, 255, 136, 0.4);
+}
+
+/* ===== ROW 2: TOGGLES ===== */
+.toolbar-toggles {
+  flex: 1 1 auto;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+}
+
+.checkbox-label-compact {
+  padding: 6px 10px;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+  border: 1px solid transparent;
+}
+
+.checkbox-label-compact:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.checkbox-label-compact input[type="checkbox"] {
+  width: 17px;
+  height: 17px;
+  cursor: pointer;
+  accent-color: var(--qui-accent-color, #00ff88);
+  border-radius: 4px;
+}
+
+/* ===== SHARED BUTTON STYLES ===== */
+.btn {
+  border: none;
+  border-radius: 7px;
+  font-size: 14px;
+  font-weight: 600;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
   white-space: nowrap;
   position: relative;
   overflow: hidden;
+  letter-spacing: 0.01em;
 }
 
 .btn::before {
@@ -1677,12 +1922,13 @@ watch(() => currentModel.value.getShapes().length, () => {
   width: 0;
   height: 0;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.25);
   transform: translate(-50%, -50%);
   transition: width 0.4s, height 0.4s;
+  pointer-events: none;
 }
 
-.btn:active::before {
+.btn:active:not(:disabled)::before {
   width: 200px;
   height: 200px;
 }
@@ -1690,100 +1936,131 @@ watch(() => currentModel.value.getShapes().length, () => {
 .btn:disabled {
   opacity: 0.35;
   cursor: not-allowed;
-  filter: grayscale(0.5);
-}
-
-.btn.active {
-  background: var(--qui-accent-color, #00ff88);
-  color: var(--qui-bg-primary, #000);
-  box-shadow: 0 0 8px rgba(0, 255, 136, 0.4);
+  filter: grayscale(0.6);
 }
 
 .btn-primary {
-  background: var(--qui-accent-color, #00ff88);
+  background: linear-gradient(135deg, 
+    var(--qui-accent-color, #00ff88) 0%, 
+    color-mix(in srgb, var(--qui-accent-color, #00ff88) 90%, white) 100%
+  );
   color: var(--qui-bg-primary, #000);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2), 
-              inset 0 1px 0 rgba(255, 255, 255, 0.2);
-  font-weight: var(--qui-font-weight-bold, 600);
+  box-shadow: 0 2px 6px rgba(0, 255, 136, 0.25), 
+              inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  font-weight: 700;
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--qui-accent-color, #00ff88) 110%, white);
-  box-shadow: 0 4px 12px rgba(0, 255, 136, 0.3), 
-              inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  background: linear-gradient(135deg, 
+    color-mix(in srgb, var(--qui-accent-color, #00ff88) 110%, white) 0%, 
+    var(--qui-accent-color, #00ff88) 100%
+  );
+  box-shadow: 0 4px 14px rgba(0, 255, 136, 0.4), 
+              inset 0 1px 0 rgba(255, 255, 255, 0.4);
   transform: translateY(-1px);
 }
 
 .btn-primary:active:not(:disabled) {
-  transform: translateY(0);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 
-              inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  transform: translateY(0) scale(0.98);
+  box-shadow: 0 1px 4px rgba(0, 255, 136, 0.3), 
+              inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
 .btn-secondary {
-  background: var(--qui-bg-secondary, #2a2a2a);
+  background: linear-gradient(180deg, 
+    color-mix(in srgb, var(--qui-bg-secondary, #2a2a2a) 105%, white) 0%, 
+    var(--qui-bg-secondary, #2a2a2a) 100%
+  );
   color: var(--qui-text-primary, #fff);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3), 
               inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--qui-bg-secondary, #2a2a2a) 90%, white);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4), 
+  background: linear-gradient(180deg, 
+    color-mix(in srgb, var(--qui-bg-secondary, #2a2a2a) 110%, white) 0%, 
+    color-mix(in srgb, var(--qui-bg-secondary, #2a2a2a) 95%, white) 100%
+  );
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4), 
               inset 0 0 0 1px rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.15);
   transform: translateY(-1px);
 }
 
 .btn-secondary:active:not(:disabled) {
-  transform: translateY(0);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 
-              inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  transform: translateY(0) scale(0.98);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 
+              inset 0 0 0 1px rgba(255, 255, 255, 0.08);
 }
 
 .icon {
   font-size: 15px;
   line-height: 1;
-  opacity: 0.9;
+  opacity: 0.95;
+  flex-shrink: 0;
 }
 
 .separator {
   width: 1px;
-  height: 28px;
-  background: rgba(255, 255, 255, 0.15);
-  margin: 0 8px;
+  height: 24px;
+  background: linear-gradient(180deg, 
+    transparent 0%, 
+    rgba(255, 255, 255, 0.18) 50%, 
+    transparent 100%
+  );
   flex-shrink: 0;
 }
 
-.checkbox-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: var(--qui-font-size-small, 13px);
-  color: var(--qui-text-primary, #fff);
-  cursor: pointer;
-  user-select: none;
-  padding: 4px 8px;
-  border-radius: 4px;
-  transition: background 0.15s ease;
+/* ===== RESPONSIVE BEHAVIOR ===== */
+@media (max-width: 1400px) {
+  .toolbar-identity {
+    max-width: 45%;
+  }
+  
+  .identity-field-description {
+    max-width: 220px;
+  }
+  
+  .btn-label {
+    display: none;
+  }
+  
+  .btn-compact {
+    min-width: auto;
+    padding: 7px 10px;
+  }
 }
 
-.checkbox-label:hover {
-  background: rgba(255, 255, 255, 0.05);
+@media (max-width: 1100px) {
+  .toolbar-identity {
+    max-width: 40%;
+  }
+  
+  .identity-field-description {
+    display: none;
+  }
 }
 
-.checkbox-label input[type="checkbox"] {
-  cursor: pointer;
-  width: 16px;
-  height: 16px;
-  accent-color: var(--qui-accent-color, #00ff88);
+@media (max-width: 900px) {
+  .toolbar-row {
+    padding: 0 12px;
+    gap: 10px;
+  }
+  
+  .faceplate-id {
+    font-size: 10px;
+    padding: 3px 7px;
+  }
+  
+  .config-group-inline {
+    padding: 4px 8px;
+    gap: 8px;
+  }
 }
 
-.checkbox-label input[type="checkbox"]:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.canvas-config-panel,
+/* Shortcuts panel */
 .shortcuts-panel {
   display: flex;
   align-items: center;
@@ -1793,9 +2070,6 @@ watch(() => currentModel.value.getShapes().length, () => {
   border-bottom: 1px solid var(--qui-titlebar-border, rgba(255, 255, 255, 0.1));
   box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2);
   flex-shrink: 0;
-}
-
-.shortcuts-panel {
   flex-wrap: wrap;
 }
 
@@ -1850,20 +2124,22 @@ watch(() => currentModel.value.getShapes().length, () => {
 .config-group {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
   font-size: var(--qui-font-size-small, 13px);
   color: var(--qui-text-primary, #fff);
+  flex-shrink: 0;
 }
 
 .config-group label {
   font-weight: var(--qui-font-weight-medium, 500);
-  min-width: 70px;
+  min-width: auto;
   color: var(--qui-text-secondary, #aaa);
+  white-space: nowrap;
 }
 
 .config-group input[type="number"] {
-  width: 100px;
-  padding: 7px 12px;
+  width: 70px;
+  padding: 6px 8px;
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 4px;
   background: var(--qui-bg-primary, #1a1a1a);
@@ -1879,7 +2155,7 @@ watch(() => currentModel.value.getShapes().length, () => {
 }
 
 .config-group input[type="color"] {
-  width: 60px;
+  width: 50px;
   height: 32px;
   padding: 3px;
   border: 1px solid rgba(255, 255, 255, 0.15);
