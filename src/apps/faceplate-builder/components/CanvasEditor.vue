@@ -974,6 +974,32 @@ function fitBounds(bounds: { minX: number; minY: number; maxX: number; maxY: num
   }
 }
 
+function focusOnShape(index: number, options: { zoom?: number; duration?: number } = {}) {
+  if (!canvas.value) {
+    return;
+  }
+
+  const shape = props.model?.getShape?.(index) as Drawable | undefined;
+  if (!shape) {
+    return;
+  }
+
+  const leafletMap = (canvas.value as any).map;
+  if (!leafletMap) {
+    return;
+  }
+
+  const offset = shape.getOffset();
+  const targetLatLng = L.latLng(offset.y, offset.x);
+  const currentZoom = leafletMap.getZoom();
+  const zoom = options.zoom ?? currentZoom;
+
+  leafletMap.flyTo(targetLatLng, zoom, {
+    duration: options.duration ?? 0.45,
+    easeLinearity: 0.25
+  });
+}
+
 // Handle resize
 function handleResize() {
   updateContainerSize();
@@ -1041,6 +1067,7 @@ defineExpose({
   zoomOut,
   resetZoom,
   fitBounds,
+  focusOnShape,
   updateBoundary,
   updateBackground,
   renderModel

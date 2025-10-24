@@ -209,7 +209,7 @@
             v-if="activeTab === 'layers'"
             :model="currentModel"
             :selected-index="selectedShapeIndex"
-            @shape-select="onShapeSelect"
+            @shape-select="onLayerShapeSelect"
             @shape-update="onShapeUpdate"
           />
         </div>
@@ -1017,6 +1017,16 @@ function onShapeDragStart(shapeType: string) {
 
 function onShapeSelect(index: number) {
   selectedShapeIndex.value = index;
+}
+
+function onLayerShapeSelect(index: number) {
+  onShapeSelect(index);
+  nextTick(() => {
+    const editor = canvasEditor.value as any;
+    if (editor?.focusOnShape) {
+      editor.focusOnShape(index, { zoom: currentZoom.value });
+    }
+  });
 }
 
 function onShapeUpdate() {
