@@ -44,7 +44,7 @@ const handleContextMenu = (e: MouseEvent) => {
 .workspace {
   position: fixed;
   inset: 0;
-  bottom: 40px;
+  bottom: var(--qui-taskbar-height);
   overflow: hidden;
   background: var(--qui-bg-primary);
 }

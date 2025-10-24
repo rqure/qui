@@ -3,6 +3,18 @@ import { ref, computed } from 'vue'
 import type { WindowState, WindowOptions } from '@/core/window/types'
 import { createWindowState } from '@/core/window/utils'
 
+const getTaskbarHeight = (): number => {
+  const styles = getComputedStyle(document.documentElement)
+  const raw = styles.getPropertyValue('--qui-taskbar-height').trim()
+  const value = parseFloat(raw)
+  return Number.isNaN(value) ? 0 : value
+}
+
+const getAvailableWorkspaceHeight = (): number => {
+  const available = document.documentElement.clientHeight - getTaskbarHeight()
+  return Math.max(available, 0)
+}
+
 export const useWindowStore = defineStore('windows', () => {
   const windows = ref<WindowState[]>([])
   const activeWindowId = ref<string | null>(null)
@@ -59,7 +71,9 @@ export const useWindowStore = defineStore('windows', () => {
     const window = windows.value.find((w) => w.id === id)
     if (window) {
       window.width = width
-      window.height = height
+      window.height = window.isMaximized
+        ? Math.max(getAvailableWorkspaceHeight(), window.minHeight)
+        : height
     }
   }
 
@@ -94,7 +108,8 @@ export const useWindowStore = defineStore('windows', () => {
       window.x = 0
       window.y = 0
       window.width = document.documentElement.clientWidth
-      window.height = document.documentElement.clientHeight
+      const availableHeight = Math.max(getAvailableWorkspaceHeight(), window.minHeight)
+      window.height = availableHeight
     }
   }
 

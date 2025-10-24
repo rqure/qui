@@ -49,12 +49,13 @@ body {
   background: var(--qui-bg-primary);
 }
 
+
 .taskbar {
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
-  height: 40px;
+  height: var(--qui-taskbar-height);
   background: var(--qui-bg-secondary);
   border-top: var(--qui-window-border);
   padding: 0 1rem;
@@ -67,7 +68,7 @@ body {
   bottom: 0;
   left: 0;
   right: 0;
-  height: 40px;
+  height: var(--qui-taskbar-height);
   background: var(--qui-bg-secondary);
   border-top: var(--qui-window-border);
   padding: 0 1rem;

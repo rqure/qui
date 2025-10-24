@@ -285,8 +285,8 @@ const startResize = (handle: string, e: MouseEvent) => {
     transform: none; /* Reset transform for maximized state */
     border-radius: 0;
     inset: 0 !important;
-    width: 100vw !important;
-    height: 100vh !important;
+    width: 100% !important;
+    height: 100% !important;
     transition: 
       transform 300ms cubic-bezier(0.4, 0, 0.2, 1),
       opacity 300ms cubic-bezier(0.4, 0, 0.2, 1),
