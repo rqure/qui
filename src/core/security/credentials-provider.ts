@@ -2,7 +2,7 @@ import type { AuthProvider } from './auth-provider';
 import { getApiBaseUrl } from '@/core/utils/url';
 
 // Constants for token storage and refresh
-const TOKEN_REFRESH_INTERVAL_MS = 50 * 1000; // 50 seconds (token expires in 1 minute)
+const TOKEN_REFRESH_INTERVAL_MS = 30 * 1000; // 30 seconds (token expires in 1 minute)
 const TOKEN_STORAGE_KEY = 'qui_auth_token';
 const USER_PROFILE_STORAGE_KEY = 'qui_user_profile';
 
@@ -13,7 +13,7 @@ const USER_PROFILE_STORAGE_KEY = 'qui_user_profile';
 export class CredentialsAuthProvider implements AuthProvider {
   private isAuthenticatedFlag = false;
   private userProfile: Record<string, any> | null = null;
-  private refreshTokenInterval: number | null = null;
+  private refreshWorker: Worker | null = null;
   private tokenExpiryListeners: Array<() => void> = [];
   
   constructor() {
@@ -167,6 +167,8 @@ export class CredentialsAuthProvider implements AuthProvider {
       return true;
     } catch (error) {
       console.error('Token refresh failed:', error);
+      // Stop the refresh interval to prevent repeated failed requests
+      this.clearTokenRefresh();
       // Notify listeners about token expiry
       this.tokenExpiryListeners.forEach(listener => listener());
       return false;
@@ -246,28 +248,61 @@ export class CredentialsAuthProvider implements AuthProvider {
   }
   
   /**
-   * Setup automatic token refresh
+   * Setup automatic token refresh using Web Worker for reliability
    */
   private setupTokenRefresh(): void {
     this.clearTokenRefresh();
     
-    this.refreshTokenInterval = window.setInterval(async () => {
-      try {
-        await this.refreshToken();
-      } catch (error) {
-        console.error('Failed to refresh token:', error);
-        this.tokenExpiryListeners.forEach(listener => listener());
-      }
-    }, TOKEN_REFRESH_INTERVAL_MS);
+    try {
+      // Create Web Worker for reliable interval (not throttled when tab is inactive)
+      this.refreshWorker = new Worker('/refresh-worker.js');
+      
+      this.refreshWorker.onmessage = async (e) => {
+        const { type } = e.data;
+        
+        if (type === 'refresh') {
+          // Worker triggered refresh
+          try {
+            const success = await this.refreshToken();
+            if (!success) {
+              console.warn('Token refresh returned false, stopping refresh worker');
+            }
+          } catch (error) {
+            console.error('Failed to refresh token:', error);
+            this.clearTokenRefresh();
+            this.tokenExpiryListeners.forEach(listener => listener());
+          }
+        } else if (type === 'started') {
+          console.log('Token refresh worker started with interval:', e.data.intervalMs);
+        } else if (type === 'stopped') {
+          console.log('Token refresh worker stopped');
+        }
+      };
+      
+      this.refreshWorker.onerror = (error) => {
+        console.error('Token refresh worker error:', error);
+        this.clearTokenRefresh();
+      };
+      
+      // Start the worker with configured interval
+      this.refreshWorker.postMessage({ 
+        type: 'start', 
+        data: { intervalMs: TOKEN_REFRESH_INTERVAL_MS } 
+      });
+    } catch (error) {
+      console.error('Failed to create token refresh worker:', error);
+      // Fallback: user will need to refresh manually or re-login
+    }
   }
   
   /**
-   * Clear token refresh interval
+   * Clear token refresh worker
    */
   private clearTokenRefresh(): void {
-    if (this.refreshTokenInterval) {
-      clearInterval(this.refreshTokenInterval);
-      this.refreshTokenInterval = null;
+    if (this.refreshWorker) {
+      this.refreshWorker.postMessage({ type: 'stop' });
+      this.refreshWorker.terminate();
+      this.refreshWorker = null;
     }
   }
   
