@@ -84,7 +84,7 @@ const calculatePosition = () => {
 }
 
 // Handle mouse enter for submenu items
-const handleMouseEnter = (index: number, item: MenuItem) => {
+const handleMouseEnter = (event: MouseEvent, index: number, item: MenuItem) => {
   // Clear any pending close timeout
   if (submenuCloseTimeout.value) {
     clearTimeout(submenuCloseTimeout.value)
@@ -99,18 +99,17 @@ const handleMouseEnter = (index: number, item: MenuItem) => {
     
     // Set active index immediately for hover effect
     activeSubmenuIndex.value = index
+
+    const targetElement = event.currentTarget as HTMLElement | null
     
     // Delay positioning to prevent accidental opening
     submenuOpenTimeout.value = window.setTimeout(() => {
-      if (menuElement.value && activeSubmenuIndex.value === index) {
-        const itemElement = menuElement.value.querySelectorAll('.menu-item')[index] as HTMLElement
-        if (itemElement) {
-          const itemRect = itemElement.getBoundingClientRect()
-          
-          submenuPosition.value = {
-            x: itemRect.right,
-            y: itemRect.top,
-          }
+      if (activeSubmenuIndex.value === index && targetElement) {
+        const itemRect = targetElement.getBoundingClientRect()
+
+        submenuPosition.value = {
+          x: itemRect.right,
+          y: itemRect.top,
         }
       }
       submenuOpenTimeout.value = null
@@ -122,19 +121,6 @@ const handleMouseEnter = (index: number, item: MenuItem) => {
       submenuCloseTimeout.value = null
     }, 100)
   }
-}
-
-// Handle mouse leave for menu
-const handleMenuLeave = () => {
-  // Set a timeout to close submenu only if mouse doesn't return
-  if (submenuCloseTimeout.value) {
-    clearTimeout(submenuCloseTimeout.value)
-  }
-  
-  submenuCloseTimeout.value = window.setTimeout(() => {
-    activeSubmenuIndex.value = null
-    submenuCloseTimeout.value = null
-  }, 300)
 }
 
 // Watch for position changes
@@ -237,7 +223,7 @@ const handleSubmenuClose = () => {
             active: index === activeSubmenuIndex
           }"
           @click.stop="(e) => handleItemClick(e, item)"
-          @mouseenter="() => handleMouseEnter(index, item)"
+          @mouseenter="(event) => handleMouseEnter(event, index, item)"
         >
           <div class="item-content">
             <span v-if="item.icon" class="item-icon">{{ item.icon }}</span>
