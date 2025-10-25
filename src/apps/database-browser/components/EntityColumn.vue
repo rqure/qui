@@ -13,6 +13,8 @@ const MAX_CANVAS_ZOOM = 18;
 const DEFAULT_BOUNDARY_WIDTH = 150;
 const DEFAULT_BOUNDARY_HEIGHT = 100;
 const DEFAULT_ZOOM = 2;
+const TITLEBAR_HEIGHT_FALLBACK = 38;
+const WINDOW_BORDER_FALLBACK = 1;
 
 function clampZoom(value: unknown, fallback: number = DEFAULT_ZOOM): number {
   const numeric = Number(value);
@@ -20,6 +22,29 @@ function clampZoom(value: unknown, fallback: number = DEFAULT_ZOOM): number {
     return fallback;
   }
   return Math.min(MAX_CANVAS_ZOOM, Math.max(MIN_CANVAS_ZOOM, numeric));
+}
+
+function parsePixelValue(raw: string, fallback: number): number {
+  const parsed = parseFloat(raw);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function getWindowChromeOffsets(): { width: number; height: number } {
+  if (typeof window === 'undefined' || typeof document === 'undefined') {
+    return {
+      width: WINDOW_BORDER_FALLBACK * 2,
+      height: TITLEBAR_HEIGHT_FALLBACK + WINDOW_BORDER_FALLBACK * 2,
+    };
+  }
+
+  const styles = getComputedStyle(document.documentElement);
+  const titlebar = parsePixelValue(styles.getPropertyValue('--qui-titlebar-height'), TITLEBAR_HEIGHT_FALLBACK);
+  const border = parsePixelValue(styles.getPropertyValue('--qui-window-border'), WINDOW_BORDER_FALLBACK);
+
+  return {
+    width: border * 2,
+    height: titlebar + border * 2,
+  };
 }
 
 // Define EntityItem interface
@@ -212,6 +237,10 @@ async function openFaceplateWindow(entity: EntityItem, faceplate: EntityFaceplat
   } catch (err) {
     console.warn('Could not load faceplate dimensions, using defaults', err);
   }
+
+  const chromeOffsets = getWindowChromeOffsets();
+  width += chromeOffsets.width;
+  height += chromeOffsets.height; // ensure content area matches requested canvas size
 
   // Import FaceplateViewer dynamically
   const { FaceplateViewer } = await import('@/apps/faceplate-builder');
