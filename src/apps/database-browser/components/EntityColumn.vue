@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, markRaw } from 'vue';
+import L from 'leaflet';
 import type { EntityId, FieldType, Value } from '@/core/data/types';
 import { extractEntityType, ValueHelpers } from '@/core/data/types';
 import { useDataStore } from '@/stores/data';
@@ -157,8 +158,9 @@ function openEntityInWindow(entityId: EntityId, entityName: string) {
 
 async function openFaceplateWindow(entity: EntityItem, faceplate: EntityFaceplateRef) {
   // Try to load faceplate dimensions
-  let width = 960;
-  let height = 720;
+  const targetZoom = 2;
+  let width = 1000;
+  let height = 600;
   
   try {
     const configFieldType = await dataStore.getFieldType('Configuration');
@@ -167,10 +169,20 @@ async function openFaceplateWindow(entity: EntityItem, faceplate: EntityFaceplat
     if (configValue && typeof configValue === 'object' && 'String' in configValue) {
       const config = JSON.parse(configValue.String);
       if (config.model?.boundary) {
-        width = config.model.boundary.to.x || width;
-        height = config.model.boundary.to.y || height;
-        // Add some padding for window chrome
-        height += 80;
+        const { from, to } = config.model.boundary;
+        const fromLatLng = L.latLng(Number(from?.y) || 0, Number(from?.x) || 0);
+        const toLatLng = L.latLng(Number(to?.y) || 0, Number(to?.x) || 0);
+        const pointFrom = L.CRS.Simple.latLngToPoint(fromLatLng, targetZoom);
+        const pointTo = L.CRS.Simple.latLngToPoint(toLatLng, targetZoom);
+        const boundaryWidth = Math.abs(pointTo.x - pointFrom.x);
+        const boundaryHeight = Math.abs(pointTo.y - pointFrom.y);
+
+        if (boundaryWidth > 0) {
+          width = boundaryWidth;
+        }
+        if (boundaryHeight > 0) {
+          height = boundaryHeight;
+        }
       }
     }
   } catch (err) {

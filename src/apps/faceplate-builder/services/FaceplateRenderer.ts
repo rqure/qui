@@ -155,18 +155,39 @@ export class FaceplateRenderer {
    * Create canvas from configuration
    */
   private createCanvas(config: FaceplateConfig): Canvas {
+    const targetZoom = 2;
     const canvas = new Canvas(this.containerId, {
-      minZoom: config.model.minZoom ?? 0.5,
-      maxZoom: config.model.maxZoom ?? 4,
-      zoom: 1,
       canvasBackground: config.model.canvasBackground ?? '#1a1a1a'
     });
-    
-    // Set boundary if provided
+
+    canvas.setMinZoom(targetZoom);
+    canvas.setMaxZoom(targetZoom);
+
+    const map = canvas.getMap();
+
+    // Set boundary if provided and align view to its center
     if (config.model.boundary) {
-      canvas.setBoundary(config.model.boundary.from, config.model.boundary.to);
+      const { from, to } = config.model.boundary;
+      canvas.setBoundary(from, to);
+      const centerX = ((Number(from?.x) || 0) + (Number(to?.x) || 0)) / 2;
+      const centerY = ((Number(from?.y) || 0) + (Number(to?.y) || 0)) / 2;
+      map.setView([centerY, centerX], targetZoom, { animate: false });
+    } else {
+      map.setZoom(targetZoom, { animate: false });
     }
-    
+
+    map.dragging.disable();
+    map.scrollWheelZoom.disable();
+    map.touchZoom.disable();
+    map.doubleClickZoom.disable();
+    map.boxZoom.disable();
+    map.keyboard.disable();
+
+    const tap = (map as any).tap;
+    if (tap && typeof tap.disable === 'function') {
+      tap.disable();
+    }
+
     return canvas;
   }
   
@@ -234,11 +255,17 @@ export class FaceplateRenderer {
    */
   private applyShapeProperties(shape: Drawable, config: FaceplateShapeConfig): void {
     // Transform properties
-    if (config.location) shape.setLocation(config.location);
+    if (config.location) {
+      shape.setLocation(config.location);
+    }
     if (config.rotation !== undefined) shape.setRotation(config.rotation);
     if (config.scale) shape.setScale(config.scale);
     if (config.pivot) shape.setPivot(config.pivot);
-    if (config.offset) shape.setOffset(config.offset);
+    if (config.offset) {
+      shape.setOffset(config.offset);
+    } else if (config.location) {
+      shape.setOffset(config.location);
+    }
     
     // Zoom visibility
     if (config.minZoom !== undefined) shape.setMinZoom(config.minZoom);
