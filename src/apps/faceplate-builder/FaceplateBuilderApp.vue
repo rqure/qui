@@ -223,8 +223,7 @@
           :selected-shape-index="selectedShapeIndex"
           :show-grid="showGrid"
           :snap-to-grid="snapToGrid"
-          :canvas-width="canvasWidth"
-          :canvas-height="canvasHeight"
+          :canvas-boundary="canvasBoundary"
           :canvas-background="canvasBackground"
           :update-trigger="shapeUpdateTrigger"
           @shape-select="onShapeSelect"
@@ -396,6 +395,7 @@ const rightSidebarTab = ref<'properties' | 'callbacks' | 'notifications'>('prope
 
 // Canvas configuration
 const showKeyboardShortcuts = ref(false);
+const canvasBoundary = ref({ from: { x: 0, y: 0 }, to: { x: 1000, y: 600 } });
 const canvasWidth = ref(1000);
 const canvasHeight = ref(600);
 const canvasBackground = ref('#1a1a1a');
@@ -707,11 +707,25 @@ function createNew() {
       hasChanges.value = false;
       currentFaceplateId.value = null;
       currentFaceplateName.value = '';
+      
+      // Reset canvas boundary to defaults
+      canvasBoundary.value = { from: { x: 0, y: 0 }, to: { x: 1000, y: 600 } };
+      canvasWidth.value = 1000;
+      canvasHeight.value = 600;
+      canvasBackground.value = '#1a1a1a';
+      
       history.value = [];
       historyIndex.value = -1;
       saveHistory();
-      // Force canvas re-render
+      // Force canvas re-render with reset boundary
       nextTick(() => {
+        const editor = canvasEditor.value as any;
+        if (editor?.updateBoundary) {
+          editor.updateBoundary(canvasBoundary.value.from, canvasBoundary.value.to);
+        }
+        if (editor?.updateBackground) {
+          editor.updateBackground(canvasBackground.value);
+        }
         canvasEditor.value?.renderModel();
       });
     };
@@ -722,11 +736,25 @@ function createNew() {
     hasChanges.value = false;
     currentFaceplateId.value = null;
     currentFaceplateName.value = '';
+    
+    // Reset canvas boundary to defaults
+    canvasBoundary.value = { from: { x: 0, y: 0 }, to: { x: 1000, y: 600 } };
+    canvasWidth.value = 1000;
+    canvasHeight.value = 600;
+    canvasBackground.value = '#1a1a1a';
+    
     history.value = [];
     historyIndex.value = -1;
     saveHistory();
-    // Force canvas re-render
+    // Force canvas re-render with reset boundary
     nextTick(() => {
+      const editor = canvasEditor.value as any;
+      if (editor?.updateBoundary) {
+        editor.updateBoundary(canvasBoundary.value.from, canvasBoundary.value.to);
+      }
+      if (editor?.updateBackground) {
+        editor.updateBackground(canvasBackground.value);
+      }
       canvasEditor.value?.renderModel();
     });
   }
@@ -806,13 +834,34 @@ async function onLoadFaceplate(config: FaceplateConfig, entityId: EntityId, name
       currentFaceplateDescription.value = '';
     }
     
+    // Restore canvas boundary from config
+    if (config.model.boundary) {
+      const boundary = config.model.boundary;
+      canvasBoundary.value = {
+        from: { x: boundary.from.x, y: boundary.from.y },
+        to: { x: boundary.to.x, y: boundary.to.y }
+      };
+      canvasWidth.value = boundary.to.x - boundary.from.x;
+      canvasHeight.value = boundary.to.y - boundary.from.y;
+      canvasBackground.value = config.model.canvasBackground || '#1a1a1a';
+    }
+    
     // Clear and initialize history
     history.value = [];
     historyIndex.value = -1;
     saveHistory();
     
-    // Force canvas re-render
+    // Force canvas re-render with restored boundary
     nextTick(() => {
+      if (canvasEditor.value && config.model.boundary) {
+        const editor = canvasEditor.value as any;
+        if (editor.updateBoundary) {
+          editor.updateBoundary(canvasBoundary.value.from, canvasBoundary.value.to);
+        }
+        if (editor.updateBackground) {
+          editor.updateBackground(canvasBackground.value);
+        }
+      }
       canvasEditor.value?.renderModel();
     });
   } catch (error) {
@@ -1208,7 +1257,31 @@ function updateCanvasSize() {
   if (canvasEditor.value) {
     const editor = canvasEditor.value as any;
     if (editor.updateBoundary) {
-      editor.updateBoundary({ x: 0, y: 0 }, { x: canvasWidth.value, y: canvasHeight.value });
+      // Calculate current dimensions
+      const currentWidth = canvasBoundary.value.to.x - canvasBoundary.value.from.x;
+      const currentHeight = canvasBoundary.value.to.y - canvasBoundary.value.from.y;
+      
+      // Calculate deltas
+      const deltaWidth = canvasWidth.value - currentWidth;
+      const deltaHeight = canvasHeight.value - currentHeight;
+      
+      // Adjust boundary maintaining center position
+      const newBoundary = {
+        from: {
+          x: canvasBoundary.value.from.x - deltaWidth / 2,
+          y: canvasBoundary.value.from.y - deltaHeight / 2
+        },
+        to: {
+          x: canvasBoundary.value.to.x + deltaWidth / 2,
+          y: canvasBoundary.value.to.y + deltaHeight / 2
+        }
+      };
+      
+      // Update stored boundary
+      canvasBoundary.value = newBoundary;
+      
+      // Apply to canvas
+      editor.updateBoundary(newBoundary.from, newBoundary.to);
     }
   }
   hasChanges.value = true;
@@ -1367,9 +1440,10 @@ function modelToConfig(model: Model): FaceplateModelConfig {
   return {
     type: 'Model',
     boundary: {
-      from: { x: 0, y: 0 },
-      to: { x: 1000, y: 600 }
+      from: { x: canvasBoundary.value.from.x, y: canvasBoundary.value.from.y },
+      to: { x: canvasBoundary.value.to.x, y: canvasBoundary.value.to.y }
     },
+    canvasBackground: canvasBackground.value,
     shapes: shapes.map(shapeToConfig)
   };
 }

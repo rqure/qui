@@ -33,18 +33,20 @@ import type { Point } from '@/core/canvas/types';
 import { Polygon, Circle } from '@/core/canvas/shapes';
 import L from 'leaflet';
 
+type Boundary = { from: Point; to: Point };
+
 const props = withDefaults(defineProps<{
-  model: any; // Model instance with methods
+  model: any;
   selectedShapeIndex: number | null;
-  showGrid: boolean;
-  snapToGrid: boolean;
-  canvasWidth?: number;
-  canvasHeight?: number;
+  showGrid?: boolean;
+  snapToGrid?: boolean;
+  canvasBoundary?: { from: { x: number; y: number }; to: { x: number; y: number } };
   canvasBackground?: string;
   updateTrigger?: number;
 }>(), {
-  canvasWidth: 1000,
-  canvasHeight: 600,
+  showGrid: true,
+  snapToGrid: false,
+  canvasBoundary: () => ({ from: { x: 0, y: 0 }, to: { x: 1000, y: 600 } }),
   canvasBackground: '#1a1a1a',
   updateTrigger: 0
 });
@@ -65,6 +67,14 @@ const canvas = ref<Canvas | null>(null);
 const containerSize = ref({ width: 1000, height: 600 });
 const canvasId = `canvas-editor-${Math.random().toString(36).substr(2, 9)}`;
 const selectionModel = ref<Model | null>(null);
+const viewerOverlayPaneId = 'viewer-viewport-overlay';
+let viewerViewportLayer: L.Rectangle | null = null;
+let viewerViewportSize = { width: 0, height: 0 };
+const defaultBoundary = { from: { x: 0, y: 0 }, to: { x: 1000, y: 600 } };
+let currentBoundary: Boundary = {
+  from: { x: props.canvasBoundary?.from?.x ?? 0, y: props.canvasBoundary?.from?.y ?? 0 },
+  to: { x: props.canvasBoundary?.to?.x ?? 1000, y: props.canvasBoundary?.to?.y ?? 600 }
+};
 
 // Grid
 const gridSize = 20;
@@ -207,8 +217,16 @@ function initCanvas() {
   
   canvas.value = new Canvas(canvasId, { canvasBackground: props.canvasBackground });
   
-  // Set up canvas
-  canvas.value.setBoundary({ x: 0, y: 0 }, { x: props.canvasWidth, y: props.canvasHeight });
+  // Set canvas boundary from props
+  const boundary = props.canvasBoundary ?? defaultBoundary;
+  canvas.value.setBoundary(boundary.from, boundary.to);
+  currentBoundary = {
+    from: { x: boundary.from.x, y: boundary.from.y },
+    to: { x: boundary.to.x, y: boundary.to.y }
+  };
+  
+  recordViewerViewportSize(true);
+  refreshViewerViewportOverlay();
   canvas.value.setBackgroundColor(props.canvasBackground);
   
   // Create selection model
@@ -217,6 +235,13 @@ function initCanvas() {
   // Ensure we emit the initial zoom level after the canvas is ready
   const leafletMap = (canvas.value as any).map;
   if (leafletMap) {
+    // Invalidate size after setting dimensions
+    nextTick(() => {
+      if (leafletMap) {
+        leafletMap.invalidateSize();
+      }
+    });
+    
     emit('zoom-change', leafletMap.getZoom());
     
     leafletMap.on('click', (e: L.LeafletMouseEvent) => {
@@ -239,6 +264,8 @@ function initCanvas() {
 // Destroy canvas
 function destroyCanvas() {
   pendingShapeDrag.value = null;
+  clearViewerViewportOverlay();
+  viewerViewportSize = { width: 0, height: 0 };
 
   if (canvas.value) {
     canvas.value.destroy();
@@ -1007,6 +1034,8 @@ function handleResize() {
     const leafletMap = (canvas.value as any).map;
     if (leafletMap) {
       leafletMap.invalidateSize();
+      recordViewerViewportSize(true);
+      refreshViewerViewportOverlay();
     }
   }
 }
@@ -1038,18 +1067,84 @@ function handleCanvasMouseMove(e: L.LeafletMouseEvent) {
 }
 
 function updateContainerSize() {
+  // Update containerSize ref from actual DOM dimensions
   if (containerRef.value) {
-    containerSize.value = {
-      width: containerRef.value.clientWidth,
-      height: containerRef.value.clientHeight
-    };
+    const rect = containerRef.value.getBoundingClientRect();
+    containerSize.value = { width: rect.width, height: rect.height };
+  }
+}
+
+function refreshViewerViewportOverlay() {
+  if (!canvas.value) return;
+
+  const leafletMap = (canvas.value as any).map;
+  if (!leafletMap) return;
+
+  // Calculate boundary dimensions (width/height from currentBoundary)
+  const width = Math.max(currentBoundary.to.x - currentBoundary.from.x, 0);
+  const height = Math.max(currentBoundary.to.y - currentBoundary.from.y, 0);
+
+  if (width === 0 || height === 0) {
+    clearViewerViewportOverlay();
+    return;
+  }
+
+  // Calculate boundary center
+  const centerX = (currentBoundary.from.x + currentBoundary.to.x) / 2;
+  const centerY = (currentBoundary.from.y + currentBoundary.to.y) / 2;
+  
+  // Use boundary dimensions (not viewport size) for the overlay rectangle
+  const halfBoundaryWidth = width / 2;
+  const halfBoundaryHeight = height / 2;
+
+  const bounds = L.latLngBounds(
+    [centerY - halfBoundaryHeight, centerX - halfBoundaryWidth],
+    [centerY + halfBoundaryHeight, centerX + halfBoundaryWidth]
+  );
+
+  if (viewerViewportLayer) {
+    viewerViewportLayer.setBounds(bounds);
+    return;
+  }
+
+  canvas.value.getOrCreatePane(viewerOverlayPaneId, 650);
+
+  viewerViewportLayer = L.rectangle(bounds, {
+    color: '#00ffaa',
+    weight: 2,
+    dashArray: '8 6',
+    fillColor: 'rgba(0, 255, 170, 0.12)',
+    fillOpacity: 0.12,
+    interactive: false,
+    pane: viewerOverlayPaneId
+  });
+
+  viewerViewportLayer.addTo(canvas.value.getMap());
+}
+
+function clearViewerViewportOverlay() {
+  if (viewerViewportLayer) {
+    viewerViewportLayer.remove();
+    viewerViewportLayer = null;
   }
 }
 
 // Canvas config update methods
 function updateBoundary(from: { x: number; y: number }, to: { x: number; y: number }) {
   if (canvas.value) {
+    const leafletMap = (canvas.value as any).map;
+    const previousCenter = leafletMap ? leafletMap.getCenter() : null;
     canvas.value.setBoundary(from, to);
+    currentBoundary = {
+      from: { x: from.x, y: from.y },
+      to: { x: to.x, y: to.y }
+    };
+    
+    recordViewerViewportSize();
+    if (leafletMap && previousCenter) {
+      leafletMap.setView([previousCenter.lat, previousCenter.lng], leafletMap.getZoom(), { animate: false });
+    }
+    refreshViewerViewportOverlay();
     renderModel();
   }
 }
@@ -1072,6 +1167,22 @@ defineExpose({
   updateBackground,
   renderModel
 });
+
+function recordViewerViewportSize(force: boolean = false) {
+  if (!canvas.value) return;
+  const leafletMap = (canvas.value as any).map;
+  if (!leafletMap) return;
+
+  if (!force && viewerViewportSize.width > 0 && viewerViewportSize.height > 0) {
+    return;
+  }
+
+  const bounds = leafletMap.getBounds();
+  viewerViewportSize = {
+    width: bounds.getEast() - bounds.getWest(),
+    height: bounds.getNorth() - bounds.getSouth()
+  };
+}
 </script>
 
 <style scoped>
