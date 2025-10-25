@@ -8,6 +8,20 @@ import { useEntityDrag } from '@/core/utils/composables';
 import { useWindowStore } from '@/stores/windows';
 import type { MenuItem } from '@/core/menu/types';
 
+const MIN_CANVAS_ZOOM = 1;
+const MAX_CANVAS_ZOOM = 18;
+const DEFAULT_BOUNDARY_WIDTH = 150;
+const DEFAULT_BOUNDARY_HEIGHT = 100;
+const DEFAULT_ZOOM = 2;
+
+function clampZoom(value: unknown, fallback: number = DEFAULT_ZOOM): number {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return fallback;
+  }
+  return Math.min(MAX_CANVAS_ZOOM, Math.max(MIN_CANVAS_ZOOM, numeric));
+}
+
 // Define EntityItem interface
 interface EntityItem {
   id: EntityId;
@@ -158,9 +172,9 @@ function openEntityInWindow(entityId: EntityId, entityName: string) {
 
 async function openFaceplateWindow(entity: EntityItem, faceplate: EntityFaceplateRef) {
   // Try to load faceplate dimensions
-  const targetZoom = 2;
-  let width = 1000;
-  let height = 600;
+  let targetZoom = DEFAULT_ZOOM;
+  let width = DEFAULT_BOUNDARY_WIDTH * Math.pow(2, targetZoom);
+  let height = DEFAULT_BOUNDARY_HEIGHT * Math.pow(2, targetZoom);
   
   try {
     const configFieldType = await dataStore.getFieldType('Configuration');
@@ -168,6 +182,9 @@ async function openFaceplateWindow(entity: EntityItem, faceplate: EntityFaceplat
     
     if (configValue && typeof configValue === 'object' && 'String' in configValue) {
       const config = JSON.parse(configValue.String);
+      targetZoom = clampZoom(config.model?.zoom, DEFAULT_ZOOM);
+      const scale = Math.pow(2, targetZoom);
+
       if (config.model?.boundary) {
         const { from, to } = config.model.boundary;
         const fromLatLng = L.latLng(Number(from?.y) || 0, Number(from?.x) || 0);
@@ -179,10 +196,17 @@ async function openFaceplateWindow(entity: EntityItem, faceplate: EntityFaceplat
 
         if (boundaryWidth > 0) {
           width = boundaryWidth;
+        } else {
+          width = DEFAULT_BOUNDARY_WIDTH * scale;
         }
         if (boundaryHeight > 0) {
           height = boundaryHeight;
+        } else {
+          height = DEFAULT_BOUNDARY_HEIGHT * scale;
         }
+      } else {
+        width = DEFAULT_BOUNDARY_WIDTH * scale;
+        height = DEFAULT_BOUNDARY_HEIGHT * scale;
       }
     }
   } catch (err) {

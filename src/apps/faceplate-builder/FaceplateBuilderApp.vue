@@ -95,6 +95,17 @@
               <label>H:</label>
               <input type="number" v-model.number="canvasHeight" @change="updateCanvasSize" min="100" max="4000" step="50" />
             </div>
+            <div class="config-item">
+              <label>Zoom:</label>
+              <input
+                type="number"
+                v-model.number="canvasZoom"
+                @change="updateCanvasZoom"
+                :min="MIN_CANVAS_ZOOM"
+                :max="MAX_CANVAS_ZOOM"
+                step="1"
+              />
+            </div>
             <div class="config-item config-item-color">
               <label>BG:</label>
               <input type="color" v-model="canvasBackground" @change="updateCanvasBackground" />
@@ -225,6 +236,7 @@
           :snap-to-grid="snapToGrid"
           :canvas-boundary="canvasBoundary"
           :canvas-background="canvasBackground"
+          :canvas-zoom="canvasZoom"
           :update-trigger="shapeUpdateTrigger"
           @shape-select="onShapeSelect"
           @shape-update="onShapeUpdate"
@@ -353,6 +365,27 @@ import { ValueHelpers } from '@/core/data/types';
 const props = defineProps<{
   windowId?: string
 }>()
+
+const MIN_CANVAS_ZOOM = 1;
+const MAX_CANVAS_ZOOM = 18;
+const DEFAULT_CANVAS_WIDTH = 150;
+const DEFAULT_CANVAS_HEIGHT = 100;
+const DEFAULT_CANVAS_ZOOM = 2;
+
+function createDefaultBoundary() {
+  return {
+    from: { x: 0, y: 0 },
+    to: { x: DEFAULT_CANVAS_WIDTH, y: DEFAULT_CANVAS_HEIGHT }
+  };
+}
+
+function clampCanvasZoom(value: number): number {
+  if (!Number.isFinite(value)) {
+    return DEFAULT_CANVAS_ZOOM;
+  }
+  return Math.min(MAX_CANVAS_ZOOM, Math.max(MIN_CANVAS_ZOOM, value));
+}
+
 const currentModel = ref<Model>(new Model());
 const selectedShapeIndex = ref<number | null>(null);
 const hasChanges = ref(false);
@@ -375,7 +408,7 @@ const maxHistorySize = 50;
 // Status bar state
 const mouseX = ref(0);
 const mouseY = ref(0);
-const currentZoom = ref(0);
+const currentZoom = ref(DEFAULT_CANVAS_ZOOM);
 
 // Current faceplate state
 const currentFaceplateId = ref<EntityId | null>(null);
@@ -395,9 +428,10 @@ const rightSidebarTab = ref<'properties' | 'callbacks' | 'notifications'>('prope
 
 // Canvas configuration
 const showKeyboardShortcuts = ref(false);
-const canvasBoundary = ref({ from: { x: 0, y: 0 }, to: { x: 1000, y: 600 } });
-const canvasWidth = ref(1000);
-const canvasHeight = ref(600);
+const canvasBoundary = ref(createDefaultBoundary());
+const canvasWidth = ref(DEFAULT_CANVAS_WIDTH);
+const canvasHeight = ref(DEFAULT_CANVAS_HEIGHT);
+const canvasZoom = ref(DEFAULT_CANVAS_ZOOM);
 const canvasBackground = ref('#1a1a1a');
 
 // Toast notifications
@@ -464,9 +498,32 @@ function canRedo(): boolean {
 function restoreHistoryEntry(entry: HistoryEntry) {
   currentModel.value = configToModel(entry.modelConfig);
   selectedShapeIndex.value = entry.selectedIndex;
+
+  const boundary = entry.modelConfig.boundary ?? createDefaultBoundary();
+  canvasBoundary.value = {
+    from: { x: boundary.from.x, y: boundary.from.y },
+    to: { x: boundary.to.x, y: boundary.to.y }
+  };
+  canvasWidth.value = boundary.to.x - boundary.from.x;
+  canvasHeight.value = boundary.to.y - boundary.from.y;
+  canvasBackground.value = entry.modelConfig.canvasBackground || '#1a1a1a';
+
+  const zoomLevel = clampCanvasZoom(entry.modelConfig.zoom ?? DEFAULT_CANVAS_ZOOM);
+  canvasZoom.value = zoomLevel;
+  currentZoom.value = zoomLevel;
   
   // Force canvas re-render
   nextTick(() => {
+    const editor = canvasEditor.value as any;
+    if (editor?.updateBoundary) {
+      editor.updateBoundary(canvasBoundary.value.from, canvasBoundary.value.to);
+    }
+    if (editor?.updateBackground) {
+      editor.updateBackground(canvasBackground.value);
+    }
+    if (editor?.setZoomLevel) {
+      editor.setZoomLevel(canvasZoom.value, { animate: false, recenter: true });
+    }
     canvasEditor.value?.renderModel();
   });
 }
@@ -661,10 +718,10 @@ async function updateFaceplateDescription(newDescription: string) {
 const faceplateConfig = ref<FaceplateConfig>({
   model: {
     type: 'Model',
-    boundary: {
-      from: { x: 0, y: 0 },
-      to: { x: 1000, y: 600 }
-    },
+    boundary: createDefaultBoundary(),
+    zoom: DEFAULT_CANVAS_ZOOM,
+    minZoom: DEFAULT_CANVAS_ZOOM,
+    maxZoom: DEFAULT_CANVAS_ZOOM,
     shapes: []
   }
 });
@@ -709,9 +766,11 @@ function createNew() {
       currentFaceplateName.value = '';
       
       // Reset canvas boundary to defaults
-      canvasBoundary.value = { from: { x: 0, y: 0 }, to: { x: 1000, y: 600 } };
-      canvasWidth.value = 1000;
-      canvasHeight.value = 600;
+      canvasBoundary.value = createDefaultBoundary();
+      canvasWidth.value = DEFAULT_CANVAS_WIDTH;
+      canvasHeight.value = DEFAULT_CANVAS_HEIGHT;
+      canvasZoom.value = DEFAULT_CANVAS_ZOOM;
+      currentZoom.value = DEFAULT_CANVAS_ZOOM;
       canvasBackground.value = '#1a1a1a';
       
       history.value = [];
@@ -726,6 +785,9 @@ function createNew() {
         if (editor?.updateBackground) {
           editor.updateBackground(canvasBackground.value);
         }
+        if (editor?.setZoomLevel) {
+          editor.setZoomLevel(canvasZoom.value, { animate: false, recenter: true });
+        }
         canvasEditor.value?.renderModel();
       });
     };
@@ -738,9 +800,11 @@ function createNew() {
     currentFaceplateName.value = '';
     
     // Reset canvas boundary to defaults
-    canvasBoundary.value = { from: { x: 0, y: 0 }, to: { x: 1000, y: 600 } };
-    canvasWidth.value = 1000;
-    canvasHeight.value = 600;
+    canvasBoundary.value = createDefaultBoundary();
+    canvasWidth.value = DEFAULT_CANVAS_WIDTH;
+    canvasHeight.value = DEFAULT_CANVAS_HEIGHT;
+    canvasZoom.value = DEFAULT_CANVAS_ZOOM;
+    currentZoom.value = DEFAULT_CANVAS_ZOOM;
     canvasBackground.value = '#1a1a1a';
     
     history.value = [];
@@ -754,6 +818,9 @@ function createNew() {
       }
       if (editor?.updateBackground) {
         editor.updateBackground(canvasBackground.value);
+      }
+      if (editor?.setZoomLevel) {
+        editor.setZoomLevel(canvasZoom.value, { animate: false, recenter: true });
       }
       canvasEditor.value?.renderModel();
     });
@@ -845,6 +912,10 @@ async function onLoadFaceplate(config: FaceplateConfig, entityId: EntityId, name
       canvasHeight.value = boundary.to.y - boundary.from.y;
       canvasBackground.value = config.model.canvasBackground || '#1a1a1a';
     }
+
+    const zoomLevel = clampCanvasZoom(config.model.zoom ?? DEFAULT_CANVAS_ZOOM);
+    canvasZoom.value = zoomLevel;
+    currentZoom.value = zoomLevel;
     
     // Clear and initialize history
     history.value = [];
@@ -860,6 +931,9 @@ async function onLoadFaceplate(config: FaceplateConfig, entityId: EntityId, name
         }
         if (editor.updateBackground) {
           editor.updateBackground(canvasBackground.value);
+        }
+        if (editor.setZoomLevel) {
+          editor.setZoomLevel(canvasZoom.value, { animate: false, recenter: true });
         }
       }
       canvasEditor.value?.renderModel();
@@ -1297,6 +1371,23 @@ function updateCanvasBackground() {
   hasChanges.value = true;
 }
 
+function updateCanvasZoom() {
+  const clamped = clampCanvasZoom(canvasZoom.value);
+  if (canvasZoom.value !== clamped) {
+    canvasZoom.value = clamped;
+  }
+
+  if (canvasEditor.value) {
+    const editor = canvasEditor.value as any;
+    if (editor?.setZoomLevel) {
+      editor.setZoomLevel(canvasZoom.value, { animate: false, recenter: true });
+    }
+  }
+
+  currentZoom.value = canvasZoom.value;
+  hasChanges.value = true;
+}
+
 // Helper functions
 function generateUniqueId(): string {
   return 'shape_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
@@ -1437,6 +1528,7 @@ function applyPropertyToShape(shape: Drawable, property: string, value: any) {
 
 function modelToConfig(model: Model): FaceplateModelConfig {
   const shapes = model.getShapes();
+  const zoomLevel = clampCanvasZoom(canvasZoom.value);
   return {
     type: 'Model',
     boundary: {
@@ -1444,6 +1536,9 @@ function modelToConfig(model: Model): FaceplateModelConfig {
       to: { x: canvasBoundary.value.to.x, y: canvasBoundary.value.to.y }
     },
     canvasBackground: canvasBackground.value,
+    zoom: zoomLevel,
+    minZoom: zoomLevel,
+    maxZoom: zoomLevel,
     shapes: shapes.map(shapeToConfig)
   };
 }

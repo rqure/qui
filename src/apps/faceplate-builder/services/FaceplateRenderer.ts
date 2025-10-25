@@ -19,6 +19,17 @@ import type { FaceplateConfig, FaceplateShapeConfig, FaceplateRendererOptions } 
 import { FaceplateContext } from './FaceplateContext';
 import { CallbackManager } from './CallbackManager';
 
+const MIN_CANVAS_ZOOM = 1;
+const MAX_CANVAS_ZOOM = 18;
+
+function clampZoom(value: number | undefined, fallback: number = 2): number {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return fallback;
+  }
+  return Math.min(MAX_CANVAS_ZOOM, Math.max(MIN_CANVAS_ZOOM, numeric));
+}
+
 export class FaceplateRenderer {
   private containerId: string;
   private dataStore: any;
@@ -155,7 +166,7 @@ export class FaceplateRenderer {
    * Create canvas from configuration
    */
   private createCanvas(config: FaceplateConfig): Canvas {
-    const targetZoom = 2;
+    const targetZoom = clampZoom(config.model.zoom, 2);
     const canvas = new Canvas(this.containerId, {
       canvasBackground: config.model.canvasBackground ?? '#1a1a1a'
     });

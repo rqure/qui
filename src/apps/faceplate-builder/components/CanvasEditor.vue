@@ -42,12 +42,14 @@ const props = withDefaults(defineProps<{
   snapToGrid?: boolean;
   canvasBoundary?: { from: { x: number; y: number }; to: { x: number; y: number } };
   canvasBackground?: string;
+  canvasZoom?: number;
   updateTrigger?: number;
 }>(), {
   showGrid: true,
   snapToGrid: false,
-  canvasBoundary: () => ({ from: { x: 0, y: 0 }, to: { x: 1000, y: 600 } }),
+  canvasBoundary: () => ({ from: { x: 0, y: 0 }, to: { x: 150, y: 100 } }),
   canvasBackground: '#1a1a1a',
+  canvasZoom: 2,
   updateTrigger: 0
 });
 
@@ -60,6 +62,16 @@ const emit = defineEmits<{
   (e: 'mouse-move', x: number, y: number): void;
 }>();
 
+const MIN_CANVAS_ZOOM = 1;
+const MAX_CANVAS_ZOOM = 18;
+
+function clampZoom(value: number): number {
+  if (!Number.isFinite(value)) {
+    return props.canvasZoom ?? 2;
+  }
+  return Math.min(MAX_CANVAS_ZOOM, Math.max(MIN_CANVAS_ZOOM, value));
+}
+
 // Refs
 const containerRef = ref<HTMLElement | null>(null);
 const canvasRef = ref<HTMLElement | null>(null);
@@ -70,10 +82,10 @@ const selectionModel = ref<Model | null>(null);
 const viewerOverlayPaneId = 'viewer-viewport-overlay';
 let viewerViewportLayer: L.Rectangle | null = null;
 let viewerViewportSize = { width: 0, height: 0 };
-const defaultBoundary = { from: { x: 0, y: 0 }, to: { x: 1000, y: 600 } };
+const defaultBoundary = { from: { x: 0, y: 0 }, to: { x: 150, y: 100 } };
 let currentBoundary: Boundary = {
   from: { x: props.canvasBoundary?.from?.x ?? 0, y: props.canvasBoundary?.from?.y ?? 0 },
-  to: { x: props.canvasBoundary?.to?.x ?? 1000, y: props.canvasBoundary?.to?.y ?? 600 }
+  to: { x: props.canvasBoundary?.to?.x ?? 150, y: props.canvasBoundary?.to?.y ?? 100 }
 };
 
 // Grid
@@ -98,6 +110,40 @@ function getScaledOffset(distance: number): number {
   if (!canvas.value) return distance;
   const zoom = canvas.value.getZoom();
   return distance / Math.pow(2, zoom);
+}
+
+function getBoundaryCenter(): { x: number; y: number } | null {
+  if (!currentBoundary) {
+    return null;
+  }
+  return {
+    x: (currentBoundary.from.x + currentBoundary.to.x) / 2,
+    y: (currentBoundary.from.y + currentBoundary.to.y) / 2
+  };
+}
+
+function applyZoomLevel(zoom: number, options: { animate?: boolean; recenter?: boolean } = {}): void {
+  if (!canvas.value) return;
+  const leafletMap = (canvas.value as any).map as L.Map | undefined;
+  if (!leafletMap) return;
+
+  const clamped = clampZoom(zoom);
+  const animate = options.animate ?? false;
+  const recenter = options.recenter ?? false;
+
+  if (recenter) {
+    const center = getBoundaryCenter();
+    if (center) {
+      leafletMap.setView([center.y, center.x], clamped, { animate });
+    } else {
+      leafletMap.setZoom(clamped, { animate });
+    }
+  } else {
+    leafletMap.setZoom(clamped, { animate });
+  }
+
+  recordViewerViewportSize(true);
+  refreshViewerViewportOverlay();
 }
 
 // Selection
@@ -141,6 +187,12 @@ watch(() => props.model, () => {
   // Destroy and recreate canvas to ensure complete cleanup
   destroyCanvas();
   initCanvas();
+});
+
+watch(() => props.canvasZoom, (newZoom) => {
+  if (newZoom !== undefined) {
+    applyZoomLevel(newZoom, { animate: false, recenter: true });
+  }
 });
 
 watch(() => props.selectedShapeIndex, () => {
@@ -216,6 +268,8 @@ function initCanvas() {
   canvasRef.value.id = canvasId;
   
   canvas.value = new Canvas(canvasId, { canvasBackground: props.canvasBackground });
+  canvas.value.setMinZoom(MIN_CANVAS_ZOOM);
+  canvas.value.setMaxZoom(MAX_CANVAS_ZOOM);
   
   // Set canvas boundary from props
   const boundary = props.canvasBoundary ?? defaultBoundary;
@@ -258,6 +312,8 @@ function initCanvas() {
     leafletMap.dragging.disable();
   }
   
+  applyZoomLevel(props.canvasZoom ?? 2, { animate: false, recenter: true });
+
   renderModel();
 }
 
@@ -978,13 +1034,7 @@ function zoomOut() {
 }
 
 function resetZoom() {
-  if (canvas.value) {
-    const leafletMap = (canvas.value as any).map;
-    if (leafletMap) {
-      leafletMap.setZoom(2);
-      leafletMap.setView([300, 500], 2);
-    }
-  }
+  applyZoomLevel(props.canvasZoom ?? 2, { animate: false, recenter: true });
 }
 
 function fitBounds(bounds: { minX: number; minY: number; maxX: number; maxY: number }) {
@@ -1025,6 +1075,10 @@ function focusOnShape(index: number, options: { zoom?: number; duration?: number
     duration: options.duration ?? 0.45,
     easeLinearity: 0.25
   });
+}
+
+function setZoomLevel(zoom: number, options: { animate?: boolean; recenter?: boolean } = {}) {
+  applyZoomLevel(zoom, options);
 }
 
 // Handle resize
@@ -1161,6 +1215,7 @@ defineExpose({
   zoomIn,
   zoomOut,
   resetZoom,
+  setZoomLevel,
   fitBounds,
   focusOnShape,
   updateBoundary,

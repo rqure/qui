@@ -98,6 +98,7 @@ export interface ModelConfig {
   };
   minZoom?: number;
   maxZoom?: number;
+  zoom?: number;
 }
 
 /**
